@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 
 // The registration screen widget.
 class RegisterScreen extends StatefulWidget {
@@ -11,7 +13,9 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -28,7 +32,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     // Clean up the controllers when the widget is disposed.
+    _fullNameController.dispose();
     _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -131,6 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 8),
                           _buildBlurredTextField(
+                            controller: _fullNameController,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your full name';
@@ -168,6 +175,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           const SizedBox(height: 8),
                           _buildBlurredTextField(
+                            controller: _emailController,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your email';
@@ -239,10 +247,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                             child: TextButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 if (_formKey.currentState!.validate()) {
-                                  // Logic for registration goes here.
-                                  Navigator.pushReplacementNamed(context, '/sign_in');
+                                  try {
+                                    UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                                      email: _emailController.text,
+                                      password: _passwordController.text,
+                                    );
+                                    // Store additional user data in Firestore
+                                    await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
+                                      'uid': userCredential.user!.uid,
+                                      'email': _emailController.text,
+                                      'username': _usernameController.text,
+                                      'fullName': _fullNameController.text, // Use the new _fullNameController
+                                      'createdAt': Timestamp.now(),
+                                      'role': 'employee', // Default role
+                                    });
+
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Registration Successful!')),
+                                    );
+                                    if (!mounted) return;
+                                    Navigator.pushReplacementNamed(context, '/sign_in');
+                                  } on FirebaseAuthException catch (e) {
+                                    String message;
+                                    if (e.code == 'weak-password') {
+                                      message = 'The password provided is too weak.';
+                                    } else if (e.code == 'email-already-in-use') {
+                                      message = 'The account already exists for that email.';
+                                    } else {
+                                      message = e.message ?? 'An unknown error occurred.';
+                                    }
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(message)),
+                                    );
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                                    );
+                                  }
                                 }
                               },
                               child: const Text(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -185,19 +186,32 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             child: TextButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 if (_formKey.currentState!.validate()) {
-                                  // Placeholder for sign-in logic
-                                  // In a real app, you'd send credentials to a backend for authentication
-                                  final email = _emailController.text;
-                                  final password = _passwordController.text;
-
-                                  // Simple placeholder validation
-                                  if (email == "test@example.com" && password == "password") { // Example credentials
+                                  try {
+                                    await FirebaseAuth.instance.signInWithEmailAndPassword(
+                                      email: _emailController.text,
+                                      password: _passwordController.text,
+                                    );
+                                    if (!mounted) return;
                                     Navigator.pushReplacementNamed(context, '/dashboard');
-                                  } else {
+                                  } on FirebaseAuthException catch (e) {
+                                    String message;
+                                    if (e.code == 'user-not-found') {
+                                      message = 'No user found for that email.';
+                                    } else if (e.code == 'wrong-password') {
+                                      message = 'Wrong password provided for that user.';
+                                    } else {
+                                      message = e.message ?? 'An unknown error occurred.';
+                                    }
+                                    if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Invalid email or password')),
+                                      SnackBar(content: Text(message)),
+                                    );
+                                  } catch (e) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
                                   }
                                 }

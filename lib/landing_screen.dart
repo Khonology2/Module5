@@ -100,8 +100,8 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                     center: Alignment.center,
                     radius: 1.2,
                     colors: [
-                      Color(0x660A0F1F), // Subtle semi-transparent overlay
-                      Color(0x66040610), // Subtle semi-transparent overlay
+                      Color(0x880A0F1F), // Subtle semi-transparent overlay
+                      Color(0x88040610), // Subtle semi-transparent overlay
                     ],
                     stops: [0.0, 1.0],
                   ),

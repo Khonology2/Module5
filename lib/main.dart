@@ -17,6 +17,7 @@ import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized
@@ -30,8 +31,30 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String _initialRoute = '/';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkCurrentUser();
+  }
+
+  Future<void> _checkCurrentUser() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _initialRoute = '/dashboard';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +65,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         fontFamily: 'Inter',
       ),
-      initialRoute: '/',
+      initialRoute: _initialRoute,
       routes: {
         '/': (context) => const PersonalDevelopmentHubScreen(),
         '/register': (context) => const RegisterScreen(),
