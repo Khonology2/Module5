@@ -11,6 +11,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -27,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     // Clean up the controllers when the widget is disposed.
+    _usernameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -126,7 +128,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _buildBlurredTextField(),
+                        _buildBlurredTextField(
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your full name';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        // Username
+                        const Text(
+                          'Username',
+                          style: TextStyle(
+                            color: Color(0xFFC7E3FF),
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildBlurredTextField(
+                          controller: _usernameController,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a username';
+                            }
+                            return null;
+                          },
+                        ),
                         const SizedBox(height: 20),
                         // Email Address
                         const Text(
@@ -137,7 +165,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _buildBlurredTextField(),
+                        _buildBlurredTextField(
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your email';
+                            }
+                            if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+                              return 'Please enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
                         const SizedBox(height: 20),
                         // Password
                         const Text(
@@ -202,6 +240,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onPressed: () {
                               if (_formKey.currentState!.validate()) {
                                 // Logic for registration goes here.
+                                Navigator.pushReplacementNamed(context, '/sign_in');
                               }
                             },
                             child: const Text(
