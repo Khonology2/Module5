@@ -66,3 +66,7 @@ flutter run
 ### Sign In Screen
 
 ![Sign In Screen](Screenshot_20250910_052207.png)
+
+### Dashboard with Drawer
+
+![Dashboard with Drawer](Screenshot_20250910_201355.png)
