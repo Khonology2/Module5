@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
+import 'package:pdh/register.dart';
 
 // The main entry point for the Flutter application.
 void main() {
@@ -170,7 +171,9 @@ class LoginScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 5),
                         TextButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen()));
+                          },
                           child: const Text(
                             'Register Now?',
                             style: TextStyle(
