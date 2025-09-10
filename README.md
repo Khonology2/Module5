@@ -56,3 +56,13 @@ To run the app on an attached device or emulator:
 ```bash
 flutter run
 ```
+
+## Screenshots
+
+### Landing Screen
+
+![Landing Screen](Screenshot_20250910_052119.png)
+
+### Sign In Screen
+
+![Sign In Screen](Screenshot_20250910_052207.png)
