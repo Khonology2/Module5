@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
-    // id("com.google.gms.google-services") // Removed to avoid version conflict
+    id("com.google.gms.google-services")
     // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -47,11 +47,10 @@ flutter {
 }
 
 dependencies {
-  // Import the Firebase BoM
-  implementation(platform("com.google.firebase:firebase-bom:34.2.0"))
-
-  // TODO: Add the dependencies for Firebase products you want to use
-  // When using the BoM, don't specify versions in Firebase dependencies
-  // https://firebase.google.com/docs/android/setup#available-libraries
-  implementation("com.google.firebase:firebase-auth")
+    implementation(platform("com.google.firebase:firebase-bom:34.2.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.android.gms:play-services-auth:21.4.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("androidx.core:core-ktx:1.13.1")
 }
