@@ -4,28 +4,28 @@ import 'dart:async'; // For Timer
 import 'dart:ui'; // For ImageFilter
 
 // The main entry point for the Flutter application.
-void main() {
-  runApp(const MyApp());
-}
+// void main() {
+//   runApp(const MyApp());
+// }
 
 // A StatelessWidget that sets up the MaterialApp.
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Personal Development Hub',
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
-        fontFamily: 'Inter',
-      ),
-      home: const PersonalDevelopmentHubScreen(),
-      debugShowCheckedModeBanner: false,
-    );
-  }
-}
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       title: 'Personal Development Hub',
+//       theme: ThemeData(
+//         brightness: Brightness.dark,
+//         primarySwatch: Colors.blue,
+//         fontFamily: 'Inter',
+//       ),
+//       home: const PersonalDevelopmentHubScreen(),
+//       debugShowCheckedModeBanner: false,
+//     );
+//   }
+// }
 
 // The main screen widget for the Personal Development Hub.
 class PersonalDevelopmentHubScreen extends StatefulWidget {

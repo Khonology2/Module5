@@ -67,7 +67,7 @@ class _MyAppState extends State<MyApp> {
       ),
       initialRoute: _initialRoute,
       routes: {
-        '/': (context) => const PersonalDevelopmentHubScreen(),
+        '/': (context) => const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
         '/register': (context) => const RegisterScreen(),
         '/sign_in': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
