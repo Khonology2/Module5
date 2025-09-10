@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "565445962523",
+    "project_id": "pdh-fe6eb",
+    "storage_bucket": "pdh-fe6eb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:565445962523:android:96cfa7d317c670c98401be",
+        "android_client_info": {
+          "package_name": "com.example.pdh"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
