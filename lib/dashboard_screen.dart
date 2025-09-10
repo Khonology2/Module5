@@ -74,11 +74,27 @@ class DashboardScreen extends StatelessWidget {
               },
             ),
             _buildDrawerItem(
-              icon: Icons.gamepad,
-              text: 'Gamification',
+              icon: Icons.people,
+              text: 'Manager Review / Team Dashboard',
               onTap: () {
-                Navigator.pop(context); // Close the drawer
-                Navigator.pushNamed(context, '/gamification');
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/manager_review_team_dashboard');
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.card_giftcard, // or another appropriate icon
+              text: 'Badges & Points',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/badges_points');
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.leaderboard, // or another appropriate icon
+              text: 'Leaderboard',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/leaderboard');
               },
             ),
             _buildDrawerItem(

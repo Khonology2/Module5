@@ -89,172 +89,175 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           // Overlay for subtle gradient effect and content
           Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [
-                    Color(0x660A0F1F), // Subtle semi-transparent overlay (alpha 0x66)
-                    Color(0x66040610), // Subtle semi-transparent overlay (alpha 0x66)
-                  ],
-                  stops: [0.0, 1.0],
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
                 ),
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 40.0, right: 40.0, top: 80.0, bottom: 40.0), // Adjust padding for better layout
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start, // Align content to the start (top)
-                      crossAxisAlignment: CrossAxisAlignment.start, // Left-align text labels
-                      children: [
-                        const Text(
-                          'Create Your Account',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFC7E3FF),
-                          ),
-                        ),
-                        const SizedBox(height: 50), // Space after title
-                        // Full Name
-                        const Text(
-                          'Full Name',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildBlurredTextField(
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your full name';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        // Username
-                        const Text(
-                          'Username',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildBlurredTextField(
-                          controller: _usernameController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a username';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        // Email Address
-                        const Text(
-                          'Email Address',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildBlurredTextField(
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        // Password
-                        const Text(
-                          'Password',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildBlurredTextField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          onChanged: (_) => _updatePasswordStrength(),
-                          validator: (value) {
-                            if (value == null || value.length < 8) {
-                              return 'Password must be at least 8 characters long';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        LinearProgressIndicator(
-                          value: _passwordStrength,
-                          backgroundColor: const Color(0xFF1B2A40),
-                          valueColor: AlwaysStoppedAnimation<Color>(_passwordStrengthColor),
-                        ),
-                        const SizedBox(height: 20),
-                        // Confirm Password
-                        const Text(
-                          'Confirm Password',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildBlurredTextField(
-                          controller: _confirmPasswordController,
-                          obscureText: true,
-                          validator: (value) {
-                            if (value != _passwordController.text) {
-                              return 'Passwords do not match';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 30),
-                        // Sign Up Button
-                        Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 40.0, right: 40.0, top: 80.0, bottom: 40.0), // Adjust padding for better layout
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start, // Align content to the start (top)
+                        crossAxisAlignment: CrossAxisAlignment.start, // Left-align text labels
+                        children: [
+                          const Text(
+                            'Create Your Account',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFC7E3FF),
                             ),
                           ),
-                          child: TextButton(
-                            onPressed: () {
-                              if (_formKey.currentState!.validate()) {
-                                // Logic for registration goes here.
-                                Navigator.pushReplacementNamed(context, '/sign_in');
+                          const SizedBox(height: 50), // Space after title
+                          // Full Name
+                          const Text(
+                            'Full Name',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBlurredTextField(
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your full name';
                               }
+                              return null;
                             },
-                            child: const Text(
-                              'Sign Up',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                          ),
+                          const SizedBox(height: 20),
+                          // Username
+                          const Text(
+                            'Username',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBlurredTextField(
+                            controller: _usernameController,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a username';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          // Email Address
+                          const Text(
+                            'Email Address',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBlurredTextField(
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          // Password
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBlurredTextField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            onChanged: (_) => _updatePasswordStrength(),
+                            validator: (value) {
+                              if (value == null || value.length < 8) {
+                                return 'Password must be at least 8 characters long';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          LinearProgressIndicator(
+                            value: _passwordStrength,
+                            backgroundColor: const Color(0xFF1B2A40),
+                            valueColor: AlwaysStoppedAnimation<Color>(_passwordStrengthColor),
+                          ),
+                          const SizedBox(height: 20),
+                          // Confirm Password
+                          const Text(
+                            'Confirm Password',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBlurredTextField(
+                            controller: _confirmPasswordController,
+                            obscureText: true,
+                            validator: (value) {
+                              if (value != _passwordController.text) {
+                                return 'Passwords do not match';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 30),
+                          // Sign Up Button
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                            child: TextButton(
+                              onPressed: () {
+                                if (_formKey.currentState!.validate()) {
+                                  // Logic for registration goes here.
+                                  Navigator.pushReplacementNamed(context, '/sign_in');
+                                }
+                              },
+                              child: const Text(
+                                'Sign Up',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        // Removed SizedBox(height: 50)
-                      ],
+                          // Removed SizedBox(height: 50)
+                        ],
+                      ),
                     ),
                   ),
                 ),

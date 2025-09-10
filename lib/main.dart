@@ -14,6 +14,9 @@ import 'package:pdh/season_challenge_screen.dart';
 import 'package:pdh/settings_screen.dart';
 import 'package:pdh/register.dart';
 import 'package:pdh/sign_in_screen.dart';
+import 'package:pdh/manager_review_team_dashboard_screen.dart';
+import 'package:pdh/badges_points_screen.dart';
+import 'package:pdh/leaderboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized
@@ -53,6 +56,9 @@ class MyApp extends StatelessWidget {
         '/alerts_nudges': (context) => const AlertsNudgesScreen(),
         '/season_challenge': (context) => const SeasonChallengeScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/manager_review_team_dashboard': (context) => const ManagerReviewTeamDashboardScreen(),
+        '/badges_points': (context) => const BadgesPointsScreen(),
+        '/leaderboard': (context) => const LeaderboardScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

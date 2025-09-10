@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/sign_in_screen.dart';
 import 'dart:async'; // For Timer
+import 'dart:ui'; // For ImageFilter
 
 // The main entry point for the Flutter application.
 void main() {
@@ -90,91 +91,96 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
             ),
           ),
           // Overlay for subtle gradient effect and content
-          Container(
-            decoration: const BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1.2,
-                colors: [
-                  Color(0x660A0F1F), // Subtle semi-transparent overlay
-                  Color(0x66040610), // Subtle semi-transparent overlay
-                ],
-                stops: [0.0, 1.0],
-              ),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-                children: [
-                  const Text(
-                    'Personal Development Hub',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 32, // Larger font size for prominence
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFC7E3FF),
-                      letterSpacing: 1.8,
-                    ),
+          Positioned.fill( // Ensure the overlay covers the whole screen
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 2.0, sigmaY: 2.0), // Apply blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x660A0F1F), // Subtle semi-transparent overlay
+                      Color(0x66040610), // Subtle semi-transparent overlay
+                    ],
+                    stops: [0.0, 1.0],
                   ),
-                  const SizedBox(height: 30), // Spacing below the app name
-                  SizedBox(
-                    height: 50, // Fixed height for animated text
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 800),
-                      transitionBuilder: (Widget child, Animation<double> animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: child,
-                        );
-                      },
-                      child: Text(
-                        inspirationalLines[_currentLineIndex],
-                        key: ValueKey<int>(_currentLineIndex), // Key for animation
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+                    children: [
+                      const Text(
+                        'Personal Development Hub',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Color(0xFF8B9FB7),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 50), // Spacing below animated text
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent, // Make button background transparent
-                      elevation: 0, // Remove shadow
-                      padding: EdgeInsets.zero, // Remove default padding
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: Container(
-                      width: 200, // Adjust width as needed
-                      height: 50, // Adjust height as needed
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Go to Sign In',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 32, // Larger font size for prominence
                           fontWeight: FontWeight.bold,
+                          color: Color(0xFFC7E3FF),
+                          letterSpacing: 1.8,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 30), // Spacing below the app name
+                      SizedBox(
+                        height: 50, // Fixed height for animated text
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 800),
+                          transitionBuilder: (Widget child, Animation<double> animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                          child: Text(
+                            inspirationalLines[_currentLineIndex],
+                            key: ValueKey<int>(_currentLineIndex), // Key for animation
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Color(0xFF8B9FB7),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 50), // Spacing below animated text
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent, // Make button background transparent
+                          elevation: 0, // Remove shadow
+                          padding: EdgeInsets.zero, // Remove default padding
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Container(
+                          width: 200, // Adjust width as needed
+                          height: 50, // Adjust height as needed
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Go to Sign In',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 50), // Spacing from the bottom
+                    ],
                   ),
-                  const SizedBox(height: 50), // Spacing from the bottom
-                ],
+                ),
               ),
             ),
           ),
