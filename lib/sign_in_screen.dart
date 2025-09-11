@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -204,12 +205,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     } else {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
@@ -223,6 +224,64 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20), // Add spacing after Sign In button
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: Colors.white, // Google button background color
+                            ),
+                            child: TextButton(
+                              onPressed: () async {
+                                try {
+                                  GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+                                  if (googleUser == null) return; // User cancelled sign-in
+
+                                  GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+                                  AuthCredential credential = GoogleAuthProvider.credential(
+                                    accessToken: googleAuth.accessToken,
+                                    idToken: googleAuth.idToken,
+                                  );
+
+                                  await FirebaseAuth.instance.signInWithCredential(credential);
+                                  if (!mounted) return;
+                                  Navigator.pushReplacementNamed(context, '/dashboard');
+                                } on FirebaseAuthException catch (e) {
+                                  String message = e.message ?? 'Google Sign-In failed.';
+                                  if (!mounted) return; // Guard against context use after async gap
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return; // Guard against context use after async gap
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                                  );
+                                }
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/goog.jpeg', // Use the new Google logo asset
+                                    height: 24.0,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Flexible( // Wrap text with Flexible to prevent overflow
+                                    child: Text(
+                                      'Sign in with Google',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
