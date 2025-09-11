@@ -121,18 +121,32 @@ class RepositoryAuditScreen extends StatelessWidget {
           selectedItemColor: const Color(0xFF1976D2), // Blue for selected item
           unselectedItemColor: Colors.grey[600], // Dark grey for unselected items
           currentIndex: _getCurrentTabIndex(context), // Determine current index based on route
+          selectedFontSize: 12.0, // Reduced font size
+          unselectedFontSize: 12.0, // Reduced font size
           onTap: (index) {
+            if (!context.mounted) return;
+            String targetRoute;
             switch (index) {
               case 0:
-                Navigator.pushReplacementNamed(context, '/my_pdp');
+                targetRoute = '/my_pdp';
                 break;
               case 1:
-                Navigator.pushReplacementNamed(context, '/leaderboard');
+                targetRoute = '/leaderboard';
                 break;
               case 2:
-                Navigator.pushReplacementNamed(context, '/season_challenge');
+                targetRoute = '/progress_visuals';
                 break;
+              case 3:
+                targetRoute = '/settings';
+                break;
+              default:
+                targetRoute = '/dashboard';
             }
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              targetRoute,
+              (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst,
+            );
           },
           items: const [
             BottomNavigationBarItem(
@@ -144,8 +158,12 @@ class RepositoryAuditScreen extends StatelessWidget {
               label: 'Leaderboard',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), // Icon for Season Challenge
-              label: 'Season Challenge',
+              icon: Icon(Icons.show_chart), // Icon for Progress Visuals
+              label: 'Progress Visuals',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined), // Icon for Setting
+              label: 'Setting',
             ),
           ],
         ),
@@ -159,8 +177,10 @@ class RepositoryAuditScreen extends StatelessWidget {
       return 0;
     } else if (currentRoute == '/leaderboard') {
       return 1;
-    } else if (currentRoute == '/season_challenge') {
+    } else if (currentRoute == '/progress_visuals') {
       return 2;
+    } else if (currentRoute == '/settings') {
+      return 3;
     }
     return 0; // Default to My PDP if route is not found
   }

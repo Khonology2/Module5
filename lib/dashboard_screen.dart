@@ -1,9 +1,48 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget { // Changed to StatefulWidget
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0; // Add state variable for selected index
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    // Handle navigation based on the selected index
+    String targetRoute;
+    switch (index) {
+      case 0: // My PDP
+        targetRoute = '/my_pdp';
+        break;
+      case 1: // Leaderboard
+        targetRoute = '/leaderboard';
+        break;
+      case 2: // Progress Visuals
+        targetRoute = '/progress_visuals';
+        break;
+      case 3: // Setting
+        targetRoute = '/settings';
+        break;
+      default:
+        targetRoute = '/dashboard'; // Default to dashboard
+    }
+    if (ModalRoute.of(context)?.settings.name != targetRoute) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        targetRoute,
+        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +92,10 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: AppBottomNavBar(
+        selectedIndex: _selectedIndex, // Pass selectedIndex
+        onTabTapped: _onItemTapped, // Pass onTap handler
       ),
     );
   }

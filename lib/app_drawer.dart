@@ -37,6 +37,7 @@ class AppDrawer extends StatelessWidget {
 
           if (route == '/sign_in') { // Logout route
             await FirebaseAuth.instance.signOut(); // Sign out from Firebase
+            if (!context.mounted) return; // Move mounted check here
             // Navigate to login screen and remove all previous routes
             Navigator.pushAndRemoveUntil(
               context,
@@ -44,6 +45,7 @@ class AppDrawer extends StatelessWidget {
               (Route<dynamic> route) => false, // Remove all routes
             );
           } else { // All other authenticated routes
+            if (!context.mounted) return; // This one is already here and correct
             final currentRouteName = ModalRoute.of(context)?.settings.name;
             if (currentRouteName != route) {
               // Navigate to the new route, and remove all routes until dashboard.
@@ -105,59 +107,45 @@ class AppDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.person,
-            text: 'My PDP',
-            route: '/my_pdp',
-            isSelected: currentRoute == '/my_pdp',
+            icon: Icons.notifications,
+            text: 'Alerts & Nudges',
+            route: '/alerts_nudges',
+            isSelected: currentRoute == '/alerts_nudges',
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.bar_chart,
-            text: 'Progress Visuals',
-            route: '/progress_visuals',
-            isSelected: currentRoute == '/progress_visuals',
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.workspaces_filled,
-            text: 'My Goal Workspace',
-            route: '/my_goal_workspace',
-            isSelected: currentRoute == '/my_goal_workspace',
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.people,
-            text: 'Manager Review / Team Dashboard',
-            route: '/manager_review_team_dashboard',
-            isSelected: currentRoute == '/manager_review_team_dashboard',
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.card_giftcard, // or another appropriate icon
+            icon: Icons.emoji_events,
             text: 'Badges & Points',
             route: '/badges_points',
             isSelected: currentRoute == '/badges_points',
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.leaderboard, // or another appropriate icon
-            text: 'Leaderboard',
-            route: '/leaderboard',
-            isSelected: currentRoute == '/leaderboard',
+            icon: Icons.gamepad,
+            text: 'Gamification',
+            route: '/gamification',
+            isSelected: currentRoute == '/gamification',
           ),
           _buildDrawerItem(
             context: context,
-            icon: Icons.folder,
+            icon: Icons.group,
+            text: 'Manager Review Team Dashboard',
+            route: '/manager_review_team_dashboard',
+            isSelected: currentRoute == '/manager_review_team_dashboard',
+          ),
+          _buildDrawerItem(
+            context: context,
+            icon: Icons.work,
+            text: 'My Goal Workspace',
+            route: '/my_goal_workspace',
+            isSelected: currentRoute == '/my_goal_workspace',
+          ),
+          _buildDrawerItem(
+            context: context,
+            icon: Icons.receipt_long,
             text: 'Repository & Audit',
             route: '/repository_audit',
             isSelected: currentRoute == '/repository_audit',
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.notifications,
-            text: 'Alerts & Nudges',
-            route: '/alerts_nudges',
-            isSelected: currentRoute == '/alerts_nudges',
           ),
           _buildDrawerItem(
             context: context,
@@ -166,13 +154,7 @@ class AppDrawer extends StatelessWidget {
             route: '/season_challenge',
             isSelected: currentRoute == '/season_challenge',
           ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.settings,
-            text: 'Settings',
-            route: '/settings',
-            isSelected: currentRoute == '/settings',
-          ),
+          const Divider(), // Add a divider before logout
           _buildDrawerItem(
             context: context,
             icon: Icons.logout,
