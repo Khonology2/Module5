@@ -404,6 +404,66 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
+                          // Microsoft Sign-In Button
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: Colors.blue, // Microsoft button background color
+                            ),
+                            child: TextButton(
+                              onPressed: _isSigningIn ? null : () async {
+                                try {
+                                  setState(() {
+                                    _isSigningIn = true;
+                                  });
+                                  final microsoftProvider = MicrosoftAuthProvider();
+                                  await FirebaseAuth.instance.signInWithProvider(microsoftProvider);
+                                  if (!mounted) return;
+                                  Navigator.pushReplacementNamed(context, '/dashboard');
+                                } on FirebaseAuthException catch (e) {
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
+                                  String message = e.message ?? 'Microsoft Sign-In failed.';
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                } catch (e) {
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                                  );
+                                }
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset(
+                                    'assets/soft_2.png', // Microsoft logo asset
+                                    height: 24.0,
+                                  ),
+                                  // const SizedBox(width: 10),
+                                  // const Flexible(
+                                  //   child: Text(
+                                  //     'Sign in with Microsoft',
+                                  //     style: TextStyle(
+                                  //       color: Colors.white,
+                                  //       fontSize: 18,
+                                  //       fontWeight: FontWeight.bold,
+                                  //     ),
+                                  //   ),
+                                  // ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
