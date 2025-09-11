@@ -264,11 +264,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       'role': 'employee', // Default role
                                     });
 
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Registration Successful!')),
                                     );
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     Navigator.pushReplacementNamed(context, '/sign_in');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
@@ -279,12 +279,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     } else {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
-                                    if (!mounted) return;
+                                    if (!mounted) return; // Guard against context use after async gap
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
