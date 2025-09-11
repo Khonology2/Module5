@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Added import for firebase_auth
+import 'package:pdh/sign_in_screen.dart'; // Corrected import for LoginScreen
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -30,14 +31,29 @@ class AppDrawer extends StatelessWidget {
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        onTap: () async { // Make onTap async
+        onTap: () async {
           Navigator.pop(context); // Close the drawer
-          if (route == '/sign_in') { // Check if it's the logout route
-            await FirebaseAuth.instance.signOut(); // Sign out from Firebase
-          }
           if (!context.mounted) return; // Check if the context is still mounted
-          if (ModalRoute.of(context)?.settings.name != route) {
-            Navigator.pushReplacementNamed(context, route);
+
+          if (route == '/sign_in') { // Logout route
+            await FirebaseAuth.instance.signOut(); // Sign out from Firebase
+            // Navigate to login screen and remove all previous routes
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+              (Route<dynamic> route) => false, // Remove all routes
+            );
+          } else { // All other authenticated routes
+            final currentRouteName = ModalRoute.of(context)?.settings.name;
+            if (currentRouteName != route) {
+              // Navigate to the new route, and remove all routes until dashboard.
+              // This ensures that pressing the back button from the new route will lead to the dashboard.
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                route,
+                (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+              );
+            }
           }
         },
       ),
