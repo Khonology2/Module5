@@ -40,10 +40,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  final _phoneController = TextEditingController();
+  String? _verificationId;
+  bool _codeSent = false;
+  bool _isSigningIn = false;
+
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -187,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             child: TextButton(
-                              onPressed: () async {
+                              onPressed: _isSigningIn ? null : () async {
                                 if (_formKey.currentState!.validate()) {
                                   try {
                                     await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -228,6 +234,118 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20), // Add spacing after Sign In button
+                          // Phone Number Input
+                          const Text(
+                            'Phone Number (for SMS verification)',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+                              child: TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.white.withAlpha(25),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                ),
+                                style: const TextStyle(color: Colors.white),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your phone number';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                            child: TextButton(
+                              onPressed: _isSigningIn ? null : () async {
+                                if (_formKey.currentState!.validate()) {
+                                  _verifyPhoneNumber();
+                                }
+                              },
+                              child: const Text(
+                                'Send Code',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_codeSent) ...[
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Verification Code',
+                              style: TextStyle(
+                                color: Color(0xFFC7E3FF),
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+                                child: TextFormField(
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Colors.white.withAlpha(25),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  ),
+                                  style: const TextStyle(color: Colors.white),
+                                  onChanged: (value) {
+                                    if (value.length == 6 && _verificationId != null) {
+                                      _signInWithPhoneAuthCredential(
+                                        PhoneAuthProvider.credential(
+                                          verificationId: _verificationId!,
+                                          smsCode: value,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                           Container(
                             width: double.infinity,
                             height: 50,
@@ -236,7 +354,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white, // Google button background color
                             ),
                             child: TextButton(
-                              onPressed: () async {
+                              onPressed: _isSigningIn ? null : () async {
                                 try {
                                   GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
                                   if (googleUser == null) return; // User cancelled sign-in
@@ -323,5 +441,87 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
     );
+  }
+
+  void _verifyPhoneNumber() async {
+    setState(() {
+      _isSigningIn = true;
+    });
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: _phoneController.text,
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        await _signInWithPhoneAuthCredential(credential);
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        setState(() {
+          _isSigningIn = false;
+        });
+        String message;
+        if (e.code == 'invalid-phone-number') {
+          message = 'The provided phone number is not valid.';
+        } else if (e.code == 'too-many-requests') {
+          message = 'Too many requests. Please try again later.';
+        } else if (e.code == 'missing-activity-for-recaptcha') {
+          message = 'reCAPTCHA verification attempted with null Activity';
+        } else {
+          message = e.message ?? 'An unknown error occurred.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      },
+      codeSent: (String verificationId, int? resendToken) async {
+        setState(() {
+          _verificationId = verificationId;
+          _codeSent = true;
+          _isSigningIn = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification code sent!')),
+        );
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {
+        _verificationId = verificationId;
+        setState(() {
+          _isSigningIn = false;
+        });
+      },
+      timeout: const Duration(seconds: 60),
+    );
+  }
+
+  Future<void> _signInWithPhoneAuthCredential(PhoneAuthCredential credential) async {
+    setState(() {
+      _isSigningIn = true;
+    });
+    try {
+      await FirebaseAuth.instance.signInWithCredential(credential);
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/dashboard');
+    } on FirebaseAuthException catch (e) {
+      setState(() {
+        _isSigningIn = false;
+      });
+      String message;
+      if (e.code == 'invalid-verification-code') {
+        message = 'The verification code entered was invalid.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'The credential is invalid.';
+      } else {
+        message = e.message ?? 'An unknown error occurred.';
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      setState(() {
+        _isSigningIn = false;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+      );
+    }
   }
 }
