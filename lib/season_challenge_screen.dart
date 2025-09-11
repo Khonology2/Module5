@@ -16,19 +16,32 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _setInitialIndex();
   }
 
   void _setInitialIndex() {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     if (currentRoute == '/my_pdp') {
-      _selectedIndex = 0; // Corresponds to My PDP
+      setState(() {
+        _selectedIndex = 0; // Corresponds to My PDP
+      });
     } else if (currentRoute == '/leaderboard') {
-      _selectedIndex = 1; // Corresponds to Leaderboard
+      setState(() {
+        _selectedIndex = 1; // Corresponds to Leaderboard
+      });
     } else if (currentRoute == '/progress_visuals') {
-      _selectedIndex = 2; // Corresponds to Progress Visuals
+      setState(() {
+        _selectedIndex = 2; // Corresponds to Progress Visuals
+      });
     } else if (currentRoute == '/settings') {
-      _selectedIndex = 3; // Corresponds to Setting
+      setState(() {
+        _selectedIndex = 3; // Corresponds to Setting
+      });
     }
   }
 

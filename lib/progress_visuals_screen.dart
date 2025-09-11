@@ -1,9 +1,75 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
-class ProgressVisualsScreen extends StatelessWidget {
+class ProgressVisualsScreen extends StatefulWidget { // Changed to StatefulWidget
   const ProgressVisualsScreen({super.key});
+
+  @override
+  State<ProgressVisualsScreen> createState() => _ProgressVisualsScreenState();
+}
+
+class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
+  int _selectedIndex = 0; // Add state variable for selected index
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _setInitialIndex();
+  }
+
+  void _setInitialIndex() {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    if (currentRoute == '/my_pdp') {
+      setState(() {
+        _selectedIndex = 0; // Corresponds to My PDP
+      });
+    } else if (currentRoute == '/leaderboard') {
+      setState(() {
+        _selectedIndex = 1; // Corresponds to Leaderboard
+      });
+    } else if (currentRoute == '/progress_visuals') {
+      setState(() {
+        _selectedIndex = 2; // Corresponds to Progress Visuals
+      });
+    } else if (currentRoute == '/settings') {
+      setState(() {
+        _selectedIndex = 3; // Corresponds to Setting
+      });
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    // Handle navigation based on the selected index
+    String targetRoute;
+    switch (index) {
+      case 0: // My PDP
+        targetRoute = '/my_pdp';
+        break;
+      case 1: // Leaderboard
+        targetRoute = '/leaderboard';
+        break;
+      case 2: // Progress Visuals
+        targetRoute = '/progress_visuals';
+        break;
+      case 3: // Setting
+        targetRoute = '/settings';
+        break;
+      default:
+        targetRoute = '/dashboard'; // Default to dashboard (or appropriate fallback)
+    }
+    if (ModalRoute.of(context)?.settings.name != targetRoute) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        targetRoute,
+        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +119,10 @@ class ProgressVisualsScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: AppBottomNavBar(
+        selectedIndex: _selectedIndex,
+        onTabTapped: _onItemTapped,
       ),
     );
   }
