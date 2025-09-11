@@ -17,7 +17,6 @@ import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized
@@ -39,22 +38,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  String _initialRoute = '/';
-
-  @override
-  void initState() {
-    super.initState();
-    _checkCurrentUser();
-  }
-
-  Future<void> _checkCurrentUser() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      setState(() {
-        _initialRoute = '/dashboard';
-      });
-    }
-  }
+  // Remove _initialRoute and _checkCurrentUser as we always start from landing
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +49,7 @@ class _MyAppState extends State<MyApp> {
         primarySwatch: Colors.blue,
         fontFamily: 'Inter',
       ),
-      initialRoute: _initialRoute,
+      initialRoute: '/', // Always start from the landing screen
       routes: {
         '/': (context) => const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
         '/register': (context) => const RegisterScreen(),
