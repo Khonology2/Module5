@@ -1,7 +1,10 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // Import Facebook Auth
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -44,6 +47,50 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _verificationId;
   bool _codeSent = false;
   bool _isSigningIn = false;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn.standard();
+
+  Future<void> _signInWithFacebook() async {
+    setState(() {
+      _isSigningIn = true;
+    });
+    try {
+      final LoginResult result = await FacebookAuth.instance.login();
+
+      if (result.status == LoginStatus.success) {
+        final AccessToken? accessToken = result.accessToken;
+        if (accessToken != null) {
+          final AuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
+          await FirebaseAuth.instance.signInWithCredential(credential);
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        }
+      } else if (result.status == LoginStatus.cancelled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Facebook login cancelled.')),
+        );
+      } else if (result.status == LoginStatus.failed) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Facebook login failed: ${result.message}')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Firebase Auth with Facebook failed: ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+      );
+    }
+    setState(() {
+      _isSigningIn = false;
+    });
+  }
 
   @override
   void dispose() {
@@ -201,7 +248,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       password: _passwordController.text,
                                     );
                                     if (!mounted) return;
-                                    Navigator.pushReplacementNamed(context, '/dashboard');
+                                    final currentContext = context; // Capture context
+                                    Navigator.pushReplacementNamed(currentContext, '/dashboard');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
                                     if (e.code == 'user-not-found') {
@@ -212,12 +260,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
                                   }
@@ -356,7 +406,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: TextButton(
                               onPressed: _isSigningIn ? null : () async {
                                 try {
-                                  GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+                                  GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
                                   if (googleUser == null) return; // User cancelled sign-in
 
                                   GoogleSignInAuthentication googleAuth = await googleUser.authentication;
@@ -459,6 +509,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                   //     ),
                                   //   ),
                                   // ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Facebook Sign-In Button
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: const Color(0xFF1877F2), // Facebook brand color
+                            ),
+                            child: TextButton(
+                              onPressed: _isSigningIn ? null : _signInWithFacebook,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.facebook, color: Colors.white, size: 24.0),
+                                  const SizedBox(width: 10),
+                                  const Flexible(
+                                    child: Text(
+                                      'Sign in with Facebook',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
