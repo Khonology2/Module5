@@ -140,12 +140,12 @@ class RepositoryAuditScreen extends StatelessWidget {
                 targetRoute = '/settings';
                 break;
               default:
-                targetRoute = '/dashboard';
+                targetRoute = '/my_pdp';
             }
             Navigator.pushNamedAndRemoveUntil(
               context,
               targetRoute,
-              (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst,
+              (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst,
             );
           },
           items: const [

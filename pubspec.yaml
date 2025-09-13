@@ -12,9 +12,9 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
-  firebase_core: ^2.27.1
-  firebase_auth: ^4.17.9
-  cloud_firestore: ^4.15.9
+  firebase_core: ^4.1.0
+  firebase_auth: ^6.0.2
+  cloud_firestore: ^6.0.1
   flutter_speed_dial: ^7.0.0
   google_sign_in: ^6.2.1
 
@@ -26,12 +26,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_e72da193-2f67-453a-92c1-a764f9e31634.png
-    - assets/landing_screen.jpg
-    - assets/goog.jpeg
-    - assets/soft_2.png
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_03f6f05e-5f92-45f3-80d1-f08ada2fdfdc.png
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_e3acd3c0-0b7d-4207-920f-391ae25d9690.png
-    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png
+    - assets/
+

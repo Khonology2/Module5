@@ -201,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       password: _passwordController.text,
                                     );
                                     if (!mounted) return;
-                                    Navigator.pushReplacementNamed(context, '/dashboard');
+                                    Navigator.pushReplacementNamed(context, '/rolebaseview');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
                                     if (e.code == 'user-not-found') {
@@ -367,7 +367,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                   await FirebaseAuth.instance.signInWithCredential(credential);
                                   if (!mounted) return;
-                                  Navigator.pushReplacementNamed(context, '/dashboard');
+                                  Navigator.pushReplacementNamed(context, '/rolebaseview');
                                 } on FirebaseAuthException catch (e) {
                                   String message = e.message ?? 'Google Sign-In failed.';
                                   if (!mounted) return; // Guard against context use after async gap
@@ -421,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   final microsoftProvider = MicrosoftAuthProvider();
                                   await FirebaseAuth.instance.signInWithProvider(microsoftProvider);
                                   if (!mounted) return;
-                                  Navigator.pushReplacementNamed(context, '/dashboard');
+                                  Navigator.pushReplacementNamed(context, '/rolebaseview');
                                 } on FirebaseAuthException catch (e) {
                                   setState(() {
                                     _isSigningIn = false;
@@ -557,7 +557,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await FirebaseAuth.instance.signInWithCredential(credential);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacementNamed(context, '/rolebaseview');
     } on FirebaseAuthException catch (e) {
       setState(() {
         _isSigningIn = false;

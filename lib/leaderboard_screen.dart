@@ -65,13 +65,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         targetRoute = '/settings';
         break;
       default:
-        targetRoute = '/dashboard'; // Default to dashboard (or appropriate fallback)
+        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
     }
     if (ModalRoute.of(context)?.settings.name != targetRoute) {
       Navigator.pushNamedAndRemoveUntil(
         context,
         targetRoute,
-        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
       );
     }
   }
