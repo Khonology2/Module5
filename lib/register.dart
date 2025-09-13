@@ -265,11 +265,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     });
 
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       const SnackBar(content: Text('Registration Successful!')),
                                     );
                                     if (!mounted) return; // Guard against context use after async gap
-                                    Navigator.pushReplacementNamed(context, '/sign_in');
+                                    Navigator.pushReplacementNamed(currentContext, '/sign_in');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
                                     if (e.code == 'weak-password') {
@@ -280,12 +281,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
                                   }
@@ -301,7 +304,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                           ),
-                          // Removed SizedBox(height: 50)
                         ],
                       ),
                     ),
