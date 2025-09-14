@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // Import Facebook Auth
+import 'package:pdh/auth_service.dart'; // Import AuthService
+// import 'package:flutter_svg/flutter_svg.dart'; // Import for SVG assets
+// import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // Import Facebook Auth
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -38,7 +40,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -49,56 +51,51 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isSigningIn = false;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn.standard();
+  final AuthService _authService = AuthService(); // Create an instance of AuthService
 
-  Future<void> _signInWithFacebook() async {
-    setState(() {
-      _isSigningIn = true;
-    });
-    try {
-      final LoginResult result = await FacebookAuth.instance.login();
-
-      if (result.status == LoginStatus.success) {
-        final AccessToken? accessToken = result.accessToken;
-        if (accessToken != null) {
-          final AuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
-          await FirebaseAuth.instance.signInWithCredential(credential);
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        }
-      } else if (result.status == LoginStatus.cancelled) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Facebook login cancelled.')),
-        );
-      } else if (result.status == LoginStatus.failed) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Facebook login failed: ${result.message}')),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Firebase Auth with Facebook failed: ${e.message}')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-      );
-    }
-    setState(() {
-      _isSigningIn = false;
-    });
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // _checkRedirectResult(); // This line is removed as per the edit hint.
+    }
+  }
+
+  // Future<void> _checkRedirectResult() async { // This method is removed as per the edit hint.
+  //   try {
+  //     // ignore: unnecessary_nullable_for_final_variable_declarations
+  //     final UserCredential? userCredential = await FirebaseAuth.instance.getRedirectResult();
+  //     if (userCredential != null && userCredential.user != null) {
+  //       if (!mounted) return;
+  //       Navigator.pushReplacementNamed(context, '/dashboard');
+  //     }
+  //   } on FirebaseAuthException catch (e) {
+  //     String message = e.message ?? 'Authentication failed after redirect.';
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text(message)),
+  //     );
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+  //     );
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -514,26 +511,54 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          // Facebook Sign-In Button
+                          // GitHub Sign-In Button
                           Container(
                             width: double.infinity,
                             height: 50,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              color: const Color(0xFF1877F2), // Facebook brand color
+                              color: Colors.white, // GitHub button background color (matching Google)
                             ),
                             child: TextButton(
-                              onPressed: _isSigningIn ? null : _signInWithFacebook,
+                              onPressed: _isSigningIn ? null : () async {
+                                try {
+                                  setState(() {
+                                    _isSigningIn = true;
+                                  });
+                                  await _authService.signInWithGitHub();
+                                  // The result will be handled by _checkRedirectResult when the app resumes.
+                                } on FirebaseAuthException catch (e) {
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
+                                  String message = e.message ?? 'GitHub Sign-In failed.';
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
+                                } catch (e) {
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                                  );
+                                }
+                              },
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.facebook, color: Colors.white, size: 24.0),
+                                  Image.asset(
+                                    'assets/github_icon_2.png', // GitHub icon asset
+                                    height: 24.0,
+                                  ),
                                   const SizedBox(width: 10),
                                   const Flexible(
                                     child: Text(
-                                      'Sign in with Facebook',
+                                      'Sign in with GitHub',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: Colors.black, // Black text to match white background
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
                                       ),
