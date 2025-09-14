@@ -432,19 +432,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Image.asset(
-                                    'assets/goog.jpeg', // Use the new Google logo asset
-                                    height: 24.0,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Flexible( // Wrap text with Flexible to prevent overflow
-                                    child: Text(
-                                      'Sign in with Google',
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                    'assets/Google_Icon.png', // Use the new Google logo asset
+                                    height: 32.0, // Increased size
+                                    width: 250.0, // Added width for consistent scaling
                                   ),
                                 ],
                               ),
@@ -457,7 +447,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             height: 50,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              color: Colors.blue, // Microsoft button background color
+                              color: Colors.white, // Microsoft button background color
                             ),
                             child: TextButton(
                               onPressed: _isSigningIn ? null : () async {
@@ -492,20 +482,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Image.asset(
-                                    'assets/soft_2.png', // Microsoft logo asset
+                                    'assets/soft_3.png', // Microsoft logo asset
                                     height: 24.0,
                                   ),
-                                  // const SizedBox(width: 10),
-                                  // const Flexible(
-                                  //   child: Text(
-                                  //     'Sign in with Microsoft',
-                                  //     style: TextStyle(
-                                  //       color: Colors.white,
-                                  //       fontSize: 18,
-                                  //       fontWeight: FontWeight.bold,
-                                  //     ),
-                                  //   ),
-                                  // ),
                                 ],
                               ),
                             ),
@@ -526,6 +505,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     _isSigningIn = true;
                                   });
                                   await _authService.signInWithGitHub();
+                                  if (!mounted) return;
+                                  Navigator.pushReplacementNamed(context, '/dashboard');
                                   // The result will be handled by _checkRedirectResult when the app resumes.
                                 } on FirebaseAuthException catch (e) {
                                   setState(() {
