@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart';
 import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 import 'package:pdh/auth_service.dart'; // Import AuthService
 
@@ -89,13 +89,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         targetRoute = '/settings';
         break;
       default:
-        targetRoute = '/dashboard'; // Default to dashboard (or appropriate fallback)
+        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
     }
     if (ModalRoute.of(context)?.settings.name != targetRoute) {
       Navigator.pushNamedAndRemoveUntil(
         context,
         targetRoute,
-        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
       );
     }
   }
@@ -110,7 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const AppDrawer(), // Use the new AppDrawer widget
+      drawer: const EmployeeDrawer(),
       body: Stack(
         children: [
           Positioned.fill(
@@ -165,8 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _photoUrlController.text,
                           );
                           if (!mounted) return; 
-                          final currentContext = context; // Capture context before async gap
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Profile updated successfully!')),
                           );
                         },
@@ -182,10 +181,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.resetPassword(_resetEmailController.text);
                           if (!mounted) return;
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Password reset email sent to ${_resetEmailController.text}')),
                           );
                         },
@@ -195,14 +193,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Delete Account Button
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.deleteAccount();
                           if (!mounted) return;
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Account deleted successfully!')),
                           );
                           if (!mounted) return;
-                          Navigator.pushReplacementNamed(currentContext, '/sign_in');
+                          Navigator.pushReplacementNamed(context, '/sign_in');
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                         child: const Text('Delete Account'),
@@ -211,10 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Sign Out Button
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.signOut();
                           if (!mounted) return;
-                          Navigator.pushReplacementNamed(currentContext, '/sign_in');
+                          Navigator.pushReplacementNamed(context, '/sign_in');
                         },
                         child: const Text('Sign Out'),
                       ),

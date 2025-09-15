@@ -3,7 +3,6 @@ import 'package:pdh/landing_screen.dart';
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/firebase_options.dart';
-import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
 import 'package:pdh/my_goal_workspace_screen.dart';
@@ -17,6 +16,9 @@ import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/rolebaseview.dart';
+import 'package:pdh/employee_portal_screen.dart';
+import 'package:pdh/manager_portal_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized
@@ -54,7 +56,6 @@ class _MyAppState extends State<MyApp> {
         '/': (context) => const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
         '/register': (context) => const RegisterScreen(),
         '/sign_in': (context) => const LoginScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
         '/my_pdp': (context) => const MyPdpScreen(),
         '/progress_visuals': (context) => const ProgressVisualsScreen(),
         '/my_goal_workspace': (context) => const MyGoalWorkspaceScreen(),
@@ -66,6 +67,9 @@ class _MyAppState extends State<MyApp> {
         '/manager_review_team_dashboard': (context) => const ManagerReviewTeamDashboardScreen(),
         '/badges_points': (context) => const BadgesPointsScreen(),
         '/leaderboard': (context) => const LeaderboardScreen(),
+        '/rolebaseview': (context) => const RoleBaseViewScreen(),
+        '/employee_portal': (context) => const EmployeePortalScreen(),
+        '/manager_portal': (context) => const ManagerPortalScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

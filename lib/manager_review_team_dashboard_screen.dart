@@ -11,7 +11,13 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
       backgroundColor: Colors.transparent, // Set Scaffold background to transparent
       extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
-        title: const Text('Manager Review / Team Dashboard', style: TextStyle(color: Colors.white)), // Ensure title is visible
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Color(0xFFC7E3FF)),
+          onPressed: () {
+            Navigator.pushReplacementNamed(context, '/manager_portal');
+          },
+        ),
+        title: const Text('Manager Review / Team Dashboard', style: TextStyle(color: Color(0xFFC7E3FF))), // Ensure title is visible
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),

@@ -48,12 +48,12 @@ class AppDrawer extends StatelessWidget {
             if (!context.mounted) return; // This one is already here and correct
             final currentRouteName = ModalRoute.of(context)?.settings.name;
             if (currentRouteName != route) {
-              // Navigate to the new route, and remove all routes until dashboard.
-              // This ensures that pressing the back button from the new route will lead to the dashboard.
+              // Navigate to the new route, and remove all routes until my_pdp.
+              // This ensures that pressing the back button from the new route will lead to the main screen.
               Navigator.pushNamedAndRemoveUntil(
                 context,
                 route,
-                (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+                (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
               );
             }
           }
@@ -101,9 +101,9 @@ class AppDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.dashboard,
-            text: 'Dashboard',
-            route: '/dashboard',
-            isSelected: currentRoute == '/dashboard',
+            text: 'Manager Dashboard',
+            route: '/manager_portal',
+            isSelected: currentRoute == '/manager_portal',
           ),
           _buildDrawerItem(
             context: context,
