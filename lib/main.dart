@@ -20,15 +20,9 @@ import 'package:pdh/rolebaseview.dart';
 import 'package:pdh/employee_portal_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -53,7 +47,8 @@ class _MyAppState extends State<MyApp> {
       ),
       initialRoute: '/', // Always start from the landing screen
       routes: {
-        '/': (context) => const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
+        '/': (context) =>
+            const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
         '/register': (context) => const RegisterScreen(),
         '/sign_in': (context) => const LoginScreen(),
         '/my_pdp': (context) => const MyPdpScreen(),
@@ -64,7 +59,8 @@ class _MyAppState extends State<MyApp> {
         '/alerts_nudges': (context) => const AlertsNudgesScreen(),
         '/season_challenge': (context) => const SeasonChallengeScreen(),
         '/settings': (context) => const SettingsScreen(),
-        '/manager_review_team_dashboard': (context) => const ManagerReviewTeamDashboardScreen(),
+        '/manager_review_team_dashboard': (context) =>
+            const ManagerReviewTeamDashboardScreen(),
         '/badges_points': (context) => const BadgesPointsScreen(),
         '/leaderboard': (context) => const LeaderboardScreen(),
         '/rolebaseview': (context) => const RoleBaseViewScreen(),

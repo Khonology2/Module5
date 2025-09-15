@@ -92,6 +92,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   //     );
   //   }
   // }
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (!mounted) return;
+      if (user != null) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
