@@ -28,5 +28,16 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/
-
+    - assets/github_icon_2.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_e72da193-2f67-453a-92c1-a764f9e31634.png
+    - assets/landing_screen.jpg
+    - assets/goog.jpeg
+    - assets/mslogo.png
+    - assets/soft_2.png
+    - assets/Google_Icon.png
+    - assets/soft_3.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_03f6f05e-5f92-45f3-80d1-f08ada2fdfdc.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_e3acd3c0-0b7d-4207-920f-391ae25d9690.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png
