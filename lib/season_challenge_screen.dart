@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
 class SeasonChallengeScreen extends StatefulWidget { // Changed to StatefulWidget
@@ -86,7 +86,7 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const AppDrawer(), // Use the new AppDrawer widget
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
       body: Stack(
         children: [
           Positioned.fill(

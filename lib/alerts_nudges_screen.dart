@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 
 class AlertsNudgesScreen extends StatelessWidget {
   const AlertsNudgesScreen({super.key});
@@ -15,7 +15,7 @@ class AlertsNudgesScreen extends StatelessWidget {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const AppDrawer(), // Use the new AppDrawer widget
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
       body: Stack(
         children: [
           Positioned.fill(

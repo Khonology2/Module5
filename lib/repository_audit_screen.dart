@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 
 class RepositoryAuditScreen extends StatelessWidget { 
   const RepositoryAuditScreen({super.key});
@@ -14,7 +14,7 @@ class RepositoryAuditScreen extends StatelessWidget {
       //   backgroundColor: Colors.transparent, // Make AppBar transparent
       //   elevation: 0, // Remove AppBar shadow
       // ),
-      drawer: const AppDrawer(), // Re-integrate the AppDrawer
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer
       body: Container(
         // The background gradient to match the vibrant green/blue.
         decoration: const BoxDecoration(
@@ -30,7 +30,11 @@ class RepositoryAuditScreen extends StatelessWidget {
         child: Column(
           children: [
             // AppBar replacement with search and title.
-            _RepositoryAppBarContent(onMenuPressed: () => Scaffold.of(context).openDrawer()), // Pass the callback
+            Builder(
+              builder: (context) => _RepositoryAppBarContent(
+                onMenuPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0), // Padding for the list view

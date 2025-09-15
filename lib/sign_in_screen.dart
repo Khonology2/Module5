@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
           final AuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
           await FirebaseAuth.instance.signInWithCredential(credential);
           if (!mounted) return;
-          Navigator.pushReplacementNamed(context, '/dashboard');
+          Navigator.pushReplacementNamed(context, '/rolebaseview');
         }
       } else if (result.status == LoginStatus.cancelled) {
         if (!mounted) return;
@@ -248,8 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       password: _passwordController.text,
                                     );
                                     if (!mounted) return;
-                                    final currentContext = context; // Capture context
-                                    Navigator.pushReplacementNamed(currentContext, '/dashboard');
+                                    Navigator.pushReplacementNamed(context, '/rolebaseview');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
                                     if (e.code == 'user-not-found') {
@@ -260,14 +259,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
                                     if (!mounted) return; // Guard against context use after async gap
-                                    final currentContext = context; // Capture context
-                                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
                                     if (!mounted) return; // Guard against context use after async gap
-                                    final currentContext = context; // Capture context
-                                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                                    ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
                                   }

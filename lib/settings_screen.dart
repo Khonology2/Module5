@@ -165,8 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _photoUrlController.text,
                           );
                           if (!mounted) return; 
-                          final currentContext = context; // Capture context before async gap
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Profile updated successfully!')),
                           );
                         },
@@ -182,10 +181,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.resetPassword(_resetEmailController.text);
                           if (!mounted) return;
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Password reset email sent to ${_resetEmailController.text}')),
                           );
                         },
@@ -195,14 +193,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Delete Account Button
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.deleteAccount();
                           if (!mounted) return;
-                          ScaffoldMessenger.of(currentContext).showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Account deleted successfully!')),
                           );
                           if (!mounted) return;
-                          Navigator.pushReplacementNamed(currentContext, '/sign_in');
+                          Navigator.pushReplacementNamed(context, '/sign_in');
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                         child: const Text('Delete Account'),
@@ -211,10 +208,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Sign Out Button
                       ElevatedButton(
                         onPressed: () async {
-                          final currentContext = context; // Capture context before async gap
                           await _authService.signOut();
                           if (!mounted) return;
-                          Navigator.pushReplacementNamed(currentContext, '/sign_in');
+                          Navigator.pushReplacementNamed(context, '/sign_in');
                         },
                         child: const Text('Sign Out'),
                       ),
