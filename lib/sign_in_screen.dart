@@ -397,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                 if (!mounted) return;
                                                 Navigator.pushReplacementNamed(
                                                   context,
-                                                  '/dashboard',
+                                                  '/rolebaseview',
                                                 );
                                               } on FirebaseAuthException catch (
                                                 e
@@ -530,7 +530,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               if (!mounted) return;
                                               Navigator.pushReplacementNamed(
                                                 context,
-                                                '/dashboard',
+                                                '/rolebaseview',
                                               );
                                             } on FirebaseAuthException catch (
                                               e
@@ -614,7 +614,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               if (!mounted) return;
                                               Navigator.pushReplacementNamed(
                                                 context,
-                                                '/dashboard',
+                                                '/rolebaseview',
                                               );
                                             } on FirebaseAuthException catch (
                                               e
@@ -774,7 +774,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     try {
       await FirebaseAuth.instance.signInWithCredential(credential);
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacementNamed(context, '/rolebaseview');
     } on FirebaseAuthException catch (e) {
       setState(() {
         _isSigningIn = false;
