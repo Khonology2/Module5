@@ -5,6 +5,7 @@ import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // Import Facebook Auth
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -50,6 +51,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn.standard();
 
+  Future<void> _ensureUserDoc() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({
+        'uid': user.uid,
+        'email': user.email,
+        'createdAt': FieldValue.serverTimestamp(),
+        'role': 'unset',
+        'roleSetAt': null,
+        'lastLoginAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return;
+    }
+    final data = snap.data() ?? <String, dynamic>{};
+    final Map<String, dynamic> updates = {
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    };
+    if (!data.containsKey('role')) {
+      updates['role'] = 'unset';
+    }
+    if (!data.containsKey('roleSetAt')) {
+      updates['roleSetAt'] = null;
+    }
+    if (updates.isNotEmpty) {
+      await ref.set(updates, SetOptions(merge: true));
+    }
+  }
+
   Future<void> _signInWithFacebook() async {
     setState(() {
       _isSigningIn = true;
@@ -62,6 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (accessToken != null) {
           final AuthCredential credential = FacebookAuthProvider.credential(accessToken.token);
           await FirebaseAuth.instance.signInWithCredential(credential);
+          await _ensureUserDoc();
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/rolebaseview');
         }
@@ -247,6 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       email: _emailController.text,
                                       password: _passwordController.text,
                                     );
+                                    await _ensureUserDoc();
                                     if (!mounted) return;
                                     Navigator.pushReplacementNamed(context, '/rolebaseview');
                                   } on FirebaseAuthException catch (e) {
@@ -413,6 +447,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   );
 
                                   await FirebaseAuth.instance.signInWithCredential(credential);
+                                  await _ensureUserDoc();
                                   if (!mounted) return;
                                   Navigator.pushReplacementNamed(context, '/rolebaseview');
                                 } on FirebaseAuthException catch (e) {
@@ -467,6 +502,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   });
                                   final microsoftProvider = MicrosoftAuthProvider();
                                   await FirebaseAuth.instance.signInWithProvider(microsoftProvider);
+                                  await _ensureUserDoc();
                                   if (!mounted) return;
                                   Navigator.pushReplacementNamed(context, '/rolebaseview');
                                 } on FirebaseAuthException catch (e) {

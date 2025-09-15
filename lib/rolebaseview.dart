@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class RoleBaseViewScreen extends StatelessWidget {
   const RoleBaseViewScreen({super.key});
@@ -67,8 +69,15 @@ class RoleBaseViewScreen extends StatelessWidget {
                           context,
                           'Employee',
                           Icons.person,
-                          () {
-                            // Navigate to employee portal
+                          () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                'role': 'employee',
+                                'roleSetAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            }
+                            if (!context.mounted) return;
                             Navigator.pushReplacementNamed(context, '/employee_portal');
                           },
                         ),
@@ -77,8 +86,15 @@ class RoleBaseViewScreen extends StatelessWidget {
                           context,
                           'Manager',
                           Icons.manage_accounts,
-                          () {
-                            // Navigate to manager portal
+                          () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                'role': 'manager',
+                                'roleSetAt': FieldValue.serverTimestamp(),
+                              }, SetOptions(merge: true));
+                            }
+                            if (!context.mounted) return;
                             Navigator.pushReplacementNamed(context, '/manager_portal');
                           },
                         ),

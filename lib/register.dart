@@ -261,7 +261,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       'username': _usernameController.text,
                                       'fullName': _fullNameController.text, // Use the new _fullNameController
                                       'createdAt': Timestamp.now(),
-                                      'role': 'employee', // Default role
                                     });
 
                                     if (!context.mounted) return; // Guard against context use after async gap
