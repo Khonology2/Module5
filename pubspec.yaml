@@ -11,14 +11,7 @@ dependencies:
     sdk: flutter
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
-  firebase_core: ^2.32.0 # Updated to latest stable version
-  firebase_auth: ^4.20.0 # Updated to latest stable version
-  cloud_firestore: ^4.17.5 # Downgraded to resolve dependency conflict
-  flutter_speed_dial: ^7.0.0
-  google_sign_in: ^6.3.0
-  logger: ^2.0.2
-  flutter_svg: ^2.0.10+1
+
 
 dev_dependencies:
   flutter_test:
@@ -32,9 +25,7 @@ flutter:
     - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_e72da193-2f67-453a-92c1-a764f9e31634.png
     - assets/landing_screen.jpg
     - assets/goog.jpeg
-    - assets/soft_2.png
-    - assets/Google_Icon.png
-    - assets/soft_3.png
+
     - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png
     - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png
     - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_03f6f05e-5f92-45f3-80d1-f08ada2fdfdc.png
