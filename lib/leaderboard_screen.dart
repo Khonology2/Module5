@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
 class LeaderboardScreen extends StatefulWidget { // Changed to StatefulWidget
@@ -65,13 +65,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         targetRoute = '/settings';
         break;
       default:
-        targetRoute = '/dashboard'; // Default to dashboard (or appropriate fallback)
+        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
     }
     if (ModalRoute.of(context)?.settings.name != targetRoute) {
       Navigator.pushNamedAndRemoveUntil(
         context,
         targetRoute,
-        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
       );
     }
   }
@@ -86,7 +86,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const AppDrawer(), // Use the new AppDrawer widget
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
       body: Stack(
         children: [
           Positioned.fill(
