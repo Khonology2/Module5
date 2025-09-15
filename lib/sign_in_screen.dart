@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   bool _codeSent = false;
   bool _isSigningIn = false;
 
-  // GoogleSignIn not used; using FirebaseAuth GoogleAuthProvider across platforms
+  // Using FirebaseAuth OAuth providers across platforms
 
   @override
   void initState() {
@@ -131,519 +131,575 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                     padding: const EdgeInsets.symmetric(horizontal: 40.0),
                     child: Form(
                       key: _formKey,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Welcome Back!',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFC7E3FF),
-                            ),
-                          ),
-                          const SizedBox(height: 50),
-                          // Email Address
-                          const Text(
-                            'Email Address',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(
-                                sigmaX: 5.0,
-                                sigmaY: 5.0,
-                              ),
-                              child: TextFormField(
-                                controller: _emailController,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(
-                                    25,
-                                  ), // Semi-transparent white for blurred effect
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 500),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Welcome Back!',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFC7E3FF),
                                   ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFC7E3FF),
-                                      width: 1.0,
+                                ),
+                                const SizedBox(height: 50),
+                                const Text(
+                                  'Email Address',
+                                  style: TextStyle(
+                                    color: Color(0xFFC7E3FF),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 5.0,
+                                      sigmaY: 5.0,
                                     ),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!RegExp(
-                                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-                                  ).hasMatch(value)) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Password',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(
-                                sigmaX: 5.0,
-                                sigmaY: 5.0,
-                              ),
-                              child: TextFormField(
-                                controller: _passwordController,
-                                obscureText: true,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(
-                                    25,
-                                  ), // Semi-transparent white for blurred effect
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFC7E3FF),
-                                      width: 1.0,
-                                    ),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your password';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn
-                                  ? null
-                                  : () async {
-                                      if (_formKey.currentState!.validate()) {
-                                        try {
-                                          await FirebaseAuth.instance
-                                              .signInWithEmailAndPassword(
-                                                email: _emailController.text,
-                                                password:
-                                                    _passwordController.text,
-                                              );
-                                          if (!mounted) return;
-                                          Navigator.pushReplacementNamed(
-                                            context,
-                                            '/dashboard',
-                                          );
-                                        } on FirebaseAuthException catch (e) {
-                                          String message;
-                                          if (e.code == 'user-not-found') {
-                                            message =
-                                                'No user found for that email.';
-                                          } else if (e.code ==
-                                              'wrong-password') {
-                                            message =
-                                                'Wrong password provided for that user.';
-                                          } else {
-                                            message =
-                                                e.message ??
-                                                'An unknown error occurred.';
-                                          }
-                                          if (!mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(content: Text(message)),
-                                          );
-                                        } catch (e) {
-                                          if (!mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'An unexpected error occurred: ${e.toString()}',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                              child: const Text(
-                                'Sign In',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 20,
-                          ), // Add spacing after Sign In button
-                          // Phone Number Input
-                          const Text(
-                            'Phone Number (for SMS verification)',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(
-                                sigmaX: 5.0,
-                                sigmaY: 5.0,
-                              ),
-                              child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(25),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFC7E3FF),
-                                      width: 1.0,
-                                    ),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your phone number';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn
-                                  ? null
-                                  : () async {
-                                      if (_formKey.currentState!.validate()) {
-                                        _verifyPhoneNumber();
-                                      }
-                                    },
-                              child: const Text(
-                                'Send Code',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (_codeSent) ...[
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Verification Code',
-                              style: TextStyle(
-                                color: Color(0xFFC7E3FF),
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(
-                                  sigmaX: 5.0,
-                                  sigmaY: 5.0,
-                                ),
-                                child: TextFormField(
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: Colors.white.withAlpha(25),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: const BorderSide(
-                                        color: Color(0xFFC7E3FF),
-                                        width: 1.0,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  style: const TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.length == 6 &&
-                                        _verificationId != null) {
-                                      _signInWithPhoneAuthCredential(
-                                        PhoneAuthProvider.credential(
-                                          verificationId: _verificationId!,
-                                          smsCode: value,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: Colors
-                                  .white, // Google button background color
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn
-                                  ? null
-                                  : () async {
-                                      try {
-                                        if (kIsWeb) {
-                                          await FirebaseAuth.instance
-                                              .signInWithPopup(
-                                                GoogleAuthProvider(),
-                                              );
-                                        } else {
-                                          await FirebaseAuth.instance
-                                              .signInWithProvider(
-                                                GoogleAuthProvider(),
-                                              );
-                                        }
-                                        if (!mounted) return;
-                                        Navigator.pushReplacementNamed(
-                                          context,
-                                          '/dashboard',
-                                        );
-                                      } on FirebaseAuthException catch (e) {
-                                        final String message =
-                                            e.message ??
-                                            'Google Sign-In failed.';
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(content: Text(message)),
-                                        );
-                                      } catch (e) {
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'An unexpected error occurred: ${e.toString()}',
-                                            ),
+                                    child: TextFormField(
+                                      controller: _emailController,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white.withAlpha(25),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
                                           ),
-                                        );
-                                      }
-                                    },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'assets/goog.jpeg', // Use the new Google logo asset
-                                    height: 24.0,
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFC7E3FF),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your email';
+                                        }
+                                        if (!RegExp(
+                                          r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\\.[a-zA-Z]+",
+                                        ).hasMatch(value)) {
+                                          return 'Please enter a valid email';
+                                        }
+                                        return null;
+                                      },
+                                    ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  const Flexible(
-                                    // Wrap text with Flexible to prevent overflow
-                                    child: Text(
-                                      'Sign in with Google',
+                                ),
+                                const SizedBox(height: 20),
+                                Container(
+                                  width: double.infinity,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF6B4EE8),
+                                        Color(0xFF48A6ED),
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                  ),
+                                  child: TextButton(
+                                    onPressed: _isSigningIn
+                                        ? null
+                                        : () async {
+                                            if (_formKey.currentState!
+                                                .validate()) {
+                                              _verifyPhoneNumber();
+                                            }
+                                          },
+                                    child: const Text(
+                                      'Send Code',
                                       style: TextStyle(
-                                        color: Colors.black,
+                                        color: Colors.white,
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Microsoft Sign-In Button
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: Colors
-                                  .blue, // Microsoft button background color
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn
-                                  ? null
-                                  : () async {
-                                      try {
-                                        setState(() {
-                                          _isSigningIn = true;
-                                        });
-                                        final microsoftProvider =
-                                            MicrosoftAuthProvider();
-                                        await FirebaseAuth.instance
-                                            .signInWithProvider(
-                                              microsoftProvider,
-                                            );
-                                        if (!mounted) return;
-                                        Navigator.pushReplacementNamed(
-                                          context,
-                                          '/dashboard',
-                                        );
-                                      } on FirebaseAuthException catch (e) {
-                                        setState(() {
-                                          _isSigningIn = false;
-                                        });
-                                        String message =
-                                            e.message ??
-                                            'Microsoft Sign-In failed.';
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(content: Text(message)),
-                                        );
-                                      } catch (e) {
-                                        setState(() {
-                                          _isSigningIn = false;
-                                        });
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'An unexpected error occurred: ${e.toString()}',
+                                ),
+                                if (_codeSent) ...[
+                                  const SizedBox(height: 20),
+                                  const Text(
+                                    'Verification Code',
+                                    style: TextStyle(
+                                      color: Color(0xFFC7E3FF),
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: BackdropFilter(
+                                      filter: ImageFilter.blur(
+                                        sigmaX: 5.0,
+                                        sigmaY: 5.0,
+                                      ),
+                                      child: TextFormField(
+                                        keyboardType: TextInputType.number,
+                                        decoration: InputDecoration(
+                                          filled: true,
+                                          fillColor: Colors.white.withAlpha(25),
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFFC7E3FF),
+                                              width: 1.0,
                                             ),
                                           ),
-                                        );
-                                      }
-                                    },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'assets/soft_2.png', // Microsoft logo asset
-                                    height: 24.0,
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 12,
+                                              ),
+                                        ),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                        onChanged: (value) {
+                                          if (value.length == 6 &&
+                                              _verificationId != null) {
+                                            _signInWithPhoneAuthCredential(
+                                              PhoneAuthProvider.credential(
+                                                verificationId:
+                                                    _verificationId!,
+                                                smsCode: value,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ),
                                   ),
-                                  // const SizedBox(width: 10),
-                                  // const Flexible(
-                                  //   child: Text(
-                                  //     'Sign in with Microsoft',
-                                  //     style: TextStyle(
-                                  //       color: Colors.white,
-                                  //       fontSize: 18,
-                                  //       fontWeight: FontWeight.bold,
-                                  //     ),
-                                  //   ),
-                                  // ),
                                 ],
-                              ),
+                                const SizedBox(height: 20),
+                                const Text(
+                                  'Password',
+                                  style: TextStyle(
+                                    color: Color(0xFFC7E3FF),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 5.0,
+                                      sigmaY: 5.0,
+                                    ),
+                                    child: TextFormField(
+                                      controller: _passwordController,
+                                      obscureText: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white.withAlpha(25),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFC7E3FF),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your password';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 30),
+                                Container(
+                                  width: double.infinity,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF6B4EE8),
+                                        Color(0xFF48A6ED),
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                  ),
+                                  child: TextButton(
+                                    onPressed: _isSigningIn
+                                        ? null
+                                        : () async {
+                                            if (_formKey.currentState!
+                                                .validate()) {
+                                              try {
+                                                await FirebaseAuth.instance
+                                                    .signInWithEmailAndPassword(
+                                                      email:
+                                                          _emailController.text,
+                                                      password:
+                                                          _passwordController
+                                                              .text,
+                                                    );
+                                                if (!mounted) return;
+                                                Navigator.pushReplacementNamed(
+                                                  context,
+                                                  '/dashboard',
+                                                );
+                                              } on FirebaseAuthException catch (
+                                                e
+                                              ) {
+                                                String message;
+                                                if (e.code ==
+                                                    'user-not-found') {
+                                                  message =
+                                                      'No user found for that email.';
+                                                } else if (e.code ==
+                                                    'wrong-password') {
+                                                  message =
+                                                      'Wrong password provided for that user.';
+                                                } else {
+                                                  message =
+                                                      e.message ??
+                                                      'An unknown error occurred.';
+                                                }
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(message),
+                                                  ),
+                                                );
+                                              } catch (e) {
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'An unexpected error occurred: ${e.toString()}',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          },
+                                    child: const Text(
+                                      'Sign In',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                const Text(
+                                  'Phone Number (for SMS verification)',
+                                  style: TextStyle(
+                                    color: Color(0xFFC7E3FF),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 5.0,
+                                      sigmaY: 5.0,
+                                    ),
+                                    child: TextFormField(
+                                      controller: _phoneController,
+                                      keyboardType: TextInputType.phone,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white.withAlpha(25),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFC7E3FF),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 12,
+                                            ),
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your phone number';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Container(
+                                  width: double.infinity,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: Colors.white,
+                                  ),
+                                  child: TextButton(
+                                    onPressed: _isSigningIn
+                                        ? null
+                                        : () async {
+                                            try {
+                                              if (kIsWeb) {
+                                                await FirebaseAuth.instance
+                                                    .signInWithPopup(
+                                                      GoogleAuthProvider(),
+                                                    );
+                                              } else {
+                                                await FirebaseAuth.instance
+                                                    .signInWithProvider(
+                                                      GoogleAuthProvider(),
+                                                    );
+                                              }
+                                              if (!mounted) return;
+                                              Navigator.pushReplacementNamed(
+                                                context,
+                                                '/dashboard',
+                                              );
+                                            } on FirebaseAuthException catch (
+                                              e
+                                            ) {
+                                              String message =
+                                                  e.message ??
+                                                  'Google Sign-In failed.';
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(message),
+                                                ),
+                                              );
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'An unexpected error occurred: ${e.toString()}',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'assets/goog.jpeg',
+                                          height: 24.0,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Flexible(
+                                          child: Text(
+                                            'Sign in with Google',
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Container(
+                                  width: double.infinity,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: Colors.blue,
+                                  ),
+                                  child: TextButton(
+                                    onPressed: _isSigningIn
+                                        ? null
+                                        : () async {
+                                            try {
+                                              setState(() {
+                                                _isSigningIn = true;
+                                              });
+                                              final microsoftProvider =
+                                                  MicrosoftAuthProvider();
+                                              if (kIsWeb) {
+                                                await FirebaseAuth.instance
+                                                    .signInWithPopup(
+                                                      microsoftProvider,
+                                                    );
+                                              } else {
+                                                await FirebaseAuth.instance
+                                                    .signInWithProvider(
+                                                      microsoftProvider,
+                                                    );
+                                              }
+                                              if (!mounted) return;
+                                              Navigator.pushReplacementNamed(
+                                                context,
+                                                '/dashboard',
+                                              );
+                                            } on FirebaseAuthException catch (
+                                              e
+                                            ) {
+                                              setState(() {
+                                                _isSigningIn = false;
+                                              });
+                                              String message =
+                                                  e.message ??
+                                                  'Microsoft Sign-In failed.';
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(message),
+                                                ),
+                                              );
+                                            } catch (e) {
+                                              setState(() {
+                                                _isSigningIn = false;
+                                              });
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'An unexpected error occurred: ${e.toString()}',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'assets/mslogo.png',
+                                          height: 24.0,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Flexible(
+                                          child: Text(
+                                            'Sign in with Microsoft',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      "Don't have your account yet?",
+                                      style: TextStyle(
+                                        color: Color(0xFF8B9FB7),
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pushNamed(
+                                          context,
+                                          '/register',
+                                        );
+                                      },
+                                      child: const Text(
+                                        'Register Now?',
+                                        style: TextStyle(
+                                          color: Color(0xFF48A6ED),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                "Don't have your account yet?",
-                                style: TextStyle(
-                                  color: Color(0xFF8B9FB7),
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/register');
-                                },
-                                child: const Text(
-                                  'Register Now?',
-                                  style: TextStyle(
-                                    color: Color(0xFF48A6ED),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
