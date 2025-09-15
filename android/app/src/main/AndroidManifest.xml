@@ -1,8 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="pdh"
-        android:name="${applicationName}"
+        android:name=".MyApplication"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- Facebook Meta Data -->
+        <meta-data android:name="com.facebook.sdk.ApplicationId" android:value="@string/facebook_app_id"/>
+        <meta-data android:name="com.facebook.sdk.ClientToken" android:value="@string/facebook_client_token"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -29,6 +36,13 @@
                     android:host="pdh-fe6eb.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
+            <!-- Intent filter for Firebase OAuth redirects (e.g., GitHub) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="com.googleusercontent.apps.1234567890-abcdefghijklmnopqrstuvwxyz" android:host=""/> <!-- Replace with your actual reverse client ID -->
+            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -39,6 +53,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Facebook Custom Tab Activity for Single Sign On -->
+        <activity android:name="com.facebook.CustomTabActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="fbYOUR_APP_ID" />
+            </intent-filter>
+        </activity>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -1,0 +1,8 @@
+{
+    "chat": {
+        "always_fix_lints_after_code_changes": true,
+        "always_read_codebase_when_fixing_errors_and_debugging": true,
+        "do_not_run_app_after_code_changes": true,
+        "fix_diff_context_lines": 3
+    }
+}

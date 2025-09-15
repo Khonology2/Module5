@@ -3,6 +3,8 @@ import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
+// import 'package:pdh/auth_service.dart'; // Import AuthService
+// import 'package:flutter_svg/flutter_svg.dart'; // Import for SVG assets
 
 // The registration screen widget.
 class RegisterScreen extends StatefulWidget {
@@ -21,6 +23,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   double _passwordStrength = 0.0;
   Color _passwordStrengthColor = Colors.transparent;
+
+  // final AuthService _authService = AuthService(); // Create an instance of AuthService
 
   @override
   void initState() {
@@ -265,11 +269,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     });
 
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       const SnackBar(content: Text('Registration Successful!')),
                                     );
                                     if (!mounted) return; // Guard against context use after async gap
-                                    Navigator.pushReplacementNamed(context, '/sign_in');
+                                    Navigator.pushReplacementNamed(currentContext, '/sign_in');
                                   } on FirebaseAuthException catch (e) {
                                     String message;
                                     if (e.code == 'weak-password') {
@@ -280,12 +285,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       message = e.message ?? 'An unknown error occurred.';
                                     }
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text(message)),
                                     );
                                   } catch (e) {
                                     if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    final currentContext = context; // Capture context
+                                    ScaffoldMessenger.of(currentContext).showSnackBar(
                                       SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
                                     );
                                   }
@@ -301,7 +308,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                           ),
-                          // Removed SizedBox(height: 50)
+                          const SizedBox(height: 20),
                         ],
                       ),
                     ),
