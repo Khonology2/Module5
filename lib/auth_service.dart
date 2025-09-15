@@ -9,17 +9,6 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser; // Public getter for currentUser
 
-  Future<void> signInWithGitHub() async {
-    // Create a new GitHub provider
-    GithubAuthProvider githubProvider = GithubAuthProvider();
-
-    // Optionally, add scopes and custom parameters
-    // githubProvider.addScope('user:email');
-
-    // Sign in with the provider. This will open a browser for the user to complete authentication.
-    await _auth.signInWithProvider(githubProvider);
-  }
-
   Future<void> updateProfile(String displayName, String photoUrl) async {
     final user = _auth.currentUser;
     if (user != null) {
