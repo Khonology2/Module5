@@ -36,13 +36,6 @@
                     android:host="pdh-fe6eb.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
-            <!-- Intent filter for Firebase OAuth redirects (e.g., GitHub) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <data android:scheme="com.googleusercontent.apps.1234567890-abcdefghijklmnopqrstuvwxyz" android:host=""/> <!-- Replace with your actual reverse client ID -->
-            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
