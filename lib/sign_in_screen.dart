@@ -3,9 +3,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart'; // Import Facebook Auth
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Removed unused Google/Facebook/Firestore imports
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -39,7 +38,7 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -55,12 +54,6 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (!mounted) return;
-      if (user != null) {
-        Navigator.pushReplacementNamed(context, '/rolebaseview');
-      }
-    });
   }
 
   @override
@@ -68,6 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -109,47 +103,47 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 500),
                           child: SingleChildScrollView(
-                            child: Column(
+                      child: Column(
                               mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Welcome Back!',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFC7E3FF),
-                                  ),
-                                ),
-                                const SizedBox(height: 50),
-                                const Text(
-                                  'Email Address',
-                                  style: TextStyle(
-                                    color: Color(0xFFC7E3FF),
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: BackdropFilter(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Welcome Back!',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFC7E3FF),
+                            ),
+                          ),
+                          const SizedBox(height: 50),
+                          const Text(
+                            'Email Address',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: BackdropFilter(
                                     filter: ImageFilter.blur(
                                       sigmaX: 5.0,
                                       sigmaY: 5.0,
                                     ),
-                                    child: TextFormField(
-                                      controller: _emailController,
-                                      decoration: InputDecoration(
-                                        filled: true,
+                              child: TextFormField(
+                                controller: _emailController,
+                                decoration: InputDecoration(
+                                  filled: true,
                                         fillColor: Colors.white.withAlpha(25),
-                                        enabledBorder: OutlineInputBorder(
+                                  enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
@@ -167,54 +161,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                       style: const TextStyle(
                                         color: Colors.white,
                                       ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Please enter your email';
-                                        }
-                                        if (!RegExp(
-                                          r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\\.[a-zA-Z]+",
-                                        ).hasMatch(value)) {
-                                          return 'Please enter a valid email';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your email';
+                                  }
+                                        final emailPattern = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                                        if (!emailPattern.hasMatch(value)) {
+                                    return 'Please enter a valid email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ),
                                 const SizedBox(height: 20),
-                                Container(
-                                  width: double.infinity,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF6B4EE8),
-                                        Color(0xFF48A6ED),
-                                      ],
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
-                                    ),
-                                  ),
-                                  child: TextButton(
-                                    onPressed: _isSigningIn
-                                        ? null
-                                        : () async {
-                                            if (_formKey.currentState!
-                                                .validate()) {
-                                              _verifyPhoneNumber();
-                                            }
-                                          },
-                                    child: const Text(
-                                      'Send Code',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                                 if (_codeSent) ...[
                                   const SizedBox(height: 20),
                                   const Text(
@@ -277,35 +237,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 20),
-                                const Text(
-                                  'Password',
-                                  style: TextStyle(
-                                    color: Color(0xFFC7E3FF),
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: BackdropFilter(
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: BackdropFilter(
                                     filter: ImageFilter.blur(
                                       sigmaX: 5.0,
                                       sigmaY: 5.0,
                                     ),
-                                    child: TextFormField(
-                                      controller: _passwordController,
-                                      obscureText: true,
-                                      decoration: InputDecoration(
-                                        filled: true,
+                              child: TextFormField(
+                                controller: _passwordController,
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  filled: true,
                                         fillColor: Colors.white.withAlpha(25),
-                                        enabledBorder: OutlineInputBorder(
+                                  enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
@@ -323,31 +283,31 @@ class _LoginScreenState extends State<LoginScreen> {
                                       style: const TextStyle(
                                         color: Colors.white,
                                       ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Please enter your password';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 30),
-                                Container(
-                                  width: double.infinity,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    gradient: const LinearGradient(
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your password';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
                                       colors: [
                                         Color(0xFF6B4EE8),
                                         Color(0xFF48A6ED),
                                       ],
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
-                                    ),
-                                  ),
-                                  child: TextButton(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                            child: TextButton(
                                     onPressed: _isSigningIn
                                         ? null
                                         : () async {
@@ -361,8 +321,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                       password:
                                                           _passwordController
                                                               .text,
-                                                    );
-                                                if (!mounted) return;
+                                    );
+                                    if (!mounted) return;
                                                 Navigator.pushReplacementNamed(
                                                   context,
                                                   '/rolebaseview',
@@ -370,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                               } on FirebaseAuthException catch (
                                                 e
                                               ) {
-                                                String message;
+                                    String message;
                                                 if (e.code ==
                                                     'user-not-found') {
                                                   message =
@@ -379,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     'wrong-password') {
                                                   message =
                                                       'Wrong password provided for that user.';
-                                                } else {
+                                    } else {
                                                   message =
                                                       e.message ??
                                                       'An unknown error occurred.';
@@ -391,8 +351,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                   SnackBar(
                                                     content: Text(message),
                                                   ),
-                                                );
-                                              } catch (e) {
+                                    );
+                                  } catch (e) {
                                                 if (!mounted) return;
                                                 ScaffoldMessenger.of(
                                                   context,
@@ -402,49 +362,49 @@ class _LoginScreenState extends State<LoginScreen> {
                                                       'An unexpected error occurred: ${e.toString()}',
                                                     ),
                                                   ),
-                                                );
-                                              }
-                                            }
-                                          },
-                                    child: const Text(
-                                      'Sign In',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
+                                    );
+                                  }
+                                }
+                              },
+                              child: const Text(
+                                'Sign In',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                            ),
+                          ),
                                 const SizedBox(height: 20),
-                                const Text(
-                                  'Phone Number (for SMS verification)',
-                                  style: TextStyle(
-                                    color: Color(0xFFC7E3FF),
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: BackdropFilter(
+                          const Text(
+                            'Phone Number (for SMS verification)',
+                            style: TextStyle(
+                              color: Color(0xFFC7E3FF),
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: BackdropFilter(
                                     filter: ImageFilter.blur(
                                       sigmaX: 5.0,
                                       sigmaY: 5.0,
                                     ),
-                                    child: TextFormField(
-                                      controller: _phoneController,
-                                      keyboardType: TextInputType.phone,
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: Colors.white.withAlpha(25),
-                                        enabledBorder: OutlineInputBorder(
+                              child: TextFormField(
+                                controller: _phoneController,
+                                keyboardType: TextInputType.phone,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: Colors.white.withAlpha(25),
+                                  enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(
                                             10,
                                           ),
@@ -462,24 +422,58 @@ class _LoginScreenState extends State<LoginScreen> {
                                       style: const TextStyle(
                                         color: Colors.white,
                                       ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Please enter your phone number';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Please enter your phone number';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF6B4EE8),
+                                        Color(0xFF48A6ED),
+                                      ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                            child: TextButton(
+                                    onPressed: _isSigningIn
+                                        ? null
+                                        : () async {
+                                            if (_formKey.currentState!
+                                                .validate()) {
+                                  _verifyPhoneNumber();
+                                }
+                              },
+                              child: const Text(
+                                'Send Code',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(height: 20),
-                                Container(
-                                  width: double.infinity,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
                                     color: Colors.white,
-                                  ),
-                                  child: TextButton(
+                            ),
+                            child: TextButton(
                                     onPressed: _isSigningIn
                                         ? null
                                         : () async {
@@ -506,15 +500,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                               String message =
                                                   e.message ??
                                                   'Google Sign-In failed.';
-                                              if (!mounted) return;
+                                  if (!mounted) return;
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
                                                 SnackBar(
                                                   content: Text(message),
                                                 ),
-                                              );
-                                            } catch (e) {
+                                  );
+                                } catch (e) {
                                               if (!mounted) return;
                                               ScaffoldMessenger.of(
                                                 context,
@@ -524,48 +518,48 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     'An unexpected error occurred: ${e.toString()}',
                                                   ),
                                                 ),
-                                              );
-                                            }
-                                          },
-                                    child: Row(
+                                  );
+                                }
+                              },
+                              child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
+                                children: [
+                                  Image.asset(
                                           'assets/goog.jpeg',
-                                          height: 24.0,
-                                        ),
-                                        const SizedBox(width: 10),
+                                    height: 24.0,
+                                  ),
+                                  const SizedBox(width: 10),
                                         const Flexible(
-                                          child: Text(
-                                            'Sign in with Google',
-                                            style: TextStyle(
-                                              color: Colors.black,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                    child: Text(
+                                      'Sign in with Google',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 20),
-                                Container(
-                                  width: double.infinity,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
                                     color: Colors.blue,
-                                  ),
-                                  child: TextButton(
+                            ),
+                            child: TextButton(
                                     onPressed: _isSigningIn
                                         ? null
                                         : () async {
-                                            try {
-                                              setState(() {
-                                                _isSigningIn = true;
-                                              });
+                                try {
+                                  setState(() {
+                                    _isSigningIn = true;
+                                  });
                                               final microsoftProvider =
                                                   MicrosoftAuthProvider();
                                               if (kIsWeb) {
@@ -579,7 +573,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                       microsoftProvider,
                                                     );
                                               }
-                                              if (!mounted) return;
+                                  if (!mounted) return;
                                               Navigator.pushReplacementNamed(
                                                 context,
                                                 '/rolebaseview',
@@ -587,25 +581,25 @@ class _LoginScreenState extends State<LoginScreen> {
                                             } on FirebaseAuthException catch (
                                               e
                                             ) {
-                                              setState(() {
-                                                _isSigningIn = false;
-                                              });
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
                                               String message =
                                                   e.message ??
                                                   'Microsoft Sign-In failed.';
-                                              if (!mounted) return;
+                                  if (!mounted) return;
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
                                                 SnackBar(
                                                   content: Text(message),
                                                 ),
-                                              );
-                                            } catch (e) {
-                                              setState(() {
-                                                _isSigningIn = false;
-                                              });
-                                              if (!mounted) return;
+                                  );
+                                } catch (e) {
+                                  setState(() {
+                                    _isSigningIn = false;
+                                  });
+                                  if (!mounted) return;
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
@@ -614,63 +608,63 @@ class _LoginScreenState extends State<LoginScreen> {
                                                     'An unexpected error occurred: ${e.toString()}',
                                                   ),
                                                 ),
-                                              );
-                                            }
-                                          },
-                                    child: Row(
+                                  );
+                                }
+                              },
+                              child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
+                                children: [
+                                  Image.asset(
                                           'assets/mslogo.png',
-                                          height: 24.0,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        const Flexible(
-                                          child: Text(
-                                            'Sign in with Microsoft',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                    height: 24.0,
                                   ),
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      "Don't have your account yet?",
+                                  const SizedBox(width: 10),
+                                  const Flexible(
+                                    child: Text(
+                                            'Sign in with Microsoft',
                                       style: TextStyle(
-                                        color: Color(0xFF8B9FB7),
-                                        fontSize: 14,
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    const SizedBox(width: 5),
-                                    TextButton(
-                                      onPressed: () {
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                "Don't have your account yet?",
+                                style: TextStyle(
+                                  color: Color(0xFF8B9FB7),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              TextButton(
+                                onPressed: () {
                                         Navigator.pushNamed(
                                           context,
                                           '/register',
                                         );
-                                      },
-                                      child: const Text(
-                                        'Register Now?',
-                                        style: TextStyle(
-                                          color: Color(0xFF48A6ED),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                },
+                                child: const Text(
+                                  'Register Now?',
+                                  style: TextStyle(
+                                    color: Color(0xFF48A6ED),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                        ],
                             ),
                           ),
                         ),

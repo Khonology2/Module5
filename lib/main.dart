@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/landing_screen.dart';
-import 'package:flutter/services.dart'; // Import for SystemChrome
+//import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
@@ -19,6 +19,8 @@ import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/rolebaseview.dart';
 import 'package:pdh/employee_portal_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
+import 'package:pdh/dashboard_screen.dart';
+import 'package:pdh/services/role_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,21 +53,21 @@ class _MyAppState extends State<MyApp> {
             const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
         '/register': (context) => const RegisterScreen(),
         '/sign_in': (context) => const LoginScreen(),
-        '/my_pdp': (context) => const MyPdpScreen(),
+        '/my_pdp': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyPdpScreen()),
         '/progress_visuals': (context) => const ProgressVisualsScreen(),
-        '/my_goal_workspace': (context) => const MyGoalWorkspaceScreen(),
+        '/my_goal_workspace': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyGoalWorkspaceScreen()),
         '/gamification': (context) => const GamificationScreen(),
         '/repository_audit': (context) => const RepositoryAuditScreen(),
         '/alerts_nudges': (context) => const AlertsNudgesScreen(),
         '/season_challenge': (context) => const SeasonChallengeScreen(),
         '/settings': (context) => const SettingsScreen(),
-        '/manager_review_team_dashboard': (context) =>
-            const ManagerReviewTeamDashboardScreen(),
+        '/manager_review_team_dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerReviewTeamDashboardScreen()),
         '/badges_points': (context) => const BadgesPointsScreen(),
         '/leaderboard': (context) => const LeaderboardScreen(),
         '/rolebaseview': (context) => const RoleBaseViewScreen(),
-        '/employee_portal': (context) => const EmployeePortalScreen(),
-        '/manager_portal': (context) => const ManagerPortalScreen(),
+        '/employee_portal': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeePortalScreen()),
+        '/manager_portal': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerPortalScreen()),
+        '/dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const DashboardScreen()),
       },
       debugShowCheckedModeBanner: false,
     );

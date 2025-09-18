@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:firebase_auth/firebase_auth.dart'; // Import for Firebase Auth
-import 'package:pdh/sign_in_screen.dart'; // Import for LoginScreen
+// Removed unused imports
+import 'package:pdh/manager_nav_drawer.dart';
 
 class ManagerPortalScreen extends StatelessWidget {
   const ManagerPortalScreen({super.key});
@@ -9,7 +9,7 @@ class ManagerPortalScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: const _ManagerDrawer(),
+      drawer: const ManagerNavDrawer(),
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -102,172 +102,4 @@ class ManagerPortalScreen extends StatelessWidget {
 
 }
 
-class _ManagerDrawer extends StatelessWidget {
-  const _ManagerDrawer();
-
-  @override
-  Widget build(BuildContext context) {
-    final currentRoute = ModalRoute.of(context)?.settings.name;
-
-    return Drawer(
-      backgroundColor: const Color(0xFFE0F2F7),
-      child: ListView(
-        padding: EdgeInsets.zero,
-                                children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-            ),
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: Text(
-                'Manager Portal',
-                style: TextStyle(color: Colors.blueGrey[50], fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.dashboard,
-              text: 'Dashboard',
-              route: '/manager_portal',
-              isSelected: currentRoute == '/manager_portal',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.groups,
-              text: 'Manager Review',
-              route: '/manager_review_team_dashboard',
-              isSelected: currentRoute == '/manager_review_team_dashboard',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.bar_chart,
-              text: 'Progress Visuals',
-              route: '/progress_visuals',
-              isSelected: currentRoute == '/progress_visuals',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.notifications,
-              text: 'Alerts & Nudges',
-              route: '/alerts_nudges',
-              isSelected: currentRoute == '/alerts_nudges',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.leaderboard,
-              text: 'Leaderboard',
-              route: '/leaderboard',
-              isSelected: currentRoute == '/leaderboard',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.folder_open,
-              text: 'Repository & Audit',
-              route: '/repository_audit',
-              isSelected: currentRoute == '/repository_audit',
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: _drawerItem(
-              context: context,
-              icon: Icons.settings,
-              text: 'Settings & Privacy',
-              route: '/settings',
-              isSelected: currentRoute == '/settings',
-            ),
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.exit_to_app, color: Colors.red),
-            title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              Navigator.pop(context);
-              await FirebaseAuth.instance.signOut();
-              if (!context.mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (Route<dynamic> route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _drawerItem({
-    required BuildContext context,
-    required IconData icon,
-    required String text,
-    required String route,
-    bool isSelected = false,
-  }) {
-    return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10.0),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF48A6ED).withValues(alpha: 0.35),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 2),
-                )
-              ]
-            : null,
-      ),
-      margin: const EdgeInsets.symmetric(vertical: 6.0),
-        child: ListTile(
-        leading: const Icon(Icons.chevron_right, color: Colors.white),
-        title: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              text,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        onTap: () {
-          Navigator.pop(context);
-          final currentRouteName = ModalRoute.of(context)?.settings.name;
-          if (currentRouteName != route) {
-            Navigator.pushNamed(context, route);
-          }
-        },
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-      ),
-    );
-  }
-}
+// Removed inline _ManagerDrawer in favor of reusable ManagerNavDrawer

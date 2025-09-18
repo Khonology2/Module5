@@ -267,6 +267,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Registration Successful!')),
                                     );
+                                    // Require explicit login next
+                                    await FirebaseAuth.instance.signOut();
                                     if (!context.mounted) return; // Guard against context use after async gap
                                     Navigator.pushReplacementNamed(context, '/sign_in');
                                   } on FirebaseAuthException catch (e) {
