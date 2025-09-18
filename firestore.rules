@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return request.auth.token.admin == true; // set via custom claims
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      // Create allowed for the user to set their initial role.
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // Updates allowed for the owner except the 'role' field, unless admin.
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+        (isAdmin() || !('role' in request.resource.data.diff(resource.data).changedKeys()));
+
+      // Admins can write anything.
+      allow write: if isAdmin();
+    }
+  }
+}
+
+

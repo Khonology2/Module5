@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
 class LeaderboardScreen extends StatefulWidget { // Changed to StatefulWidget
@@ -78,6 +79,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final isManagerOrigin = args is Map && args['origin'] == 'manager';
     return Scaffold(
       backgroundColor: Colors.transparent, // Set Scaffold background to transparent
       extendBodyBehindAppBar: true, // Extend the body behind the AppBar
@@ -86,7 +89,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
+      drawer: isManagerOrigin ? const ManagerNavDrawer() : const EmployeeDrawer(),
       body: Stack(
         children: [
           Positioned.fill(

@@ -147,6 +147,19 @@ class EmployeeDrawer extends StatelessWidget {
             Navigator.pop(context);
             final currentRouteName = ModalRoute.of(context)?.settings.name;
             if (currentRouteName != route) {
+              // Guard: prevent navigating to manager-only screens
+              final blocked = {
+                '/manager_portal',
+                '/dashboard',
+                '/manager_review_team_dashboard',
+                '/rolebaseview',
+              };
+              if (blocked.contains(route)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Access restricted to managers')),
+                );
+                return;
+              }
               Navigator.pushNamed(context, route);
             }
           },

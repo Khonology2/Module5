@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:pdh/manager_nav_drawer.dart';
+import 'package:pdh/services/role_service.dart';
 
 class RepositoryAuditScreen extends StatelessWidget { 
   const RepositoryAuditScreen({super.key});
@@ -9,12 +11,18 @@ class RepositoryAuditScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent, // Ensure transparent background for full-screen effect
       extendBodyBehindAppBar: true, // Extend body behind AppBar
-      // appBar: AppBar(
-      //   title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)), // Ensure title is visible
-      //   backgroundColor: Colors.transparent, // Make AppBar transparent
-      //   elevation: 0, // Remove AppBar shadow
-      // ),
-      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)),
+      ),
+      drawer: const _RoleAwareDrawer(),
       body: Container(
         // The background gradient to match the vibrant green/blue.
         decoration: const BoxDecoration(
@@ -39,57 +47,75 @@ class RepositoryAuditScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0), // Padding for the list view
                 children: [
-                  _buildGoalCard(
-                    title: 'Increase Customer Satisfaction Score',
-                    date: 'March 15, 2024',
-                    status: 'Verified',
-                    statusColor: const Color(0xFF2E8B57),
-                    evidence: [
-                      'Survey Results Report',
-                      'Dashboard Analytics Link',
-                      'Customer Feedback Files',
-                    ],
-                    acknowledgedBy: 'Sarah Chen',
-                    score: '4.8',
+                  StreamBuilder<String?>(
+                    stream: RoleService.instance.roleStream(),
+                    builder: (context, snapshot) {
+                      final isManager = snapshot.data == 'manager';
+                      return _RoleSummaryBar(isManager: isManager);
+                    },
                   ),
-                  _buildGoalCard(
-                    title: 'Launch New Product Feature',
-                    date: 'February 28, 2024',
-                    status: 'Pending',
-                    statusColor: const Color(0xFFE4A11A),
-                    evidence: [
-                      'Feature Specification Document',
-                      'GitHub Repository Link',
-                    ],
-                    acknowledgedBy: null,
-                    score: null,
-                  ),
-                  // Add more _buildGoalCard widgets as needed to fill the screen
-                  // For example, duplicating the existing ones for demonstration:
-                   _buildGoalCard(
-                    title: 'Strategic Market Expansion Plan',
-                    date: 'January 20, 2024',
-                    status: 'Verified',
-                    statusColor: const Color(0xFF2E8B57),
-                    evidence: [
-                      'Market Research Summary',
-                      'Competitor Analysis',
-                      'Expansion Proposal Document',
-                    ],
-                    acknowledgedBy: 'John Doe',
-                    score: '4.5',
-                  ),
-                   _buildGoalCard(
-                    title: 'Complete Leadership Training',
-                    date: 'December 10, 2023',
-                    status: 'Verified',
-                    statusColor: const Color(0xFF2E8B57),
-                    evidence: [
-                      'Course Completion Certificate',
-                      'Leadership Workshop Notes',
-                    ],
-                    acknowledgedBy: 'Jane Smith',
-                    score: '4.9',
+                  const SizedBox(height: 12),
+                  StreamBuilder<String?>(
+                    stream: RoleService.instance.roleStream(),
+                    builder: (context, snapshot) {
+                      final isManager = snapshot.data == 'manager';
+                      return Column(children: [
+                        _buildGoalCard(
+                          title: 'Increase Customer Satisfaction Score',
+                          date: 'March 15, 2024',
+                          status: 'Verified',
+                          statusColor: const Color(0xFF2E8B57),
+                          evidence: [
+                            'Survey Results Report',
+                            'Dashboard Analytics Link',
+                            'Customer Feedback Files',
+                          ],
+                          acknowledgedBy: 'Sarah Chen',
+                          score: '4.8',
+                          isManager: isManager,
+                        ),
+                        _buildGoalCard(
+                          title: 'Launch New Product Feature',
+                          date: 'February 28, 2024',
+                          status: 'Pending',
+                          statusColor: const Color(0xFFE4A11A),
+                          evidence: [
+                            'Feature Specification Document',
+                            'GitHub Repository Link',
+                          ],
+                          acknowledgedBy: null,
+                          score: null,
+                          isManager: isManager,
+                        ),
+                        _buildGoalCard(
+                          title: 'Strategic Market Expansion Plan',
+                          date: 'January 20, 2024',
+                          status: 'Verified',
+                          statusColor: const Color(0xFF2E8B57),
+                          evidence: [
+                            'Market Research Summary',
+                            'Competitor Analysis',
+                            'Expansion Proposal Document',
+                          ],
+                          acknowledgedBy: 'John Doe',
+                          score: '4.5',
+                          isManager: isManager,
+                        ),
+                        _buildGoalCard(
+                          title: 'Complete Leadership Training',
+                          date: 'December 10, 2023',
+                          status: 'Verified',
+                          statusColor: const Color(0xFF2E8B57),
+                          evidence: [
+                            'Course Completion Certificate',
+                            'Leadership Workshop Notes',
+                          ],
+                          acknowledgedBy: 'Jane Smith',
+                          score: '4.9',
+                          isManager: isManager,
+                        ),
+                      ]);
+                    },
                   ),
                 ],
               ),
@@ -115,79 +141,11 @@ class RepositoryAuditScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.white, // White background for the BottomAppBar
-        shape: const CircularNotchedRectangle(), // Optional: if you want a notch for a FloatingActionButton
-        notchMargin: 8.0, // Space between FAB and app bar
-        elevation: 10.0, // Add some elevation for a subtle shadow
-        child: BottomNavigationBar(
-          backgroundColor: Colors.transparent, // Make inner nav bar transparent
-          selectedItemColor: const Color(0xFF1976D2), // Blue for selected item
-          unselectedItemColor: Colors.grey[600], // Dark grey for unselected items
-          currentIndex: _getCurrentTabIndex(context), // Determine current index based on route
-          selectedFontSize: 12.0, // Reduced font size
-          unselectedFontSize: 12.0, // Reduced font size
-          onTap: (index) {
-            if (!context.mounted) return;
-            String targetRoute;
-            switch (index) {
-              case 0:
-                targetRoute = '/my_pdp';
-                break;
-              case 1:
-                targetRoute = '/leaderboard';
-                break;
-              case 2:
-                targetRoute = '/progress_visuals';
-                break;
-              case 3:
-                targetRoute = '/settings';
-                break;
-              default:
-                targetRoute = '/my_pdp';
-            }
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              targetRoute,
-              (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst,
-            );
-          },
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person), // Icon for My PDP
-              label: 'My PDP',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.leaderboard), // Icon for Leaderboard
-              label: 'Leaderboard',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.show_chart), // Icon for Progress Visuals
-              label: 'Progress Visuals',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined), // Icon for Setting
-              label: 'Setting',
-            ),
-          ],
-        ),
-      ),
+      // bottomNavigationBar removed per request
     );
   }
 
-  int _getCurrentTabIndex(BuildContext context) {
-    final currentRoute = ModalRoute.of(context)?.settings.name;
-    if (currentRoute == '/my_pdp') {
-      return 0;
-    } else if (currentRoute == '/leaderboard') {
-      return 1;
-    } else if (currentRoute == '/progress_visuals') {
-      return 2;
-    } else if (currentRoute == '/settings') {
-      return 3;
-    }
-    return 0; // Default to My PDP if route is not found
-  }
+  // Removed bottom navigation; helper no longer needed
 
   // Helper widget to build individual goal cards.
   Widget _buildGoalCard({
@@ -198,6 +156,7 @@ class RepositoryAuditScreen extends StatelessWidget {
     required List<String> evidence,
     String? acknowledgedBy,
     String? score,
+    required bool isManager,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10.0),
@@ -263,7 +222,27 @@ class RepositoryAuditScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          ...evidence.map((item) => _buildEvidenceItem(item)), // Removed .toList()
+          ...evidence.map((item) => _buildEvidenceItem(item)),
+          if (isManager) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.verified, size: 16),
+                  label: const Text('Verify Evidence'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.comment, size: 16),
+                  label: const Text('Request Changes'),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                ),
+              ],
+            ),
+          ],
           if (acknowledgedBy != null)
             Padding(
               padding: const EdgeInsets.only(top: 15.0),
@@ -317,6 +296,74 @@ class RepositoryAuditScreen extends StatelessWidget {
   }
 }
 
+class _RoleSummaryBar extends StatelessWidget {
+  final bool isManager;
+  const _RoleSummaryBar({required this.isManager});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(Color color, String label) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: Colors.white.withAlpha(26), borderRadius: BorderRadius.circular(16)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text(label, style: const TextStyle(color: Colors.white)),
+            ],
+          ),
+        );
+
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0x802C223E), borderRadius: BorderRadius.circular(12)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(isManager ? Icons.manage_accounts : Icons.person, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isManager ? 'Manager view' : 'Employee view',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: isManager
+                        ? [
+                            chip(const Color(0xFF2E8B57), 'Verified 12'),
+                            chip(const Color(0xFFE4A11A), 'Pending 5'),
+                          ]
+                        : [
+                            chip(const Color(0xFF2E8B57), 'My Verified 4'),
+                            chip(const Color(0xFFE4A11A), 'My Pending 1'),
+                          ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RepositoryAppBarContent extends StatelessWidget {
   final VoidCallback onMenuPressed; // Add the callback parameter
 
@@ -330,12 +377,6 @@ class _RepositoryAppBarContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Hamburger icon (menu)
-              IconButton(
-                icon: const Icon(Icons.menu, color: Colors.white, size: 28),
-                onPressed: onMenuPressed, // Use the callback here
-              ),
-              const SizedBox(width: 15),
               Expanded(
                 child: TextField(
                   decoration: InputDecoration(
@@ -343,12 +384,13 @@ class _RepositoryAppBarContent extends StatelessWidget {
                     hintStyle: const TextStyle(color: Colors.white54),
                     prefixIcon: const Icon(Icons.search, color: Colors.white54),
                     filled: true,
-                    fillColor: const Color(0x802C223E), // Slightly transparent for depth
+                    fillColor: const Color(0x802C223E),
                     border: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(15.0)),
                       borderSide: BorderSide.none,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0), // Adjust vertical padding for search bar
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
                   style: const TextStyle(color: Colors.white),
                 ),
@@ -359,12 +401,16 @@ class _RepositoryAppBarContent extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Completed Goals Archive',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              const Expanded(
+                child: Text(
+                  'Completed Goals Archive',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
               // Archive icon
@@ -380,6 +426,21 @@ class _RepositoryAppBarContent extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RoleAwareDrawer extends StatelessWidget {
+  const _RoleAwareDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, snapshot) {
+        final isManager = snapshot.data == 'manager';
+        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
+      },
     );
   }
 }
