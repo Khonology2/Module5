@@ -5,6 +5,7 @@ import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
+import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
 class RegisterScreen extends StatefulWidget {
@@ -24,14 +25,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Removed unused _passwordStrength
   // Removed unused _passwordStrengthColor
 
+  List<String> _fullNameHints = [];
+  List<String> _usernameHints = [];
+  List<String> _emailHints = [];
+  List<String> _passwordHints = [];
+  List<String> _confirmPasswordHints = [];
+
+  int _currentHintIndex = 0;
+  late Timer _hintTimer;
+
   @override
   void initState() {
     super.initState();
-    // Removed listener to the password controller
+    _fullNameHints = List.generate(20, (index) => 'Enter your full name ${index + 1}');
+    _usernameHints = List.generate(20, (index) => 'Choose a username ${index + 1}');
+    _emailHints = List.generate(20, (index) => 'Your email address ${index + 1}');
+    _passwordHints = List.generate(20, (index) => 'Create a password ${index + 1}');
+    _confirmPasswordHints = List.generate(20, (index) => 'Confirm your password ${index + 1}');
+
+    _hintTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      setState(() {
+        _currentHintIndex = (_currentHintIndex + 1) % 20;
+      });
+    });
   }
 
   @override
   void dispose() {
+    _hintTimer.cancel();
     // Clean up the controllers when the widget is disposed.
     _fullNameController.dispose();
     _usernameController.dispose();
@@ -86,18 +107,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFC7E3FF),
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 50), // Space after title
                         // Full Name
-                        const Text(
-                          'Full Name',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
+                        _buildFieldLabel('Full Name'),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _fullNameController,
@@ -107,16 +122,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          hintText: _fullNameHints[_currentHintIndex],
                         ),
                         const SizedBox(height: 20),
                         // Username
-                        const Text(
-                          'Username',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
+                        _buildFieldLabel('Username'),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _usernameController,
@@ -126,16 +136,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          hintText: _usernameHints[_currentHintIndex],
                         ),
                         const SizedBox(height: 20),
                         // Email Address
-                        const Text(
-                          'Email Address',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
+                        _buildFieldLabel('Email Address'),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _emailController,
@@ -148,16 +153,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          hintText: _emailHints[_currentHintIndex],
                         ),
                         const SizedBox(height: 20),
                         // Password
-                        const Text(
-                          'Password',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
+                        _buildFieldLabel('Password'),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _passwordController,
@@ -168,16 +168,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          hintText: _passwordHints[_currentHintIndex],
                         ),
                         const SizedBox(height: 20),
                         // Confirm Password
-                        const Text(
-                          'Confirm Password',
-                          style: TextStyle(
-                            color: Color(0xFFC7E3FF),
-                            fontSize: 16,
-                          ),
-                        ),
+                        _buildFieldLabel('Confirm Password'),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _confirmPasswordController,
@@ -188,6 +183,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          hintText: _confirmPasswordHints[_currentHintIndex],
                         ),
                         const SizedBox(height: 30),
                         // Sign Up Button
@@ -197,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
                             gradient: const LinearGradient(
-                              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+                              colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
                             ),
@@ -270,6 +266,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _buildFieldLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: Color(0xFFC10D00),
+        fontSize: 16,
+      ),
+    );
+  }
+
 // Helper function to create the input decoration for text fields.
   InputDecoration _inputDecoration() {
     return InputDecoration(
@@ -293,6 +299,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool obscureText = false,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
+    required String hintText, // Add hintText parameter
   }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
@@ -301,7 +308,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: TextFormField(
           controller: controller,
           obscureText: obscureText,
-          decoration: _inputDecoration(),
+          decoration: _inputDecoration().copyWith(
+            hintText: hintText, // Use the dynamic hintText
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)), // Hint text style
+          ),
           style: const TextStyle(color: Colors.white),
           validator: validator,
           onChanged: onChanged,

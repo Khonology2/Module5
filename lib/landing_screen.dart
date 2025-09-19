@@ -105,7 +105,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: Color(0xFFC10D00),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -126,7 +126,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                       Navigator.pushNamed(context, '/sign_in');
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF6B4EE8), // Use a color from your gradient
+                      backgroundColor: Color(0xFFC10D00), // Use the new red color
                       padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),

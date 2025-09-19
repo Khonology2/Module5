@@ -61,7 +61,7 @@ flutter run
 
 ### Landing Screen
 
-![Landing Screen](Screenshot_20250910_052119.png)
+![Landing Screen](flutter_01.png)
 
 ### Sign In Screen
 
