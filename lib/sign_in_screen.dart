@@ -538,7 +538,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   MainAxisAlignment.center,
                               children: [
                                 Image.asset(
-                                  'assets/goog.jpeg',
+                                  'assets/Google_Icon.png',
                                   height: 24.0,
                                 ),
                                 const SizedBox(width: 10),
