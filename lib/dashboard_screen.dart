@@ -100,7 +100,7 @@ class DashboardScreen extends StatelessWidget {
         );
     return Row(
       children: [
-        tile('Active Goals', '24', Colors.lightBlueAccent),
+        tile('Active Goals', '24', Color(0xFFC10D00)),
         const SizedBox(width: 12),
         tile('At Risk', '3', Colors.orangeAccent),
         const SizedBox(width: 12),
@@ -125,11 +125,11 @@ class DashboardScreen extends StatelessWidget {
         );
     return Row(
       children: [
-        action(Icons.add_task, 'New Goal', const Color(0xFF6A1B9A)),
+        action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
         action(Icons.campaign, 'Send Nudge', const Color(0xFF00C853)),
         const SizedBox(width: 10),
-        action(Icons.event, 'Schedule 1:1', Colors.indigo),
+        action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
       ],
     );
   }
@@ -180,7 +180,7 @@ class DashboardScreen extends StatelessWidget {
             sub: 'Michael Chen • Overdue 2 days',
             trailing: TextButton(
               onPressed: () {},
-              style: TextButton.styleFrom(backgroundColor: const Color(0xFF6A1B9A)),
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
               child: const Text('Nudge', style: TextStyle(color: Colors.white)),
             ),
           ),
@@ -188,7 +188,7 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: 16),
         section('Upcoming (7–14 days)', [
           card(
-            stripe: Colors.lightBlueAccent,
+            stripe: Color(0xFFC10D00),
             heading: 'Quarterly roadmap draft',
             sub: 'Sarah Johnson • Due in 5 days',
           ),
@@ -205,7 +205,7 @@ class DashboardScreen extends StatelessWidget {
             heading: 'Customer win-back workflow',
             sub: 'Emily Rodriguez • 2d ago',
             trailing: Row(children: [
-              _chip('share', Colors.blueAccent),
+              _chip('share', Color(0xFFC10D00)),
               const SizedBox(width: 6),
               _chip('kudos', Colors.orangeAccent),
             ]),
@@ -240,7 +240,7 @@ class DashboardScreen extends StatelessWidget {
         children: [
           Row(
             children: const [
-              Icon(Icons.lightbulb_outline, color: Colors.blueAccent, size: 20),
+              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
               SizedBox(width: 8),
               Text('AI Manager Insights', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ],
@@ -260,7 +260,7 @@ class DashboardScreen extends StatelessWidget {
       [0.1, 0.3, 0.2, 0.5, 0.7, 0.9, 0.4],
       [0.0, 0.2, 0.1, 0.6, 0.8, 0.5, 0.2],
     ];
-    Color cell(double v) => Color.lerp(const Color(0xFF22304A), Colors.tealAccent, v) ?? const Color(0xFF22304A);
+    Color cell(double v) => Color.lerp(const Color(0xFF22304A), Color(0xFFC10D00), v) ?? const Color(0xFF22304A);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -344,7 +344,7 @@ class DashboardScreen extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            tile(Icons.rate_review, 'Check-ins this week', '9', Colors.lightBlueAccent),
+            tile(Icons.rate_review, 'Check-ins this week', '9', Color(0xFFC10D00)),
             const SizedBox(width: 12),
             tile(Icons.forum, 'Open comments', '5', Colors.orangeAccent),
             const SizedBox(width: 12),

@@ -29,10 +29,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/
-    - assets/Google_Icon.png
-    - assets/mslogo.png
-    - assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png
+    - assets/
+    - assets/fonts/poppins/
   fonts:
     - family: Poppins
       fonts:

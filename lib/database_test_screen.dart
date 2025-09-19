@@ -161,7 +161,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFC7E3FF),
+                color: Color(0xFFC10D00),
               ),
             ),
             const SizedBox(height: 10),
@@ -190,7 +190,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFC7E3FF),
+                    color: Color(0xFFC10D00),
                   ),
                 ),
                 Row(
@@ -198,7 +198,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
                     ElevatedButton(
                       onPressed: isLoading ? null : _createSampleGoal,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6B4EE8),
+                        backgroundColor: const Color(0xFFC10D00),
                       ),
                       child: const Text('Add Goal'),
                     ),
@@ -206,7 +206,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
                     ElevatedButton(
                       onPressed: isLoading ? null : _createSampleGoals,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF48A6ED),
+                        backgroundColor: const Color(0xFFC10D00),
                       ),
                       child: const Text('Add Sample Goals'),
                     ),
@@ -236,7 +236,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
                         trailing: Text(
                           '${goal.points} pts',
                           style: const TextStyle(
-                            color: Color(0xFF48A6ED),
+                            color: Color(0xFFC10D00),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -255,7 +255,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
             if (isLoading) ...[
               const Center(
                 child: CircularProgressIndicator(
-                  color: Color(0xFF48A6ED),
+                  color: Color(0xFFC10D00),
                 ),
               ),
             ],
@@ -275,7 +275,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
             child: Text(
               '$label:',
               style: const TextStyle(
-                color: Color(0xFF8B9FB7),
+                color: Colors.white70,
                 fontWeight: FontWeight.w500,
               ),
             ),

@@ -69,7 +69,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                   dueDate: 'Due in 12 days',
                   progress: 0.90,
                   status: 'Ahead',
-                  statusColor: Colors.lightBlue,
+                  statusColor: Color(0xFFC10D00),
                 ),
                 const SizedBox(height: 20),
                 _buildAIManagerInsights(),
@@ -213,7 +213,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
       children: [
         const Text('Upcoming (7–14 days)', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        row('Quarterly roadmap draft', 'Sarah Johnson', 'Due in 5 days', Colors.lightBlueAccent),
+        row('Quarterly roadmap draft', 'Sarah Johnson', 'Due in 5 days', Color(0xFFC10D00)),
         row('Retention playbook v2', 'Emily Rodriguez', 'Due in 12 days', Colors.greenAccent),
       ],
     );
@@ -247,7 +247,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Row(children: [chip('share', Colors.blueAccent), const SizedBox(width: 6), chip('kudos', Colors.orangeAccent)])
+            Row(children: [chip('share', Color(0xFFC10D00)), const SizedBox(width: 6), chip('kudos', Colors.orangeAccent)])
           ],
         ),
       );
@@ -281,11 +281,11 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
     }
     return Row(
       children: [
-        action(Icons.add_task, 'New Goal', const Color(0xFF6A1B9A)),
+        action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
         action(Icons.campaign, 'Nudge', const Color(0xFF00C853)),
         const SizedBox(width: 10),
-        action(Icons.event, 'Schedule 1:1', Colors.indigo),
+        action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
       ],
     );
   }
@@ -425,7 +425,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6A1B9A),
+                    backgroundColor: const Color(0xFFC10D00),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -471,7 +471,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
         children: [
           Row(
             children: const [
-              Icon(Icons.lightbulb_outline, color: Colors.blueAccent, size: 20),
+              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
               SizedBox(width: 8),
               Text(
                 'AI Manager Insights',
@@ -496,7 +496,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             child: const Text(
               'View Full Analysis',
               style: TextStyle(
-                color: Colors.blueAccent,
+                color: Color(0xFFC10D00),
                 decoration: TextDecoration.underline,
                 fontSize: 14,
               ),

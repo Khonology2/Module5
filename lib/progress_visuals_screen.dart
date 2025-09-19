@@ -90,14 +90,14 @@ class _ProgressVisualsContent extends StatelessWidget {
                     Container(
                       height: 30,
                       decoration: BoxDecoration(
-                        color: Colors.teal.withValues(alpha: 0.5),
+                        color: Color(0xFFC10D00).withOpacity(0.5),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
                           width: 60,
-                          color: Colors.teal,
+                          color: Color(0xFFC10D00),
                         ),
                       ),
                     ),
@@ -222,7 +222,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           goal: 'Complete Mobile App',
           dueDate: 'Due in 3 days',
           progress: 0.8,
-          progressColor: Colors.deepPurple,
+          progressColor: Color(0xFFC10D00),
           streakDays: 4,
         ),
         const SizedBox(height: 15),
@@ -231,7 +231,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           goal: 'Learn Data Science',
           dueDate: 'Due in 15 days',
           progress: 0.4,
-          progressColor: Colors.teal,
+          progressColor: Color(0xFFC10D00),
           streakDays: 1,
         ),
         const SizedBox(height: 15),
@@ -336,7 +336,7 @@ class _ProgressVisualsContent extends StatelessWidget {
         const SizedBox(height: 15),
         _buildInsightCard(
           'You\'re 15% ahead of schedule on your mobile app project!',
-          Colors.blueAccent,
+          Color(0xFFC10D00),
           Icons.arrow_circle_up,
         ),
         const SizedBox(height: 10),
@@ -388,7 +388,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           ElevatedButton(
             onPressed: () {},
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6A1B9A),
+              backgroundColor: const Color(0xFFC10D00),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               shape: RoundedRectangleBorder(

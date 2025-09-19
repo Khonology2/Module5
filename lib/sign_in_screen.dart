@@ -132,14 +132,14 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFC7E3FF),
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 50),
                         const Text(
                           'Email Address',
                           style: TextStyle(
-                            color: Color(0xFFC7E3FF),
+                            color: Colors.white,
                             fontSize: 16,
                           ),
                         ),
@@ -167,7 +167,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     10,
                                   ),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFFC7E3FF),
+                                    color: Color(0xFFC10D00),
                                     width: 1.0,
                                   ),
                                 ),
@@ -227,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       10,
                                     ),
                                     borderSide: const BorderSide(
-                                      color: Color(0xFFC7E3FF),
+                                      color: Color(0xFFC10D00),
                                       width: 1.0,
                                     ),
                                   ),
@@ -260,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         const Text(
                           'Password',
                           style: TextStyle(
-                            color: Color(0xFFC7E3FF),
+                            color: Colors.white,
                             fontSize: 16,
                           ),
                         ),
@@ -289,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     10,
                                   ),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFFC7E3FF),
+                                    color: Color(0xFFC10D00),
                                     width: 1.0,
                                   ),
                                 ),
@@ -397,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         const Text(
                           'Phone Number (for SMS verification)',
                           style: TextStyle(
-                            color: Color(0xFFC7E3FF),
+                            color: Colors.white,
                             fontSize: 16,
                           ),
                         ),
@@ -488,7 +488,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                           height: 50,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
-                            color: Colors.white,
+                            color: Color(0xFFC10D00),
                           ),
                           child: TextButton(
                             onPressed: _isSigningIn
@@ -549,7 +549,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   child: Text(
                                     'Sign in with Google',
                                     style: TextStyle(
-                                      color: Colors.black,
+                                      color: Colors.white,
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -652,7 +652,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             const Text(
                               "Don't have your account yet?",
                               style: TextStyle(
-                                color: Color(0xFF8B9FB7),
+                                color: Colors.white,
                                 fontSize: 14,
                               ),
                             ),

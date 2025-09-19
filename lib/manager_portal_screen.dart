@@ -32,7 +32,7 @@ class ManagerPortalScreen extends StatelessWidget {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+              colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -44,7 +44,7 @@ class ManagerPortalScreen extends StatelessWidget {
           // Background image
           Positioned.fill(
             child: Image.asset(
-              'assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png',
+              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
               fit: BoxFit.cover,
             ),
           ),
@@ -76,7 +76,7 @@ class ManagerPortalScreen extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFFC7E3FF),
+                                color: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -84,7 +84,7 @@ class ManagerPortalScreen extends StatelessWidget {
                               'Access all management tools and team oversight features from the sidebar menu.',
                               style: TextStyle(
                                 fontSize: 16,
-                                color: Color(0xFF8B9FB7),
+                                color: Colors.white,
                                 height: 1.5,
                               ),
                             ),

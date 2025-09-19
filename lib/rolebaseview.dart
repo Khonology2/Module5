@@ -14,7 +14,7 @@ class RoleBaseViewScreen extends StatelessWidget {
           // Background image
           Positioned.fill(
             child: Image.asset(
-              'assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png',
+              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
               fit: BoxFit.cover,
             ),
           ),
@@ -38,103 +38,105 @@ class RoleBaseViewScreen extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.work,
-                          size: 80,
-                          color: Color(0xFFC7E3FF),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Welcome to Personal Development Hub.',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFC7E3FF),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.work,
+                            size: 80,
+                            color: Color(0xFFC10D00),
                           ),
-                        ),
-                        const SizedBox(height: 40),
-                        const Text(
-                          'Select your role.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFFC7E3FF),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildRoleButton(
-                          context,
-                          'Employee',
-                          Icons.person,
-                          () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null) {
-                              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                                'role': 'employee',
-                                'roleSetAt': FieldValue.serverTimestamp(),
-                              }, SetOptions(merge: true));
-                            }
-                            if (!context.mounted) return;
-                            Navigator.pushReplacementNamed(context, '/employee_portal');
-                          },
-                        ),
-                        const SizedBox(height: 15),
-                        _buildRoleButton(
-                          context,
-                          'Manager',
-                          Icons.manage_accounts,
-                          () async {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user != null) {
-                              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                                'role': 'manager',
-                                'roleSetAt': FieldValue.serverTimestamp(),
-                              }, SetOptions(merge: true));
-                            }
-                            if (!context.mounted) return;
-                            Navigator.pushReplacementNamed(context, '/manager_portal');
-                          },
-                        ),
-                        const SizedBox(height: 40),
-                        Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Welcome to Personal Development Hub.',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
-                          child: TextButton(
-                            onPressed: () {
-                              // Navigate back to sign in
-                              Navigator.pushReplacementNamed(context, '/sign_in');
+                          const SizedBox(height: 40),
+                          const Text(
+                            'Select your role.',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildRoleButton(
+                            context,
+                            'Employee',
+                            Icons.person,
+                            () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                  'role': 'employee',
+                                  'roleSetAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
+                              }
+                              if (!context.mounted) return;
+                              Navigator.pushReplacementNamed(context, '/employee_portal');
                             },
-                            child: const Text(
-                              'Back to Sign In',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                          ),
+                          const SizedBox(height: 15),
+                          _buildRoleButton(
+                            context,
+                            'Manager',
+                            Icons.manage_accounts,
+                            () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user != null) {
+                                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                                  'role': 'manager',
+                                  'roleSetAt': FieldValue.serverTimestamp(),
+                                }, SetOptions(merge: true));
+                              }
+                              if (!context.mounted) return;
+                              Navigator.pushReplacementNamed(context, '/manager_portal');
+                            },
+                          ),
+                          const SizedBox(height: 40),
+                          Container(
+                            width: double.infinity,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                            ),
+                            child: TextButton(
+                              onPressed: () {
+                                // Navigate back to sign in
+                                Navigator.pushReplacementNamed(context, '/sign_in');
+                              },
+                              child: const Text(
+                                'Back to Sign In',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Choose your role to access your personalized dashboard',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            color: Color(0xFF8B9FB7),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Choose your role to access your personalized dashboard',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -153,7 +155,7 @@ class RoleBaseViewScreen extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         gradient: const LinearGradient(
-          colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+          colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),

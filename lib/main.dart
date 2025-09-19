@@ -45,7 +45,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Personal Development Hub',
       theme: ThemeData(
         brightness: Brightness.dark,
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.red, // Changed from Colors.blue to Colors.red
         fontFamily: 'Poppins',
       ),
       initialRoute: '/', // Always start from the landing screen

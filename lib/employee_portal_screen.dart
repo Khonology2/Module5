@@ -28,7 +28,7 @@ class EmployeePortalScreen extends StatelessWidget {
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+              colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),
@@ -39,7 +39,7 @@ class EmployeePortalScreen extends StatelessWidget {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png',
+              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
               fit: BoxFit.cover,
             ),
           ),
@@ -63,7 +63,7 @@ class EmployeePortalScreen extends StatelessWidget {
             'Open menu to navigate',
             style: TextStyle(
               fontSize: 16.0,
-              color: Color(0xFFC7E3FF),
+              color: Colors.white,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
             ),
