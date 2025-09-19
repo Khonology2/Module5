@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 
@@ -83,9 +85,12 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
         children: [
           // Background image
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/auth_background.png',
-              fit: BoxFit.cover,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+              child: Image.asset(
+                'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           // Content overlay
@@ -95,7 +100,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    'Welcome to Personal Development Hub',
+                    'Welcome to KHONO-DEMY',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 32,
