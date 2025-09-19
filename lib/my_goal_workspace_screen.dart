@@ -50,7 +50,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               surface: Color(0xFF1F2840), // App's card background
               onSurface: Colors.white,
             ),
-            dialogBackgroundColor: const Color(0xFF0A1931), // App's background
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF0A1931), // App's background
+            ),
           ),
           child: child!,
         );
@@ -271,7 +273,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         dropdownColor: const Color(0xFF1F2840), // App's card background color
         style: const TextStyle(color: Colors.white, fontSize: 16),
         decoration: InputDecoration(
