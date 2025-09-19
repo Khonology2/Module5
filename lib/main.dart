@@ -18,6 +18,7 @@ import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/rolebaseview.dart';
 import 'package:pdh/employee_portal_screen.dart';
+import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/services/role_service.dart';
@@ -66,6 +67,7 @@ class _MyAppState extends State<MyApp> {
         '/leaderboard': (context) => const LeaderboardScreen(),
         '/rolebaseview': (context) => const RoleBaseViewScreen(),
         '/employee_portal': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeePortalScreen()),
+        '/employee_dashboard': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeeDashboardScreen()),
         '/manager_portal': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerPortalScreen()),
         '/dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const DashboardScreen()),
       },

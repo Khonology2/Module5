@@ -34,8 +34,8 @@ class EmployeeDrawer extends StatelessWidget {
             context: context,
             icon: Icons.dashboard,
             text: 'Dashboard',
-            route: '/my_pdp',
-            isSelected: currentRoute == '/my_pdp',
+            route: '/employee_dashboard',
+            isSelected: currentRoute == '/employee_dashboard',
           ),
           _buildDrawerItem(
             context: context,
