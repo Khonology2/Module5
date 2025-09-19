@@ -33,7 +33,7 @@ class AppBottomNavBar extends StatelessWidget { // Renamed from BottomNavBar
           currentIndex: selectedIndex,
           onTap: onTabTapped, // Use the callback directly
           backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFF6B4EE8),
+          selectedItemColor: const Color(0xFFC10D00),
           unselectedItemColor: Colors.grey[400],
           showSelectedLabels: true,
           showUnselectedLabels: true,

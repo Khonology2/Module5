@@ -17,16 +17,16 @@ class AppDrawer extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
       decoration: isSelected
           ? BoxDecoration(
-              color: const Color(0xFF81D4FA), // Light blue for selected item
+              color: const Color(0xFFC10D00), // Red for selected item
               borderRadius: BorderRadius.circular(8),
             )
           : null,
       child: ListTile(
-        leading: Icon(icon, color: color ?? Colors.blueGrey[800]), // Darker icons for light background
+        leading: Icon(icon, color: Colors.white), // White icons for red background
         title: Text(
           text,
           style: TextStyle(
-            color: color ?? Colors.blueGrey[900], // Darker text for light background
+            color: Colors.white, // White text for red background
             fontSize: 16,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
@@ -68,13 +68,13 @@ class AppDrawer extends StatelessWidget {
     final currentRoute = ModalRoute.of(context)?.settings.name;
 
     return Drawer(
-      backgroundColor: const Color(0xFFE0F2F7), // Light blue background for the drawer
+      backgroundColor: Colors.red.shade50, // Light red background for the drawer
       child: ListView(
         padding: EdgeInsets.zero,
         children: <Widget>[
           DrawerHeader(
             decoration: const BoxDecoration(
-              color: Color(0xFFB3E0F2), // Light blue background for the header
+              color: Color(0xFFC10D00), // Red background for the header
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,7 +82,7 @@ class AppDrawer extends StatelessWidget {
                 Text(
                   'Dashboard',
                   style: TextStyle(
-                    color: Colors.blueGrey[900], // Darker text for light background
+                    color: Colors.white, // White text for red background
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -91,7 +91,7 @@ class AppDrawer extends StatelessWidget {
                 Text(
                   'Employee Portal',
                   style: TextStyle(
-                    color: Colors.blueGrey[700], // Darker text for light background
+                    color: Colors.white70, // Slightly transparent white for red background
                     fontSize: 16,
                   ),
                 ),

@@ -10,14 +10,14 @@ class EmployeeDrawer extends StatelessWidget {
     final currentRoute = ModalRoute.of(context)?.settings.name;
 
     return Drawer(
-      backgroundColor: const Color(0xFFE0F2F7),
+      backgroundColor: Colors.red.shade50,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+                colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ),
@@ -26,7 +26,7 @@ class EmployeeDrawer extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: Text(
                 'Employee Portal',
-                style: TextStyle(color: Colors.blueGrey[50], fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -127,14 +127,14 @@ class EmployeeDrawer extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           gradient: const LinearGradient(
-            colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
+            colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF48A6ED).withValues(alpha: 0.35),
+                    color: Color(0xFFC10D00).withOpacity(0.35),
                     blurRadius: 10,
                     spreadRadius: 1,
                     offset: const Offset(0, 2),

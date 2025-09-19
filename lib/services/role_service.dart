@@ -100,7 +100,7 @@ class _RoleGateState extends State<RoleGate> {
   Widget build(BuildContext context) {
     if (_isInitializing) {
       return Center(
-        child: CircularProgressIndicator(color: Colors.blueAccent.shade100),
+        child: CircularProgressIndicator(color: Color(0xFFC10D00)),
       );
     }
 
@@ -111,7 +111,7 @@ class _RoleGateState extends State<RoleGate> {
         if (widget.requiredRole == RequiredRole.any) return widget.child;
         if (role == null) {
           return Center(
-            child: CircularProgressIndicator(color: Colors.blueAccent.shade100),
+            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
           );
         }
         final ok = (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
@@ -152,7 +152,7 @@ class _Unauthorized extends StatelessWidget {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6A1B9A), foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00), foregroundColor: Colors.white),
                 child: const Text('Go to my portal'),
               )
             ],
