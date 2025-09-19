@@ -90,7 +90,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                     Container(
                       height: 30,
                       decoration: BoxDecoration(
-                        color: Color(0xFFC10D00).withOpacity(0.5),
+                        color: Color(0xFFC10D00).withValues(alpha: 127),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Align(

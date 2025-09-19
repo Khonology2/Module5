@@ -117,7 +117,7 @@ class ManagerNavDrawer extends StatelessWidget {
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: Color(0xFFC10D00).withOpacity(0.35),
+                  color: Color(0xFFC10D00).withValues(alpha: 89),
                   blurRadius: 10,
                   spreadRadius: 1,
                   offset: const Offset(0, 2),
