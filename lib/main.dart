@@ -46,7 +46,7 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         brightness: Brightness.dark,
         primarySwatch: Colors.blue,
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins',
       ),
       initialRoute: '/', // Always start from the landing screen
       routes: {

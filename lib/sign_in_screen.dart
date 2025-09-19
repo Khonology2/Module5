@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
@@ -106,9 +106,12 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         children: [
           // Background image
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/auth_background.png',
-              fit: BoxFit.cover,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+              child: Image.asset(
+                'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           // Overlay for gradient effect and content (optional, can be removed if not desired)
