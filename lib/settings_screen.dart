@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/employee_drawer.dart';
 import 'package:pdh/manager_nav_drawer.dart';
-import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
+// import 'package:pdh/bottom_nav_bar.dart'; // Bottom nav removed on settings
 import 'package:pdh/auth_service.dart'; // Import AuthService
 import 'package:pdh/services/role_service.dart';
 
@@ -20,7 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _displayNameController = TextEditingController();
   final TextEditingController _photoUrlController = TextEditingController();
   final TextEditingController _resetEmailController = TextEditingController();
-  int _selectedIndex = 0; // Add state variable for selected index
+  // int _selectedIndex = 0; // Bottom nav removed
 
   // Settings & Privacy state
   bool _privateGoals = true;
@@ -60,57 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _setInitialIndex();
   }
 
-  void _setInitialIndex() {
-    final currentRoute = ModalRoute.of(context)?.settings.name;
-    if (currentRoute == '/my_pdp') {
-      setState(() {
-        _selectedIndex = 0; // Corresponds to My PDP
-      });
-    } else if (currentRoute == '/leaderboard') {
-      setState(() {
-        _selectedIndex = 1; // Corresponds to Leaderboard
-      });
-    } else if (currentRoute == '/progress_visuals') {
-      setState(() {
-        _selectedIndex = 2; // Corresponds to Progress Visuals
-      });
-    } else if (currentRoute == '/settings') {
-      setState(() {
-        _selectedIndex = 3; // Corresponds to Setting
-      });
-    }
-  }
+  void _setInitialIndex() {}
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-    // Handle navigation based on the selected index
-    String targetRoute;
-    switch (index) {
-      case 0: // My PDP
-        targetRoute = '/my_pdp';
-        break;
-      case 1: // Leaderboard
-        targetRoute = '/leaderboard';
-        break;
-      case 2: // Progress Visuals
-        targetRoute = '/progress_visuals';
-        break;
-      case 3: // Setting
-        targetRoute = '/settings';
-        break;
-      default:
-        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
-    }
-    if (ModalRoute.of(context)?.settings.name != targetRoute) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        targetRoute,
-        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
-      );
-    }
-  }
+  // _onItemTapped removed with bottom nav
 
   @override
   Widget build(BuildContext context) {
@@ -375,10 +327,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: AppBottomNavBar(
-        selectedIndex: _selectedIndex,
-        onTabTapped: _onItemTapped,
-      ),
+      // bottomNavigationBar removed per request
     );
   }
 

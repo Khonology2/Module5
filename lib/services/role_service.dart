@@ -20,17 +20,53 @@ class RoleService {
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) => doc.data()?['role'] as String?);
+    
+    // Create a stream that starts with cached role if available, then continues with Firestore updates
+    return Stream<String?>.multi((controller) {
+      // First, emit cached role if available
+      if (_cachedRole != null) {
+        controller.add(_cachedRole);
+      }
+      
+      // Then listen to Firestore changes
+      final subscription = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen(
+            (doc) {
+              final role = doc.data()?['role'] as String?;
+              _cachedRole = role; // Update cache
+              controller.add(role);
+            },
+            onError: (error) {
+              controller.addError(error);
+            },
+          );
+      
+      // Clean up subscription when stream is cancelled
+      controller.onCancel = () {
+        subscription.cancel();
+      };
+    });
+  }
+
+  // Method to clear cache (useful for sign out)
+  void clearCache() {
+    _cachedRole = null;
+  }
+
+  // Method to ensure role is loaded and cached
+  Future<void> ensureRoleLoaded() async {
+    if (_cachedRole == null) {
+      await getRole();
+    }
   }
 }
 
 enum RequiredRole { manager, employee, any }
 
-class RoleGate extends StatelessWidget {
+class RoleGate extends StatefulWidget {
   final RequiredRole requiredRole;
   final Widget child;
   final Widget? unauthorized;
@@ -38,21 +74,50 @@ class RoleGate extends StatelessWidget {
   const RoleGate({super.key, required this.requiredRole, required this.child, this.unauthorized});
 
   @override
+  State<RoleGate> createState() => _RoleGateState();
+}
+
+class _RoleGateState extends State<RoleGate> {
+  bool _isInitializing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeRole();
+  }
+
+  Future<void> _initializeRole() async {
+    // Ensure role is loaded before showing the stream
+    await RoleService.instance.ensureRoleLoaded();
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isInitializing) {
+      return Center(
+        child: CircularProgressIndicator(color: Colors.blueAccent.shade100),
+      );
+    }
+
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
         final role = snapshot.data;
-        if (requiredRole == RequiredRole.any) return child;
+        if (widget.requiredRole == RequiredRole.any) return widget.child;
         if (role == null) {
           return Center(
             child: CircularProgressIndicator(color: Colors.blueAccent.shade100),
           );
         }
-        final ok = (requiredRole == RequiredRole.manager && role == 'manager') ||
-            (requiredRole == RequiredRole.employee && role == 'employee');
-        if (ok) return child;
-        return unauthorized ?? _Unauthorized(role: role);
+        final ok = (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
+            (widget.requiredRole == RequiredRole.employee && role == 'employee');
+        if (ok) return widget.child;
+        return widget.unauthorized ?? _Unauthorized(role: role);
       },
     );
   }
@@ -97,5 +162,3 @@ class _Unauthorized extends StatelessWidget {
     );
   }
 }
-
-
