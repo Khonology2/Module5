@@ -5,6 +5,7 @@
     android:orientation="vertical"
     android:gravity="center"
     android:padding="16dp"
+    android:background="@drawable/auth_background"
     tools:context=".AuthActivity">
 
     <EditText
