@@ -319,8 +319,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(10),
                             gradient: const LinearGradient(
                               colors: [
-                                Color(0xFF6B4EE8),
-                                Color(0xFF48A6ED),
+                                Color(0xFFC10D00),
+                                Color(0xFFC10D00),
                               ],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
@@ -456,8 +456,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(10),
                             gradient: const LinearGradient(
                               colors: [
-                                Color(0xFF6B4EE8),
-                                Color(0xFF48A6ED),
+                                Color(0xFFC10D00),
+                                Color(0xFFC10D00),
                               ],
                               begin: Alignment.centerLeft,
                               end: Alignment.centerRight,
@@ -565,7 +565,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                           height: 50,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(10),
-                            color: Colors.blue,
+                            color: Color(0xFFC10D00),
                           ),
                           child: TextButton(
                             onPressed: _isSigningIn
@@ -667,7 +667,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                               child: const Text(
                                 'Register Now?',
                                 style: TextStyle(
-                                  color: Color(0xFF48A6ED),
+                                  color: Color(0xFFC10D00),
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
