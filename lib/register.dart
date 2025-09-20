@@ -190,8 +190,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Container(
                           width: double.infinity,
                           height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
+                          decoration: ShapeDecoration(
+                            shape: const StadiumBorder(),
                             gradient: const LinearGradient(
                               colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
                               begin: Alignment.centerLeft,

@@ -62,12 +62,28 @@ flutter run
 
 ### Landing Screen
 
-![Landing Screen](flutter_01.png)
+![Landing Screen](Landing_screen.jpeg)
 
 ### Sign In Screen
 
-![Sign In Screen](Screenshot_20250910_052207.png)
+![Sign In Screen](sign_up.jpeg)
 
-### Dashboard with Drawer
+### Register Screen
 
-![Dashboard with Drawer](Screenshot_20250910_201355.png)
+![Register Screen](register_screen.jpeg)
+
+### Employee Dashboard
+
+![Employee Dashboard](Dashboard_screen.jpeg)
+
+### Employee Portal
+
+![Employee Portal](employee_portal.jpeg)
+
+### My Personal Development Plan
+
+![My Personal Development Plan](pdp.jpeg)
+
+### Personal Development Goal
+
+![Personal Development Goal](Personal_Development.jpeg)

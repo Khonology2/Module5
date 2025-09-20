@@ -64,12 +64,12 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         setState(() {
           _userRole = _roleController.text.trim();
         });
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Role saved successfully!')),
         );
       } catch (e) {
-        if (!context.mounted) return;
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to save role: $e')),
         );
@@ -127,8 +127,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildUserProfileCard(),
-                      const SizedBox(height: 20),
-                      _buildAIRecommendationsCard(),
                       const SizedBox(height: 20),
                       _buildKeyPerformanceArea(
                         title: 'Operational Excellence',
@@ -229,59 +227,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
   }
 
-  Widget _buildAIRecommendationsCard() {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840), // App's card background color
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text(
-                'AI Recommendations',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Icon(Icons.psychology, color: Color(0xFFC10D00), size: 20), // App's red color
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Based on your progress, consider focusing on leadership skills and cloud architecture certifications.',
-            style: TextStyle(
-              color: Colors.white70.withValues(alpha: 0.7),
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Viewing AI Details!')),
-              );
-            },
-            child: const Text(
-              'View Details',
-              style: TextStyle(
-                color: Color(0xFFC10D00), // App's red color
-                fontSize: 14,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildKeyPerformanceArea({
     required String title,
     required bool isExpanded,
@@ -334,9 +279,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC10D00), // App's red color
                       minimumSize: const Size.fromHeight(40), // Make button full width
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      shape: const StadiumBorder(), // Changed to StadiumBorder
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -351,9 +294,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC10D00), // App's red color
                       minimumSize: const Size.fromHeight(40), // Make button full width
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      shape: const StadiumBorder(), // Changed to StadiumBorder
                     ),
                   ),
                 ],

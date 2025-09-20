@@ -139,96 +139,31 @@ Widget _filtersBar({required bool isManager}) {
 }
 
 Widget _podium() {
-  Widget medal(Color color, String rank, String name, String points) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F2840),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
-        ),
-        child: Column(
-          children: [
-            Text(rank, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const CircleAvatar(radius: 18, backgroundColor: Colors.white24),
-            const SizedBox(height: 8),
-            Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(points, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
+  // Removed mock data for podium
   return Row(
     children: [
-      medal(Colors.amber, '1', 'Emily', '320 pts'),
-      const SizedBox(width: 10),
-      medal(Colors.grey, '2', 'Sarah', '295 pts'),
-      const SizedBox(width: 10),
-      medal(Colors.brown, '3', 'Michael', '270 pts'),
+      // Removed mock data for podium
     ],
   );
 }
 
 Widget _leaderList({required bool isManager}) {
-  List<Map<String, dynamic>> data = [
-    {'rank': 1, 'name': 'Emily Rodriguez', 'points': 320, 'streak': 12, 'team': 'Design'},
-    {'rank': 2, 'name': 'Sarah Johnson', 'points': 295, 'streak': 9, 'team': 'Marketing'},
-    {'rank': 3, 'name': 'Michael Chen', 'points': 270, 'streak': 4, 'team': 'Growth'},
-    {'rank': 4, 'name': 'You', 'points': 250, 'streak': 7, 'team': 'Engineering'},
-    {'rank': 5, 'name': 'Alex Kim', 'points': 230, 'streak': 3, 'team': 'Sales'},
-  ];
+  // Removed mock data
 
-  Widget row(Map<String, dynamic> x, {bool highlight = false}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(10),
-        border: highlight ? Border.all(color: Color(0xFFC10D00).withValues(alpha: 0.4)) : null,
-      ),
-      child: Row(
-        children: [
-          SizedBox(width: 24, child: Text('#${x['rank']}', style: const TextStyle(color: Colors.white70))),
-          const SizedBox(width: 10),
-          const CircleAvatar(radius: 14, backgroundColor: Colors.white24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(x['name'] as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 2),
-                Text('${x['points']} pts • 🔥 ${x['streak']} days${isManager ? ' • ${x['team']}' : ''}', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          if (isManager)
-            OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white24)),
-              child: const Text('Nudge'),
-            ),
-        ],
-      ),
-    );
-  }
+  // Removed mock data for top performers
+
+  // Removed mock data for full leaderboard
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const Text('Top performers', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
       const SizedBox(height: 10),
-      ...data.take(3).map((x) => row(x)),
+      // Removed mock data for top performers
       const SizedBox(height: 16),
       const Text('Full leaderboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
       const SizedBox(height: 10),
-      ...data.asMap().entries.map((e) => row(e.value, highlight: e.value['name'] == 'You')),
+      // Removed mock data for full leaderboard
     ],
   );
 }

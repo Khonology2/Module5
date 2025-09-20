@@ -315,8 +315,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         Container(
                           width: double.infinity,
                           height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
+                          decoration: ShapeDecoration(
+                            shape: const StadiumBorder(), // Changed to StadiumBorder
                             gradient: const LinearGradient(
                               colors: [
                                 Color(0xFFC10D00),
@@ -452,8 +452,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         Container(
                           width: double.infinity,
                           height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
+                          decoration: ShapeDecoration(
+                            shape: const StadiumBorder(), // Changed to StadiumBorder
                             gradient: const LinearGradient(
                               colors: [
                                 Color(0xFFC10D00),
@@ -486,9 +486,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         Container(
                           width: double.infinity,
                           height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: Color(0xFFC10D00),
+                          decoration: const ShapeDecoration(
+                            shape: StadiumBorder(),
+                            color: Colors.white, // Changed to white
                           ),
                           child: TextButton(
                             onPressed: _isSigningIn
@@ -549,7 +549,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   child: Text(
                                     'Sign in with Google',
                                     style: TextStyle(
-                                      color: Colors.white,
+                                      color: Colors.black, // Changed to black
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -563,8 +563,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         Container(
                           width: double.infinity,
                           height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
+                          decoration: const ShapeDecoration(
+                            shape: StadiumBorder(),
                             color: Color(0xFFC10D00),
                           ),
                           child: TextButton(

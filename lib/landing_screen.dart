@@ -128,9 +128,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFC10D00), // Use the new red color
                       padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      shape: const StadiumBorder(), // Changed to StadiumBorder
                     ),
                     child: const Text(
                       'Get Started',

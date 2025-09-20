@@ -124,14 +124,14 @@ class EmployeeDrawer extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Container(
         height: 60,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+        decoration: ShapeDecoration(
+          shape: const StadiumBorder(), // Changed to StadiumBorder
           gradient: const LinearGradient(
             colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
-          boxShadow: isSelected
+          shadows: isSelected
               ? [
                   BoxShadow(
                     color: Color(0xFFC10D00).withValues(alpha: 89),
