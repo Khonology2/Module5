@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:pdh/employee_drawer.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -30,7 +31,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -77,18 +78,21 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Widget _buildWelcomeCard() {
+    final user = FirebaseAuth.instance.currentUser; // Get current user
+    final userName = user?.displayName?.split(' ').first ?? 'User'; // Extract first name
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1F2840),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
+        border: Border.all(color: Color(0xFFC10D00).withValues(alpha: 76)),
       ),
       child: Row(
         children: [
           const CircleAvatar(
             radius: 30,
-            backgroundColor: Color(0xFF00C853),
+            backgroundColor: Color(0xFFC10D00),
             child: Icon(
               Icons.person,
               size: 30,
@@ -100,9 +104,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Welcome back, Sarah!',
-                  style: TextStyle(
+                Text(
+                  'Welcome back, $userName!', // Use dynamic userName
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -132,7 +136,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             title: 'Active Goals',
             value: '8',
             icon: Icons.track_changes,
-            color: const Color(0xFF00C853),
+            color: const Color(0xFFC10D00),
           ),
         ),
         const SizedBox(width: 12),
@@ -141,7 +145,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             title: 'Completed',
             value: '12',
             icon: Icons.check_circle,
-            color: const Color(0xFF4CAF50),
+            color: const Color(0xFFC10D00),
           ),
         ),
         const SizedBox(width: 12),
@@ -218,14 +222,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             icon: Icons.check_circle,
             title: 'Completed "Learn React Native"',
             subtitle: '2 hours ago',
-            color: const Color(0xFF4CAF50),
+            color: const Color(0xFFC10D00),
           ),
           const SizedBox(height: 8),
           _buildActivityItem(
             icon: Icons.add_circle,
             title: 'Added new goal: "Master Flutter"',
             subtitle: '1 day ago',
-            color: const Color(0xFF00C853),
+            color: const Color(0xFFC10D00),
           ),
           const SizedBox(height: 8),
           _buildActivityItem(
@@ -356,13 +360,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF00C853).withValues(alpha: 0.1),
+          color: const Color(0xFFC10D00).withValues(alpha: 25),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
+          border: Border.all(color: const Color(0xFFC10D00).withValues(alpha: 76)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFF00C853), size: 24),
+            Icon(icon, color: const Color(0xFFC10D00), size: 24),
             const SizedBox(height: 4),
             Text(
               label,
@@ -454,7 +458,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey.withValues(alpha: 0.3),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C853)),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
           ),
         ],
       ),

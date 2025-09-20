@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 
 class MyPdpScreen extends StatefulWidget {
   const MyPdpScreen({super.key});
@@ -14,6 +16,66 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
+
+  String _userName = 'User';
+  String _userRole = 'Role not set';
+  final TextEditingController _roleController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
+
+  @override
+  void dispose() {
+    _roleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _userName = user.displayName ?? 'User';
+      });
+
+      final docSnapshot = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
+        setState(() {
+          _userRole = data?['role_position'] ?? 'Role not set';
+          _roleController.text = _userRole;
+        });
+      } else {
+        _roleController.text = _userRole;
+      }
+    }
+  }
+
+  Future<void> _saveRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && _roleController.text.trim().isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+          {'role_position': _roleController.text.trim()},
+          SetOptions(merge: true),
+        );
+        setState(() {
+          _userRole = _roleController.text.trim();
+        });
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Role saved successfully!')),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save role: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +100,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -104,20 +166,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               ),
             ),
           ),
-          Positioned(
-            bottom: 20,
-            right: 20,
-            child: FloatingActionButton(
-              onPressed: () {
-                // Handle chat/message button press
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Chat button pressed!')),
-                );
-              },
-              backgroundColor: const Color(0xFF00C853), // App's green color
-              child: const Icon(Icons.message, color: Colors.white),
-            ),
-          ),
         ],
       ),
     );
@@ -142,25 +190,39 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             ),
           ),
           const SizedBox(width: 15),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'Sarah Johnson',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _userName, // Dynamic user name
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              Text(
-                'Senior Software Engineer',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
+                TextField(
+                  controller: _roleController,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Enter your role position',
+                    hintStyle: TextStyle(color: Colors.white70.withValues(alpha: 0.5)),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.save, color: Color(0xFFC10D00)),
+                      onPressed: _saveRole,
+                    ),
+                  ),
+                  onSubmitted: (_) => _saveRole(),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -188,7 +250,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Icon(Icons.psychology, color: Color(0xFF00C853), size: 20), // App's green color
+              Icon(Icons.psychology, color: Color(0xFFC10D00), size: 20), // App's red color
             ],
           ),
           const SizedBox(height: 8),
@@ -209,7 +271,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             child: const Text(
               'View Details',
               style: TextStyle(
-                color: Color(0xFF00C853), // App's green color
+                color: Color(0xFFC10D00), // App's red color
                 fontSize: 14,
                 decoration: TextDecoration.underline,
               ),
@@ -270,7 +332,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text('Add Goal', style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C853), // App's green color
+                      backgroundColor: const Color(0xFFC10D00), // App's red color
                       minimumSize: const Size.fromHeight(40), // Make button full width
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -287,7 +349,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text('Add Milestone', style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0A1931), // App's dark blue color
+                      backgroundColor: const Color(0xFFC10D00), // App's red color
                       minimumSize: const Size.fromHeight(40), // Make button full width
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
