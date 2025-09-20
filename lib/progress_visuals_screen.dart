@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:pdh/employee_drawer.dart';
 import 'package:pdh/manager_nav_drawer.dart';
+import 'dart:ui'; // Import for ImageFilter
 
 class ProgressVisualsScreen extends StatefulWidget {
   const ProgressVisualsScreen({super.key});
@@ -23,10 +24,11 @@ class _ProgressVisualsContent extends StatelessWidget {
     final args = ModalRoute.of(context)?.settings.arguments;
     final isManagerOrigin = args is Map && args['origin'] == 'manager';
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1931),
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1931),
-        elevation: 0,
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
         title: const Text(
           'Progress Visuals',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -39,18 +41,52 @@ class _ProgressVisualsContent extends StatelessWidget {
         ],
       ),
       drawer: isManagerOrigin ? const ManagerNavDrawer() : const EmployeeDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPortfolioOverview(),
-            const SizedBox(height: 30),
-            _buildGoalsProgress(context),
-            const SizedBox(height: 30),
-            _buildAIInsights(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPortfolioOverview(),
+                        const SizedBox(height: 30),
+                        _buildGoalsProgress(context),
+                        const SizedBox(height: 30),
+                        _buildAIInsights(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
     );

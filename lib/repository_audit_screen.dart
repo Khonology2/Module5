@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
+import 'dart:ui'; // Import for ImageFilter
 
 class RepositoryAuditScreen extends StatelessWidget { 
   const RepositoryAuditScreen({super.key});
@@ -23,123 +24,126 @@ class RepositoryAuditScreen extends StatelessWidget {
         title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)),
       ),
       drawer: const _RoleAwareDrawer(),
-      body: Container(
-        // The background gradient to match the vibrant green/blue.
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFC10D00), // Top color from the screenshot
-              Color(0xFFC10D00), // Bottom color, slightly darker green
-            ],
+      body: Stack(
+        children: [
+          // Background image
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
           ),
-        ),
-        child: Column(
-          children: [
-            // AppBar replacement with search and title.
-            Builder(
-              builder: (context) => _RepositoryAppBarContent(
-                onMenuPressed: () => Scaffold.of(context).openDrawer(),
+          // Overlay for blur effect and gradient
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // AppBar replacement with search and title.
+                    Builder(
+                      builder: (context) => _RepositoryAppBarContent(
+                        onMenuPressed: () => Scaffold.of(context).openDrawer(),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0), // Padding for the list view
+                        children: [
+                          StreamBuilder<String?>(
+                            stream: RoleService.instance.roleStream(),
+                            builder: (context, snapshot) {
+                              final isManager = snapshot.data == 'manager';
+                              return _RoleSummaryBar(isManager: isManager);
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          StreamBuilder<String?>(
+                            stream: RoleService.instance.roleStream(),
+                            builder: (context, snapshot) {
+                              final isManager = snapshot.data == 'manager';
+                              return Column(children: [
+                                _buildGoalCard(
+                                  title: 'Increase Customer Satisfaction Score',
+                                  date: 'March 15, 2024',
+                                  status: 'Verified',
+                                  statusColor: const Color(0xFFC10D00),
+                                  evidence: [
+                                    'Survey Results Report',
+                                    'Dashboard Analytics Link',
+                                    'Customer Feedback Files',
+                                  ],
+                                  acknowledgedBy: 'Sarah Chen',
+                                  score: '4.8',
+                                  isManager: isManager,
+                                ),
+                                _buildGoalCard(
+                                  title: 'Launch New Product Feature',
+                                  date: 'February 28, 2024',
+                                  status: 'Pending',
+                                  statusColor: const Color(0xFFE4A11A),
+                                  evidence: [
+                                    'Feature Specification Document',
+                                    'GitHub Repository Link',
+                                  ],
+                                  acknowledgedBy: null,
+                                  score: null,
+                                  isManager: isManager,
+                                ),
+                                _buildGoalCard(
+                                  title: 'Strategic Market Expansion Plan',
+                                  date: 'January 20, 2024',
+                                  status: 'Verified',
+                                  statusColor: const Color(0xFFC10D00),
+                                  evidence: [
+                                    'Market Research Summary',
+                                    'Competitor Analysis',
+                                    'Expansion Proposal Document',
+                                  ],
+                                  acknowledgedBy: 'John Doe',
+                                  score: '4.5',
+                                  isManager: isManager,
+                                ),
+                                _buildGoalCard(
+                                  title: 'Complete Leadership Training',
+                                  date: 'December 10, 2023',
+                                  status: 'Verified',
+                                  statusColor: const Color(0xFFC10D00),
+                                  evidence: [
+                                    'Course Completion Certificate',
+                                    'Leadership Workshop Notes',
+                                  ],
+                                  acknowledgedBy: 'Jane Smith',
+                                  score: '4.9',
+                                  isManager: isManager,
+                                ),
+                              ]);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0), // Padding for the list view
-                children: [
-                  StreamBuilder<String?>(
-                    stream: RoleService.instance.roleStream(),
-                    builder: (context, snapshot) {
-                      final isManager = snapshot.data == 'manager';
-                      return _RoleSummaryBar(isManager: isManager);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  StreamBuilder<String?>(
-                    stream: RoleService.instance.roleStream(),
-                    builder: (context, snapshot) {
-                      final isManager = snapshot.data == 'manager';
-                      return Column(children: [
-                        _buildGoalCard(
-                          title: 'Increase Customer Satisfaction Score',
-                          date: 'March 15, 2024',
-                          status: 'Verified',
-                          statusColor: const Color(0xFFC10D00),
-                          evidence: [
-                            'Survey Results Report',
-                            'Dashboard Analytics Link',
-                            'Customer Feedback Files',
-                          ],
-                          acknowledgedBy: 'Sarah Chen',
-                          score: '4.8',
-                          isManager: isManager,
-                        ),
-                        _buildGoalCard(
-                          title: 'Launch New Product Feature',
-                          date: 'February 28, 2024',
-                          status: 'Pending',
-                          statusColor: const Color(0xFFE4A11A),
-                          evidence: [
-                            'Feature Specification Document',
-                            'GitHub Repository Link',
-                          ],
-                          acknowledgedBy: null,
-                          score: null,
-                          isManager: isManager,
-                        ),
-                        _buildGoalCard(
-                          title: 'Strategic Market Expansion Plan',
-                          date: 'January 20, 2024',
-                          status: 'Verified',
-                          statusColor: const Color(0xFFC10D00),
-                          evidence: [
-                            'Market Research Summary',
-                            'Competitor Analysis',
-                            'Expansion Proposal Document',
-                          ],
-                          acknowledgedBy: 'John Doe',
-                          score: '4.5',
-                          isManager: isManager,
-                        ),
-                        _buildGoalCard(
-                          title: 'Complete Leadership Training',
-                          date: 'December 10, 2023',
-                          status: 'Verified',
-                          statusColor: const Color(0xFFC10D00),
-                          evidence: [
-                            'Course Completion Certificate',
-                            'Leadership Workshop Notes',
-                          ],
-                          acknowledgedBy: 'Jane Smith',
-                          score: '4.9',
-                          isManager: isManager,
-                        ),
-                      ]);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            // Bottom navigation buttons
-            // Container(
-            //   padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 20.0),
-            //   decoration: const BoxDecoration(
-            //     color: Color(0xFF1E172F), // Darker background for the button bar
-            //     borderRadius: BorderRadius.only(
-            //       topLeft: Radius.circular(30),
-            //       topRight: Radius.circular(30),
-            //     ),
-            //   ),
-            //   child: Row(
-            //     mainAxisAlignment: MainAxisAlignment.spaceAround,
-            //     children: [
-            //       _buildRoleButton('Manager', true), // Manager button is selected
-            //       _buildRoleButton('Employee', false), // Employee button is not selected
-            //     ],
-            //   ),
-            // ),
-          ],
-        ),
+          ),
+        ],
       ),
       // bottomNavigationBar removed per request
     );
@@ -192,10 +196,7 @@ class RepositoryAuditScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withAlpha(51), // Replaced withOpacity(0.2) with withAlpha(51)
-                  borderRadius: BorderRadius.circular(10),
-                ),
+                decoration: ShapeDecoration(color: statusColor.withAlpha(51), shape: const StadiumBorder()), // Changed to StadiumBorder
                 child: Text(
                   status,
                   style: TextStyle(
@@ -304,7 +305,7 @@ class _RoleSummaryBar extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget chip(Color color, String label) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: Colors.white.withAlpha(26), borderRadius: BorderRadius.circular(16)),
+          decoration: ShapeDecoration(color: Colors.white.withAlpha(26), shape: const StadiumBorder()), // Changed to StadiumBorder
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

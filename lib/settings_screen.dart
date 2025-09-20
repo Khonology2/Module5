@@ -155,6 +155,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             const SnackBar(content: Text('Profile updated successfully!')),
                           );
                         },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00), // Red background
+                          foregroundColor: Colors.white, // White text
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: const StadiumBorder(), // Changed to StadiumBorder
+                        ),
                         child: const Text('Update Profile'),
                       ),
                       const SizedBox(height: 30),
@@ -173,6 +179,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             SnackBar(content: Text('Password reset email sent to ${_resetEmailController.text}')),
                           );
                         },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00), // Red background
+                          foregroundColor: Colors.white, // White text
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: const StadiumBorder(), // Changed to StadiumBorder
+                        ),
                         child: const Text('Send Password Reset Email'),
                       ),
                       const SizedBox(height: 30),
@@ -304,7 +316,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (!mounted) return;
                           Navigator.pushReplacementNamed(context, '/sign_in');
                         },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00), // Red background
+                          foregroundColor: Colors.white, // White text
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: const StadiumBorder(), // Changed to StadiumBorder
+                        ),
                         child: const Text('Delete Account'),
                       ),
                       const SizedBox(height: 30),
@@ -315,6 +332,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (!mounted) return;
                           Navigator.pushReplacementNamed(context, '/sign_in');
                         },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00), // Red background
+                          foregroundColor: Colors.white, // White text
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: const StadiumBorder(), // Changed to StadiumBorder
+                        ),
                         child: const Text('Sign Out'),
                       ),
                         ],
