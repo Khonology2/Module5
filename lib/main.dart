@@ -26,6 +26,9 @@ import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
 
+// Define a ValueNotifier to hold the current route name
+final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(null);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -45,6 +48,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return _GlobalChatbotWrapper(
+      currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
       child: MaterialApp(
         navigatorKey: navigatorKey, // Assign the global key to MaterialApp
         title: 'Personal Development Hub',
@@ -78,6 +82,8 @@ class _MyAppState extends State<MyApp> {
           '/ai_chatbot': (context) => const AiChatbotScreen(), // Add the new AI Chatbot route
         },
         debugShowCheckedModeBanner: false,
+        // Add the custom NavigatorObserver
+        navigatorObservers: [MyNavigatorObserver()],
       ),
     );
   }
@@ -85,8 +91,9 @@ class _MyAppState extends State<MyApp> {
 
 class _GlobalChatbotWrapper extends StatelessWidget {
   final Widget child;
+  final ValueNotifier<String?> currentRouteNotifier;
 
-  const _GlobalChatbotWrapper({required this.child});
+  const _GlobalChatbotWrapper({required this.child, required this.currentRouteNotifier});
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +103,12 @@ class _GlobalChatbotWrapper extends StatelessWidget {
         child,
         Directionality(
           textDirection: TextDirection.ltr, // Explicitly provide Directionality
-          child: const ChatbotButton(),
+          child: ValueListenableBuilder<String?>(
+            valueListenable: currentRouteNotifier,
+            builder: (context, currentRoute, _) {
+              return ChatbotButton(currentRoute: currentRoute);
+            },
+          ),
         ),
       ],
     );
@@ -104,10 +116,27 @@ class _GlobalChatbotWrapper extends StatelessWidget {
 }
 
 class ChatbotButton extends StatelessWidget {
-  const ChatbotButton({super.key});
+  final String? currentRoute;
+  const ChatbotButton({super.key, this.currentRoute});
 
   @override
   Widget build(BuildContext context) {
+    // Check if the current route is one of the allowed screens
+    final allowedRoutes = [
+      '/dashboard',
+      '/my_pdp',
+      '/my_goal_workspace',
+      '/progress_visuals',
+      '/alerts_nudges',
+      '/badges_points',
+      '/leaderboard',
+      '/repository_audit',
+      '/employee_dashboard', // Add the employee dashboard route
+    ];
+    if (currentRoute == null || !allowedRoutes.contains(currentRoute) || currentRoute == '/ai_chatbot') {
+      return const SizedBox.shrink(); // Hide the button on screens not in the allowed list or the chatbot screen itself
+    }
+
     return Positioned(
       bottom: 20,
       right: 20,
@@ -120,5 +149,23 @@ class ChatbotButton extends StatelessWidget {
         child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
       ),
     );
+  }
+}
+
+// Custom NavigatorObserver to update the current route
+class MyNavigatorObserver extends NavigatorObserver {
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    currentRouteNotifier.value = route.settings.name;
+  }
+
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    currentRouteNotifier.value = newRoute?.settings.name;
+  }
+
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    currentRouteNotifier.value = previousRoute?.settings.name;
   }
 }
