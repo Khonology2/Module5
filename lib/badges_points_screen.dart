@@ -30,7 +30,7 @@ class BadgesPointsScreen extends StatelessWidget {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -88,21 +88,21 @@ class BadgesPointsScreen extends StatelessWidget {
                       _buildSectionHeader('Recent Celebrations'),
                       _buildCelebrationCard(
                         icon: Icons.emoji_events, // Trophy icon
-                        iconColor: const Color(0xFF00C853), // App's green color
+                        iconColor: const Color(0xFFC10D00), // App's red color
                         message: 'Alex completed the \'Code Review Champion\' badge!',
                         time: '2 hours ago',
                       ),
                       const SizedBox(height: 10),
                       _buildCelebrationCard(
                         icon: Icons.thumb_up, // Thumbs up icon
-                        iconColor: const Color(0xFF00C853), // App's green color
+                        iconColor: const Color(0xFFC10D00), // App's red color
                         message: 'Development Team reached Level 8!',
                         time: 'Yesterday',
                       ),
                       const SizedBox(height: 10),
                       _buildCelebrationCard(
                         icon: Icons.workspace_premium, // Badge icon
-                        iconColor: const Color(0xFF00C853), // App's green color
+                        iconColor: const Color(0xFFC10D00), // App's red color
                         message: 'Lisa earned \'Collaboration Expert\' achievement!',
                         time: '3 days ago',
                       ),
@@ -139,7 +139,7 @@ class BadgesPointsScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF00C853), Color(0xFF0A1931)], // App's green to dark blue gradient
+          colors: [Color(0xFFC10D00), Color(0xFF0A1931)], // App's red to dark blue gradient
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -204,7 +204,7 @@ class BadgesPointsScreen extends StatelessWidget {
       children: [
         _buildAchievementCard(
           icon: Icons.emoji_events,
-          iconColor: const Color(0xFF00C853), // App's green color
+          iconColor: const Color(0xFFC10D00), // App's red color
           title: 'Team Player',
           description: 'Completed 10\nteam challenges',
           status: 'Earned Dec 15',
@@ -218,7 +218,7 @@ class BadgesPointsScreen extends StatelessWidget {
         ),
         _buildAchievementCard(
           icon: Icons.star,
-          iconColor: const Color(0xFF00C853), // App's green color
+          iconColor: const Color(0xFFC10D00), // App's red color
           title: 'Innovation Star',
           description: 'Submitted 5\ncreative ideas',
           status: 'Earned Nov 28',
@@ -269,7 +269,7 @@ class BadgesPointsScreen extends StatelessWidget {
           Text(
             status,
             style: TextStyle(
-              color: status == 'In Progress' ? Colors.orange : const Color(0xFF00C853), // App's green color
+              color: status == 'In Progress' ? Colors.orange : const Color(0xFFC10D00), // App's red color
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -297,7 +297,7 @@ class BadgesPointsScreen extends StatelessWidget {
             Text(
               '847/1000 XP',
               style: TextStyle(
-                color: Color(0xFF00C853), // App's green color
+                color: Color(0xFFC10D00), // App's red color
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -308,7 +308,7 @@ class BadgesPointsScreen extends StatelessWidget {
         LinearProgressIndicator(
           value: 0.847,
           backgroundColor: Colors.grey.withValues(alpha: 0.3),
-          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C853)), // App's green color
+          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)), // App's red color
           minHeight: 8,
           borderRadius: BorderRadius.circular(5),
         ),
@@ -361,13 +361,13 @@ class BadgesPointsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isYou ? const Color(0xFF00C853).withValues(alpha: 0.4) : const Color(0xFF1F2840), // App's green and card colors
+        color: isYou ? const Color(0xFFC10D00).withValues(alpha: 0.4) : const Color(0xFF1F2840), // App's red and card colors
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: isYou ? Colors.white : const Color(0xFF00C853), // App's green color
+            backgroundColor: isYou ? Colors.white : const Color(0xFFC10D00), // App's red color
             child: Text(
               '$rank',
               style: TextStyle(
@@ -447,7 +447,7 @@ class BadgesPointsScreen extends StatelessWidget {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: status == 'Joined' ? Colors.grey : const Color(0xFF00C853), // App's green color
+                  backgroundColor: status == 'Joined' ? Colors.grey : const Color(0xFFC10D00), // App's red color
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                 ),
@@ -522,7 +522,7 @@ class BadgesPointsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF00C853), Color(0xFF0A1931)], // App's green to dark blue gradient
+          colors: [Color(0xFFC10D00), Color(0xFF0A1931)], // App's green to dark blue gradient
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -533,19 +533,14 @@ class BadgesPointsScreen extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Icon(Icons.psychology, color: Colors.white, size: 20),
-              SizedBox(width: 10),
               Text(
-                'AI Suggestions',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                'AI Smart Alerts',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
+              Icon(Icons.psychology, color: Color(0xFFC10D00), size: 22),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           const Text(
             'Based on your activity, try joining the \'Knowledge Sharing\' challenge to earn the \'Mentor\' badge faster!',
             style: TextStyle(color: Colors.white70, fontSize: 14),

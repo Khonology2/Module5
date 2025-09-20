@@ -45,7 +45,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF00C853), // App's green color
+              primary: Color(0xFFC10D00), // App's red color
               onPrimary: Colors.white,
               surface: Color(0xFF1F2840), // App's card background
               onSurface: Colors.white,
@@ -100,7 +100,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -297,16 +297,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF00C853).withValues(alpha: 0.2), // App's green color with transparency
+        color: const Color(0xFFC10D00).withValues(alpha: 51), // App's red color with transparency
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.5)),
+        border: Border.all(color: const Color(0xFFC10D00).withValues(alpha: 127)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: const [
-              Icon(Icons.lightbulb_outline, color: Color(0xFF00C853), size: 20), // App's green color
+              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20), // App's red color
               SizedBox(width: 10),
               Text(
                 'SMART Criteria Verification',
@@ -351,7 +351,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFF00C853), // App's green color
+        activeColor: const Color(0xFFC10D00), // App's red color
         checkColor: Colors.white,
         contentPadding: EdgeInsets.zero,
       ),
@@ -386,7 +386,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00C853), // App's green color
+              backgroundColor: const Color(0xFFC10D00), // App's red color
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

@@ -81,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -341,10 +341,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
+        borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
       ),
       hintText: hintText, // Add hintText
-      hintStyle: const TextStyle(color: Color(0xB2C7E3FF)), // Remove const
+      hintStyle: const TextStyle(color: Color(0xFFC10D00)), // Remove const
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
@@ -425,7 +425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: Colors.deepPurpleAccent,
+            activeTrackColor: Color(0xFFC10D00),
             activeThumbColor: Colors.white,
             inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
             inactiveThumbColor: Colors.grey,

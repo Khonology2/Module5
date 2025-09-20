@@ -84,11 +84,6 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: const Color(0xFF00C853),
-        child: const Icon(Icons.chat, color: Colors.white),
-      ),
     );
   }
 

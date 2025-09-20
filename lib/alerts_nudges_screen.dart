@@ -93,7 +93,7 @@ class AlertsNudgesScreen extends StatelessWidget {
                 'AI Smart Alerts',
                 style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              Icon(Icons.psychology, color: Colors.deepPurple, size: 22),
+              Icon(Icons.psychology, color: Color(0xFFC10D00), size: 22),
             ],
           ),
           const SizedBox(height: 6),
@@ -118,7 +118,7 @@ class AlertsNudgesScreen extends StatelessWidget {
       children: [
         chip(Colors.redAccent, '3 Overdue'),
         chip(Colors.orangeAccent, '5 At Risk'),
-        chip(Colors.lightBlueAccent, '7 Due Soon'),
+        chip(Color(0xFFC10D00), '7 Due Soon'),
         chip(Colors.greenAccent, '4 Kudos'),
       ],
     );
@@ -186,7 +186,7 @@ class AlertsNudgesScreen extends StatelessWidget {
         _alertCard(
           context,
           icon: Icons.event,
-          iconColor: Colors.lightBlueAccent,
+          iconColor: Color(0xFFC10D00),
           title: 'Due soon: Fitness Challenge goal',
           subtitle: 'Due in 3 days',
           primaryText: 'Open Goal',

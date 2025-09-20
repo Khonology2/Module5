@@ -30,8 +30,8 @@ class RepositoryAuditScreen extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF00C7B7), // Top color from the screenshot
-              Color(0xFF00A896), // Bottom color, slightly darker green
+              Color(0xFFC10D00), // Top color from the screenshot
+              Color(0xFFC10D00), // Bottom color, slightly darker green
             ],
           ),
         ),
@@ -64,7 +64,7 @@ class RepositoryAuditScreen extends StatelessWidget {
                           title: 'Increase Customer Satisfaction Score',
                           date: 'March 15, 2024',
                           status: 'Verified',
-                          statusColor: const Color(0xFF2E8B57),
+                          statusColor: const Color(0xFFC10D00),
                           evidence: [
                             'Survey Results Report',
                             'Dashboard Analytics Link',
@@ -91,7 +91,7 @@ class RepositoryAuditScreen extends StatelessWidget {
                           title: 'Strategic Market Expansion Plan',
                           date: 'January 20, 2024',
                           status: 'Verified',
-                          statusColor: const Color(0xFF2E8B57),
+                          statusColor: const Color(0xFFC10D00),
                           evidence: [
                             'Market Research Summary',
                             'Competitor Analysis',
@@ -105,7 +105,7 @@ class RepositoryAuditScreen extends StatelessWidget {
                           title: 'Complete Leadership Training',
                           date: 'December 10, 2023',
                           status: 'Verified',
-                          statusColor: const Color(0xFF2E8B57),
+                          statusColor: const Color(0xFFC10D00),
                           evidence: [
                             'Course Completion Certificate',
                             'Leadership Workshop Notes',
@@ -346,11 +346,11 @@ class _RoleSummaryBar extends StatelessWidget {
                     runSpacing: 6,
                     children: isManager
                         ? [
-                            chip(const Color(0xFF2E8B57), 'Verified 12'),
+                            chip(const Color(0xFFC10D00), 'Verified 12'),
                             chip(const Color(0xFFE4A11A), 'Pending 5'),
                           ]
                         : [
-                            chip(const Color(0xFF2E8B57), 'My Verified 4'),
+                            chip(const Color(0xFFC10D00), 'My Verified 4'),
                             chip(const Color(0xFFE4A11A), 'My Pending 1'),
                           ],
                   ),

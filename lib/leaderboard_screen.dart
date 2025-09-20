@@ -36,7 +36,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -190,7 +190,7 @@ Widget _leaderList({required bool isManager}) {
       decoration: BoxDecoration(
         color: const Color(0xFF1F2840),
         borderRadius: BorderRadius.circular(10),
-        border: highlight ? Border.all(color: Colors.lightBlueAccent.withValues(alpha: 0.4)) : null,
+        border: highlight ? Border.all(color: Color(0xFFC10D00).withValues(alpha: 0.4)) : null,
       ),
       child: Row(
         children: [
