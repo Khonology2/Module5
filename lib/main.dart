@@ -115,7 +115,7 @@ class _GlobalChatbotWrapper extends StatelessWidget {
   }
 }
 
-class ChatbotButton extends StatelessWidget {
+class ChatbotButton extends StatelessWidget { // Changed to StatelessWidget
   final String? currentRoute;
   const ChatbotButton({super.key, this.currentRoute});
 
@@ -145,8 +145,9 @@ class ChatbotButton extends StatelessWidget {
           // Navigate to the AI Chatbot screen using the global key
           navigatorKey.currentState!.pushNamed('/ai_chatbot');
         },
-        backgroundColor: const Color(0xFFC10D00), // Use the app's red color
-        child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+        backgroundColor: Colors.white, // Use white background
+        shape: const CircleBorder(), // Make the button round
+        child: Image.asset('assets/AI_Red.png', width: 40.0, height: 40.0), // Use the AI_Red.png image
       ),
     );
   }

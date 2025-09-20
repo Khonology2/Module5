@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_nav_drawer.dart';
+import 'dart:ui'; // Added for ImageFilter
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -7,9 +8,10 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1931),
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1931),
+        backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0,
         title: const Text(
           'Dashboard',
@@ -17,26 +19,58 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
       drawer: const ManagerNavDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _filtersBar(),
-            const SizedBox(height: 16),
-            _kpiRow(),
-            const SizedBox(height: 20),
-            _quickActions(context),
-            const SizedBox(height: 20),
-            _aiInsights(),
-            const SizedBox(height: 20),
-            _workloadHeatmap(),
-            const SizedBox(height: 20),
-            _engagementSummary(),
-            const SizedBox(height: 20),
-            _statusSections(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _filtersBar(),
+                      const SizedBox(height: 16),
+                      _kpiRow(),
+                      const SizedBox(height: 20),
+                      _quickActions(context),
+                      const SizedBox(height: 20),
+                      _aiInsights(),
+                      const SizedBox(height: 20),
+                      _workloadHeatmap(),
+                      const SizedBox(height: 20),
+                      _engagementSummary(),
+                      const SizedBox(height: 20),
+                      _statusSections(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -127,7 +161,7 @@ class DashboardScreen extends StatelessWidget {
       children: [
         action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
-        action(Icons.campaign, 'Send Nudge', const Color(0xFF00C853)),
+        action(Icons.campaign, 'Send Nudge', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
         action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
       ],

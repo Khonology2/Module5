@@ -29,15 +29,6 @@ class ManagerPortalScreen extends StatelessWidget {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-          ),
-        ),
       ),
       body: Stack(
         children: [
@@ -65,7 +56,7 @@ class ManagerPortalScreen extends StatelessWidget {
                   ),
                 ),
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(40.0),
+                        padding: EdgeInsets.fromLTRB(40.0, MediaQuery.of(context).padding.top + kToolbarHeight + 40.0, 40.0, 40.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
