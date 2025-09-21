@@ -35,14 +35,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late VideoPlayerController _videoController;
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
-  bool _isProofreadButtonEnabled = false; // New state variable for proofread button
+  bool _isProofreadingActive = false; // New state variable for proofreading feature toggle
   static const MethodChannel _channel = MethodChannel('com.example.khonopal/proofreading'); // Define the channel
 
   @override
   void initState() {
     super.initState();
     _initializeGenerativeModel();
-    _messageController.addListener(_updateProofreadButtonState); // Add listener
     _videoController = VideoPlayerController.asset('assets/videos/chat_bot_animation-vmake.mp4')
       ..initialize().then((_) {
         _videoController.setLooping(true);
@@ -53,10 +52,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _loadUserProfileAndSetGreeting();
   }
 
-  void _updateProofreadButtonState() {
+  // Function to toggle proofreading feature
+  void _toggleProofreading() {
     setState(() {
-      _isProofreadButtonEnabled = _messageController.text.trim().isNotEmpty;
+      _isProofreadingActive = !_isProofreadingActive;
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Proofreading is ${_isProofreadingActive ? 'enabled' : 'disabled'}')),
+    );
   }
 
   Future<void> _loadUserProfileAndSetGreeting() async {
@@ -87,7 +90,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void dispose() {
     _scrollController.dispose();
     _videoController.dispose();
-    _messageController.removeListener(_updateProofreadButtonState); // Remove listener
     _messageController.dispose(); // Dispose controller
     super.dispose();
   }
@@ -127,7 +129,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
+    String text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     setState(() {
@@ -137,6 +139,27 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
     _scrollToBottom(); // Scroll to bottom after adding user message
     _saveChatHistory(); // Save chat after adding user message
+
+    String textToSendToGemini = text;
+
+    if (_isProofreadingActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Proofreading...')),
+      );
+      final String? proofreadText = await _proofreadMessage(text);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
+
+      if (proofreadText != null && proofreadText.isNotEmpty) {
+        textToSendToGemini = proofreadText;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proofreading complete! Sending to AI...')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proofreading failed or no suggestions found. Sending original text to AI...')),
+        );
+      }
+    }
 
     try {
       // Dynamically set system instruction based on _selectedMode
@@ -171,7 +194,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         systemInstruction: currentSystemInstruction != null ? Content.text(currentSystemInstruction) : null,
       );
 
-      final prompt = [Content.text(text)];
+      final prompt = [Content.text(textToSendToGemini)];
       final response = await _model.generateContent(prompt);
       
       final aiMessage = ChatMessage(text: '', isUser: false, fullText: response.text ?? 'No response');
@@ -293,8 +316,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         },
                       ),
                       IconButton(
-                        icon: Icon(Icons.spellcheck, color: _isProofreadButtonEnabled ? Colors.white70 : Colors.grey), // Proofreading icon
-                        onPressed: _isProofreadButtonEnabled ? () => _proofreadMessage() : null, // Disable if no text
+                        icon: Icon(
+                          Icons.spellcheck,
+                          color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70, // Highlight if active
+                        ),
+                        onPressed: _toggleProofreading, // Toggle proofreading status
                       ),
                     ],
                   ),
@@ -318,43 +344,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Future<void> _proofreadMessage() async {
-    final String textToProofread = _messageController.text.trim();
+  Future<String?> _proofreadMessage(String textToProofread) async {
     if (textToProofread.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter text to proofread.')),
-      );
-      return;
+      return null;
     }
 
     try {
-      // Show a loading indicator while proofreading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Proofreading...')),
-      );
       final String? proofreadText = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
-      if (proofreadText != null && proofreadText.isNotEmpty) {
-        _messageController.text = proofreadText;
-        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proofreading complete!')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No suggestions found or proofreading failed.')),
-        );
-      }
-    } on PlatformException catch (e) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to proofread: ${e.message}')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: $e')),
-      );
+      return proofreadText;
+    } on PlatformException catch (_) {
+      // Handle platform-specific errors (e.g., if the Android proofreading service is unavailable)
+      return null;
+    } catch (_) {
+      // Handle any other unexpected errors
+      return null;
     }
   }
 
