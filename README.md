@@ -60,30 +60,66 @@ flutter run
 
 ## Screenshots
 
-### Landing Screen
+### Employee Portal
 
-![Landing Screen](Landing_screen.jpeg)
-
-### Sign In Screen
-
-![Sign In Screen](sign_up.jpeg)
-
-### Register Screen
-
-![Register Screen](register_screen.jpeg)
+![Employee Portal](flutter_01.png)
 
 ### Employee Dashboard
 
-![Employee Dashboard](Dashboard_screen.jpeg)
-
-### Employee Portal
-
-![Employee Portal](employee_portal.jpeg)
+![Employee Dashboard](flutter_02.png)
 
 ### My Personal Development Plan
 
-![My Personal Development Plan](pdp.jpeg)
+![My Personal Development Plan](flutter_03.png)
 
-### Personal Development Goal
+### Personal Development Goal - Goal Information
 
-![Personal Development Goal](Personal_Development.jpeg)
+![Personal Development Goal - Goal Information](flutter_04.png)
+
+### Personal Development Goal - SMART Criteria Verification
+
+![Personal Development Goal - SMART Criteria Verification](flutter_05.png)
+
+### Progress Visuals
+
+![Progress Visuals](flutter_06.png)
+
+### Alerts & Nudges
+
+![Alerts & Nudges](flutter_07.png)
+
+### Badges & Points - Overview
+
+![Badges & Points - Overview](flutter_08.png)
+
+### Badges & Points - Recent Celebrations and AI Smart Alerts
+
+![Badges & Points - Recent Celebrations and AI Smart Alerts](flutter_09.png)
+
+### Leaderboard
+
+![Leaderboard](flutter_10.png)
+
+### Repository & Audit - Completed Goals Archive
+
+![Repository & Audit - Completed Goals Archive](flutter_11.png)
+
+### Repository & Audit - Employee Portal Navigation
+
+![Repository & Audit - Employee Portal Navigation](flutter_12.png)
+
+### Settings - Employee Settings
+
+![Settings - Employee Settings](flutter_13.png)
+
+### Settings - Employee Portal Navigation
+
+![Settings - Employee Portal Navigation](flutter_14.png)
+
+### AI Chatbot - Initial Greeting
+
+![AI Chatbot - Initial Greeting](flutter_15.png)
+
+### AI Chatbot - Mode Selection
+
+![AI Chatbot - Mode Selection](flutter_16.png)
