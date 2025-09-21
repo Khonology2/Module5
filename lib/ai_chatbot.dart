@@ -8,6 +8,12 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
+import'package:pdh/context_maps/manager_maps/dashboard_context.dart'; // Update the import path
+import 'package:pdh/context_maps/manager_maps/progress_visuals_context.dart';
+import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
+import 'package:pdh/context_maps/manager_maps/leaderboard_context.dart';
+import 'package:pdh/context_maps/manager_maps/repository_audit_context.dart';
+import 'package:pdh/context_maps/manager_maps/settings_privacy_context.dart';
 
 class AiChatbotScreen extends StatefulWidget {
   const AiChatbotScreen({super.key});
@@ -22,7 +28,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late GenerativeModel _model;
   final ScrollController _scrollController = ScrollController();
   late VideoPlayerController _videoController;
-  bool _isThinking = false;
+  String _selectedMode = 'General Chat'; // New state variable for selected mode
+  bool _isThinking = false; // Re-introduce thinking state
 
   @override
   void initState() {
@@ -69,7 +76,27 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   void _initializeGenerativeModel() {
-    _model = FirebaseAI.googleAI().generativeModel(model: 'gemini-2.5-flash');
+    // Initialize GenerativeModel without system instructions by default
+    _model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      // systemInstruction will be set dynamically in _sendMessage
+    );
+  }
+
+  void _startTypewriterAnimation(ChatMessage message) async {
+    final fullText = message.fullText ?? '';
+    setState(() {
+      message.text = ''; // Start with empty text
+    });
+
+    for (int i = 0; i < fullText.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 20)); // Adjust typing speed here
+      if (!mounted) return; // Check if widget is still mounted before calling setState
+      setState(() {
+        message.text = fullText.substring(0, i + 1);
+      });
+      _scrollToBottom(); // Scroll to bottom with each character
+    }
   }
 
   void _scrollToBottom() {
@@ -94,14 +121,49 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _scrollToBottom(); // Scroll to bottom after adding user message
 
     try {
+      // Dynamically set system instruction based on _selectedMode
+      String? currentSystemInstruction;
+      switch (_selectedMode) {
+        case 'Dashboard Mode':
+          currentSystemInstruction = DashboardContext.managerDashboardContext;
+          break;
+        case 'Progress Visuals Mode':
+          currentSystemInstruction = ProgressVisualsContext.progressVisualsContext;
+          break;
+        case 'Alerts & Nudges Mode':
+          currentSystemInstruction = AlertsNudgesContext.alertsNudgesContext;
+          break;
+        case 'Leaderboard Mode':
+          currentSystemInstruction = LeaderboardContext.leaderboardContext;
+          break;
+        case 'Repository & Audit Mode':
+          currentSystemInstruction = RepositoryAuditContext.repositoryAuditContext;
+          break;
+        case 'Settings & Privacy Mode':
+          currentSystemInstruction = SettingsPrivacyContext.settingsPrivacyContext;
+          break;
+        case 'General Chat':
+        default:
+          currentSystemInstruction = null; // No system instruction for general chat
+          break;
+      }
+
+      _model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: currentSystemInstruction != null ? Content.text(currentSystemInstruction) : null,
+      );
+
       final prompt = [Content.text(text)];
       final response = await _model.generateContent(prompt);
+      
+      final aiMessage = ChatMessage(text: '', isUser: false, fullText: response.text ?? 'No response');
       setState(() {
-        _messages.add(ChatMessage(text: response.text ?? 'No response', isUser: false));
-        _isThinking = false; // Set thinking state to false after response
+        _messages.add(aiMessage);
+        _isThinking = false; // Set thinking state to false after response is received
       });
+      _scrollToBottom(); // Scroll to bottom after adding new message container
+      _startTypewriterAnimation(aiMessage);
       _videoController.play(); // Ensure video keeps playing
-      _scrollToBottom(); // Scroll to bottom after adding AI response
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
@@ -119,6 +181,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 70.0, // Increased toolbar height
+        leadingWidth: 70.0, // Adjust leading width
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () {
@@ -130,7 +194,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         children: [
           Positioned.fill(
             child: Image.asset(
-              'Chatbot_BG.png',
+              'assets/20250919_1708_Futuristic Red Tech Design_remix_01k5h86tdef65aerhqpqthxd5d.png',
               fit: BoxFit.cover,
             ),
           ),
@@ -148,9 +212,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16.0),
-                    itemCount: _messages.length + (_isThinking ? 1 : 0), // Add extra item for thinking indicator
+                    itemCount: _messages.length + (_isThinking ? 1 : 0), // Adjust itemCount
                     itemBuilder: (context, index) {
-                      if (index == _messages.length) {
+                      if (index == _messages.length && _isThinking) {
                         return _ThinkingIndicator();
                       }
                       final message = _messages[index];
@@ -168,61 +232,196 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Widget _buildMessageInput() {
-    return Container(
-      padding: const EdgeInsets.all(8.0),
-      decoration: BoxDecoration(
-        color: Colors.grey[850],
-        boxShadow: [
-          BoxShadow(
-            // ignore: deprecated_member_use
-            color: Colors.black.withOpacity(0.3),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Send a message...',
-                hintStyle: TextStyle(color: Colors.white54),
-                filled: true,
-                fillColor: Colors.grey[900],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25.0),
-                  borderSide: BorderSide.none,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0), // Add horizontal padding
+      child: Container(
+        padding: const EdgeInsets.all(8.0),
+        decoration: BoxDecoration(
+          color: Colors.grey[850],
+          boxShadow: [
+            BoxShadow(
+              // ignore: deprecated_member_use
+              color: Colors.black.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: _getHintTextForMode(),
+                  hintStyle: TextStyle(color: Colors.white54),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25.0),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  prefixIcon: IconButton(
+                    icon: const Icon(Icons.add, color: Colors.white70),
+                    onPressed: () {
+                      _showModeSelectionSheet(context);
+                    },
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                onSubmitted: (_) => _sendMessage(),
               ),
-              onSubmitted: (_) => _sendMessage(),
             ),
-          ),
-          const SizedBox(width: 8.0),
-          FloatingActionButton(
-            onPressed: _sendMessage,
-            backgroundColor: const Color(0xFFC10D00),
-            child: Image.asset(
-              'assets/Send_Paper Plane/Send_Plane_Red Badge_White.png',
-              width: 62.0, // Adjust width as needed
-              height: 62.0, // Adjust height as needed
+            const SizedBox(width: 8.0),
+            FloatingActionButton(
+              onPressed: _sendMessage,
+              backgroundColor: const Color(0xFFC10D00),
+              child: Image.asset(
+                'assets/Send_Paper Plane/Send_Plane_Red Badge_White.png',
+                width: 62.0, // Adjust width as needed
+                height: 62.0, // Adjust height as needed
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  String _getHintTextForMode() {
+    switch (_selectedMode) {
+      case 'Dashboard Mode':
+        return 'Ask anything about the Manager Review Team Dashboard...';
+      case 'Progress Visuals Mode':
+        return 'Ask anything about Progress Visuals...';
+      case 'Alerts & Nudges Mode':
+        return 'Ask anything about Alerts & Nudges...';
+      case 'Leaderboard Mode':
+        return 'Ask anything about the Leaderboard...';
+      case 'Repository & Audit Mode':
+        return 'Ask anything about Repository & Audit...';
+      case 'Settings & Privacy Mode':
+        return 'Ask anything about Settings & Privacy...';
+      case 'General Chat':
+      default:
+        return 'Send a message...';
+    }
+  }
+
+  void _showModeSelectionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: Container(
+              // ignore: deprecated_member_use
+              color: Colors.grey[850]?.withOpacity(0.7),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Select AI Mode',
+                        style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.dashboard, color: Colors.white70),
+                      title: Text('Dashboard Mode', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Dashboard Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.show_chart, color: Colors.white70),
+                      title: Text('Progress Visuals', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Progress Visuals Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.notifications_active, color: Colors.white70),
+                      title: Text('Alerts & Nudges', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Alerts & Nudges Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.leaderboard, color: Colors.white70),
+                      title: Text('Leaderboard', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Leaderboard Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.security, color: Colors.white70),
+                      title: Text('Repository & Audit', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Repository & Audit Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.settings, color: Colors.white70),
+                      title: Text('Settings & Privacy', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'Settings & Privacy Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    ListTile(
+                      leading: Icon(Icons.chat_bubble_outline, color: Colors.white70),
+                      title: Text('General Chat', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'General Chat';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // Add more modes here if needed
+                    // SizedBox(height: MediaQuery.of(context).padding.bottom), // Adjust for safe area
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class ChatMessage {
-  final String text;
+  String text; // Made mutable for typewriter effect
   final bool isUser;
+  final String? fullText; // Stores the complete text for AI messages
 
-  ChatMessage({required this.text, required this.isUser});
+  ChatMessage({required this.text, required this.isUser, this.fullText});
 }
 
 class ChatBubble extends StatelessWidget {
@@ -302,16 +501,32 @@ class _ThinkingIndicator extends StatefulWidget {
 
 class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
+  late Animation<double> _leftAnimation;
+  late Animation<double> _heightAnimation;
+  late Animation<double> _widthAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-    _animation = Tween<double>(begin: 0.0, end: 3.0).animate(_controller);
+      duration: const Duration(milliseconds: 700), // Adjusted duration to match CSS
+    )..repeat(reverse: true); // Repeat with reverse to match alternate animation
+
+    _leftAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 0.0), weight: 0.5), // Stays at 0% for first half
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 0.5), // Moves to 100% for second half
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    _heightAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 43.0, end: 10.0), weight: 0.5),
+      TweenSequenceItem(tween: Tween(begin: 10.0, end: 43.0), weight: 0.5),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    _widthAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 15.0, end: 40.0), weight: 0.5),
+      TweenSequenceItem(tween: Tween(begin: 40.0, end: 15.0), weight: 0.5),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -322,6 +537,8 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
 
   @override
   Widget build(BuildContext context) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double desiredWidth = screenWidth * 0.4; // Adjust this value to make it smaller
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -336,17 +553,40 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
             bottomRight: Radius.circular(15.0),
           ),
         ),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        child: AnimatedBuilder(
-          animation: _animation,
-          builder: (context, child) {
-            final int dotCount = _animation.value.floor();
-            final String dots = '.' * dotCount;
-            return Text(
-              'KhonoPal is Thinking$dots',
-              style: const TextStyle(color: Colors.white),
-            );
-          },
+        constraints: BoxConstraints(maxWidth: desiredWidth),
+        child: SizedBox(
+          height: 48, // Fixed height for the loader animation
+          width: desiredWidth - 24, // Adjust width considering padding
+          child: Stack(
+            children: [
+              // Background text
+              const Center(
+                child: Text(
+                  'KhonoPal is Thinking',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ),
+              // First animated bar
+              AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  final currentLeft = _leftAnimation.value * (desiredWidth - 24 - 15); // Adjust for bar width
+                  final currentHeight = _heightAnimation.value;
+                  final currentWidth = _widthAnimation.value;
+                  return Positioned(
+                    left: currentLeft,
+                    top: (_leftAnimation.value < 0.5) ? (48 - currentHeight) / 2 : 0, // Top/Bottom logic for alternating effect
+                    bottom: (_leftAnimation.value >= 0.5) ? (48 - currentHeight) / 2 : 0,
+                    child: Container(
+                      width: currentWidth,
+                      height: currentHeight,
+                      color: const Color(0xFFC10D00), // Red color for the loader
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

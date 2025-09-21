@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+// ignore: unused_import
 import 'package:pdh/landing_screen.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
@@ -23,6 +24,7 @@ import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
+import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
 
@@ -59,8 +61,7 @@ class _MyAppState extends State<MyApp> {
         ),
         initialRoute: '/', // Always start from the landing screen
         routes: {
-          '/': (context) =>
-              const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
+          '/': (context) => const AuthWrapper(), // Set the root route to AuthWrapper
           '/register': (context) => const RegisterScreen(),
           '/sign_in': (context) => const LoginScreen(),
           '/my_pdp': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyPdpScreen()),

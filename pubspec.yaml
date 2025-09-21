@@ -36,6 +36,8 @@ flutter:
     - assets/Send_Paper Plane/
     - assets/videos/
     - assets/AI_Red.png
+    - assets/Chatbot_BG.png
+    - assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png
   fonts:
     - family: Poppins
       fonts:

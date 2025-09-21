@@ -65,6 +65,58 @@ class DatabaseService {
     });
     return doc.id;
   }
+
+  static Future<void> initializeSubcollections(DocumentReference userDocRef) async {
+    final subcollections = ['goals', 'streaks', 'badges', 'alerts'];
+
+    for (String sub in subcollections) {
+      final subRef = userDocRef.collection(sub).doc('init');
+      final subSnap = await subRef.get();
+      if (!subSnap.exists) {
+        await subRef.set({
+          'placeholder': true,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  static Future<void> initializeUserData(String uid, String? displayName, String? email) async {
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    final docSnapshot = await userDocRef.get();
+    if (!docSnapshot.exists) {
+      await userDocRef.set({
+        'displayName': displayName ?? '', // Use displayName as full name, or an empty string
+        'email': email ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'role': 'employee', // default role
+        'totalPoints': 0,
+        'level': 1,
+        'badges': [],
+      });
+    }
+
+    await initializeSubcollections(userDocRef);
+  }
+
+  static Future<Map<String, dynamic>> getDashboardData(String uid) async {
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+    final doc = await userDocRef.get();
+    final goals = await userDocRef.collection('goals').get();
+    final streaks = await userDocRef.collection('streaks').get();
+    final badges = await userDocRef.collection('badges').get();
+    final alerts = await userDocRef.collection('alerts').get();
+
+    return {
+      'profile': doc.data(),
+      'goals': goals.docs.map((d) => d.data()).toList(),
+      'streaks': streaks.docs.map((d) => d.data()).toList(),
+      'badges': badges.docs.map((d) => d.data()).toList(),
+      'alerts': alerts.docs.map((d) => d.data()).toList(),
+    };
+  }
 }
 
 
