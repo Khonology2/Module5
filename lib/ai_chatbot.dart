@@ -14,6 +14,8 @@ import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
 import 'package:pdh/context_maps/manager_maps/leaderboard_context.dart';
 import 'package:pdh/context_maps/manager_maps/repository_audit_context.dart';
 import 'package:pdh/context_maps/manager_maps/settings_privacy_context.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
+import 'dart:convert'; // Import for JSON encoding/decoding
 
 class AiChatbotScreen extends StatefulWidget {
   const AiChatbotScreen({super.key});
@@ -41,6 +43,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _videoController.play();
         setState(() {});
       });
+    _loadChatHistory(); // Load chat history when the screen initializes
     _loadUserProfileAndSetGreeting();
   }
 
@@ -119,6 +122,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       _isThinking = true; // Set thinking state to true
     });
     _scrollToBottom(); // Scroll to bottom after adding user message
+    _saveChatHistory(); // Save chat after adding user message
 
     try {
       // Dynamically set system instruction based on _selectedMode
@@ -164,6 +168,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       _scrollToBottom(); // Scroll to bottom after adding new message container
       _startTypewriterAnimation(aiMessage);
       _videoController.play(); // Ensure video keeps playing
+      _saveChatHistory(); // Save chat after AI response
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
@@ -403,6 +408,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Navigator.pop(context);
                       },
                     ),
+                    ListTile(
+                      leading: Icon(Icons.delete_sweep, color: Colors.white70),
+                      title: Text('Clear History Chat', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        _clearChatHistory(); // Call the new method to clear chat history
+                        Navigator.pop(context);
+                      },
+                    ),
                     // Add more modes here if needed
                     // SizedBox(height: MediaQuery.of(context).padding.bottom), // Adjust for safe area
                   ],
@@ -413,6 +426,41 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         );
       },
     );
+  }
+
+  void _clearChatHistory() {
+    setState(() {
+      if (_messages.isNotEmpty) {
+        final firstGreeting = _messages.firstWhere((msg) => !msg.isUser); // Assuming the first AI message is the greeting
+        _messages.clear();
+        _messages.add(firstGreeting);
+      }
+      _messageController.clear();
+      _isThinking = false;
+    });
+    _scrollToBottom();
+    _saveChatHistory(); // Save the updated (cleared) chat history
+  }
+
+  Future<void> _saveChatHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String encodedMessages = json.encode(_messages.map((msg) => {'text': msg.text, 'isUser': msg.isUser, 'fullText': msg.fullText}).toList());
+    await prefs.setString('chatHistory', encodedMessages);
+  }
+
+  Future<void> _loadChatHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? encodedMessages = prefs.getString('chatHistory');
+    if (encodedMessages != null && encodedMessages.isNotEmpty) {
+      final List<dynamic> decodedMessages = json.decode(encodedMessages);
+      setState(() {
+        _messages.clear();
+        _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'])).toList());
+      });
+    } else {
+      // If no history or empty, ensure the initial greeting is set
+      _loadUserProfileAndSetGreeting();
+    }
   }
 }
 
