@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+// ignore: unused_import
 import 'package:pdh/services/role_service.dart'; // Add RoleService import
 // Removed unused Google/Facebook/Firestore imports
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -66,37 +67,6 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     _phoneController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  // Helper function to handle post-login navigation
-  Future<void> _handlePostLoginNavigation(BuildContext context) async {
-    if (!context.mounted) return;
-    
-    try {
-      // Get user's role from database and ensure it's cached
-      final role = await RoleService.instance.getRole(refresh: true);
-      
-      if (!context.mounted) return;
-      
-      if (role != null) {
-        // User already has a role, redirect to appropriate portal
-        if (role == 'manager') {
-          Navigator.pushReplacementNamed(context, '/manager_portal');
-        } else if (role == 'employee') {
-          Navigator.pushReplacementNamed(context, '/employee_portal');
-        } else {
-          // Unknown role, redirect to role selection
-          Navigator.pushReplacementNamed(context, '/rolebaseview');
-        }
-      } else {
-        // User doesn't have a role yet, redirect to role selection
-        Navigator.pushReplacementNamed(context, '/rolebaseview');
-      }
-    } catch (e) {
-      // If there's an error getting the role, redirect to role selection as fallback
-      if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, '/rolebaseview');
-    }
   }
 
   @override
@@ -342,8 +312,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                       .text,
                                             );
                                         if (!mounted) return;
-                                        // Use the new navigation helper
-                                        await _handlePostLoginNavigation(context);
+                                        // The AuthWrapper will handle navigation after sign-in
+                                        // Navigator.pushReplacementNamed(context, '/rolebaseview'); // Removed to let AuthWrapper handle it
                                       } on FirebaseAuthException catch (
                                         e
                                       ) {
@@ -507,8 +477,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             );
                                       }
                                       if (!mounted) return;
-                                      // Use the new navigation helper
-                                      await _handlePostLoginNavigation(context);
+                                      // The AuthWrapper will handle navigation after sign-in
+                                      // Navigator.pushReplacementNamed(context, '/rolebaseview'); // Removed to let AuthWrapper handle it
                                     } on FirebaseAuthException catch (
                                       e
                                     ) {
@@ -587,8 +557,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             );
                                       }
                                       if (!mounted) return;
-                                      // Use the new navigation helper
-                                      await _handlePostLoginNavigation(context);
+                                      // The AuthWrapper will handle navigation after sign-in
+                                      // Navigator.pushReplacementNamed(context, '/rolebaseview'); // Removed to let AuthWrapper handle it
                                     } on FirebaseAuthException catch (
                                       e
                                     ) {
@@ -741,8 +711,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     try {
       await FirebaseAuth.instance.signInWithCredential(credential);
       if (!mounted) return;
-      // Use the new navigation helper
-      await _handlePostLoginNavigation(context);
+      // The AuthWrapper will handle navigation after sign-in
+      // Navigator.pushReplacementNamed(context, '/rolebaseview'); // Removed to let AuthWrapper handle it
     } on FirebaseAuthException catch (e) {
       setState(() {
         _isSigningIn = false;

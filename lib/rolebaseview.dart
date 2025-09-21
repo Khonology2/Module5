@@ -50,7 +50,7 @@ class RoleBaseViewScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            'Welcome to Personal Development Hub.',
+                            'Welcome to Khono-Demy Your Personal Development Hub.',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,

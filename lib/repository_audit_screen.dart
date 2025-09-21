@@ -228,18 +228,22 @@ class RepositoryAuditScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.verified, size: 16),
-                  label: const Text('Verify Evidence'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.verified, size: 16),
+                    label: const Text('Verify Evidence'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.comment, size: 16),
-                  label: const Text('Request Changes'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.comment, size: 16),
+                    label: const Text('Request Changes'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                  ),
                 ),
               ],
             ),
