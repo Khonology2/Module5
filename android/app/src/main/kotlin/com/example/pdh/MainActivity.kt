@@ -29,6 +29,7 @@ import com.google.mlkit.nl.proofreader.DownloadCallback
 import com.google.android.gms.tasks.Tasks.await
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import org.json.JSONObject // Import for JSON object handling
 
 class MainActivity : FlutterActivity() {
 
@@ -49,14 +50,22 @@ class MainActivity : FlutterActivity() {
                 if (text != null) {
                     lifecycleScope.launch {
                         try {
-                            val proofreadResult = startProofreading(text)
-                            result.success(proofreadResult)
+                            val proofreadResultJson = startProofreading(text)
+                            result.success(proofreadResultJson)
                         } catch (e: Exception) {
-                            result.error("UNAVAILABLE", "Proofreading failed: ${e.message}", null)
+                            val errorJson = JSONObject().apply {
+                                put("status", "ERROR")
+                                put("message", "Proofreading failed: ${e.message}")
+                            }.toString()
+                            result.success(errorJson)
                         }
                     }
                 } else {
-                    result.error("INVALID_ARGUMENT", "Text to proofread cannot be null", null)
+                    val errorJson = JSONObject().apply {
+                        put("status", "ERROR")
+                        put("message", "Text to proofread cannot be null")
+                    }.toString()
+                    result.success(errorJson)
                 }
             } else {
                 result.notImplemented()
@@ -158,6 +167,7 @@ class MainActivity : FlutterActivity() {
                 proofreader.downloadFeature(object : DownloadCallback {
                     override fun onDownloadCompleted() {
                         lifecycleScope.launch {
+                            // The result of startProofreading is now a JSON string, but we don't need it here.
                             startProofreading("The praject is compleet but needs too be reviewd")
                             Log.d("Proofreading", "Download completed. Ready to proofread.")
                         }
@@ -172,6 +182,7 @@ class MainActivity : FlutterActivity() {
             FeatureStatus.AVAILABLE -> {
                 Log.d("Proofreading", "Feature available. Ready to proofread.")
                 lifecycleScope.launch {
+                    // The result of startProofreading is now a JSON string, but we don't need it here.
                     startProofreading("The praject is compleet but needs too be reviewd")
                 }
             }
@@ -179,16 +190,27 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    suspend fun startProofreading(text: String): String? {
-        val request = ProofreadingRequest.builder(text).build()
+    suspend fun startProofreading(text: String): String {
+        val jsonResponse = JSONObject()
+        try {
+            val request = ProofreadingRequest.builder(text).build()
+            val results = proofreader.runInference(request).await().results
 
-        val results = proofreader.runInference(request).await().results
-
-        val suggestedTexts = results.map { it.suggestedText }
-        if (suggestedTexts.isNotEmpty()) {
-            Log.d("Proofreading", "Suggestion: ${suggestedTexts.first()}")
-            return suggestedTexts.first()
+            val suggestedTexts = results.map { it.suggestedText }
+            if (suggestedTexts.isNotEmpty()) {
+                jsonResponse.put("status", "SUCCESS")
+                jsonResponse.put("text", suggestedTexts.first())
+                Log.d("Proofreading", "Suggestion: ${suggestedTexts.first()}")
+            } else {
+                jsonResponse.put("status", "NO_SUGGESTIONS")
+                jsonResponse.put("text", text)
+                Log.d("Proofreading", "No suggestions found for: $text")
+            }
+        } catch (e: Exception) {
+            jsonResponse.put("status", "ERROR")
+            jsonResponse.put("message", "Proofreading API error: ${e.message}")
+            Log.e("Proofreading", "Error during proofreading: ", e)
         }
-        return null
+        return jsonResponse.toString()
     }
 }
