@@ -109,7 +109,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
 
     for (int i = 0; i < fullText.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 20)); // Adjust typing speed here
+      await Future.delayed(const Duration(milliseconds: 2)); // Adjust typing speed here
       if (!mounted) return; // Check if widget is still mounted before calling setState
       setState(() {
         message.text = fullText.substring(0, i + 1);
@@ -132,6 +132,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     String text = _messageController.text.trim();
     if (text.isEmpty) return;
 
+    // Input validation for text length
+    if (text.length > 256) { // Approximate token limit
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Text is too long for proofreading (max 256 characters).')),
+      );
+      return;
+    }
+
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
       _messageController.clear();
@@ -146,17 +154,23 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Proofreading...')),
       );
-      final String? proofreadText = await _proofreadMessage(text);
+      final Map<String, dynamic>? proofreadResult = await _proofreadMessage(text);
       ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
 
-      if (proofreadText != null && proofreadText.isNotEmpty) {
-        textToSendToGemini = proofreadText;
+      if (proofreadResult != null && proofreadResult['status'] == 'SUCCESS') {
+        textToSendToGemini = proofreadResult['text'] as String? ?? text; // Use proofread text if available
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Proofreading complete! Sending to AI...')),
         );
-      } else {
+      } else if (proofreadResult != null && proofreadResult['status'] == 'NO_SUGGESTIONS') {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proofreading failed or no suggestions found. Sending original text to AI...')),
+          const SnackBar(content: Text('No corrections needed, sending your original text to AI.')),
+        );
+      } else {
+        // This covers proofreadResult == null or proofreadResult['status'] == 'ERROR'
+        final errorMessage = proofreadResult?['message'] as String? ?? 'Unknown error.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Proofreading failed: $errorMessage. Sending original text to AI.')),
         );
       }
     }
@@ -344,20 +358,21 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Future<String?> _proofreadMessage(String textToProofread) async {
+  Future<Map<String, dynamic>?> _proofreadMessage(String textToProofread) async {
     if (textToProofread.isEmpty) {
       return null;
     }
 
     try {
-      final String? proofreadText = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
-      return proofreadText;
+      final String? rawResult = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
+      if (rawResult != null) {
+        return json.decode(rawResult) as Map<String, dynamic>;
+      }
+      return null;
     } on PlatformException catch (_) {
-      // Handle platform-specific errors (e.g., if the Android proofreading service is unavailable)
-      return null;
+      return {'status': 'ERROR', 'message': 'Platform specific error during proofreading.'};
     } catch (_) {
-      // Handle any other unexpected errors
-      return null;
+      return {'status': 'ERROR', 'message': 'Unexpected error during proofreading.'};
     }
   }
 
