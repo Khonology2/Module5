@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +10,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
+import 'package:flutter/services.dart'; // Import for MethodChannel
 import'package:pdh/context_maps/manager_maps/dashboard_context.dart'; // Update the import path
 import 'package:pdh/context_maps/manager_maps/progress_visuals_context.dart';
 import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
@@ -32,11 +35,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late VideoPlayerController _videoController;
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
+  bool _isProofreadButtonEnabled = false; // New state variable for proofread button
+  static const MethodChannel _channel = MethodChannel('com.example.khonopal/proofreading'); // Define the channel
 
   @override
   void initState() {
     super.initState();
     _initializeGenerativeModel();
+    _messageController.addListener(_updateProofreadButtonState); // Add listener
     _videoController = VideoPlayerController.asset('assets/videos/chat_bot_animation-vmake.mp4')
       ..initialize().then((_) {
         _videoController.setLooping(true);
@@ -45,6 +51,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       });
     _loadChatHistory(); // Load chat history when the screen initializes
     _loadUserProfileAndSetGreeting();
+  }
+
+  void _updateProofreadButtonState() {
+    setState(() {
+      _isProofreadButtonEnabled = _messageController.text.trim().isNotEmpty;
+    });
   }
 
   Future<void> _loadUserProfileAndSetGreeting() async {
@@ -75,6 +87,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void dispose() {
     _scrollController.dispose();
     _videoController.dispose();
+    _messageController.removeListener(_updateProofreadButtonState); // Remove listener
+    _messageController.dispose(); // Dispose controller
     super.dispose();
   }
 
@@ -269,11 +283,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  prefixIcon: IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white70),
-                    onPressed: () {
-                      _showModeSelectionSheet(context);
-                    },
+                  prefixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.add, color: Colors.white70),
+                        onPressed: () {
+                          _showModeSelectionSheet(context);
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.spellcheck, color: _isProofreadButtonEnabled ? Colors.white70 : Colors.grey), // Proofreading icon
+                        onPressed: _isProofreadButtonEnabled ? () => _proofreadMessage() : null, // Disable if no text
+                      ),
+                    ],
                   ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
@@ -293,6 +316,46 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _proofreadMessage() async {
+    final String textToProofread = _messageController.text.trim();
+    if (textToProofread.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter text to proofread.')),
+      );
+      return;
+    }
+
+    try {
+      // Show a loading indicator while proofreading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Proofreading...')),
+      );
+      final String? proofreadText = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
+      if (proofreadText != null && proofreadText.isNotEmpty) {
+        _messageController.text = proofreadText;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proofreading complete!')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No suggestions found or proofreading failed.')),
+        );
+      }
+    } on PlatformException catch (e) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to proofread: ${e.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
+    }
   }
 
   String _getHintTextForMode() {
