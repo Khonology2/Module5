@@ -1,4 +1,4 @@
-# Personal Development Hub
+# Khono - Demy Personal Development Hub
 
 A Flutter application designed to help users achieve their personal development goals through organization, knowledge acquisition, and mindful habits.
 
