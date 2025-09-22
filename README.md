@@ -161,3 +161,7 @@ flutter run
 ### AI Chatbot - Mode Selection
 
 ![AI Chatbot - Mode Selection](flutter_16.png)
+
+### AI Chatbot - Proofreading Toggle
+
+![AI Chatbot - Proofreading Toggle](flutter_17.png)

@@ -539,8 +539,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'])).toList());
       });
     } else {
-      // If no history or empty, ensure the initial greeting is set
-      _loadUserProfileAndSetGreeting();
+      // If no history or empty, the initial greeting will be set by initState.
+      // _loadUserProfileAndSetGreeting(); // Removed duplicate call
     }
   }
 }
