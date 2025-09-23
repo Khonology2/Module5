@@ -1,0 +1,376 @@
+import 'package:flutter/material.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/auth_service.dart';
+
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final routeName = ModalRoute.of(context)?.settings.name;
+    return AppScaffold(
+      title: 'Dashboard',
+      showAppBar: false,
+      currentRouteName: routeName,
+      items: const [
+        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
+        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
+        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
+        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
+        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
+        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
+        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
+        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
+        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
+      ],
+      onNavigate: (r) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != r) {
+          Navigator.pushNamed(context, r);
+        }
+      },
+      onLogout: () async {
+        await AuthService().signOut();
+        Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (route) => false);
+      },
+      content: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            _filtersBar(),
+            const SizedBox(height: 16),
+            _kpiRow(),
+            const SizedBox(height: 20),
+            _quickActions(context),
+            const SizedBox(height: 20),
+            _aiInsights(),
+            const SizedBox(height: 20),
+            _workloadHeatmap(),
+            const SizedBox(height: 20),
+            _engagementSummary(),
+            const SizedBox(height: 20),
+            _statusSections(),
+              ],
+            ),
+      ),
+    );
+  }
+
+  Widget _filtersBar() {
+    Widget chip(String label) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A3652),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        );
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1F2840),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                chip('This month'),
+                chip('Marketing'),
+                chip('Design'),
+                chip('At risk'),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.filter_list, color: Colors.white70),
+            onPressed: () {},
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _kpiRow() {
+    Widget tile(String label, String value, Color color) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1F2840),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                const SizedBox(height: 8),
+                Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        );
+    return Row(
+      children: [
+        tile('Active Goals', '24', Color(0xFFC10D00)),
+        const SizedBox(width: 12),
+        tile('At Risk', '3', Colors.orangeAccent),
+        const SizedBox(width: 12),
+        tile('Overdue', '1', Colors.redAccent),
+      ],
+    );
+  }
+
+  Widget _quickActions(BuildContext context) {
+    Widget action(IconData icon, String label, Color color) => Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {},
+            icon: Icon(icon, color: Colors.white, size: 16),
+            label: Text(label),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        );
+    return Row(
+      children: [
+        action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
+        const SizedBox(width: 10),
+        action(Icons.campaign, 'Send Nudge', const Color(0xFF00C853)),
+        const SizedBox(width: 10),
+        action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
+      ],
+    );
+  }
+
+  Widget _statusSections() {
+    Widget section(String title, List<Widget> children) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            ...children,
+          ],
+        );
+
+    Widget card({required Color stripe, required String heading, required String sub, Widget? trailing}) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2840),
+          borderRadius: BorderRadius.circular(10),
+          border: Border(left: BorderSide(color: stripe, width: 3)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(heading, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            ),
+            if (trailing != null) trailing,
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        section('At Risk', [
+          card(
+            stripe: Colors.orangeAccent,
+            heading: 'Launch new product campaign',
+            sub: 'Michael Chen • Overdue 2 days',
+            trailing: TextButton(
+              onPressed: () {},
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
+              child: const Text('Nudge', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 16),
+        section('Upcoming (7–14 days)', [
+          card(
+            stripe: Color(0xFFC10D00),
+            heading: 'Quarterly roadmap draft',
+            sub: 'Sarah Johnson • Due in 5 days',
+          ),
+          card(
+            stripe: Colors.tealAccent,
+            heading: 'Retention playbook v2',
+            sub: 'Emily Rodriguez • Due in 12 days',
+          ),
+        ]),
+        const SizedBox(height: 16),
+        section('Recently Completed', [
+          card(
+            stripe: Colors.greenAccent,
+            heading: 'Customer win-back workflow',
+            sub: 'Emily Rodriguez • 2d ago',
+            trailing: Row(children: [
+              _chip('share', Color(0xFFC10D00)),
+              const SizedBox(width: 6),
+              _chip('kudos', Colors.orangeAccent),
+            ]),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  static Widget _chip(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+        child: Text(label, style: TextStyle(color: color, fontSize: 11)),
+      );
+
+  Widget _aiInsights() {
+    Widget bullet(String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('• ', style: TextStyle(color: Colors.white70, fontSize: 16)),
+              Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
+              SizedBox(width: 8),
+              Text('AI Manager Insights', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          bullet('Forecasted risk: campaign slippage by 3 days. Consider reallocating resources.'),
+          bullet('High morale signals this week. Share Emily’s win-back workflow as best practice.'),
+          bullet('Schedule 1:1s with at-risk owners to unblock issues.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _workloadHeatmap() {
+    List<List<double>> mock = const [
+      [0.2, 0.8, 0.4, 0.1, 0.0, 0.3, 0.6],
+      [0.1, 0.3, 0.2, 0.5, 0.7, 0.9, 0.4],
+      [0.0, 0.2, 0.1, 0.6, 0.8, 0.5, 0.2],
+    ];
+    Color cell(double v) => Color.lerp(const Color(0xFF22304A), Color(0xFFC10D00), v) ?? const Color(0xFF22304A);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Workload & Capacity', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(10)),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Text('Mon', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Tue', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Wed', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Thu', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Fri', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Sat', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  Text('Sun', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Column(
+                children: mock
+                    .map((row) => Row(
+                          children: row
+                              .map((v) => Expanded(
+                                    child: Container(
+                                      height: 16,
+                                      margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+                                      decoration: BoxDecoration(color: cell(v), borderRadius: BorderRadius.circular(4)),
+                                    ),
+                                  ))
+                              .toList(),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _engagementSummary() {
+    Widget tile(IconData icon, String label, String value, Color color) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                )),
+              ],
+            ),
+          ),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Engagement & Check-ins', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            tile(Icons.rate_review, 'Check-ins this week', '9', Color(0xFFC10D00)),
+            const SizedBox(width: 12),
+            tile(Icons.forum, 'Open comments', '5', Colors.orangeAccent),
+            const SizedBox(width: 12),
+            tile(Icons.alarm, 'Nudges pending', '3', Colors.pinkAccent),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+
