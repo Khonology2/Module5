@@ -446,14 +446,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                   _buildInputLabel('Work Email'),
                                   _buildInputField(
                                     controller: _workEmailController,
-                                    hintText: 'you@company.com',
+                                    hintText: 'you@khonology.com',
                                     keyboardType: TextInputType.emailAddress,
                                   ),
                                   const SizedBox(height: 24),
                                   _buildInputLabel('Phone Number (optional)'),
                                   _buildInputField(
                                     controller: _phoneNumberController,
-                                    hintText: 'e.g., +1 (555) 123-4567',
+                                    hintText: 'e.g., +27 80 000 0000',
                                     keyboardType: TextInputType.phone,
                                   ),
                                   const SizedBox(height: 24),
