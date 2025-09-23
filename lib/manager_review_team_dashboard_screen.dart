@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:pdh/manager_nav_drawer.dart';
 import 'dart:ui'; // Added for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class ManagerReviewTeamDashboardScreen extends StatelessWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -19,10 +21,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onPressed: () {},
-          ),
+          _buildProfileButton(context), // Use the new profile button widget
         ],
       ),
       drawer: const ManagerNavDrawer(),
@@ -117,6 +116,29 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }

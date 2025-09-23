@@ -26,11 +26,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _checkUserRole() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // ignore: avoid_print
+      print('User is logged in: ${user.uid}');
       try {
         final userProfile = await DatabaseService.getUserProfile(user.uid);
         setState(() {
           _isManager = userProfile.role == 'manager';
           _isLoading = false; // Set loading to false after role is determined
+          // ignore: avoid_print
+          print('Is manager: $_isManager, Is loading: $_isLoading');
         });
       } catch (e) {
         // Handle error, e.g., show a snackbar or log it
@@ -38,11 +42,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         print('Error fetching user role: $e');
         setState(() {
           _isLoading = false; // Stop loading even if there's an error
+          // ignore: avoid_print
+          print('Error state - Is manager: $_isManager, Is loading: $_isLoading');
         });
       }
     } else {
+      // ignore: avoid_print
+      print('User is null - not logged in.');
       setState(() {
         _isLoading = false; // Stop loading if user is null
+        // ignore: avoid_print
+        print('Not logged in state - Is manager: $_isManager, Is loading: $_isLoading');
       });
     }
   }
@@ -78,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
-      drawer: const ManagerNavDrawer(),
+      drawer: _isManager ? const ManagerNavDrawer() : null,
       body: Stack(
         children: [
           Positioned.fill(

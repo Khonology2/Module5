@@ -7,6 +7,8 @@ import 'package:pdh/manager_nav_drawer.dart';
 // import 'package:pdh/bottom_nav_bar.dart'; // Bottom nav removed on settings
 import 'package:pdh/auth_service.dart'; // Import AuthService
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 
 class SettingsScreen extends StatefulWidget { // Changed to StatefulWidget
   const SettingsScreen({super.key});
@@ -73,6 +75,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Settings', style: TextStyle(color: Colors.white)), // Ensure title is visible
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
+        actions: [
+          _buildProfileButton(context), // Use the new profile button widget
+        ],
       ),
       drawer: const _RoleAwareDrawer(),
       body: Stack(
@@ -354,6 +359,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   InputDecoration _inputDecoration({String? hintText}) {
     return InputDecoration(
       filled: true,
@@ -441,16 +469,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 13)),
+                Text(subtitle, style: TextStyle(color: Colors.white70.withAlpha(178), fontSize: 13)), // Using withAlpha for consistency
               ],
             ),
           ),
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: Color(0xFFC10D00),
+            activeTrackColor: const Color(0xFFC10D00),
             activeThumbColor: Colors.white,
-            inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
+            inactiveTrackColor: Colors.grey.withAlpha(127),
             inactiveThumbColor: Colors.grey,
           ),
         ],
@@ -476,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 13)),
+                Text(subtitle, style: TextStyle(color: Colors.white70.withAlpha(178), fontSize: 13)), // Using withAlpha for consistency
               ],
             ),
           ),
@@ -485,7 +513,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF1F2840),
               borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(color: Colors.white70.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.white70.withAlpha(76)), // Using withAlpha for consistency
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -506,7 +534,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildDivider() {
-    return Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, thickness: 0.5);
+    return Divider(color: Colors.white.withAlpha(26), height: 1, thickness: 0.5); // Using withAlpha for consistency
   }
 }
 

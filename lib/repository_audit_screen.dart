@@ -3,6 +3,8 @@ import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
 import 'dart:ui'; // Import for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 
 class RepositoryAuditScreen extends StatelessWidget { 
   const RepositoryAuditScreen({super.key});
@@ -15,13 +17,10 @@ class RepositoryAuditScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
         title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)),
+        actions: [
+          _buildProfileButton(context), // Use the new profile button widget
+        ],
       ),
       drawer: const _RoleAwareDrawer(),
       body: Stack(
@@ -56,10 +55,8 @@ class RepositoryAuditScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     // AppBar replacement with search and title.
-                    Builder(
-                      builder: (context) => _RepositoryAppBarContent(
-                        onMenuPressed: () => Scaffold.of(context).openDrawer(),
-                      ),
+                    _RepositoryAppBarContent(
+                      onMenuPressed: () => Scaffold.of(context).openDrawer(),
                     ),
                     Expanded(
                       child: ListView(
@@ -146,6 +143,29 @@ class RepositoryAuditScreen extends StatelessWidget {
         ],
       ),
       // bottomNavigationBar removed per request
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
