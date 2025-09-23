@@ -5,6 +5,7 @@ import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class AlertsNudgesScreen extends StatelessWidget {
   const AlertsNudgesScreen({super.key});
@@ -19,7 +20,14 @@ class AlertsNudgesScreen extends StatelessWidget {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
         actions: [
-          _buildProfileButton(context), // Use the new profile button widget
+          StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
+            builder: (context, snapshot) {
+              final role = snapshot.data;
+              final isManager = role == 'manager';
+              return _buildProfileButton(context, isManager: isManager);
+            },
+          ), // Use the new profile button widget
         ],
       ),
       drawer: const _RoleAwareDrawer(),
@@ -81,14 +89,18 @@ class AlertsNudgesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
     final user = FirebaseAuth.instance.currentUser;
     final userName = user?.displayName ?? 'Profile';
     return Padding(
       padding: const EdgeInsets.only(right: 16.0),
       child: InkWell(
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
         },
         child: Row(
           children: [
