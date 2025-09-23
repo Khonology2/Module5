@@ -5,6 +5,7 @@ import 'package:pdh/manager_nav_drawer.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class ProgressVisualsScreen extends StatefulWidget {
   const ProgressVisualsScreen({super.key});
@@ -36,7 +37,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
-          _buildProfileButton(context), // Use the new profile button widget
+          _buildProfileButton(context, isManager: isManagerOrigin), // Pass isManagerOrigin
         ],
       ),
       drawer: isManagerOrigin ? const ManagerNavDrawer() : const EmployeeDrawer(),
@@ -91,14 +92,18 @@ class _ProgressVisualsContent extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
     final user = FirebaseAuth.instance.currentUser;
     final userName = user?.displayName ?? 'Profile';
     return Padding(
       padding: const EdgeInsets.only(right: 16.0),
       child: InkWell(
         onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
         },
         child: Row(
           children: [
