@@ -3,6 +3,8 @@ import 'dart:ui'; // Import for ImageFilter
 import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 
 class AlertsNudgesScreen extends StatelessWidget {
   const AlertsNudgesScreen({super.key});
@@ -16,6 +18,9 @@ class AlertsNudgesScreen extends StatelessWidget {
         title: const Text('Alerts & Nudges', style: TextStyle(color: Colors.white)), // Ensure title is visible
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
+        actions: [
+          _buildProfileButton(context), // Use the new profile button widget
+        ],
       ),
       drawer: const _RoleAwareDrawer(),
       body: Stack(
@@ -72,6 +77,29 @@ class AlertsNudgesScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }

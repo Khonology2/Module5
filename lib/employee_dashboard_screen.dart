@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:pdh/employee_drawer.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -23,6 +24,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          _buildProfileButton(), // Use the new profile button widget
+        ],
       ),
       drawer: const EmployeeDrawer(),
       body: Stack(
@@ -73,6 +77,29 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton() {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
