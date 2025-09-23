@@ -43,6 +43,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         final currentContext = context; // Capture context before async gap
         await AuthService().signOut();
         if (mounted) {
+          // ignore: use_build_context_synchronously
           Navigator.pushNamedAndRemoveUntil(currentContext, '/sign_in', (route) => false);
         }
       },
