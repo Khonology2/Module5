@@ -1,59 +1,136 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
-import 'package:pdh/auth_service.dart';
+import 'package:pdh/manager_nav_drawer.dart';
+import 'dart:ui'; // Added for ImageFilter
+import 'package:pdh/employee_profile_screen.dart'; // Import the new profile screen
+import 'package:pdh/manager_profile_screen.dart'; // Import the new manager profile screen
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isManager = false;
+  bool _isLoading = true; // Add loading state
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+  }
+
+  Future<void> _checkUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final userProfile = await DatabaseService.getUserProfile(user.uid);
+        setState(() {
+          _isManager = userProfile.role == 'manager';
+          _isLoading = false; // Set loading to false after role is determined
+        });
+      } catch (e) {
+        // Handle error, e.g., show a snackbar or log it
+        // ignore: avoid_print
+        print('Error fetching user role: $e');
+        setState(() {
+          _isLoading = false; // Stop loading even if there's an error
+        });
+      }
+    } else {
+      setState(() {
+        _isLoading = false; // Stop loading if user is null
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final routeName = ModalRoute.of(context)?.settings.name;
-    return AppScaffold(
-      title: 'Dashboard',
-      showAppBar: false,
-      currentRouteName: routeName,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) {
-          Navigator.pushNamed(context, r);
-        }
-      },
-      onLogout: () async {
-        await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (route) => false);
-      },
-      content: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            _filtersBar(),
-            const SizedBox(height: 16),
-            _kpiRow(),
-            const SizedBox(height: 20),
-            _quickActions(context),
-            const SizedBox(height: 20),
-            _aiInsights(),
-            const SizedBox(height: 20),
-            _workloadHeatmap(),
-            const SizedBox(height: 20),
-            _engagementSummary(),
-            const SizedBox(height: 20),
-            _statusSections(),
-              ],
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0,
+        title: const Text(
+          'Dashboard',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          if (_isLoading) // Show a loading indicator if still loading
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(color: Colors.white),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.person, color: Colors.white),
+              onPressed: () {
+                if (_isManager) {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+                }
+              },
             ),
+        ],
+      ),
+      drawer: const ManagerNavDrawer(),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _filtersBar(),
+                      const SizedBox(height: 16),
+                      _kpiRow(),
+                      const SizedBox(height: 20),
+                      _quickActions(context),
+                      const SizedBox(height: 20),
+                      _aiInsights(),
+                      const SizedBox(height: 20),
+                      _workloadHeatmap(),
+                      const SizedBox(height: 20),
+                      _engagementSummary(),
+                      const SizedBox(height: 20),
+                      _statusSections(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -234,7 +311,7 @@ class DashboardScreen extends StatelessWidget {
 
   static Widget _chip(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: color.withAlpha(38), borderRadius: BorderRadius.circular(6)), // Changed withValues(alpha: 0.15) to withAlpha(38)
         child: Text(label, style: TextStyle(color: color, fontSize: 11)),
       );
 

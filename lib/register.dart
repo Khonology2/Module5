@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
+// import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
+import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
@@ -200,49 +201,84 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           child: TextButton(
                             onPressed: () async {
-                              // if (_formKey.currentState!.validate()) { // Removed _formKey validation
-                                try {
-                                  UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                                    email: _emailController.text,
-                                    password: _passwordController.text,
-                                  );
-                                  // Store additional user data in Firestore
-                                  await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-                                    'uid': userCredential.user!.uid,
-                                    'email': _emailController.text,
-                                    'username': _usernameController.text,
-                                    'fullName': _fullNameController.text, // Use the new _fullNameController
-                                    'createdAt': Timestamp.now(),
-                                  });
+                              if (_fullNameController.text.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter your full name.')),
+                                );
+                                return;
+                              }
+                              if (_usernameController.text.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a username.')),
+                                );
+                                return;
+                              }
+                              if (_emailController.text.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter your email.')),
+                                );
+                                return;
+                              }
+                              if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(_emailController.text)) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid email address.')),
+                                );
+                                return;
+                              }
+                              if (_passwordController.text.length < 8) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Password must be at least 8 characters long.')),
+                                );
+                                return;
+                              }
+                              if (_passwordController.text != _confirmPasswordController.text) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Passwords do not match.')),
+                                );
+                                return;
+                              }
 
-                                  if (!context.mounted) return; // Guard against context use after async gap
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Registration Successful!')),
-                                  );
-                                  // Require explicit login next
-                                  await FirebaseAuth.instance.signOut();
-                                  if (!context.mounted) return; // Guard against context use after async gap
-                                  Navigator.pushReplacementNamed(context, '/sign_in');
-                                } on FirebaseAuthException catch (e) {
-                                  String message;
-                                  if (e.code == 'weak-password') {
-                                    message = 'The password provided is too weak.';
-                                  } else if (e.code == 'email-already-in-use') {
-                                    message = 'The account already exists for that email.';
-                                  } else {
-                                    message = e.message ?? 'An unknown error occurred.';
-                                  }
-                                  if (!context.mounted) return; // Guard against context use after async gap
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                } catch (e) {
-                                  if (!context.mounted) return; // Guard against context use after async gap
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-                                  );
+                              try {
+                                UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                                  email: _emailController.text,
+                                  password: _passwordController.text,
+                                );
+                                // Store additional user data in Firestore
+                                // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
+                                await DatabaseService.initializeUserData(
+                                  userCredential.user!.uid,
+                                  _fullNameController.text,
+                                  _emailController.text,
+                                  role: 'employee', // Default to employee role on registration
+                                );
+
+                                if (!context.mounted) return; // Guard against context use after async gap
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Registration Successful!')),
+                                );
+                                // Require explicit login next
+                                await FirebaseAuth.instance.signOut();
+                                if (!context.mounted) return; // Guard against context use after async gap
+                                Navigator.pushReplacementNamed(context, '/sign_in');
+                              } on FirebaseAuthException catch (e) {
+                                String message;
+                                if (e.code == 'weak-password') {
+                                  message = 'The password provided is too weak.';
+                                } else if (e.code == 'email-already-in-use') {
+                                  message = 'The account already exists for that email.';
+                                } else {
+                                  message = e.message ?? 'An unknown error occurred.';
                                 }
-                              // }
+                                if (!context.mounted) return; // Guard against context use after async gap
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(message)),
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return; // Guard against context use after async gap
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+                                );
+                              }
                             },
                             child: const Text(
                               'Sign Up',

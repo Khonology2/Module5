@@ -39,9 +39,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         }
       },
       onLogout: () async {
+        if (!mounted) return; // Ensure mounted before any async operation that might use context
+        final currentContext = context; // Capture context before async gap
         await AuthService().signOut();
         if (mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(currentContext, '/sign_in', (route) => false);
         }
       },
       content: Stack(

@@ -36,7 +36,7 @@ class AlertsNudgesScreen extends StatelessWidget {
         children: [
           Positioned.fill(
             child: ColorFiltered(
-              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken),
+              colorFilter: ColorFilter.mode(Colors.black.withAlpha(77), BlendMode.darken),
               child: Image.asset(
                 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
                 fit: BoxFit.cover,
