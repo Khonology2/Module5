@@ -15,12 +15,22 @@ service cloud.firestore {
       // Create allowed for the user to set their initial role.
       allow create: if isSignedIn() && request.auth.uid == userId;
 
-      // Updates allowed for the owner except the 'role' field, unless admin.
-      allow update: if isSignedIn() && request.auth.uid == userId &&
-        (isAdmin() || !('role' in request.resource.data.diff(resource.data).changedKeys()));
+      // Allow owner to update their profile, with specific conditions for the 'role' field.
+      allow update: if isSignedIn() && request.auth.uid == userId && (
+        // Allow setting the role if it doesn't exist yet OR if the new role is the same as the old role (no actual change to role).
+        (!('role' in resource.data) || request.resource.data.role == resource.data.role) ||
+        // Allow changing role ONLY if roleSetAt has not been set, meaning it's the first time they are choosing a role.
+        (!('roleSetAt' in resource.data) && ('role' in request.resource.data))
+      );
 
-      // Admins can write anything.
+      // Admins can write anything (including changing roles).
       allow write: if isAdmin();
+
+      // Rules for subcollections
+      match /{subcollection}/{subDocument} {
+        allow read, create: if isSignedIn() && request.auth.uid == userId;
+        // Add more specific rules for update/delete if needed for subcollections
+      }
     }
   }
 }

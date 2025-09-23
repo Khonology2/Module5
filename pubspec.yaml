@@ -23,6 +23,8 @@ dependencies:
   firebase_ai: ^3.2.0
   video_player: ^2.8.1
   shared_preferences: ^2.0.0
+  image_picker: ^1.1.2
+  firebase_storage: ^13.0.1
 
 dev_dependencies:
   flutter_test:
