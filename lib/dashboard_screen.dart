@@ -1,9 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_nav_drawer.dart';
 import 'dart:ui'; // Added for ImageFilter
+import 'package:pdh/employee_profile_screen.dart'; // Import the new profile screen
+import 'package:pdh/manager_profile_screen.dart'; // Import the new manager profile screen
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isManager = false;
+  bool _isLoading = true; // Add loading state
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRole();
+  }
+
+  Future<void> _checkUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final userProfile = await DatabaseService.getUserProfile(user.uid);
+        setState(() {
+          _isManager = userProfile.role == 'manager';
+          _isLoading = false; // Set loading to false after role is determined
+        });
+      } catch (e) {
+        // Handle error, e.g., show a snackbar or log it
+        // ignore: avoid_print
+        print('Error fetching user role: $e');
+        setState(() {
+          _isLoading = false; // Stop loading even if there's an error
+        });
+      }
+    } else {
+      setState(() {
+        _isLoading = false; // Stop loading if user is null
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,6 +59,24 @@ class DashboardScreen extends StatelessWidget {
           'Dashboard',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          if (_isLoading) // Show a loading indicator if still loading
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(color: Colors.white),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.person, color: Colors.white),
+              onPressed: () {
+                if (_isManager) {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+                }
+              },
+            ),
+        ],
       ),
       drawer: const ManagerNavDrawer(),
       body: Stack(
