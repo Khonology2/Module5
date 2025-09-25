@@ -2,12 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/employee_drawer.dart';
+import 'package:pdh/manager_nav_drawer.dart';
 // import 'package:pdh/bottom_nav_bar.dart'; // Bottom nav removed on settings
 import 'package:pdh/auth_service.dart'; // Import AuthService
 import 'package:pdh/services/role_service.dart';
-import 'package:pdh/widgets/sidebar.dart';
-// SidebarState not required directly when using AppScaffold
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class SettingsScreen extends StatefulWidget { // Changed to StatefulWidget
   const SettingsScreen({super.key});
@@ -67,29 +69,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Settings',
-      showAppBar: false,
-      currentRouteName: ModalRoute.of(context)?.settings.name,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) {
-          Navigator.pushNamed(context, r);
-        }
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        title: const Text('Settings', style: TextStyle(color: Colors.white)), // Ensure title is visible
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+        actions: [
+          StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
+            builder: (context, snapshot) {
+              final role = snapshot.data;
+              final isManager = role == 'manager';
+              return _buildProfileButton(context, isManager: isManager);
+            },
+          ),
+        ],
+      ),
+      drawer: const _RoleAwareDrawer(),
+      body: Stack(
         children: [
           Positioned.fill(
             child: Container(
@@ -131,7 +130,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white.withAlpha(26), borderRadius: BorderRadius.circular(16)),
+                        decoration: BoxDecoration(color: Colors.white.withAlpha(0x1A), borderRadius: BorderRadius.circular(16)),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -164,7 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _displayNameController.text,
                             _photoUrlController.text,
                           );
-                          if (!mounted) return; 
+                          if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Profile updated successfully!')),
                           );
@@ -367,10 +366,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          }
+          else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   InputDecoration _inputDecoration({String? hintText}) {
     return InputDecoration(
       filled: true,
-      fillColor: Colors.white.withAlpha(25), // Semi-transparent white for blurred effect
+      fillColor: Colors.white.withAlpha(0x26), // Semi-transparent white for blurred effect
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
@@ -454,16 +481,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 13)),
+                Text(subtitle, style: TextStyle(color: Colors.white70.withAlpha(0xB3), fontSize: 13)), // Using withAlpha for consistency
               ],
             ),
           ),
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: Color(0xFFC10D00),
+            activeTrackColor: const Color(0xFFC10D00),
             activeThumbColor: Colors.white,
-            inactiveTrackColor: Colors.grey.withValues(alpha: 0.5),
+            inactiveTrackColor: Colors.grey.withAlpha(0x7F),
             inactiveThumbColor: Colors.grey,
           ),
         ],
@@ -489,7 +516,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 13)),
+                Text(subtitle, style: TextStyle(color: Colors.white70.withAlpha(0xB3), fontSize: 13)), // Using withAlpha for consistency
               ],
             ),
           ),
@@ -498,7 +525,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF1F2840),
               borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(color: Colors.white70.withValues(alpha: 0.3)),
+              border: Border.all(color: Colors.white70.withAlpha(0x4C)), // Using withAlpha for consistency
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -519,8 +546,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildDivider() {
-    return Divider(color: Colors.white.withValues(alpha: 0.1), height: 1, thickness: 0.5);
+    return Divider(color: Colors.white.withAlpha(0x1A), height: 1, thickness: 0.5); // Using withAlpha for consistency
   }
 }
 
-// Drawer removed; AppScaffold manages it responsively
+class _RoleAwareDrawer extends StatelessWidget {
+  const _RoleAwareDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, snapshot) {
+        final isManager = snapshot.data == 'manager';
+        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
+      },
+    );
+  }
+}

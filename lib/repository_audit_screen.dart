@@ -1,36 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:pdh/widgets/sidebar.dart';
-// SidebarState not needed; AppScaffold handles responsiveness
 import 'dart:ui'; // Import for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
-class RepositoryAuditScreen extends StatelessWidget { 
+class RepositoryAuditScreen extends StatelessWidget {
   const RepositoryAuditScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Repository & Audit',
-      currentRouteName: ModalRoute.of(context)?.settings.name,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Ensure transparent background for full-screen effect
+      extendBodyBehindAppBar: true, // Extend body behind AppBar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)),
+        actions: [
+          StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
+            builder: (context, snapshot) {
+              final role = snapshot.data;
+              final isManager = role == 'manager';
+              return _buildProfileButton(context, isManager: isManager);
+            },
+          ), // Use the new profile button widget
+        ],
+      ),
+      drawer: const _RoleAwareDrawer(),
+      body: Stack(
         children: [
+          // Background image
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
@@ -41,25 +44,27 @@ class RepositoryAuditScreen extends StatelessWidget {
               ),
             ),
           ),
+          // Overlay for blur effect and gradient
           Positioned.fill(
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
               child: Container(
                 decoration: const BoxDecoration(
                   gradient: RadialGradient(
                     center: Alignment.center,
                     radius: 1.2,
-                    colors: [Color(0x880A0F1F), Color(0x88040610)],
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
                     stops: [0.0, 1.0],
                   ),
                 ),
                 child: Column(
                   children: [
                     // AppBar replacement with search and title.
-                    Builder(
-                      builder: (context) => _RepositoryAppBarContent(
-                        onMenuPressed: () => Scaffold.of(context).openDrawer(),
-                      ),
+                    _RepositoryAppBarContent(
+                      onMenuPressed: () => Scaffold.of(context).openDrawer(),
                     ),
                     Expanded(
                       child: ListView(
@@ -148,6 +153,33 @@ class RepositoryAuditScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Removed bottom navigation; helper no longer needed
 
   // Helper widget to build individual goal cards.
@@ -167,9 +199,10 @@ class RepositoryAuditScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E172F), // Card background color
         borderRadius: BorderRadius.circular(20.0),
-        boxShadow: [ // Optional: subtle shadow for cards
+        boxShadow: [
+          // Optional: subtle shadow for cards
           BoxShadow(
-            color: Colors.black.withAlpha(51), // Replaced withOpacity(0.2) with withAlpha(51)
+            color: Colors.black.withAlpha(0x33),
             blurRadius: 5,
             offset: const Offset(0, 3),
           ),
@@ -195,7 +228,7 @@ class RepositoryAuditScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: ShapeDecoration(color: statusColor.withAlpha(51), shape: const StadiumBorder()), // Changed to StadiumBorder
+                decoration: ShapeDecoration(color: statusColor.withAlpha(0x33), shape: const StadiumBorder()), // Changed to StadiumBorder
                 child: Text(
                   status,
                   style: TextStyle(
@@ -227,18 +260,22 @@ class RepositoryAuditScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.verified, size: 16),
-                  label: const Text('Verify Evidence'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.verified, size: 16),
+                    label: const Text('Verify Evidence'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.comment, size: 16),
-                  label: const Text('Request Changes'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.comment, size: 16),
+                    label: const Text('Request Changes'),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                  ),
                 ),
               ],
             ),
@@ -304,7 +341,7 @@ class _RoleSummaryBar extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget chip(Color color, String label) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: ShapeDecoration(color: Colors.white.withAlpha(26), shape: const StadiumBorder()), // Changed to StadiumBorder
+          decoration: ShapeDecoration(color: Colors.white.withAlpha(0x1A), shape: const StadiumBorder()), // Changed to StadiumBorder
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -417,7 +454,7 @@ class _RepositoryAppBarContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(51),
+                  color: Colors.white.withAlpha(0x33),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.archive_outlined, color: Colors.white, size: 24),
@@ -430,4 +467,17 @@ class _RepositoryAppBarContent extends StatelessWidget {
   }
 }
 
-// Drawer removed; handled by AppScaffold
+class _RoleAwareDrawer extends StatelessWidget {
+  const _RoleAwareDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, snapshot) {
+        final isManager = snapshot.data == 'manager';
+        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
+      },
+    );
+  }
+}

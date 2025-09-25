@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/employee_drawer.dart';
+import 'package:pdh/manager_nav_drawer.dart';
 import 'dart:ui'; // Import for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class ProgressVisualsScreen extends StatefulWidget {
   const ProgressVisualsScreen({super.key});
@@ -23,42 +26,22 @@ class _ProgressVisualsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
     final isManagerOrigin = args is Map && args['origin'] == 'manager';
-    final routeName = ModalRoute.of(context)?.settings.name;
-    // Responsive width available if needed
-
-    return AppScaffold(
-      title: 'Progress Visuals',
-      showAppBar: false,
-      items: isManagerOrigin
-          ? const [
-              SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-              SidebarItem(icon: Icons.groups, label: 'Manager Review', route: '/manager_review_team_dashboard'),
-              SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-              SidebarItem(icon: Icons.notifications, label: 'Alerts & Nudges', route: '/alerts_nudges'),
-              SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/leaderboard'),
-              SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
-              SidebarItem(icon: Icons.settings, label: 'Settings & Privacy', route: '/settings'),
-            ]
-          : const [
-              SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-              SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-              SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-              SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-              SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-              SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-              SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-              SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-              SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-            ],
-      currentRouteName: routeName,
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) {
-          Navigator.pushNamed(context, r);
-        }
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+        title: const Text(
+          'Progress Visuals',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          _buildProfileButton(context, isManager: isManagerOrigin), // Pass isManagerOrigin
+        ],
+      ),
+      drawer: isManagerOrigin ? const ManagerNavDrawer() : const EmployeeDrawer(),
+      body: Stack(
         children: [
           Positioned.fill(
             child: Container(
@@ -85,8 +68,9 @@ class _ProgressVisualsContent extends StatelessWidget {
                     stops: [0.0, 1.0],
                   ),
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -98,10 +82,38 @@ class _ProgressVisualsContent extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -140,14 +152,14 @@ class _ProgressVisualsContent extends StatelessWidget {
                     Container(
                       height: 30,
                       decoration: BoxDecoration(
-                        color: Color(0xFFC10D00).withValues(alpha: 127),
+                        color: const Color(0xFFC10D00).withAlpha(0x7F),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
                           width: 60,
-                          color: Color(0xFFC10D00),
+                          color: const Color(0xFFC10D00),
                         ),
                       ),
                     ),
@@ -175,7 +187,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                     Container(
                       height: 30,
                       decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.5),
+                        color: Colors.orange.withAlpha(0x80),
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Align(
@@ -203,7 +215,7 @@ class _ProgressVisualsContent extends StatelessWidget {
             Container(
               height: 10,
               decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
+                color: Colors.grey.withAlpha(0x4D),
                 borderRadius: BorderRadius.circular(5),
               ),
             ),
@@ -272,7 +284,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           goal: 'Complete Mobile App',
           dueDate: 'Due in 3 days',
           progress: 0.8,
-          progressColor: Color(0xFFC10D00),
+          progressColor: const Color(0xFFC10D00),
           streakDays: 4,
         ),
         const SizedBox(height: 15),
@@ -281,7 +293,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           goal: 'Learn Data Science',
           dueDate: 'Due in 15 days',
           progress: 0.4,
-          progressColor: Color(0xFFC10D00),
+          progressColor: const Color(0xFFC10D00),
           streakDays: 1,
         ),
         const SizedBox(height: 15),
@@ -322,7 +334,7 @@ class _ProgressVisualsContent extends StatelessWidget {
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
             progressColor: progressColor,
-            backgroundColor: Colors.grey.withValues(alpha: 0.3),
+            backgroundColor: Colors.grey.withAlpha(0x4D),
             circularStrokeCap: CircularStrokeCap.round,
           ),
           const SizedBox(width: 15),
@@ -341,7 +353,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   dueDate,
-                  style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 13),
+                  style: TextStyle(color: Colors.white70.withAlpha(0xB3), fontSize: 13),
                 ),
               ],
             ),
@@ -349,7 +361,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
               const SizedBox(width: 5),
               Text(
                 '$streakDays day',
@@ -386,7 +398,7 @@ class _ProgressVisualsContent extends StatelessWidget {
         const SizedBox(height: 15),
         _buildInsightCard(
           'You\'re 15% ahead of schedule on your mobile app project!',
-          Color(0xFFC10D00),
+          const Color(0xFFC10D00),
           Icons.arrow_circle_up,
         ),
         const SizedBox(height: 10),
@@ -427,6 +439,4 @@ class _ProgressVisualsContent extends StatelessWidget {
       ),
     );
   }
-
-  // Bottom nav removed
 }

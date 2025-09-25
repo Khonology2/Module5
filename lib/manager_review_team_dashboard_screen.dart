@@ -1,90 +1,144 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/manager_nav_drawer.dart';
+import 'dart:ui'; // Added for ImageFilter
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class ManagerReviewTeamDashboardScreen extends StatelessWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Manager Review',
-      showAppBar: false,
-      currentRouteName: ModalRoute.of(context)?.settings.name,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-        SidebarItem(icon: Icons.groups, label: 'Manager Review', route: '/manager_review_team_dashboard'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications, label: 'Alerts & Nudges', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings, label: 'Settings & Privacy', route: '/settings'),
-      ],
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: LayoutBuilder(
-        builder: (context, constraints) {
-          final horizontalPadding = constraints.maxWidth < 400
-              ? 12.0
-              : constraints.maxWidth < 700
-                  ? 16.0
-                  : 24.0;
-          return SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildKpiRow(),
-                const SizedBox(height: 20),
-                _buildHeader(),
-                const SizedBox(height: 20),
-                _buildAtRiskSection(),
-                const SizedBox(height: 20),
-                _buildGoalCard(
-                  context,
-                  name: 'Sarah Johnson',
-                  goal: 'Increase social media engagement by 25%',
-                  dueDate: 'Due in 5 days',
-                  progress: 0.75,
-                  status: 'On Track',
-                  statusColor: Colors.green,
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+        title: const Text(
+          'Manager Review',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          _buildProfileButton(context), // Use the new profile button widget
+        ],
+      ),
+      drawer: const ManagerNavDrawer(),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
                 ),
-                const SizedBox(height: 20),
-                _buildGoalCard(
-                  context,
-                  name: 'Michael Chen',
-                  goal: 'Launch new product campaign',
-                  dueDate: 'Overdue 2 days',
-                  progress: 0.20,
-                  status: 'At Risk',
-                  statusColor: Colors.redAccent,
-                ),
-                const SizedBox(height: 20),
-                _buildGoalCard(
-                  context,
-                  name: 'Emily Rodriguez',
-                  goal: 'Improve customer retention rate',
-                  dueDate: 'Due in 12 days',
-                  progress: 0.90,
-                  status: 'Ahead',
-                  statusColor: Color(0xFFC10D00),
-                ),
-                const SizedBox(height: 20),
-                _buildAIManagerInsights(),
-                const SizedBox(height: 20),
-                _buildUpcomingSection(),
-                const SizedBox(height: 20),
-                _buildRecentlyCompletedSection(),
-                const SizedBox(height: 24),
-                _buildQuickActions(),
-              ],
+              ),
             ),
-          );
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final horizontalPadding = constraints.maxWidth < 400
+                        ? 12.0
+                        : constraints.maxWidth < 700
+                            ? 16.0
+                            : 24.0;
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(horizontalPadding, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, horizontalPadding, 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildKpiRow(),
+                          const SizedBox(height: 20),
+                          _buildHeader(),
+                          const SizedBox(height: 20),
+                          _buildAtRiskSection(),
+                          const SizedBox(height: 20),
+                          _buildGoalCard(
+                            context,
+                            name: 'Sarah Johnson',
+                            goal: 'Increase social media engagement by 25%',
+                            dueDate: 'Due in 5 days',
+                            progress: 0.75,
+                            status: 'On Track',
+                            statusColor: Colors.green,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildGoalCard(
+                            context,
+                            name: 'Michael Chen',
+                            goal: 'Launch new product campaign',
+                            dueDate: 'Overdue 2 days',
+                            progress: 0.20,
+                            status: 'At Risk',
+                            statusColor: Colors.redAccent,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildGoalCard(
+                            context,
+                            name: 'Emily Rodriguez',
+                            goal: 'Improve customer retention rate',
+                            dueDate: 'Due in 12 days',
+                            progress: 0.90,
+                            status: 'Ahead',
+                            statusColor: const Color(0xFFC10D00),
+                          ),
+                          const SizedBox(height: 20),
+                          _buildAIManagerInsights(),
+                          const SizedBox(height: 20),
+                          _buildUpcomingSection(),
+                          const SizedBox(height: 20),
+                          _buildRecentlyCompletedSection(),
+                          const SizedBox(height: 24),
+                          _buildQuickActions(),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
         },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -131,7 +185,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1F2840),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.4), width: 1),
+          border: Border.all(color: Colors.red.withAlpha(0x66), width: 1),
         ),
         child: Row(
           children: [
@@ -151,7 +205,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {},
-              style: TextButton.styleFrom(backgroundColor: const Color(0xFF6A1B9A)),
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
               child: const Text('Nudge', style: TextStyle(color: Colors.white)),
             ),
             const SizedBox(width: 8),
@@ -198,7 +252,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: chipColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: chipColor.withAlpha(0x33), borderRadius: BorderRadius.circular(6)),
               child: Text(due, style: TextStyle(color: chipColor, fontSize: 12)),
             ),
           ],
@@ -210,7 +264,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
       children: [
         const Text('Upcoming (7–14 days)', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 10),
-        row('Quarterly roadmap draft', 'Sarah Johnson', 'Due in 5 days', Color(0xFFC10D00)),
+        row('Quarterly roadmap draft', 'Sarah Johnson', 'Due in 5 days', const Color(0xFFC10D00)),
         row('Retention playbook v2', 'Emily Rodriguez', 'Due in 12 days', Colors.greenAccent),
       ],
     );
@@ -219,7 +273,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
   Widget _buildRecentlyCompletedSection() {
     Widget chip(String label, Color color) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: color.withAlpha(0x26), borderRadius: BorderRadius.circular(6)),
           child: Text(label, style: TextStyle(color: color, fontSize: 11)),
         );
     Widget card(String title, String name, String when) {
@@ -244,7 +298,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Row(children: [chip('share', Color(0xFFC10D00)), const SizedBox(width: 6), chip('kudos', Colors.orangeAccent)])
+            Row(children: [chip('share', const Color(0xFFC10D00)), const SizedBox(width: 6), chip('kudos', Colors.orangeAccent)])
           ],
         ),
       );
@@ -280,9 +334,9 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
       children: [
         action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
-        action(Icons.campaign, 'Nudge', const Color(0xFF00C853)),
+        action(Icons.campaign, 'Nudge', const Color(0xFFC10D00)),
         const SizedBox(width: 10),
-        action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
+        action(Icons.event, 'Schedule 1:1', const Color(0xFFC10D00)),
       ],
     );
   }
@@ -306,12 +360,12 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: const Color(0xFF3A4750),
+            color: const Color(0xFFC10D00),
             borderRadius: BorderRadius.circular(5),
           ),
           child: const Text(
             'Filter',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
       ],
@@ -333,7 +387,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
         color: const Color(0xFF1F2840),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: name == 'Michael Chen' ? Colors.red.withValues(alpha: 0.5) : Colors.transparent,
+          color: name == 'Michael Chen' ? Colors.red.withAlpha(0x80) : Colors.transparent,
           width: 1.5,
         ),
       ),
@@ -364,7 +418,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                   style: const TextStyle(color: Colors.white70, fontSize: 10),
                 ),
                 progressColor: statusColor,
-                backgroundColor: Colors.grey.withValues(alpha: 0.3),
+                backgroundColor: Colors.grey.withAlpha(0x4D),
               ),
             ],
           ),
@@ -377,7 +431,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.2),
+              color: statusColor.withAlpha(0x33),
               borderRadius: BorderRadius.circular(5),
             ),
                   child: Text(
@@ -401,7 +455,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             style: const TextStyle(color: Colors.white70),
             decoration: InputDecoration(
               hintText: 'Add check-in notes...',
-              hintStyle: TextStyle(color: Colors.white70.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
               filled: true,
               fillColor: const Color(0xFF2C3E50),
               border: OutlineInputBorder(
@@ -440,7 +494,7 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C853),
+                    backgroundColor: const Color(0xFFC10D00),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),

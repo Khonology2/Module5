@@ -1,34 +1,35 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-// Removed unused imports
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/manager_nav_drawer.dart';
 
 class ManagerPortalScreen extends StatelessWidget {
   const ManagerPortalScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final routeName = ModalRoute.of(context)?.settings.name;
-    return AppScaffold(
-      title: 'Manager Portal',
-      showAppBar: false,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-        SidebarItem(icon: Icons.groups, label: 'Manager Review', route: '/manager_review_team_dashboard'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications, label: 'Alerts & Nudges', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings, label: 'Settings & Privacy', route: '/settings'),
-      ],
-      currentRouteName: routeName,
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      drawer: const ManagerNavDrawer(),
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        title: const Text(
+          'Manager Portal',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Stack(
         children: [
           // Background image
           Positioned.fill(
@@ -54,7 +55,7 @@ class ManagerPortalScreen extends StatelessWidget {
                   ),
                 ),
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(40.0),
+                        padding: EdgeInsets.fromLTRB(40.0, MediaQuery.of(context).padding.top + kToolbarHeight + 40.0, 40.0, 40.0),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,12 +85,9 @@ class ManagerPortalScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Sidebar handled by AppScaffold
         ],
       ),
     );
   }
 
 }
-
-// Removed inline _ManagerDrawer in favor of reusable ManagerNavDrawer

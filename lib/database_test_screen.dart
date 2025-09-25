@@ -128,6 +128,11 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Database Test'),
+        backgroundColor: const Color(0xFF1B2A40),
+        foregroundColor: Colors.white,
+      ),
       backgroundColor: const Color(0xFF0A0F1F),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
