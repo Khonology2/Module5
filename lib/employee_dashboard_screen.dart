@@ -106,7 +106,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildWelcomeCard() {
     final user = FirebaseAuth.instance.currentUser; // Get current user
-    final userName = user?.displayName?.split(' ').first ?? 'User'; // Extract first name
+    // Try displayName first, then email, then fallback to 'User'
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
