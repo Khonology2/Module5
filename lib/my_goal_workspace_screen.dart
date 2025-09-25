@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   const MyGoalWorkspaceScreen({super.key});
@@ -72,28 +71,30 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final routeName = ModalRoute.of(context)?.settings.name;
-    return AppScaffold(
-      title: 'Personal Development Goal',
-      showAppBar: false,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      currentRouteName: routeName,
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        title: const Text(
+          'Personal Development Goal',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.apps, color: Colors.white),
+            onPressed: () {
+              // Handle menu action
+            },
+          ),
+        ],
+      ),
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
+      body: Stack(
         children: [
           Positioned.fill(
             child: Container(
@@ -121,7 +122,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   ),
                 ),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -189,7 +190,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               ),
             ),
           ),
-          // Sidebar handled by AppScaffold
         ],
       ),
     );
@@ -226,7 +226,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: Colors.white70.withValues(alpha: 0.5)),
+          hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.all(16),
         ),
@@ -247,7 +247,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           Text(
             date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
             style: TextStyle(
-              color: date != null ? Colors.white : Colors.white70.withValues(alpha: 0.5),
+              color: date != null ? Colors.white : Colors.white70.withAlpha(0x80),
             ),
           ),
           GestureDetector(
@@ -278,7 +278,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         style: const TextStyle(color: Colors.white, fontSize: 16),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: Colors.white70.withValues(alpha: 0.5)),
+          hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
           border: InputBorder.none,
         ),
         icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
@@ -297,9 +297,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFFC10D00).withValues(alpha: 51), // App's red color with transparency
+        color: const Color(0xFFC10D00).withAlpha(0x33), // App's red color with transparency
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFC10D00).withValues(alpha: 127)),
+        border: Border.all(color: const Color(0xFFC10D00).withAlpha(0x7F)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

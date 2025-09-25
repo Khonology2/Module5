@@ -43,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
   bool _isSigningIn = false;
 
   final microsoftProvider = MicrosoftAuthProvider();
@@ -197,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 16,
-                                    ),
+                                ),
                               ),
                               style: const TextStyle(
                                 color: Colors.white,
@@ -255,7 +254,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 20,
                                   vertical: 16,
-                                    ),
+                                ),
                               ),
                               style: const TextStyle(
                                 color: Colors.white,
@@ -335,15 +334,15 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     ),
                                   )
                                 : const Text(
-                              'Sign In',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
+                                    'Sign In',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                       fontFamily: 'Poppins',
                                       letterSpacing: 0.5,
-                              ),
-                            ),
+                                    ),
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 30),
@@ -620,6 +619,4 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 }
-

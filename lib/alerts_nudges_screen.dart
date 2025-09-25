@@ -1,45 +1,45 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
 class AlertsNudgesScreen extends StatelessWidget {
   const AlertsNudgesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final routeName = ModalRoute.of(context)?.settings.name;
-    // No header; sidebar handled by AppScaffold
-
-    return AppScaffold(
-      title: 'Alerts & Nudges',
-      showAppBar: false,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      currentRouteName: routeName,
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        title: const Text('Alerts & Nudges', style: TextStyle(color: Colors.white)), // Ensure title is visible
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+        actions: [
+          StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
+            builder: (context, snapshot) {
+              final role = snapshot.data;
+              final isManager = role == 'manager';
+              return _buildProfileButton(context, isManager: isManager);
+            },
+          ), // Use the new profile button widget
+        ],
+      ),
+      drawer: const _RoleAwareDrawer(),
+      body: Stack(
         children: [
           Positioned.fill(
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(Colors.black.withAlpha(77), BlendMode.darken),
-              child: Image.asset(
-                'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
-                fit: BoxFit.cover,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
@@ -67,7 +67,7 @@ class AlertsNudgesScreen extends StatelessWidget {
                       return const Center(child: CircularProgressIndicator(color: Colors.white70));
                     }
                     return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                      padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -85,6 +85,33 @@ class AlertsNudgesScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userName = user?.displayName ?? 'Profile';
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: InkWell(
+        onTap: () {
+          if (isManager) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
+          }
+        },
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -304,4 +331,17 @@ class AlertsNudgesScreen extends StatelessWidget {
   }
 }
 
-// Drawer handling is centralized by AppScaffold
+class _RoleAwareDrawer extends StatelessWidget {
+  const _RoleAwareDrawer();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, snapshot) {
+        final isManager = snapshot.data == 'manager';
+        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
+      },
+    );
+  }
+}

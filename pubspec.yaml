@@ -19,13 +19,14 @@ dependencies:
   google_sign_in: ^7.2.0
   logger: ^2.0.2
   flutter_facebook_auth: ^7.1.2
-  percent_indicator: ^4.2.3
+  percent_indicator: ^4.2.5
   firebase_ml_model_downloader: ^0.4.0+2 # For AI model downloading
   tflite_flutter: ^0.11.0 # For running TensorFlow Lite models
-  video_player: ^2.8.1
-  shared_preferences: ^2.0.0
-  image_picker: ^1.1.2
-  firebase_storage: ^13.0.1
+  firebase_ai: ^3.3.0
+  video_player: ^2.10.0
+  shared_preferences: ^2.5.3
+  image_picker: ^1.2.0
+  firebase_storage: ^13.0.2
 
 dev_dependencies:
   flutter_test:
@@ -37,6 +38,21 @@ flutter:
   assets:
     - assets/
     - assets/fonts/poppins/
+    - assets/Send_Paper Plane/
+    - assets/videos/
+    - assets/AI_Red.png
+    - assets/Chatbot_BG.png
+    - assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png
+    - assets/khonodemy.png
+    - assets/Google_Icon.png
+    - assets/mslogo.png
+    - assets/github_icon_2.png
+    - assets/landing_screen.jpg
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png
+    - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png
+    - assets/videos/chat_bot_animation-vmake.mp4
+    - assets/Send_Paper Plane/Send_Plane_Red Badge_White.png
+    - assets/20250919_1708_Futuristic Red Tech Design_remix_01k5h86tdef65aerhqpqthxd5d.png
   fonts:
     - family: Poppins
       fonts:

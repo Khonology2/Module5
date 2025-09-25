@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/sidebar.dart';
-// Bottom nav not used here; sidebar provides primary navigation
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
 class SeasonChallengeScreen extends StatefulWidget { // Changed to StatefulWidget
   const SeasonChallengeScreen({super.key});
@@ -12,6 +11,8 @@ class SeasonChallengeScreen extends StatefulWidget { // Changed to StatefulWidge
 }
 
 class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
+  int _selectedIndex = 0; // Add state variable for selected index
+
   @override
   void initState() {
     super.initState();
@@ -20,33 +21,73 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _setInitialIndex();
   }
 
-  // Bottom navigation logic removed; this screen uses the global sidebar
+  void _setInitialIndex() {
+    final currentRoute = ModalRoute.of(context)?.settings.name;
+    if (currentRoute == '/my_pdp') {
+      setState(() {
+        _selectedIndex = 0; // Corresponds to My PDP
+      });
+    } else if (currentRoute == '/leaderboard') {
+      setState(() {
+        _selectedIndex = 1; // Corresponds to Leaderboard
+      });
+    } else if (currentRoute == '/progress_visuals') {
+      setState(() {
+        _selectedIndex = 2; // Corresponds to Progress Visuals
+      });
+    } else if (currentRoute == '/settings') {
+      setState(() {
+        _selectedIndex = 3; // Corresponds to Setting
+      });
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    // Handle navigation based on the selected index
+    String targetRoute;
+    switch (index) {
+      case 0: // My PDP
+        targetRoute = '/my_pdp';
+        break;
+      case 1: // Leaderboard
+        targetRoute = '/leaderboard';
+        break;
+      case 2: // Progress Visuals
+        targetRoute = '/progress_visuals';
+        break;
+      case 3: // Setting
+        targetRoute = '/settings';
+        break;
+      default:
+        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
+    }
+    if (ModalRoute.of(context)?.settings.name != targetRoute) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        targetRoute,
+        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Season Challenge',
-      showAppBar: false,
-      items: const [
-        SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/employee_dashboard'),
-        SidebarItem(icon: Icons.person_outline, label: 'Profile & PDP.', route: '/my_pdp'),
-        SidebarItem(icon: Icons.track_changes, label: 'Goal Workspace', route: '/my_goal_workspace'),
-        SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals.', route: '/progress_visuals'),
-        SidebarItem(icon: Icons.notifications_none, label: 'Alerts & Visuals.', route: '/alerts_nudges'),
-        SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points.', route: '/badges_points'),
-        SidebarItem(icon: Icons.leaderboard, label: 'LeaderBoard.', route: '/leaderboard'),
-        SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit.', route: '/repository_audit'),
-        SidebarItem(icon: Icons.settings_outlined, label: 'Settings & Privacy.', route: '/settings'),
-      ],
-      currentRouteName: ModalRoute.of(context)?.settings.name,
-      onNavigate: (r) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != r) Navigator.pushNamed(context, r);
-      },
-      onLogout: () => Navigator.pushReplacementNamed(context, '/sign_in'),
-      content: Stack(
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      appBar: AppBar(
+        title: const Text('Season Challenge', style: TextStyle(color: Colors.white)), // Ensure title is visible
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // Remove AppBar shadow
+      ),
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
+      body: Stack(
         children: [
           Positioned.fill(
             child: Container(
@@ -84,10 +125,10 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
           ),
         ],
       ),
-      // Keep existing bottom nav outside the scaffolded content
+      bottomNavigationBar: AppBottomNavBar(
+        selectedIndex: _selectedIndex,
+        onTabTapped: _onItemTapped,
+      ),
     );
   }
 }
-
-// The bottom nav remains provided separately in the route using this screen
-// If needed, wrap in your route with a Scaffold that supplies AppBottomNavBar
