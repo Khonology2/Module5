@@ -10,6 +10,9 @@ import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:pdh/services/speech_recognition_service.dart'; // Import SpeechRecognitionService
+import 'package:flutter/foundation.dart' show kDebugMode; // Import kDebugMode
 
 class SettingsScreen extends StatefulWidget { // Changed to StatefulWidget
   const SettingsScreen({super.key});
@@ -34,11 +37,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundAlerts = true;
   bool _leaderboardParticipation = true;
   bool _celebrationFeed = false;
+  bool _speechRecognitionEnabled = false; // Ensure it's non-nullable and initialized
 
   @override
   void initState() {
     super.initState();
+    if (kDebugMode) {
+      debugPrint('SettingsScreen InitState: Initializing booleans...');
+      debugPrint('_privateGoals: $_privateGoals');
+      debugPrint('_managerOnly: $_managerOnly');
+      debugPrint('_teamShare: $_teamShare');
+      debugPrint('_pushNotifications: $_pushNotifications');
+      debugPrint('_soundAlerts: $_soundAlerts');
+      debugPrint('_leaderboardParticipation: $_leaderboardParticipation');
+      debugPrint('_celebrationFeed: $_celebrationFeed');
+      debugPrint('_speechRecognitionEnabled: $_speechRecognitionEnabled');
+    }
     _loadUserProfile();
+    _loadSpeechRecognitionPreference();
   }
 
   void _loadUserProfile() async {
@@ -47,6 +63,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _displayNameController.text = user.displayName ?? '';
       _photoUrlController.text = user.photoURL ?? '';
     }
+  }
+
+  void _loadSpeechRecognitionPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _speechRecognitionEnabled = prefs.getBool('speechRecognitionEnabled') ?? false;
+      if (kDebugMode) {
+        debugPrint('Speech recognition preference loaded: $_speechRecognitionEnabled');
+      }
+    });
   }
 
   @override
@@ -123,6 +149,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return const Center(child: CircularProgressIndicator(color: Colors.white70));
                     }
                     final isManager = role == 'manager';
+                    if (kDebugMode) {
+                      debugPrint('SettingsScreen Build: current boolean values:');
+                      debugPrint('_privateGoals: $_privateGoals');
+                      debugPrint('_managerOnly: $_managerOnly');
+                      debugPrint('_teamShare: $_teamShare');
+                      debugPrint('_pushNotifications: $_pushNotifications');
+                      debugPrint('_soundAlerts: $_soundAlerts');
+                      debugPrint('_leaderboardParticipation: $_leaderboardParticipation');
+                      debugPrint('_celebrationFeed: $_celebrationFeed');
+                      debugPrint('_speechRecognitionEnabled: $_speechRecognitionEnabled');
+                    }
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
@@ -314,6 +351,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 onChanged: (v) => setState(() => _celebrationFeed = v),
                               ),
                             ]),
+                            const SizedBox(height: 24),
+                            _buildSectionTitle('Accessibility'),
+                            const SizedBox(height: 10),
+                            _buildSettingsCard(children: [
+                              _buildToggleRow(
+                                title: 'Speech Recognition Navigation',
+                                subtitle: 'Enable voice commands for navigation',
+                                value: _speechRecognitionEnabled,
+                                onChanged: (newValue) async {
+                                  setState(() {
+                                    _speechRecognitionEnabled = newValue;
+                                  });
+                                  final prefs = await SharedPreferences.getInstance();
+                                  await prefs.setBool('speechRecognitionEnabled', newValue);
+
+                                  if (newValue) {
+                                    SpeechRecognitionService().startSpeechRecognition();
+                                  } else {
+                                    SpeechRecognitionService().stopSpeechRecognition();
+                                  }
+                                },
+                              ),
+                            ]),
                           ],
                         ),
                       ),
@@ -467,7 +527,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildToggleRow({
     required String title,
     required String subtitle,
-    required bool value,
+    required bool? value, // Make value nullable
     required ValueChanged<bool> onChanged,
   }) {
     return Padding(
@@ -486,7 +546,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           Switch.adaptive(
-            value: value,
+            value: value ?? false, // Provide a default false if value is null
             onChanged: onChanged,
             activeTrackColor: const Color(0xFFC10D00),
             activeThumbColor: Colors.white,

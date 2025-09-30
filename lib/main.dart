@@ -25,11 +25,16 @@ import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
+import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
 
 // Define a ValueNotifier to hold the current route name
 final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(null);
+
+// Add a ValueNotifier for speech recognition status
+final ValueNotifier<String?> speechRecognitionStatusNotifier = ValueNotifier<String?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,46 +58,115 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // Remove _initialRoute and _checkCurrentUser as we always start from landing
+  final SpeechRecognitionService _speechRecognitionService = SpeechRecognitionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeSpeechRecognition();
+    _speechRecognitionService.speechCommands.listen((command) {
+      speechRecognitionStatusNotifier.value = 'Recognized: $command';
+      // Implement navigation logic here later
+      final String? route = _speechRecognitionService.commandRoutes[command.toLowerCase()];
+      if (route != null) {
+        navigatorKey.currentState?.pushNamed(route);
+      } else {
+        speechRecognitionStatusNotifier.value = 'Command not recognized: $command';
+      }
+    });
+  }
+
+  void _initializeSpeechRecognition() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool isEnabled = prefs.getBool('speechRecognitionEnabled') ?? false;
+    if (isEnabled) {
+      _speechRecognitionService.startSpeechRecognition();
+    }
+  }
+
+  @override
+  void dispose() {
+    _speechRecognitionService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return _GlobalChatbotWrapper(
       currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
-      child: MaterialApp(
-        navigatorKey: navigatorKey, // Assign the global key to MaterialApp
-        title: 'Personal Development Hub',
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          primarySwatch: Colors.red, // Changed from Colors.blue to Colors.red
-          fontFamily: 'Poppins',
-        ),
-        initialRoute: '/', // Always start from the landing screen
-        routes: {
-          '/': (context) => const AuthWrapper(), // Set the root route to AuthWrapper
-          '/register': (context) => const RegisterScreen(),
-          '/sign_in': (context) => const LoginScreen(),
-          '/my_pdp': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyPdpScreen()),
-          '/progress_visuals': (context) => const ProgressVisualsScreen(),
-          '/my_goal_workspace': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyGoalWorkspaceScreen()),
-          '/gamification': (context) => const GamificationScreen(),
-          '/repository_audit': (context) => const RepositoryAuditScreen(),
-          '/alerts_nudges': (context) => const AlertsNudgesScreen(),
-          '/season_challenge': (context) => const SeasonChallengeScreen(),
-          '/settings': (context) => const SettingsScreen(),
-          '/manager_review_team_dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerReviewTeamDashboardScreen()),
-          '/badges_points': (context) => const BadgesPointsScreen(),
-          '/leaderboard': (context) => const LeaderboardScreen(),
-          '/rolebaseview': (context) => const RoleBaseViewScreen(),
-          '/employee_portal': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeePortalScreen()),
-          '/employee_dashboard': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeeDashboardScreen()),
-          '/manager_portal': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerPortalScreen()),
-          '/dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const DashboardScreen()),
-          '/ai_chatbot': (context) => const AiChatbotScreen(), // Add the new AI Chatbot route
-        },
-        debugShowCheckedModeBanner: false,
-        // Add the custom NavigatorObserver
-        navigatorObservers: [MyNavigatorObserver()],
+      child: Stack(
+        textDirection: TextDirection.ltr,
+        children: [
+          MaterialApp(
+            navigatorKey: navigatorKey, // Assign the global key to MaterialApp
+            title: 'Personal Development Hub',
+            theme: ThemeData(
+              brightness: Brightness.dark,
+              primarySwatch: Colors.red, // Changed from Colors.blue to Colors.red
+              fontFamily: 'Poppins',
+            ),
+            initialRoute: '/', // Always start from the landing screen
+            routes: {
+              '/': (context) => const AuthWrapper(), // Set the root route to AuthWrapper
+              '/register': (context) => const RegisterScreen(),
+              '/sign_in': (context) => const LoginScreen(),
+              '/my_pdp': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyPdpScreen()),
+              '/progress_visuals': (context) => const ProgressVisualsScreen(),
+              '/my_goal_workspace': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyGoalWorkspaceScreen()),
+              '/gamification': (context) => const GamificationScreen(),
+              '/repository_audit': (context) => const RepositoryAuditScreen(),
+              '/alerts_nudges': (context) => const AlertsNudgesScreen(),
+              '/season_challenge': (context) => const SeasonChallengeScreen(),
+              '/settings': (context) => const SettingsScreen(),
+              '/manager_review_team_dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerReviewTeamDashboardScreen()),
+              '/badges_points': (context) => const BadgesPointsScreen(),
+              '/leaderboard': (context) => const LeaderboardScreen(),
+              '/rolebaseview': (context) => const RoleBaseViewScreen(),
+              '/employee_portal': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeePortalScreen()),
+              '/employee_dashboard': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeeDashboardScreen()),
+              '/manager_portal': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerPortalScreen()),
+              '/dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const DashboardScreen()),
+              '/ai_chatbot': (context) => const AiChatbotScreen(), // Add the new AI Chatbot route
+            },
+            debugShowCheckedModeBanner: false,
+            // Add the custom NavigatorObserver
+            navigatorObservers: [MyNavigatorObserver()],
+          ),
+          // Speech recognition feedback overlay
+          ValueListenableBuilder<String?>(
+            valueListenable: speechRecognitionStatusNotifier,
+            builder: (context, status, child) {
+              if (status == null) {
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                top: 50,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(8.0),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.mic, color: Colors.white),
+                        const SizedBox(width: 8.0),
+                        Text(
+                          status,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
