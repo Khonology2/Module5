@@ -11,6 +11,8 @@ import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart'; // Import for MethodChannel
+import 'package:flutter_tts/flutter_tts.dart'; // Import for text-to-speech
+import 'package:speech_to_text/speech_to_text.dart'; // Import for speech_to_text
 import'package:pdh/context_maps/manager_maps/dashboard_context.dart'; // Update the import path
 import 'package:pdh/context_maps/manager_maps/progress_visuals_context.dart';
 import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
@@ -37,6 +39,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isThinking = false; // Re-introduce thinking state
   bool _isProofreadingActive = false; // New state variable for proofreading feature toggle
   static const MethodChannel _channel = MethodChannel('com.example.khonopal/proofreading'); // Define the channel
+  late FlutterTts flutterTts;
+  String? _lastAiResponse; // To store the last AI response
+  bool _isSpeaking = false; // To track if TTS is active
+  late SpeechToText _speechToText; // Speech to Text instance
+  bool _speechEnabled = false; // Is not an active speech session
+  bool _isListening = false; // To track if speech-to-text is active
 
   @override
   void initState() {
@@ -50,6 +58,82 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       });
     _loadChatHistory(); // Load chat history when the screen initializes
     _loadUserProfileAndSetGreeting();
+    flutterTts = FlutterTts();
+    _initTts();
+    _speechToText = SpeechToText();
+    _initSpeech();
+  }
+
+  /// This initializes the speech to text plugin.
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize(
+      onStatus: (status) {
+        setState(() => _isListening = status == 'listening');
+        if (status == 'done' && _messageController.text.isNotEmpty) {
+          _sendMessage();
+        }
+      },
+      // ignore: avoid_print
+      onError: (errorNotification) => print('Error: ${errorNotification.errorMsg}'),
+    );
+    setState(() {});
+  }
+
+  // Each time to start a speech recognition session
+  void _startListening() async {
+    if (_speechEnabled) {
+      setState(() {
+        _isListening = true;
+      });
+      // ignore: avoid_print
+      print('Starting speech recognition...'); // Debug print
+      await _speechToText.listen(
+        onResult: (result) {
+          setState(() {
+            _messageController.text = result.recognizedWords;
+          });
+          // ignore: avoid_print
+          print('Recognized words: ${result.recognizedWords}'); // Debug print
+        },
+        // ignore: deprecated_member_use
+        partialResults: false, // Set to true to receive partial results
+        localeId: "en_US", // Optional, defaults to the device locale
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speech recognition not available.')));
+    }
+  }
+
+  // Manually stop the active speech recognition session
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() {
+      _isListening = false;
+    });
+  }
+
+  void _initTts() {
+    flutterTts.setLanguage("en-US");
+    flutterTts.setSpeechRate(1.0); // Increased speech rate
+    flutterTts.setVolume(1.0);
+    flutterTts.setPitch(1.0);
+  }
+
+  Future _speak(String text) async {
+    setState(() {
+      _isSpeaking = true;
+    });
+    await flutterTts.speak(text);
+    setState(() {
+      _isSpeaking = false;
+    });
+  }
+
+  Future _stop() async {
+    await flutterTts.stop();
+    setState(() {
+      _isSpeaking = false;
+    });
   }
 
   // Function to toggle proofreading feature
@@ -91,6 +175,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _scrollController.dispose();
     _videoController.dispose();
     _messageController.dispose(); // Dispose controller
+    flutterTts.stop(); // Stop any ongoing speech
+    flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
+    _speechToText.cancel(); // Cancel any active speech recognition
     super.dispose();
   }
 
@@ -109,7 +196,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
 
     for (int i = 0; i < fullText.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 2)); // Adjust typing speed here
+      await Future.delayed(const Duration(milliseconds: 1)); // Adjusted typing speed to be faster
       if (!mounted) return; // Check if widget is still mounted before calling setState
       setState(() {
         message.text = fullText.substring(0, i + 1);
@@ -211,10 +298,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       final prompt = [Content.text(textToSendToGemini)];
       final response = await _model.generateContent(prompt);
       
-      final aiMessage = ChatMessage(text: '', isUser: false, fullText: response.text ?? 'No response');
+      String cleanedResponseText = response.text?.replaceAll('*', '') ?? 'No response';
+      final aiMessage = ChatMessage(text: '', isUser: false, fullText: cleanedResponseText);
       setState(() {
         _messages.add(aiMessage);
         _isThinking = false; // Set thinking state to false after response is received
+        _lastAiResponse = cleanedResponseText; // Store the last AI response
       });
       _scrollToBottom(); // Scroll to bottom after adding new message container
       _startTypewriterAnimation(aiMessage);
@@ -274,7 +363,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         return _ThinkingIndicator();
                       }
                       final message = _messages[index];
-                      return ChatBubble(message: message, videoController: _videoController,);
+                      return ChatBubble(message: message, videoController: _videoController);
                     },
                   ),
                 ),
@@ -329,12 +418,43 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                           _showModeSelectionSheet(context);
                         },
                       ),
+                      // Text-to-speech button
+                      IconButton(
+                        icon: Icon(
+                          _isSpeaking ? Icons.volume_off : Icons.volume_up,
+                          color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
+                        ),
+                        onPressed: (_lastAiResponse != null && !_isThinking) ? () {
+                          if (_isSpeaking) {
+                            _stop();
+                          } else {
+                            _speak(_lastAiResponse!);
+                          }
+                        } : null,
+                      ),
                       IconButton(
                         icon: Icon(
                           Icons.spellcheck,
                           color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70, // Highlight if active
                         ),
                         onPressed: _toggleProofreading, // Toggle proofreading status
+                      ),
+                      // Speech-to-text button
+                      IconButton(
+                        icon: Icon(
+                          _isListening ? Icons.mic_off : Icons.mic,
+                          color: _isListening ? const Color(0xFFC10D00) : (_speechEnabled ? Colors.white70 : Colors.grey), // Red if listening, otherwise white70 or grey
+                        ),
+                        onPressed: _speechEnabled
+                            ? () {
+                                _stop(); // Stop TTS if active
+                                if (_isListening) {
+                                  _stopListening();
+                                } else {
+                                  _startListening();
+                                }
+                              }
+                            : null,
                       ),
                     ],
                   ),
@@ -556,7 +676,6 @@ class ChatMessage {
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
   final VideoPlayerController? videoController;
-
   const ChatBubble({super.key, required this.message, this.videoController});
 
   @override
@@ -607,9 +726,14 @@ class ChatBubble extends StatelessWidget {
                     ),
                   ),
                   constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                  child: Text(
-                    message.text,
-                    style: const TextStyle(color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        message.text,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
                   ),
                 ),
               ),

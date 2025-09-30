@@ -7,6 +7,8 @@ import 'package:pdh/services/database_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io'; // Import for File
+import 'dart:ui'; // Added for ImageFilter
+import 'package:flutter_tts/flutter_tts.dart';
 
 void main() {
   runApp(const MyApp());
@@ -80,10 +82,30 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   String? _notificationFrequency = 'daily';
   String? _goalVisibility = 'private';
 
+  late FlutterTts flutterTts;
+  String? _motivationalMessage; // To store the generated message
+
   @override
   void initState() {
     super.initState();
     _loadManagerProfile();
+    flutterTts = FlutterTts();
+    _initTts();
+  }
+
+  void _initTts() {
+    flutterTts.setLanguage("en-US");
+    flutterTts.setSpeechRate(1.0); // Increased speech rate
+    flutterTts.setVolume(1.0);
+    flutterTts.setPitch(1.0);
+  }
+
+  Future _speak(String text) async {
+    await flutterTts.speak(text);
+  }
+
+  Future _stop() async {
+    await flutterTts.stop();
   }
 
   Future<void> _loadManagerProfile() async {
@@ -139,6 +161,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     _leaderboardOptinController.dispose();
     _badgeNameController.dispose();
     _celebrationConsentController.dispose();
+    flutterTts.stop(); // Dispose FlutterTts
+    flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
     super.dispose();
   }
 
@@ -183,7 +207,51 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   }
 
   void _draftMotivationalMessage() {
-    _showAlertDialog('Feature Unavailable', 'The motivational message drafting feature is not currently active. You can integrate your own API to enable this functionality.');
+    setState(() {
+      _motivationalMessage = "Great job on your progress! Keep pushing forward, and remember that every small step leads to significant achievements. Your dedication is inspiring!";
+    });
+    _showMotivationalMessageDialog(_motivationalMessage!);
+  }
+
+  Future<void> _showMotivationalMessageDialog(String message) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C3E50),
+          title: const Text('Motivational Message', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(message, style: const TextStyle(color: Colors.white70)),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => _speak(message),
+                  icon: const Icon(Icons.volume_up, color: Colors.white),
+                  label: const Text('Read Aloud', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+              onPressed: () {
+                _stop(); // Stop speech when dialog is dismissed
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -229,6 +297,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
+      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -239,25 +309,30 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       ),
       body: Stack(
         children: [
-          // Background container with blur effect
           Positioned.fill(
-            child: Image.network(
-              'https://i.imgur.com/e2N2gJ8.png',
-              fit: BoxFit.cover,
-              color: Color.fromARGB(128, 0, 0, 0),
-              colorBlendMode: BlendMode.darken,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 0.8,
-                  colors: [
-                    Color.fromARGB(204, 10, 15, 31),
-                    Color.fromARGB(204, 4, 6, 16),
-                  ],
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.2,
+                    colors: [
+                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                    ],
+                    stops: [0.0, 1.0],
+                  ),
                 ),
               ),
             ),
