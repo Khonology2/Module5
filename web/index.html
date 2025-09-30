@@ -34,6 +34,111 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?render=YOUR_RECAPTCHA_SITE_KEY"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@latest/dist/speech-commands.min.js"></script>
+  <script>
+    const LABELS = [
+      'khonopal go to home',
+      'khonopal sign in',
+      'khonopal register account',
+      'khonopal open settings',
+      'khonopal go back',
+      'khonopal go to dashboard',
+      'khonopal show my plan',
+      'khonopal view my goals',
+      'khonopal open employee dashboard',
+      'khonopal go to employee portal',
+      'khonopal check my progress',
+      'khonopal show my badges',
+      'khonopal open alerts',
+      'khonopal check nudges',
+      'khonopal open repository',
+      'khonopal open manager dashboard',
+      'khonopal go to manager portal',
+      'khonopal review team goals',
+      'khonopal check team progress',
+      'khonopal show leaderboard',
+      'khonopal start season challenge',
+      'khonopal open leaderboard',
+      'khonopal show my points',
+      'khonopal show gamification',
+      'khonopal talk to khonopal',
+      'khonopal open chatbot',
+      'khonopal clear chat history',
+      'khonopal read last message',
+      'khonopal send message',
+      'khonopal proofread this',
+      'khonopal change voice',
+      'khonopal start new goal',
+      'khonopal search for',
+      'khonopal log out',
+      'khonopal go home',
+    ];
+
+    let recognizer;
+    let words = [];
+
+    async function createRecognizer() {
+      if (typeof speechCommands === 'undefined' || typeof speechCommands.BrowserFftRecognizer === 'undefined') {
+        console.log('JavaScript: speechCommands library not yet loaded, retrying...');
+        setTimeout(createRecognizer, 100); // Retry after 100ms
+        return;
+      }
+      recognizer = new speechCommands.BrowserFftRecognizer();
+      await recognizer.ensureModelLoaded();
+      console.log('Speech recognizer model loaded.');
+    }
+
+    function startListening() {
+      console.log('JavaScript: startListening function called.');
+      if (!recognizer) {
+        createRecognizer().then(() => {
+          recognizer.listen(result => {
+            const scores = result.scores;
+            console.log('JavaScript: Recognizer detected scores:', scores);
+            const spectrogram = result.spectrogram;
+            const class_scores = Array.from(scores).map((s, i) => ({score: s, word: LABELS[i]}));
+            class_scores.sort((s1, s2) => s2.score - s1.score);
+
+            const mostConfident = class_scores[0];
+            if (mostConfident.score > 0.90) { // Confidence threshold
+              console.log('JavaScript: Recognized word:', mostConfident.word);
+              window.flutterSpeechCommand(mostConfident.word);
+            }
+          }, {overlapFactor: 0.5, probabilityThreshold: 0.75});
+        });
+      } else {
+        recognizer.listen(result => {
+          const scores = result.scores;
+          console.log('JavaScript: Recognizer detected scores:', scores);
+          const spectrogram = result.spectrogram;
+          const class_scores = Array.from(scores).map((s, i) => ({score: s, word: LABELS[i]}));
+          class_scores.sort((s1, s2) => s2.score - s1.score);
+
+          const mostConfident = class_scores[0];
+          if (mostConfident.score > 0.90) { // Confidence threshold
+            console.log('JavaScript: Recognized word:', mostConfident.word);
+            window.flutterSpeechCommand(mostConfident.word);
+          }
+        }, {overlapFactor: 0.5, probabilityThreshold: 0.75});
+      }
+    }
+
+    function stopListening() {
+      console.log('JavaScript: stopListening function called.');
+      if (recognizer) {
+        recognizer.stopListening();
+        console.log('Speech recognizer stopped.');
+      }
+    }
+
+    // Expose functions to Flutter
+    window.startSpeechRecognition = startListening;
+    window.stopSpeechRecognition = stopListening;
+
+    // No automatic start on DOMContentLoaded
+    // document.addEventListener('DOMContentLoaded', createRecognizer);
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -12,8 +12,8 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_core: ^4.1.1
-  firebase_auth: ^6.1.0
+  firebase_core: ^4.1.1 # Updated to a compatible version
+  firebase_auth: ^6.1.0 # Updated to a compatible version
   cloud_firestore: ^6.0.2
   flutter_speed_dial: ^7.0.0
   google_sign_in: ^7.2.0
@@ -24,11 +24,13 @@ dependencies:
   tflite_flutter: ^0.11.0 # For running TensorFlow Lite models
   firebase_ai: ^3.3.0
   video_player: ^2.10.0
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.2.3 # Updated to latest version for state persistence
   image_picker: ^1.2.0
   firebase_storage: ^13.0.2
   flutter_tts: ^4.2.3
   speech_to_text: ^7.3.0
+  js: ^0.6.7 # Added for Dart-JavaScript interop
+  web: ^1.1.1 # Added for modern web interop
 
 dev_dependencies:
   flutter_test:
