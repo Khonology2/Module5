@@ -47,6 +47,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isListening = false; // To track if speech-to-text is active
   List<dynamic> _voices = []; // List of available voices
   String? _selectedVoiceId; // ID of the currently selected voice
+  final TextEditingController _voiceSearchController = TextEditingController(); // Controller for voice search
+  List<dynamic> _filteredVoices = []; // List of voices filtered by search
 
   @override
   void initState() {
@@ -58,6 +60,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _videoController.play();
         setState(() {});
       });
+    // Corrected order: Load chat history before setting greeting
     _loadChatHistory(); // Load chat history when the screen initializes
     _loadUserProfileAndSetGreeting();
     flutterTts = FlutterTts();
@@ -65,23 +68,59 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _speechToText = SpeechToText();
     _initSpeech();
     _getVoices(); // Fetch available voices
+    _voiceSearchController.addListener(_filterVoices); // Listen for search input changes
+  }
+
+  void _filterVoices() {
+    setState(() {
+      if (_voiceSearchController.text.isEmpty) {
+        _filteredVoices = List.from(_voices); // If search is empty, show all voices
+      } else {
+        _filteredVoices = _voices
+            .where((voice) =>
+                voice['name']!.toLowerCase().contains(_voiceSearchController.text.toLowerCase()) ||
+                voice['locale']!.toLowerCase().contains(_voiceSearchController.text.toLowerCase()))
+            .toList();
+      }
+    });
   }
 
   Future<void> _getVoices() async {
-    _voices = await flutterTts.getVoices;
+    List<dynamic> fetchedVoices = await flutterTts.getVoices; // Fetch voices first
+    _voices = []; // Initialize _voices as a growable list
+    _voices.addAll(fetchedVoices); // Add all fetched voices
     // ignore: avoid_print
     print('Raw voices from flutterTts.getVoices: $_voices'); // Debug print
-    // Filter for English voices and set a default if available
-    List<dynamic> englishVoices = _voices.where((voice) => voice['locale'].startsWith('en')).toList();
+    // Remove locale filtering here to show all voices
+    List<dynamic> allVoices = List.from(_voices);
+
+    if (allVoices.isEmpty) {
+      // Fallback for web or platforms where getVoices returns empty
+      allVoices = [
+        {'name': 'en-US-Standard-A', 'locale': 'en-US'}, // A typical male voice
+        {'name': 'en-US-Standard-B', 'locale': 'en-US'}, // Another typical male voice
+        {'name': 'en-US-Standard-C', 'locale': 'en-US'}, // A typical female voice
+        {'name': 'en-US-Standard-D', 'locale': 'en-US'}, // Another typical female voice
+        {'name': 'en-US-Wavenet-A', 'locale': 'en-US'}, // A high-quality neural voice (if supported)
+      ];
+      // Only add fallback voices if _voices is truly empty to avoid duplicates if platform voices appear later
+      if (_voices.isEmpty) {
+        _voices.addAll(allVoices);
+      }
+    }
+
     // ignore: avoid_print
-    print('Filtered English voices: $englishVoices'); // Debug print
-    if (englishVoices.isNotEmpty) {
+    print('All available voices: $allVoices'); // Debug print
+    if (allVoices.isNotEmpty) {
       setState(() {
-        _selectedVoiceId = englishVoices.first['name']; // Set default English voice
-        flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': englishVoices.first['locale']});
+        // Try to find an English voice to set as default if one exists
+        _selectedVoiceId = allVoices.firstWhere((voice) => voice['locale']!.startsWith('en'), orElse: () => allVoices.first)['name'];
+        flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': allVoices.firstWhere((voice) => voice['name'] == _selectedVoiceId)['locale']});
       });
     }
-    setState(() {});
+    setState(() {
+      _filteredVoices = List.from(_voices); // Initialize _filteredVoices with all voices
+    });
   }
 
   /// This initializes the speech to text plugin.
@@ -185,9 +224,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         }
       }
     }
-    setState(() {
-      _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false));
-    });
+    // Only add greeting if messages list is empty (i.e., no history loaded)
+    if (_messages.isEmpty) {
+      setState(() {
+        _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false));
+      });
+    }
   }
 
   @override
@@ -198,6 +240,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     flutterTts.stop(); // Stop any ongoing speech
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
     _speechToText.cancel(); // Cancel any active speech recognition
+    _voiceSearchController.dispose(); // Dispose voice search controller
     super.dispose();
   }
 
@@ -664,6 +707,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
+        // ignore: avoid_print
+        print('Voices in _showVoiceSelectionSheet: $_voices'); // Debug print
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
           child: BackdropFilter(
@@ -681,6 +726,25 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                   ),
+                  // Search bar for voices
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: TextField(
+                      controller: _voiceSearchController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search voices...',
+                        hintStyle: TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: Colors.grey[900],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8.0),
+                          borderSide: BorderSide.none,
+                        ),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                      ),
+                    ),
+                  ),
                   if (_voices.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(16.0),
@@ -692,9 +756,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   else
                     Expanded(
                       child: ListView.builder(
-                        itemCount: _voices.length,
+                        itemCount: _filteredVoices.length, // Use filtered voices here
                         itemBuilder: (context, index) {
-                          final voice = _voices[index];
+                          final voice = _filteredVoices[index]; // Use filtered voices here
                           final bool isSelected = voice['name'] == _selectedVoiceId;
                           return ListTile(
                             title: Text(voice['name'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white)),
