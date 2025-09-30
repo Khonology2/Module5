@@ -25,6 +25,11 @@ The Personal Development Hub (PDH) is a comprehensive Flutter-based mobile appli
   - **Persistent Chat History**: All conversations with KhonoPal are saved locally using `shared_preferences`, ensuring chat history is retained even after closing the app or logging out.
   - **Clear Chat History**: Option to clear all chat messages while preserving the initial AI greeting, allowing users to start fresh without losing the introductory context.
   - **Typewriter Effect**: AI responses are delivered with a subtle typewriter animation for a more engaging user experience.
+  - **Text-to-Speech (AI Voice Playback)**: AI responses can be read aloud with adjustable speed. A dedicated playback button provides visual feedback (turns red when active) and allows users to stop playback at any time.
+  - **Voice Selection**: Users can choose from a comprehensive list of available text-to-speech voices from various countries, with a search filter to quickly find preferred voices. The selected voice is used for AI playback.
+  - **Speech-to-Text Input**: Users can provide input to the chatbot using their voice. A microphone icon (turns red when active) allows users to start and stop speech recognition, transcribing their speech directly into the text input field.
+  - **AI Mode and Feature Integration**: Key AI-related features, including Proofreading, Speech-to-Text, and Voice Selection, are now conveniently accessible through a consolidated 'plus' icon menu in the chat input field, streamlining user interaction.
+  - **Response Formatting**: AI responses are automatically filtered to remove markdown asterisks (`*`) for cleaner readability.
 
 ## Getting Started
 
@@ -38,6 +43,9 @@ Ensure you have Flutter installed. If not, follow the official Flutter installat
 *   **Firebase Project**: A Firebase project is required for authentication and potentially other backend services. Set up your project and link it to your Flutter app.
     - Follow the official Firebase setup guide for Flutter: [Firebase Flutter Setup](https://firebase.google.com/docs/flutter/setup)
     - Ensure `firebase_options.dart` is correctly configured in your project.
+*   **Microphone Permissions**: For Speech-to-Text functionality, microphone permissions must be configured:
+    - **Android**: Add `<uses-permission android:name="android.permission.RECORD_AUDIO"/>` to `android/app/src/main/AndroidManifest.xml`.
+    - **iOS**: Add `NSMicrophoneUsageDescription` and `NSSpeechRecognitionUsageDescription` keys with appropriate descriptions to `ios/Runner/Info.plist`.
 
 ### Installing
 
@@ -99,6 +107,8 @@ flutter run
 - **Cloud Firestore**: Potentially used for storing user profiles, goals, and other application data.
 - **shared_preferences**: For local data persistence, specifically chat history.
 - **video_player**: For playing background videos, such as the chatbot animation.
+- **flutter_tts**: For Text-to-Speech functionality, enabling AI responses to be read aloud with customizable voices.
+- **speech_to_text**: For Speech-to-Text functionality, allowing users to input messages using their voice.
 
 ## Future Enhancements
 
