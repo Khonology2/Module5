@@ -45,6 +45,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late SpeechToText _speechToText; // Speech to Text instance
   bool _speechEnabled = false; // Is not an active speech session
   bool _isListening = false; // To track if speech-to-text is active
+  List<dynamic> _voices = []; // List of available voices
+  String? _selectedVoiceId; // ID of the currently selected voice
 
   @override
   void initState() {
@@ -62,6 +64,24 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _initTts();
     _speechToText = SpeechToText();
     _initSpeech();
+    _getVoices(); // Fetch available voices
+  }
+
+  Future<void> _getVoices() async {
+    _voices = await flutterTts.getVoices;
+    // ignore: avoid_print
+    print('Raw voices from flutterTts.getVoices: $_voices'); // Debug print
+    // Filter for English voices and set a default if available
+    List<dynamic> englishVoices = _voices.where((voice) => voice['locale'].startsWith('en')).toList();
+    // ignore: avoid_print
+    print('Filtered English voices: $englishVoices'); // Debug print
+    if (englishVoices.isNotEmpty) {
+      setState(() {
+        _selectedVoiceId = englishVoices.first['name']; // Set default English voice
+        flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': englishVoices.first['locale']});
+      });
+    }
+    setState(() {});
   }
 
   /// This initializes the speech to text plugin.
@@ -418,7 +438,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                           _showModeSelectionSheet(context);
                         },
                       ),
-                      // Text-to-speech button
+                      // Text-to-speech button (AI Voice Playback)
                       IconButton(
                         icon: Icon(
                           _isSpeaking ? Icons.volume_off : Icons.volume_up,
@@ -427,34 +447,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         onPressed: (_lastAiResponse != null && !_isThinking) ? () {
                           if (_isSpeaking) {
                             _stop();
-                          } else {
-                            _speak(_lastAiResponse!);
+                          } else if (_lastAiResponse != null) { // Only speak if there's a response
+                            _speak(_lastAiResponse!); // Speak the last AI response
                           }
                         } : null,
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.spellcheck,
-                          color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70, // Highlight if active
-                        ),
-                        onPressed: _toggleProofreading, // Toggle proofreading status
-                      ),
-                      // Speech-to-text button
-                      IconButton(
-                        icon: Icon(
-                          _isListening ? Icons.mic_off : Icons.mic,
-                          color: _isListening ? const Color(0xFFC10D00) : (_speechEnabled ? Colors.white70 : Colors.grey), // Red if listening, otherwise white70 or grey
-                        ),
-                        onPressed: _speechEnabled
-                            ? () {
-                                _stop(); // Stop TTS if active
-                                if (_isListening) {
-                                  _stopListening();
-                                } else {
-                                  _startListening();
-                                }
-                              }
-                            : null,
                       ),
                     ],
                   ),
@@ -549,6 +545,40 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Navigator.pop(context);
                       },
                     ),
+                    // New: Proofreading toggle
+                    ListTile(
+                      leading: Icon(Icons.spellcheck, color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70),
+                      title: Text('Proofreading (${_isProofreadingActive ? 'Enabled' : 'Disabled'})', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        _toggleProofreading();
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // New: Speech-to-Text toggle
+                    ListTile(
+                      leading: Icon(_isListening ? Icons.mic_off : Icons.mic, color: _isListening ? const Color(0xFFC10D00) : (_speechEnabled ? Colors.white70 : Colors.grey)),
+                      title: Text('Speech-to-Text (${_isListening ? 'Listening' : 'Off'})', style: TextStyle(color: Colors.white)),
+                      onTap: _speechEnabled
+                          ? () {
+                              _stop(); // Stop TTS if active
+                              if (_isListening) {
+                                _stopListening();
+                              } else {
+                                _startListening();
+                              }
+                              Navigator.pop(context);
+                            }
+                          : null,
+                    ),
+                    // New: Voice Selection
+                    ListTile(
+                      leading: Icon(Icons.record_voice_over, color: (_voices.isNotEmpty && _selectedVoiceId != null) ? const Color(0xFFC10D00) : Colors.white70),
+                      title: Text('Voice Selection (${_selectedVoiceId != null ? _selectedVoiceId!.split('#').first : 'Default'})', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        Navigator.pop(context); // Close the current bottom sheet
+                        _showVoiceSelectionSheet(context); // Open the voice selection sheet
+                      },
+                    ),
                     ListTile(
                       leading: Icon(Icons.show_chart, color: Colors.white70),
                       title: Text('Progress Visuals', style: TextStyle(color: Colors.white)),
@@ -621,6 +651,67 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     // SizedBox(height: MediaQuery.of(context).padding.bottom), // Adjust for safe area
                   ],
                 ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showVoiceSelectionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+            child: Container(
+              // ignore: deprecated_member_use
+              color: Colors.grey[850]?.withOpacity(0.7),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Select Voice',
+                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (_voices.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text(
+                        'No voices available',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _voices.length,
+                        itemBuilder: (context, index) {
+                          final voice = _voices[index];
+                          final bool isSelected = voice['name'] == _selectedVoiceId;
+                          return ListTile(
+                            title: Text(voice['name'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white)),
+                            subtitle: Text(voice['locale'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white70)),
+                            trailing: isSelected ? Icon(Icons.check, color: const Color(0xFFC10D00)) : null,
+                            onTap: () {
+                              setState(() {
+                                _selectedVoiceId = voice['name'];
+                                flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': voice['locale']});
+                              });
+                              Navigator.pop(context); // Close the bottom sheet
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
