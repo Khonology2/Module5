@@ -18,23 +18,28 @@ import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/rolebaseview.dart';
-import 'package:pdh/employee_portal_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/landing_screen.dart';
+import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
 import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
-import 'package:pdh/landing_screen.dart'; // Import landing_screen.dart
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:pdh/design_system/app_theme.dart'; // Import the design system theme
 
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
 
 // Define a ValueNotifier to hold the current route name
-final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(null);
+final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(
+  null,
+);
 
 // Add a ValueNotifier for speech recognition status
-final ValueNotifier<String?> speechRecognitionStatusNotifier = ValueNotifier<String?>(null);
+final ValueNotifier<String?> speechRecognitionStatusNotifier =
+    ValueNotifier<String?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +63,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final SpeechRecognitionService _speechRecognitionService = SpeechRecognitionService();
+  final SpeechRecognitionService _speechRecognitionService =
+      SpeechRecognitionService();
 
   @override
   void initState() {
@@ -67,11 +73,13 @@ class _MyAppState extends State<MyApp> {
     _speechRecognitionService.speechCommands.listen((command) {
       speechRecognitionStatusNotifier.value = 'Recognized: $command';
       // Implement navigation logic here later
-      final String? route = _speechRecognitionService.commandRoutes[command.toLowerCase()];
+      final String? route =
+          _speechRecognitionService.commandRoutes[command.toLowerCase()];
       if (route != null) {
         navigatorKey.currentState?.pushNamed(route);
       } else {
-        speechRecognitionStatusNotifier.value = 'Command not recognized: $command';
+        speechRecognitionStatusNotifier.value =
+            'Command not recognized: $command';
       }
     });
   }
@@ -100,33 +108,54 @@ class _MyAppState extends State<MyApp> {
           MaterialApp(
             navigatorKey: navigatorKey, // Assign the global key to MaterialApp
             title: 'Personal Development Hub',
-            theme: ThemeData(
-              brightness: Brightness.dark,
-              primarySwatch: Colors.red, // Changed from Colors.blue to Colors.red
-              fontFamily: 'Poppins',
-            ),
-            initialRoute: '/', // Always start from the landing screen
+            theme: AppTheme.darkTheme,
+            initialRoute: '/landing',
             routes: {
-              '/': (context) => const PersonalDevelopmentHubScreen(), // Set the root route to PersonalDevelopmentHubScreen
+              '/landing': (context) => const PersonalDevelopmentHubScreen(),
+              '/': (context) =>
+                  const AuthWrapper(), // Set the root route to AuthWrapper
               '/register': (context) => const RegisterScreen(),
               '/sign_in': (context) => const LoginScreen(),
-              '/my_pdp': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyPdpScreen()),
+              '/my_pdp': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const MyPdpScreen(),
+              ),
               '/progress_visuals': (context) => const ProgressVisualsScreen(),
-              '/my_goal_workspace': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const MyGoalWorkspaceScreen()),
+              '/my_goal_workspace': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const MyGoalWorkspaceScreen(),
+              ),
               '/gamification': (context) => const GamificationScreen(),
               '/repository_audit': (context) => const RepositoryAuditScreen(),
               '/alerts_nudges': (context) => const AlertsNudgesScreen(),
               '/season_challenge': (context) => const SeasonChallengeScreen(),
               '/settings': (context) => const SettingsScreen(),
-              '/manager_review_team_dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerReviewTeamDashboardScreen()),
+              '/manager_review_team_dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerReviewTeamDashboardScreen(),
+              ),
               '/badges_points': (context) => const BadgesPointsScreen(),
               '/leaderboard': (context) => const LeaderboardScreen(),
               '/rolebaseview': (context) => const RoleBaseViewScreen(),
-              '/employee_portal': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeePortalScreen()),
-              '/employee_dashboard': (context) => RoleGate(requiredRole: RequiredRole.employee, child: const EmployeeDashboardScreen()),
-              '/manager_portal': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const ManagerPortalScreen()),
-              '/dashboard': (context) => RoleGate(requiredRole: RequiredRole.manager, child: const DashboardScreen()),
-              '/ai_chatbot': (context) => const AiChatbotScreen(), // Add the new AI Chatbot route
+              // Map legacy employee_portal route to the dashboard to remove the old portal screen
+              '/employee_portal': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const EmployeeDashboardScreen(),
+              ),
+              '/employee_dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const EmployeeDashboardScreen(),
+              ),
+              '/manager_portal': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerPortalScreen(),
+              ),
+              '/dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const DashboardScreen(),
+              ),
+              '/ai_chatbot': (context) =>
+                  const AiChatbotScreen(), // Add the new AI Chatbot route
             },
             debugShowCheckedModeBanner: false,
             // Add the custom NavigatorObserver
@@ -176,7 +205,10 @@ class _GlobalChatbotWrapper extends StatelessWidget {
   final Widget child;
   final ValueNotifier<String?> currentRouteNotifier;
 
-  const _GlobalChatbotWrapper({required this.child, required this.currentRouteNotifier});
+  const _GlobalChatbotWrapper({
+    required this.child,
+    required this.currentRouteNotifier,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +230,8 @@ class _GlobalChatbotWrapper extends StatelessWidget {
   }
 }
 
-class ChatbotButton extends StatelessWidget { // Changed to StatelessWidget
+class ChatbotButton extends StatelessWidget {
+  // Changed to StatelessWidget
   final String? currentRoute;
   const ChatbotButton({super.key, this.currentRoute});
 
@@ -214,9 +247,12 @@ class ChatbotButton extends StatelessWidget { // Changed to StatelessWidget
       '/badges_points',
       '/leaderboard',
       '/repository_audit',
-      '/employee_dashboard', // Add the employee dashboard route
+      '/employee_dashboard', // Employee dashboard route
+      '/employee_portal', // Legacy mapping shows dashboard; keep chatbot visible
     ];
-    if (currentRoute == null || !allowedRoutes.contains(currentRoute) || currentRoute == '/ai_chatbot') {
+    if (currentRoute == null ||
+        !allowedRoutes.contains(currentRoute) ||
+        currentRoute == '/ai_chatbot') {
       return const SizedBox.shrink(); // Hide the button on screens not in the allowed list or the chatbot screen itself
     }
 
@@ -230,7 +266,11 @@ class ChatbotButton extends StatelessWidget { // Changed to StatelessWidget
         },
         backgroundColor: Colors.white, // Use white background
         shape: const CircleBorder(), // Make the button round
-        child: Image.asset('assets/AI_Red.png', width: 40.0, height: 40.0), // Use the AI_Red.png image
+        child: Image.asset(
+          'assets/AI_Red.png',
+          width: 40.0,
+          height: 40.0,
+        ), // Use the AI_Red.png image
       ),
     );
   }
