@@ -13,17 +13,14 @@ import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart'; // Import for MethodChannel
 import 'package:flutter_tts/flutter_tts.dart'; // Import for text-to-speech
 import 'package:speech_to_text/speech_to_text.dart'; // Import for speech_to_text
-import'package:pdh/context_maps/manager_maps/dashboard_context.dart'; // Update the import path
-import 'package:pdh/context_maps/manager_maps/progress_visuals_context.dart';
-import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
-import 'package:pdh/context_maps/manager_maps/leaderboard_context.dart';
-import 'package:pdh/context_maps/manager_maps/repository_audit_context.dart';
-import 'package:pdh/context_maps/manager_maps/settings_privacy_context.dart';
+import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
 
 class AiChatbotScreen extends StatefulWidget {
-  const AiChatbotScreen({super.key});
+  final String? prompt; // Optional initial prompt
+  final Function(String)? onResult; // Callback for when a result is generated and should be returned
+  const AiChatbotScreen({super.key, this.prompt, this.onResult});
 
   @override
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
@@ -69,6 +66,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _initSpeech();
     _getVoices(); // Fetch available voices
     _voiceSearchController.addListener(_filterVoices); // Listen for search input changes
+
+    // If a prompt is provided, send it automatically
+    if (widget.prompt != null && widget.prompt!.isNotEmpty) {
+      _sendMessage(initialPrompt: widget.prompt);
+    }
   }
 
   void _filterVoices() {
@@ -279,7 +281,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
+  Future<void> _sendMessage({String? initialPrompt}) async {
     String text = _messageController.text.trim();
     if (text.isEmpty) return;
 
@@ -300,6 +302,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _saveChatHistory(); // Save chat after adding user message
 
     String textToSendToGemini = text;
+
+    String pdpSystemInstruction = "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
 
     if (_isProofreadingActive) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -327,31 +331,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
 
     try {
-      // Dynamically set system instruction based on _selectedMode
+      // Dynamically set system instruction based on _selectedMode or if it's a PDP request
       String? currentSystemInstruction;
-      switch (_selectedMode) {
-        case 'Dashboard Mode':
-          currentSystemInstruction = DashboardContext.managerDashboardContext;
-          break;
-        case 'Progress Visuals Mode':
-          currentSystemInstruction = ProgressVisualsContext.progressVisualsContext;
-          break;
-        case 'Alerts & Nudges Mode':
-          currentSystemInstruction = AlertsNudgesContext.alertsNudgesContext;
-          break;
-        case 'Leaderboard Mode':
-          currentSystemInstruction = LeaderboardContext.leaderboardContext;
-          break;
-        case 'Repository & Audit Mode':
-          currentSystemInstruction = RepositoryAuditContext.repositoryAuditContext;
-          break;
-        case 'Settings & Privacy Mode':
-          currentSystemInstruction = SettingsPrivacyContext.settingsPrivacyContext;
-          break;
-        case 'General Chat':
-        default:
-          currentSystemInstruction = null; // No system instruction for general chat
-          break;
+      if (initialPrompt != null) {
+        currentSystemInstruction = pdpSystemInstruction;
+      } else {
+        switch (_selectedMode) {
+          case 'KhonoPal Mode': // New KhonoPal Mode
+            currentSystemInstruction = KhonoPalContext.khonopalContext;
+            break;
+          case 'General Chat':
+          default:
+            currentSystemInstruction = null; // No system instruction for general chat
+            break;
+        }
       }
 
       _model = FirebaseAI.googleAI().generativeModel(
@@ -373,6 +366,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       _startTypewriterAnimation(aiMessage);
       _videoController.play(); // Ensure video keeps playing
       _saveChatHistory(); // Save chat after AI response
+
+      // If there's an onResult callback and a PDP was generated, send it back
+      if (widget.onResult != null && currentSystemInstruction == pdpSystemInstruction) {
+        widget.onResult!(cleanedResponseText);
+        Navigator.pop(context); // Pop the chatbot screen after generating PDP
+      }
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
@@ -538,18 +537,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   String _getHintTextForMode() {
     switch (_selectedMode) {
-      case 'Dashboard Mode':
-        return 'Ask anything about the Manager Review Team Dashboard...';
-      case 'Progress Visuals Mode':
-        return 'Ask anything about Progress Visuals...';
-      case 'Alerts & Nudges Mode':
-        return 'Ask anything about Alerts & Nudges...';
-      case 'Leaderboard Mode':
-        return 'Ask anything about the Leaderboard...';
-      case 'Repository & Audit Mode':
-        return 'Ask anything about Repository & Audit...';
-      case 'Settings & Privacy Mode':
-        return 'Ask anything about Settings & Privacy...';
+      case 'KhonoPal Mode': // New KhonoPal Mode hint
+        return 'Ask anything across all contexts...';
       case 'General Chat':
       default:
         return 'Send a message...';
@@ -580,105 +569,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       ),
                     ),
                     ListTile(
-                      leading: Icon(Icons.dashboard, color: Colors.white70),
-                      title: Text('Dashboard Mode', style: TextStyle(color: Colors.white)),
+                      leading: Icon(Icons.psychology, color: Colors.white70), // New icon for KhonoPal Mode
+                      title: Text('KhonoPal Mode', style: TextStyle(color: Colors.white)),
                       onTap: () {
                         setState(() {
-                          _selectedMode = 'Dashboard Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // New: Proofreading toggle
-                    ListTile(
-                      leading: Icon(Icons.spellcheck, color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70),
-                      title: Text('Proofreading (${_isProofreadingActive ? 'Enabled' : 'Disabled'})', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        _toggleProofreading();
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // New: Speech-to-Text toggle
-                    ListTile(
-                      leading: Icon(_isListening ? Icons.mic_off : Icons.mic, color: _isListening ? const Color(0xFFC10D00) : (_speechEnabled ? Colors.white70 : Colors.grey)),
-                      title: Text('Speech-to-Text (${_isListening ? 'Listening' : 'Off'})', style: TextStyle(color: Colors.white)),
-                      onTap: _speechEnabled
-                          ? () {
-                              _stop(); // Stop TTS if active
-                              if (_isListening) {
-                                _stopListening();
-                              } else {
-                                _startListening();
-                              }
-                              Navigator.pop(context);
-                            }
-                          : null,
-                    ),
-                    // New: Voice Selection
-                    ListTile(
-                      leading: Icon(Icons.record_voice_over, color: (_voices.isNotEmpty && _selectedVoiceId != null) ? const Color(0xFFC10D00) : Colors.white70),
-                      title: Text('Voice Selection (${_selectedVoiceId != null ? _selectedVoiceId!.split('#').first : 'Default'})', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        Navigator.pop(context); // Close the current bottom sheet
-                        _showVoiceSelectionSheet(context); // Open the voice selection sheet
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.show_chart, color: Colors.white70),
-                      title: Text('Progress Visuals', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Progress Visuals Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.notifications_active, color: Colors.white70),
-                      title: Text('Alerts & Nudges', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Alerts & Nudges Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.leaderboard, color: Colors.white70),
-                      title: Text('Leaderboard', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Leaderboard Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.security, color: Colors.white70),
-                      title: Text('Repository & Audit', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Repository & Audit Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.settings, color: Colors.white70),
-                      title: Text('Settings & Privacy', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Settings & Privacy Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.chat_bubble_outline, color: Colors.white70),
-                      title: Text('General Chat', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'General Chat';
+                          _selectedMode = 'KhonoPal Mode';
                         });
                         Navigator.pop(context);
                       },
@@ -691,8 +586,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Navigator.pop(context);
                       },
                     ),
-                    // Add more modes here if needed
-                    // SizedBox(height: MediaQuery.of(context).padding.bottom), // Adjust for safe area
                   ],
                 ),
               ),
