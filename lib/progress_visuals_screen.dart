@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:pdh/employee_drawer.dart';
-import 'package:pdh/manager_nav_drawer.dart';
+// Drawers removed in favor of persistent sidebar
+import 'package:pdh/widgets/main_layout.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
-import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+// Profile handled by MainLayout
 
 class ProgressVisualsScreen extends StatefulWidget {
   const ProgressVisualsScreen({super.key});
@@ -24,99 +22,25 @@ class _ProgressVisualsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    final isManagerOrigin = args is Map && args['origin'] == 'manager';
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        title: const Text(
-          'Progress Visuals',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          _buildProfileButton(context, isManager: isManagerOrigin), // Pass isManagerOrigin
-        ],
-      ),
-      drawer: isManagerOrigin ? const ManagerNavDrawer() : const EmployeeDrawer(),
-      body: Stack(
+    // Retained for future role-specific tweaks; layout handles profile button
+    // final args = ModalRoute.of(context)?.settings.arguments;
+    return MainLayout(
+      title: 'Progress Visuals',
+      currentRouteName: '/progress_visuals',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SafeArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildPortfolioOverview(),
-                        const SizedBox(height: 30),
-                        _buildGoalsProgress(context),
-                        const SizedBox(height: 30),
-                        _buildAIInsights(),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildPortfolioOverview(),
+          const SizedBox(height: 30),
+          _buildGoalsProgress(context),
+          const SizedBox(height: 30),
+          _buildAIInsights(),
         ],
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          if (isManager) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
-          } else {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-          }
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Profile handled by MainLayout
 
   Widget _buildPortfolioOverview() {
     return Column(
@@ -178,7 +102,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+                  children: [
                     const Text(
                       'Burn Up',
                       style: TextStyle(color: Colors.white70, fontSize: 14),
@@ -192,10 +116,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                       ),
                       child: Align(
                         alignment: Alignment.centerRight,
-            child: Container(
-                          width: 40,
-                          color: Colors.orange,
-                        ),
+                        child: Container(width: 40, color: Colors.orange),
                       ),
                     ),
                   ],
@@ -252,7 +173,11 @@ class _ProgressVisualsContent extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: const [
-                Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                Icon(
+                  Icons.local_fire_department,
+                  color: Colors.orange,
+                  size: 16,
+                ),
                 SizedBox(width: 5),
                 Text(
                   '7 days',
@@ -353,7 +278,10 @@ class _ProgressVisualsContent extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   dueDate,
-                  style: TextStyle(color: Colors.white70.withAlpha(0xB3), fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.white70.withAlpha(0xB3),
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -361,7 +289,11 @@ class _ProgressVisualsContent extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+              const Icon(
+                Icons.local_fire_department,
+                color: Colors.orange,
+                size: 16,
+              ),
               const SizedBox(width: 5),
               Text(
                 '$streakDays day',

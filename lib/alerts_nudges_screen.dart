@@ -1,120 +1,47 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
-import 'package:pdh/manager_nav_drawer.dart';
+// Drawers removed in favor of persistent sidebar
+import 'package:pdh/widgets/main_layout.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
-import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+// Profile handled by MainLayout
 
 class AlertsNudgesScreen extends StatelessWidget {
   const AlertsNudgesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        title: const Text('Alerts & Nudges', style: TextStyle(color: Colors.white)), // Ensure title is visible
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        actions: [
-          StreamBuilder<String?>(
-            stream: RoleService.instance.roleStream(),
-            builder: (context, snapshot) {
-              final role = snapshot.data;
-              final isManager = role == 'manager';
-              return _buildProfileButton(context, isManager: isManager);
-            },
-          ), // Use the new profile button widget
-        ],
-      ),
-      drawer: const _RoleAwareDrawer(),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: StreamBuilder<String?>(
-                  stream: RoleService.instance.roleStream(),
-                  builder: (context, snapshot) {
-                    final role = snapshot.data;
-                    final isManager = role == 'manager';
-                    if (role == null) {
-                      return const Center(child: CircularProgressIndicator(color: Colors.white70));
-                    }
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _aiSmartAlertsCard(),
-                          const SizedBox(height: 16),
-                          if (isManager) _managerSummaryChips(),
-                          if (isManager) const SizedBox(height: 16),
-                          if (isManager) _managerAlerts(context) else _employeeAlerts(context),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
+    return MainLayout(
+      title: 'Alerts & Nudges',
+      currentRouteName: '/alerts_nudges',
+      body: StreamBuilder<String?>(
+        stream: RoleService.instance.roleStream(),
+        builder: (context, snapshot) {
+          final role = snapshot.data;
+          final isManager = role == 'manager';
+          if (role == null) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.white70),
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _aiSmartAlertsCard(),
+              const SizedBox(height: 16),
+              if (isManager) _managerSummaryChips(),
+              if (isManager) const SizedBox(height: 16),
+              if (isManager)
+                _managerAlerts(context)
+              else
+                _employeeAlerts(context),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          if (isManager) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
-          } else {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-          }
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Profile handled by MainLayout
 
   Widget _aiSmartAlertsCard() {
     return Container(
@@ -131,7 +58,11 @@ class AlertsNudgesScreen extends StatelessWidget {
             children: const [
               Text(
                 'AI Smart Alerts',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Icon(Icons.psychology, color: Color(0xFFC10D00), size: 22),
             ],
@@ -148,10 +79,20 @@ class AlertsNudgesScreen extends StatelessWidget {
 
   Widget _managerSummaryChips() {
     Widget chip(Color color, String label) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
-          child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-        );
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -176,8 +117,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Michael Chen • Due 2 days ago',
           primaryText: 'Nudge',
           secondaryText: 'Reassign',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nudge sent'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reassign flow'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Nudge sent'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Reassign flow'))),
         ),
         const SizedBox(height: 12),
         _alertCard(
@@ -188,8 +133,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Sarah Johnson • Due in 5 days',
           primaryText: 'Assign Reviewer',
           secondaryText: 'Snooze',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reviewer assigned'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Snoozed'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Reviewer assigned'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Snoozed'))),
         ),
         const SizedBox(height: 12),
         _alertCard(
@@ -200,8 +149,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Emily Rodriguez • Completed 2d ago',
           primaryText: 'Give Kudos',
           secondaryText: 'Share',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kudos sent'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shared'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Kudos sent'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Shared'))),
         ),
       ],
     );
@@ -219,8 +172,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Keeps your streak and helps your manager review',
           primaryText: 'Add Notes',
           secondaryText: 'Later',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening notes'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Remind later'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Opening notes'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Remind later'))),
         ),
         const SizedBox(height: 12),
         _alertCard(
@@ -231,8 +188,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Due in 3 days',
           primaryText: 'Open Goal',
           secondaryText: 'Snooze',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening goal'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Snoozed'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Opening goal'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Snoozed'))),
         ),
         const SizedBox(height: 12),
         _alertCard(
@@ -243,8 +204,12 @@ class AlertsNudgesScreen extends StatelessWidget {
           subtitle: 'Keep your streak to unlock a badge',
           primaryText: 'View Points',
           secondaryText: 'Dismiss',
-          onPrimary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Viewing points'))),
-          onSecondary: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dismissed'))),
+          onPrimary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Viewing points'))),
+          onSecondary: () => ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Dismissed'))),
         ),
       ],
     );
@@ -285,11 +250,20 @@ class AlertsNudgesScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+                    Text(
+                      title,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
-                      Text(subtitle, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                    ]
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -305,7 +279,9 @@ class AlertsNudgesScreen extends StatelessWidget {
                     backgroundColor: iconColor,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: Text(primaryText),
                 ),
@@ -316,9 +292,13 @@ class AlertsNudgesScreen extends StatelessWidget {
                   onPressed: onSecondary,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white70,
-                    side: BorderSide(color: Colors.white70.withValues(alpha: 0.5)),
+                    side: BorderSide(
+                      color: Colors.white70.withValues(alpha: 0.5),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   child: Text(secondaryText),
                 ),
@@ -331,17 +311,4 @@ class AlertsNudgesScreen extends StatelessWidget {
   }
 }
 
-class _RoleAwareDrawer extends StatelessWidget {
-  const _RoleAwareDrawer();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<String?>(
-      stream: RoleService.instance.roleStream(),
-      builder: (context, snapshot) {
-        final isManager = snapshot.data == 'manager';
-        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
-      },
-    );
-  }
-}
+// Drawer removed; persistent sidebar via MainLayout
