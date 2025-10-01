@@ -60,10 +60,7 @@ class RoleBaseViewScreen extends StatelessWidget {
                           const SizedBox(height: 40),
                           const Text(
                             'Select your role.',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
+                            style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(height: 20),
                           _buildRoleButton(
@@ -73,13 +70,20 @@ class RoleBaseViewScreen extends StatelessWidget {
                             () async {
                               final user = FirebaseAuth.instance.currentUser;
                               if (user != null) {
-                                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                                  'role': 'employee',
-                                  'roleSetAt': FieldValue.serverTimestamp(),
-                                }, SetOptions(merge: true));
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user.uid)
+                                    .set({
+                                      'role': 'employee',
+                                      'roleSetAt': FieldValue.serverTimestamp(),
+                                    }, SetOptions(merge: true));
                               }
                               if (!context.mounted) return;
-                              Navigator.pushReplacementNamed(context, '/employee_portal');
+                              // Send employees directly to the dashboard
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/employee_dashboard',
+                              );
                             },
                           ),
                           const SizedBox(height: 15),
@@ -90,13 +94,19 @@ class RoleBaseViewScreen extends StatelessWidget {
                             () async {
                               final user = FirebaseAuth.instance.currentUser;
                               if (user != null) {
-                                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                                  'role': 'manager',
-                                  'roleSetAt': FieldValue.serverTimestamp(),
-                                }, SetOptions(merge: true));
+                                await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user.uid)
+                                    .set({
+                                      'role': 'manager',
+                                      'roleSetAt': FieldValue.serverTimestamp(),
+                                    }, SetOptions(merge: true));
                               }
                               if (!context.mounted) return;
-                              Navigator.pushReplacementNamed(context, '/manager_portal');
+                              Navigator.pushReplacementNamed(
+                                context,
+                                '/manager_portal',
+                              );
                             },
                           ),
                           const SizedBox(height: 40),
@@ -114,7 +124,10 @@ class RoleBaseViewScreen extends StatelessWidget {
                             child: TextButton(
                               onPressed: () {
                                 // Navigate back to sign in
-                                Navigator.pushReplacementNamed(context, '/sign_in');
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/sign_in',
+                                );
                               },
                               child: const Text(
                                 'Back to Sign In',
@@ -148,7 +161,12 @@ class RoleBaseViewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRoleButton(BuildContext context, String role, IconData icon, VoidCallback onPressed) {
+  Widget _buildRoleButton(
+    BuildContext context,
+    String role,
+    IconData icon,
+    VoidCallback onPressed,
+  ) {
     return Container(
       width: double.infinity,
       height: 60,

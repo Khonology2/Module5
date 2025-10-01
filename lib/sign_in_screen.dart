@@ -66,19 +66,20 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   // Helper function to handle post-login navigation
   Future<void> _handlePostLoginNavigation(BuildContext context) async {
     if (!context.mounted) return;
-    
+
     try {
       // Get user's role from database and ensure it's cached
       final role = await RoleService.instance.getRole(refresh: true);
-      
+
       if (!context.mounted) return;
-      
+
       if (role != null) {
         // User already has a role, redirect to appropriate portal
         if (role == 'manager') {
           Navigator.pushReplacementNamed(context, '/manager_portal');
         } else if (role == 'employee') {
-          Navigator.pushReplacementNamed(context, '/employee_portal');
+          // Route employees directly to the dashboard
+          Navigator.pushReplacementNamed(context, '/employee_dashboard');
         } else {
           // Unknown role, redirect to role selection
           Navigator.pushReplacementNamed(context, '/rolebaseview');
@@ -102,7 +103,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           // Dark galaxy swirl background
           Positioned.fill(
             child: ColorFiltered(
-              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken),
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.3),
+                BlendMode.darken,
+              ),
               child: Image.asset(
                 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
                 fit: BoxFit.cover,
@@ -113,11 +117,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           Positioned(
             top: 48,
             left: 20,
-            child: Image.asset(
-              'assets/khonodemy.png',
-              height: 140,
-              width: 298,
-            ),
+            child: Image.asset('assets/khonodemy.png', height: 140, width: 298),
           ),
           // Main content
           Positioned.fill(
@@ -163,10 +163,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: BackdropFilter(
-                            filter: ImageFilter.blur(
-                              sigmaX: 8.0,
-                              sigmaY: 8.0,
-                            ),
+                            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
                             child: TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -207,7 +204,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter your email';
                                 }
-                                final emailPattern = RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                                final emailPattern = RegExp(
+                                  r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+                                );
                                 if (!emailPattern.hasMatch(value)) {
                                   return 'Please enter a valid email';
                                 }
@@ -221,10 +220,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: BackdropFilter(
-                            filter: ImageFilter.blur(
-                              sigmaX: 8.0,
-                              sigmaY: 8.0,
-                            ),
+                            filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
                             child: TextFormField(
                               controller: _passwordController,
                               obscureText: true,
@@ -295,26 +291,37 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         await FirebaseAuth.instance
                                             .signInWithEmailAndPassword(
                                               email: _emailController.text,
-                                              password: _passwordController.text,
+                                              password:
+                                                  _passwordController.text,
                                             );
                                         if (!mounted) return;
-                                        await _handlePostLoginNavigation(context);
+                                        await _handlePostLoginNavigation(
+                                          context,
+                                        );
                                       } on FirebaseAuthException catch (e) {
                                         String message;
                                         if (e.code == 'user-not-found') {
-                                          message = 'No user found for that email.';
+                                          message =
+                                              'No user found for that email.';
                                         } else if (e.code == 'wrong-password') {
-                                          message = 'Wrong password provided for that user.';
+                                          message =
+                                              'Wrong password provided for that user.';
                                         } else {
-                                          message = e.message ?? 'An unknown error occurred.';
+                                          message =
+                                              e.message ??
+                                              'An unknown error occurred.';
                                         }
                                         if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(content: Text(message)),
                                         );
                                       } catch (e) {
                                         if (!mounted) return;
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(
                                             content: Text(
                                               'An unexpected error occurred: ${e.toString()}',
@@ -330,7 +337,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : const Text(
@@ -356,7 +365,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: Text(
                                 'or',
                                 style: TextStyle(
@@ -394,29 +405,43 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     try {
                                       if (kIsWeb) {
                                         await FirebaseAuth.instance
-                                            .signInWithPopup(GoogleAuthProvider());
+                                            .signInWithPopup(
+                                              GoogleAuthProvider(),
+                                            );
                                       } else {
                                         await FirebaseAuth.instance
-                                            .signInWithProvider(GoogleAuthProvider());
+                                            .signInWithProvider(
+                                              GoogleAuthProvider(),
+                                            );
                                       }
                                       if (!mounted) return;
                                       await _handlePostLoginNavigation(context);
                                     } on FirebaseAuthException catch (e) {
-                                      String message = e.message ?? 'Google Sign-In failed.';
+                                      String message =
+                                          e.message ?? 'Google Sign-In failed.';
                                       if (e.code == 'popup-closed-by-user') {
-                                        message = 'Popup closed before completing sign-in.';
-                                      } else if (e.code == 'network-request-failed') {
-                                        message = 'Network error. Check internet and authorized domains.';
-                                      } else if (e.code == 'unauthorized-domain') {
-                                        message = 'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                        message =
+                                            'Popup closed before completing sign-in.';
+                                      } else if (e.code ==
+                                          'network-request-failed') {
+                                        message =
+                                            'Network error. Check internet and authorized domains.';
+                                      } else if (e.code ==
+                                          'unauthorized-domain') {
+                                        message =
+                                            'Unauthorized domain. Add your host to Firebase Auth domains.';
                                       }
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(content: Text(message)),
                                       );
                                     } catch (e) {
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'An unexpected error occurred: ${e.toString()}',
@@ -435,7 +460,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 const SizedBox(width: 12),
                                 const Text(
                                   'Continue with Google',
-                                    style: TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
@@ -472,7 +497,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             .signInWithPopup(microsoftProvider);
                                       } else {
                                         await FirebaseAuth.instance
-                                            .signInWithProvider(microsoftProvider);
+                                            .signInWithProvider(
+                                              microsoftProvider,
+                                            );
                                       }
                                       if (!mounted) return;
                                       await _handlePostLoginNavigation(context);
@@ -480,16 +507,25 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       setState(() {
                                         _isSigningIn = false;
                                       });
-                                      String message = e.message ?? 'Microsoft Sign-In failed.';
+                                      String message =
+                                          e.message ??
+                                          'Microsoft Sign-In failed.';
                                       if (e.code == 'popup-closed-by-user') {
-                                        message = 'Popup closed before completing sign-in.';
-                                      } else if (e.code == 'network-request-failed') {
-                                        message = 'Network error. Check internet and authorized domains.';
-                                      } else if (e.code == 'unauthorized-domain') {
-                                        message = 'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                        message =
+                                            'Popup closed before completing sign-in.';
+                                      } else if (e.code ==
+                                          'network-request-failed') {
+                                        message =
+                                            'Network error. Check internet and authorized domains.';
+                                      } else if (e.code ==
+                                          'unauthorized-domain') {
+                                        message =
+                                            'Unauthorized domain. Add your host to Firebase Auth domains.';
                                       }
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(content: Text(message)),
                                       );
                                     } catch (e) {
@@ -497,7 +533,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         _isSigningIn = false;
                                       });
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'An unexpected error occurred: ${e.toString()}',
@@ -509,15 +547,12 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Image.asset(
-                                  'assets/mslogo.png',
-                                  height: 20.0,
-                                ),
+                                Image.asset('assets/mslogo.png', height: 20.0),
                                 const SizedBox(width: 12),
                                 const Text(
                                   'Continue with Microsoft',
-                                    style: TextStyle(
-                                      color: Colors.white,
+                                  style: TextStyle(
+                                    color: Colors.white,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
                                     fontFamily: 'Poppins',
@@ -547,7 +582,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     // GitHub OAuth implementation would go here
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text('GitHub sign-in coming soon!'),
+                                        content: Text(
+                                          'GitHub sign-in coming soon!',
+                                        ),
                                       ),
                                     );
                                   },

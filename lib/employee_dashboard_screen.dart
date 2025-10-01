@@ -1,102 +1,98 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:pdh/employee_drawer.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/auth_service.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
 
   @override
-  State<EmployeeDashboardScreen> createState() => _EmployeeDashboardScreenState();
+  State<EmployeeDashboardScreen> createState() =>
+      _EmployeeDashboardScreenState();
 }
 
 class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text(
-          'Employee Dashboard',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return AppScaffold(
+      title: 'Employee Dashboard',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/employee_dashboard',
+      topRightAction: _profileButton(context),
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        await AuthService().signOut();
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/sign_in',
+          (route) => false,
+        );
+      },
+      content: AppComponents.backgroundWithImage(
+        imagePath:
+            'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+        child: SingleChildScrollView(
+          padding: AppSpacing.screenPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeCard(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildQuickStats(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildRecentActivity(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildQuickActions(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildUpcomingGoals(),
+            ],
+          ),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          _buildProfileButton(), // Use the new profile button widget
-        ],
-      ),
-      drawer: const EmployeeDrawer(),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F),
-                      Color(0x88040610),
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeCard(),
-                      const SizedBox(height: 20),
-                      _buildQuickStats(),
-                      const SizedBox(height: 20),
-                      _buildRecentActivity(),
-                      const SizedBox(height: 20),
-                      _buildQuickActions(),
-                      const SizedBox(height: 20),
-                      _buildUpcomingGoals(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildProfileButton() {
+  Widget _profileButton(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-        },
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const EmployeeProfileScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderColor),
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.person, color: Colors.white),
+            const Icon(Icons.person, color: Colors.white, size: 18),
             const SizedBox(width: 8),
             Text(
               userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: AppTypography.bodySmall.copyWith(color: Colors.white),
             ),
           ],
         ),
@@ -105,8 +101,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   }
 
   Widget _buildWelcomeCard() {
-    final user = FirebaseAuth.instance.currentUser; // Get current user
-    // Try displayName first, then email, then fallback to 'User'
+    final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
     if (user?.displayName != null && user!.displayName!.isNotEmpty) {
       userName = user.displayName!.split(' ').first;
@@ -114,43 +109,26 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       userName = user.email!.split('@').first;
     }
 
-    return Container(
+    return AppComponents.accentCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Color(0xFFC10D00).withValues(alpha: 76)),
-      ),
       child: Row(
         children: [
           const CircleAvatar(
             radius: 30,
-            backgroundColor: Color(0xFFC10D00),
-            child: Icon(
-              Icons.person,
-              size: 30,
-              color: Colors.white,
-            ),
+            backgroundColor: AppColors.activeColor,
+            child: Icon(Icons.person, size: 30, color: AppColors.textPrimary),
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Welcome back, $userName!', // Use dynamic userName
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text('Welcome back, $userName!', style: AppTypography.heading4),
                 const SizedBox(height: 5),
                 Text(
                   'Ready to achieve your goals today?',
-                  style: TextStyle(
-                    color: Colors.white70.withValues(alpha: 0.8),
-                    fontSize: 14,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -165,213 +143,119 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard(
-            title: 'Active Goals',
+          child: AppComponents.kpiCard(
+            label: 'Active Goals',
             value: '8',
             icon: Icons.track_changes,
-            color: const Color(0xFFC10D00),
+            iconColor: AppColors.activeColor,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: _buildStatCard(
-            title: 'Completed',
+          child: AppComponents.kpiCard(
+            label: 'Completed',
             value: '12',
             icon: Icons.check_circle,
-            color: const Color(0xFFC10D00),
+            iconColor: AppColors.successColor,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
-          child: _buildStatCard(
-            title: 'Points',
+          child: AppComponents.kpiCard(
+            label: 'Points',
             value: '1,250',
             icon: Icons.stars,
-            color: const Color(0xFFFF9800),
+            iconColor: AppColors.warningColor,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              color: Colors.white70.withValues(alpha: 0.8),
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+  // This method is no longer needed as we're using AppComponents.kpiCard
 
   Widget _buildRecentActivity() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(15),
-      ),
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Recent Activity',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildActivityItem(
+          Text('Recent Activity', style: AppTypography.heading4),
+          const SizedBox(height: AppSpacing.md),
+          AppComponents.activityItem(
             icon: Icons.check_circle,
             title: 'Completed "Learn React Native"',
             subtitle: '2 hours ago',
-            color: const Color(0xFFC10D00),
+            iconColor: AppColors.successColor,
           ),
-          const SizedBox(height: 8),
-          _buildActivityItem(
+          const SizedBox(height: AppSpacing.sm),
+          AppComponents.activityItem(
             icon: Icons.add_circle,
             title: 'Added new goal: "Master Flutter"',
             subtitle: '1 day ago',
-            color: const Color(0xFFC10D00),
+            iconColor: AppColors.activeColor,
           ),
-          const SizedBox(height: 8),
-          _buildActivityItem(
+          const SizedBox(height: AppSpacing.sm),
+          AppComponents.activityItem(
             icon: Icons.stars,
             title: 'Earned "Code Master" badge',
             subtitle: '3 days ago',
-            color: const Color(0xFFFF9800),
+            iconColor: AppColors.warningColor,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActivityItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white70.withValues(alpha: 0.7),
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  // This method is no longer needed as we're using AppComponents.activityItem
 
   Widget _buildQuickActions() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(15),
-      ),
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Quick Actions',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
+          Text('Quick Actions', style: AppTypography.heading4),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               Expanded(
-                child: _buildActionButton(
-                  icon: Icons.add,
+                child: AppComponents.primaryButton(
                   label: 'Add Goal',
-                  onTap: () {
+                  icon: Icons.add,
+                  onPressed: () {
                     Navigator.pushNamed(context, '/my_goal_workspace');
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: _buildActionButton(
-                  icon: Icons.bar_chart,
+                child: AppComponents.primaryButton(
                   label: 'View Progress',
-                  onTap: () {
+                  icon: Icons.bar_chart,
+                  onPressed: () {
                     Navigator.pushNamed(context, '/progress_visuals');
                   },
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               Expanded(
-                child: _buildActionButton(
-                  icon: Icons.leaderboard,
+                child: AppComponents.primaryButton(
                   label: 'Leaderboard',
-                  onTap: () {
+                  icon: Icons.leaderboard,
+                  onPressed: () {
                     Navigator.pushNamed(context, '/leaderboard');
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: _buildActionButton(
-                  icon: Icons.workspace_premium,
+                child: AppComponents.primaryButton(
                   label: 'Badges',
-                  onTap: () {
+                  icon: Icons.workspace_premium,
+                  onPressed: () {
                     Navigator.pushNamed(context, '/badges_points');
                   },
                 ),
@@ -383,70 +267,27 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFC10D00).withValues(alpha: 25),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFC10D00).withValues(alpha: 76)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: const Color(0xFFC10D00), size: 24),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // This method is no longer needed as we're using AppComponents.primaryButton
 
   Widget _buildUpcomingGoals() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(15),
-      ),
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Upcoming Goals',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
+          Text('Upcoming Goals', style: AppTypography.heading4),
+          const SizedBox(height: AppSpacing.md),
           _buildGoalItem(
             title: 'Complete Flutter Certification',
             deadline: 'Due in 5 days',
             progress: 0.7,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           _buildGoalItem(
             title: 'Learn Advanced React Patterns',
             deadline: 'Due in 12 days',
             progress: 0.3,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           _buildGoalItem(
             title: 'Build Portfolio Project',
             deadline: 'Due in 20 days',
@@ -462,36 +303,24 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     required String deadline,
     required double progress,
   }) {
-    return Container(
+    return AppComponents.card(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2A3652),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      backgroundColor: AppColors.elevatedBackground,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
+            style: AppTypography.bodyMedium.copyWith(
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            deadline,
-            style: TextStyle(
-              color: Colors.white70.withValues(alpha: 0.7),
-              fontSize: 12,
-            ),
-          ),
+          Text(deadline, style: AppTypography.muted),
           const SizedBox(height: 8),
-          LinearProgressIndicator(
+          AppComponents.progressBar(
             value: progress,
-            backgroundColor: Colors.grey.withValues(alpha: 0.3),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+            label: '${(progress * 100).toInt()}% Complete',
           ),
         ],
       ),

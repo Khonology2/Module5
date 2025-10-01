@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/widgets/sidebar.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_breakpoints.dart';
 
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -12,6 +15,7 @@ class AppScaffold extends StatelessWidget {
     required this.onNavigate,
     required this.onLogout,
     this.showAppBar = false,
+    this.topRightAction,
   });
 
   final String title;
@@ -21,12 +25,12 @@ class AppScaffold extends StatelessWidget {
   final void Function(String route) onNavigate;
   final VoidCallback onLogout;
   final bool showAppBar;
+  final Widget? topRightAction;
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isSmall = width < 600;
-    final isMedium = width >= 600 && width < 1000;
+    final isSmall = AppBreakpoints.isSmall(context);
+    final isMedium = AppBreakpoints.isMedium(context);
 
     if (isSmall) {
       return Scaffold(
@@ -36,17 +40,18 @@ class AppScaffold extends StatelessWidget {
             ? AppBar(
                 leading: Builder(
                   builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.white),
+                    icon: const Icon(Icons.menu, color: AppColors.textPrimary),
                     onPressed: () => Scaffold.of(context).openDrawer(),
                   ),
                 ),
-                title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                title: Text(title, style: AppTypography.heading3),
                 backgroundColor: Colors.transparent,
                 elevation: 0,
               )
             : null,
         drawer: Drawer(
           elevation: 12,
+          backgroundColor: AppColors.backgroundColor,
           child: SafeArea(
             child: ResponsiveSidebar(
               items: items,
@@ -59,7 +64,15 @@ class AppScaffold extends StatelessWidget {
             ),
           ),
         ),
-        body: SafeArea(child: content),
+        body: SafeArea(
+          child: Stack(
+            children: [
+              content,
+              if (topRightAction != null)
+                Positioned(top: 8, right: 8, child: topRightAction!),
+            ],
+          ),
+        ),
       );
     }
 
@@ -70,44 +83,62 @@ class AppScaffold extends StatelessWidget {
       appBar: showAppBar
           ? AppBar(
               leading: IconButton(
-                icon: const Icon(Icons.menu, color: Colors.white),
-                onPressed: () => SidebarState.instance.isCollapsed.value = !SidebarState.instance.isCollapsed.value,
+                icon: const Icon(Icons.menu, color: AppColors.textPrimary),
+                onPressed: () => SidebarState.instance.isCollapsed.value =
+                    !SidebarState.instance.isCollapsed.value,
               ),
-              title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              title: Text(title, style: AppTypography.heading3),
               backgroundColor: Colors.transparent,
               elevation: 0,
             )
           : null,
-      body: SafeArea(child: ValueListenableBuilder<bool>(
-        valueListenable: SidebarState.instance.isCollapsed,
-        builder: (context, collapsed, _) {
-          final effectiveCollapsed = isMedium ? true : collapsed;
-          final sidebarWidth = effectiveCollapsed ? 72.0 : 240.0;
+      body: SafeArea(
+        child: ValueListenableBuilder<bool>(
+          valueListenable: SidebarState.instance.isCollapsed,
+          builder: (context, collapsed, _) {
+            final effectiveCollapsed = isMedium ? true : collapsed;
+            final sidebarWidth = AppBreakpoints.getResponsiveSidebarWidth(
+              context,
+              effectiveCollapsed,
+            );
 
-          return Row(
-            children: [
-              SizedBox(
-                width: sidebarWidth,
-                child: Material(
-                  elevation: 8,
-                  color: Colors.transparent,
-                  child: ClipRect(
-                    child: ResponsiveSidebar(
-                      items: items,
-                      currentRouteName: currentRouteName,
-                      onNavigate: onNavigate,
-                      onLogout: onLogout,
+            return Row(
+              children: [
+                SizedBox(
+                  width: sidebarWidth,
+                  child: Material(
+                    elevation: 8,
+                    color: Colors.transparent,
+                    child: ClipRect(
+                      child: ResponsiveSidebar(
+                        items: items,
+                        currentRouteName: currentRouteName,
+                        onNavigate: onNavigate,
+                        onLogout: onLogout,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Expanded(child: ClipRect(child: content)),
-            ],
-          );
-        },
-      )),
+                Expanded(
+                  child: ClipRect(
+                    child: Stack(
+                      children: [
+                        content,
+                        if (topRightAction != null)
+                          Positioned(
+                            top: 16,
+                            right: 16,
+                            child: topRightAction!,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
-
-

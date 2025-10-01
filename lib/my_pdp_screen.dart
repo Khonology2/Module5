@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
+// Drawer removed in favor of persistent sidebar
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+// import 'package:pdh/employee_profile_screen.dart'; // Not needed here; handled by layout
+import 'package:pdh/widgets/main_layout.dart';
 
 class MyPdpScreen extends StatefulWidget {
   const MyPdpScreen({super.key});
@@ -41,7 +42,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         _userName = user.displayName ?? 'User';
       });
 
-      final docSnapshot = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       if (docSnapshot.exists) {
         final data = docSnapshot.data();
         setState(() {
@@ -58,10 +62,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && _roleController.text.trim().isNotEmpty) {
       try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-          {'role_position': _roleController.text.trim()},
-          SetOptions(merge: true),
-        );
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'role_position': _roleController.text.trim(),
+        }, SetOptions(merge: true));
         setState(() {
           _userRole = _roleController.text.trim();
         });
@@ -71,130 +74,59 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save role: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save role: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        title: const Text(
-          'My Personal Development Plan',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        actions: [
-          _buildProfileButton(context), // Use the new profile button widget
-        ],
-      ),
-      drawer: const EmployeeDrawer(),
-      body: Stack(
+    return MainLayout(
+      title: 'My Personal Development Plan',
+      currentRouteName: '/my_pdp',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
+          _buildUserProfileCard(),
+          const SizedBox(height: 20),
+          _buildKeyPerformanceArea(
+            title: 'Operational Excellence',
+            isExpanded: _isOperationalExpanded,
+            onToggle: (bool expanded) {
+              setState(() {
+                _isOperationalExpanded = expanded;
+              });
+            },
           ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildUserProfileCard(),
-                      const SizedBox(height: 20),
-                      _buildKeyPerformanceArea(
-                        title: 'Operational Excellence',
-                        isExpanded: _isOperationalExpanded,
-                        onToggle: (bool expanded) {
-                          setState(() {
-                            _isOperationalExpanded = expanded;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildKeyPerformanceArea(
-                        title: 'Customer Excellence',
-                        isExpanded: _isCustomerExpanded,
-                        onToggle: (bool expanded) {
-                          setState(() {
-                            _isCustomerExpanded = expanded;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildKeyPerformanceArea(
-                        title: 'Financial Excellence',
-                        isExpanded: _isFinancialExpanded,
-                        onToggle: (bool expanded) {
-                          setState(() {
-                            _isFinancialExpanded = expanded;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 80), // Space for FAB
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(height: 20),
+          _buildKeyPerformanceArea(
+            title: 'Customer Excellence',
+            isExpanded: _isCustomerExpanded,
+            onToggle: (bool expanded) {
+              setState(() {
+                _isCustomerExpanded = expanded;
+              });
+            },
           ),
+          const SizedBox(height: 20),
+          _buildKeyPerformanceArea(
+            title: 'Financial Excellence',
+            isExpanded: _isFinancialExpanded,
+            onToggle: (bool expanded) {
+              setState(() {
+                _isFinancialExpanded = expanded;
+              });
+            },
+          ),
+          const SizedBox(height: 80),
         ],
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Top-right profile button handled by MainLayout/AppScaffold across pages
 
   Widget _buildUserProfileCard() {
     return Container(
@@ -208,11 +140,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           const CircleAvatar(
             radius: 30,
             backgroundColor: Colors.grey,
-            child: Icon(
-              Icons.person,
-              size: 30,
-              color: Colors.white70,
-            ),
+            child: Icon(Icons.person, size: 30, color: Colors.white70),
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -229,10 +157,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                 ),
                 TextField(
                   controller: _roleController,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Enter your role position',
                     hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
@@ -287,7 +212,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           ),
           if (isExpanded)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -302,10 +230,17 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                       );
                     },
                     icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('Add Goal', style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'Add Goal',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00), // App's red color
-                      minimumSize: const Size.fromHeight(40), // Make button full width
+                      backgroundColor: const Color(
+                        0xFFC10D00,
+                      ), // App's red color
+                      minimumSize: const Size.fromHeight(
+                        40,
+                      ), // Make button full width
                       shape: const StadiumBorder(), // Changed to StadiumBorder
                     ),
                   ),
@@ -317,10 +252,17 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                       );
                     },
                     icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text('Add Milestone', style: TextStyle(color: Colors.white)),
+                    label: const Text(
+                      'Add Milestone',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00), // App's red color
-                      minimumSize: const Size.fromHeight(40), // Make button full width
+                      backgroundColor: const Color(
+                        0xFFC10D00,
+                      ), // App's red color
+                      minimumSize: const Size.fromHeight(
+                        40,
+                      ), // Make button full width
                       shape: const StadiumBorder(), // Changed to StadiumBorder
                     ),
                   ),
@@ -341,7 +283,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
         ),
-        const Icon(Icons.keyboard_arrow_down, color: Colors.white70), // Placeholder for actual items
+        const Icon(
+          Icons.keyboard_arrow_down,
+          color: Colors.white70,
+        ), // Placeholder for actual items
       ],
     );
   }

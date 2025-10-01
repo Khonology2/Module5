@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/app_breakpoints.dart';
 
 class ResponsiveSidebar extends StatelessWidget {
-  const ResponsiveSidebar({super.key, required this.items, required this.onNavigate, required this.currentRouteName, required this.onLogout});
+  const ResponsiveSidebar({
+    super.key,
+    required this.items,
+    required this.onNavigate,
+    required this.currentRouteName,
+    required this.onLogout,
+  });
 
   final List<SidebarItem> items;
   final void Function(String route) onNavigate;
   final String? currentRouteName;
   final VoidCallback onLogout;
 
-  static const Color backgroundColor = Color(0xFF1F2840);
-  // Lighter shade shown on hover only
-  static const Color hoverColor = Color(0xFF2A3652);
-  // Distinct active/selected color
-  static const Color activeColor = Color(0xFFC10D00);
+  // Use design system colors
+  static const Color backgroundColor = AppColors.backgroundColor;
+  static const Color hoverColor = AppColors.hoverColor;
+  static const Color activeColor = AppColors.activeColor;
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
-    // Small screens: show as drawer content only, caller should use Drawer
-    final isSmall = width < 600;
+    // Use design system breakpoints
+    final isSmall = AppBreakpoints.isSmall(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: SidebarState.instance.isCollapsed,
@@ -30,25 +37,27 @@ class ResponsiveSidebar extends StatelessWidget {
         final effectiveCollapsed = isSmall ? true : collapsed;
 
         return Container(
-          width: isSmall
-              ? double.infinity
-              : (effectiveCollapsed ? 72 : 240),
+          width: isSmall ? double.infinity : (effectiveCollapsed ? 72 : 240),
           color: backgroundColor,
           child: Column(
             children: [
               _buildHeader(context, effectiveCollapsed),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: items.map((it) => _NavTile(
-                    icon: it.icon,
-                    label: it.label,
-                    route: it.route,
-                    isActive: currentRouteName == it.route,
-                    collapsed: effectiveCollapsed,
-            onTap: () => onNavigate(it.route),
-                  )).toList(),
+                  padding: AppSpacing.sidebarContentPadding,
+                  children: items
+                      .map(
+                        (it) => _NavTile(
+                          icon: it.icon,
+                          label: it.label,
+                          route: it.route,
+                          isActive: currentRouteName == it.route,
+                          collapsed: effectiveCollapsed,
+                          onTap: () => onNavigate(it.route),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
               _NavTile(
@@ -56,8 +65,8 @@ class ResponsiveSidebar extends StatelessWidget {
                 label: 'Exit.',
                 route: '__logout__',
                 isActive: false,
-    collapsed: effectiveCollapsed,
-    onTap: onLogout,
+                collapsed: effectiveCollapsed,
+                onTap: onLogout,
               ),
               _CollapseToggle(collapsed: effectiveCollapsed),
             ],
@@ -70,13 +79,14 @@ class ResponsiveSidebar extends StatelessWidget {
   Widget _buildHeader(BuildContext context, bool collapsed) {
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      alignment: Alignment.centerLeft,
+      padding: AppSpacing.sidebarHeaderPadding,
+      alignment: Alignment.center,
       child: GestureDetector(
         onTap: () {
           // Toggle collapse/expand when logo is tapped (medium/large screens)
           if (!MediaQuery.of(context).size.width.isNaN) {
-            SidebarState.instance.isCollapsed.value = !SidebarState.instance.isCollapsed.value;
+            SidebarState.instance.isCollapsed.value =
+                !SidebarState.instance.isCollapsed.value;
           }
         },
         child: LayoutBuilder(
@@ -85,10 +95,13 @@ class ResponsiveSidebar extends StatelessWidget {
             // Target widths for collapsed/expanded
             final double targetWidth = collapsed ? 48.0 : 150.0;
             // Keep some horizontal padding headroom to avoid overflow during animations
-            final double clampedWidth = math.max(24.0, math.min(targetWidth, availableWidth - 16.0));
+            final double clampedWidth = math.max(
+              24.0,
+              math.min(targetWidth, availableWidth - 16.0),
+            );
             return Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               children: [
                 SizedBox(
                   width: clampedWidth,
@@ -101,7 +114,8 @@ class ResponsiveSidebar extends StatelessWidget {
                       'assets/khonodemy-sidebar-logo-red.png',
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
-                      errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+                      errorBuilder: (context, error, stack) =>
+                          const SizedBox.shrink(),
                     ),
                   ),
                 ),
@@ -121,13 +135,14 @@ class _CollapseToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => SidebarState.instance.isCollapsed.value = !SidebarState.instance.isCollapsed.value,
+      onTap: () => SidebarState.instance.isCollapsed.value =
+          !SidebarState.instance.isCollapsed.value,
       child: Container(
         height: 44,
         alignment: Alignment.center,
         child: Icon(
           collapsed ? Icons.chevron_right : Icons.chevron_left,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -135,7 +150,14 @@ class _CollapseToggle extends StatelessWidget {
 }
 
 class _NavTile extends StatefulWidget {
-  const _NavTile({required this.icon, required this.label, required this.route, required this.isActive, required this.collapsed, required this.onTap});
+  const _NavTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.isActive,
+    required this.collapsed,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final String route;
@@ -155,7 +177,7 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
@@ -171,17 +193,20 @@ class _NavTileState extends State<_NavTile> {
                 // When collapsed: keep background transparent for a clean mini look
                 color: !isCollapsed
                     ? (isSelected
-                        ? ResponsiveSidebar.activeColor
-                        : (isHovered ? ResponsiveSidebar.hoverColor : Colors.transparent))
+                          ? ResponsiveSidebar.activeColor
+                          : (isHovered
+                                ? ResponsiveSidebar.hoverColor
+                                : Colors.transparent))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: (!isCollapsed && (isSelected || isHovered))
                     ? [
                         BoxShadow(
-                          color: (isSelected
-                                  ? ResponsiveSidebar.activeColor
-                                  : ResponsiveSidebar.hoverColor)
-                              .withValues(alpha: 0.35),
+                          color:
+                              (isSelected
+                                      ? ResponsiveSidebar.activeColor
+                                      : ResponsiveSidebar.hoverColor)
+                                  .withValues(alpha: 0.35),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -195,21 +220,20 @@ class _NavTileState extends State<_NavTile> {
                     widget.icon,
                     // Collapsed: make active icon stand out (bolder look via size/color)
                     color: isCollapsed
-                        ? (isSelected ? ResponsiveSidebar.activeColor : Colors.white)
-                        : Colors.white,
-                    size: isCollapsed
-                        ? (isSelected ? 24 : 20)
-                        : 20,
+                        ? (isSelected
+                              ? ResponsiveSidebar.activeColor
+                              : AppColors.textPrimary)
+                        : AppColors.textPrimary,
+                    size: isCollapsed ? (isSelected ? 24 : 20) : 20,
                   ),
                   if (!widget.collapsed) ...[
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Text(
                         widget.label,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.bold,
-                        ),
+                        style: isSelected
+                            ? AppTypography.navigationActive
+                            : AppTypography.navigation,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -225,10 +249,12 @@ class _NavTileState extends State<_NavTile> {
 }
 
 class SidebarItem {
-  const SidebarItem({required this.icon, required this.label, required this.route});
+  const SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
   final IconData icon;
   final String label;
   final String route;
 }
-
-
