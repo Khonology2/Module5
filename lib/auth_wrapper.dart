@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/database_service.dart';
-import 'package:pdh/rolebaseview.dart';
 import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
 
 class AuthWrapper extends StatefulWidget {
@@ -14,6 +11,11 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
+    // For development/testing: Always navigate to the LoginScreen
+    // To re-enable authentication flow, uncomment the StreamBuilder code below
+    return const LoginScreen();
+
+    /*
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -33,5 +35,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       },
     );
+    */
   }
 }

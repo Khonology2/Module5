@@ -241,6 +241,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
     _speechToText.cancel(); // Cancel any active speech recognition
     _voiceSearchController.dispose(); // Dispose voice search controller
+    _saveChatHistory(); // Save chat history when the screen is disposed
     super.dispose();
   }
 
