@@ -10,10 +10,11 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
-import 'package:flutter_tts/flutter_tts.dart'; // Import for text-to-speech
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
+import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-to-Speech
+import 'package:flutter/services.dart'; // Import for Clipboard
 
 class AiChatbotScreen extends StatefulWidget {
   final String? prompt; // Optional initial prompt
@@ -39,19 +40,33 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   String? _selectedVoiceId; // ID of the currently selected voice
   final TextEditingController _voiceSearchController = TextEditingController(); // Controller for voice search
   List<dynamic> _filteredVoices = []; // List of voices filtered by search
+  bool _isSummarizeMode = false; // New state variable for summarize mode
 
   // Updated list of quick actions for context-based answers
-  final List<String> _quickActions = [
-    'What is KhonoPal Mode?',
-    'How does the Manager Dashboard work?',
-    'Tell me about Alerts & Nudges?',
-    'What are the features of the Leaderboard?',
-    'How can I track my Progress Visuals?',
-    'Explain the Repository & Audit screen.',
-    'What privacy settings are available?',
-    'How does voice selection work?',
-    'What is General Chat mode?',
+  final List<Map<String, String>> _quickActions = [
+    {'text': 'What is KhonoPal Mode?', 'promptKey': 'khonopal_mode'},
+    {'text': 'How does the Manager Dashboard work?', 'promptKey': 'manager_dashboard'},
+    {'text': 'Tell me about Alerts & Nudges?', 'promptKey': 'alerts_nudges'},
+    {'text': 'What are the features of the Leaderboard?', 'promptKey': 'leaderboard_features'},
+    {'text': 'How can I track my Progress Visuals?', 'promptKey': 'progress_visuals'},
+    {'text': 'Explain the Repository & Audit screen.', 'promptKey': 'repository_audit'},
+    {'text': 'What privacy settings are available?', 'promptKey': 'privacy_settings'},
+    {'text': 'How does voice selection work?', 'promptKey': 'voice_selection'},
+    {'text': 'What is General Chat mode?', 'promptKey': 'general_chat'},
   ];
+
+  // Map to store system prompts for quick actions
+  final Map<String, String> _quickActionSystemPrompts = {
+    'khonopal_mode': 'Explain the purpose and functionalities of KhonoPal Mode within the application.',
+    'manager_dashboard': 'Describe the key features and functionalities of the Manager Dashboard, including what information managers can view and actions they can perform.',
+    'alerts_nudges': 'Elaborate on the Alerts & Nudges system, explaining how it works, what kind of alerts/nudges users receive, and their benefits.',
+    'leaderboard_features': 'Detail the features of the Leaderboard, such as how points are earned, how rankings are displayed, and any competitive elements.',
+    'progress_visuals': 'Explain how users can track their progress through visual representations in the app, including what metrics are shown and how they are visualized.',
+    'repository_audit': 'Provide a comprehensive overview of the Repository & Audit screen, including its purpose, what data it displays, and its utility for users.',
+    'privacy_settings': 'List and describe the available privacy settings in the application, explaining what data is protected and how users can manage their privacy.',
+    'voice_selection': 'Describe the process and options for voice selection in the AI Chatbot, including how to search for voices and what customization is available.',
+    'general_chat': 'Explain that General Chat mode allows for free-form conversation without specific application context, and how it differs from KhonoPal mode.',
+  };
 
   // New state variable to control quick actions visibility
   bool _showQuickActions = true;
@@ -142,6 +157,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     flutterTts.setPitch(1.0);
   }
 
+  void _toggleSummarizeMode() {
+    setState(() {
+      _isSummarizeMode = !_isSummarizeMode;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_isSummarizeMode ? 'Summarize mode enabled!' : 'Summarize mode disabled!')),
+    );
+  }
+
   Future _speak(String text) async {
     setState(() {
       _isSpeaking = true;
@@ -181,7 +205,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     // Only add greeting if messages list is empty (i.e., no history loaded)
     if (_messages.isEmpty) {
       setState(() {
-        _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false));
+        _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false, isGreeting: true));
       });
     }
   }
@@ -193,7 +217,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _messageController.dispose(); // Dispose controller
     flutterTts.stop(); // Stop any ongoing speech
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
-    // _speechToText.cancel(); // Cancel any active speech recognition
     _voiceSearchController.dispose(); // Dispose voice search controller
     _saveChatHistory(); // Save chat history when the screen is disposed
     super.dispose();
@@ -233,7 +256,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
-  Future<void> _sendMessage({String? initialPrompt, String? messageContent}) async {
+  Future<void> _sendMessage({String? initialPrompt, String? messageContent, String? selectedModeOverride}) async {
     String text = messageContent ?? _messageController.text.trim(); // Use messageContent if provided, otherwise controller text
     if (text.isEmpty) return;
 
@@ -258,21 +281,42 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     String pdpSystemInstruction = "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
 
     try {
-      // Dynamically set system instruction based on _selectedMode or if it's a PDP request
+      // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
       String? currentSystemInstruction;
       if (initialPrompt != null) {
         currentSystemInstruction = pdpSystemInstruction;
       } else {
-        switch (_selectedMode) {
-          case 'KhonoPal Mode': // KhonoPal Mode
-            currentSystemInstruction = KhonoPalContext.khonopalContext;
-            break;
-          case 'General Chat': // General Chat mode
-            currentSystemInstruction = null; // No system instruction for general chat
-            break;
-          default: // Should ideally not be reached if _selectedMode is always one of the above
-            currentSystemInstruction = null;
-            break;
+        String actualSelectedMode = selectedModeOverride ?? _selectedMode;
+        
+        // Check if the message is a quick action and get its specific prompt
+        String? quickActionPromptKey = _quickActions.firstWhere(
+          (action) => action['text'] == text,
+          orElse: () => {},
+        )['promptKey'];
+
+        if (quickActionPromptKey != null && _quickActionSystemPrompts.containsKey(quickActionPromptKey)) {
+          currentSystemInstruction = _quickActionSystemPrompts[quickActionPromptKey];
+        } else {
+          switch (actualSelectedMode) {
+            case 'KhonoPal Mode': // KhonoPal Mode
+              currentSystemInstruction = KhonoPalContext.khonopalContext;
+              break;
+            case 'General Chat': // General Chat mode
+              currentSystemInstruction = null; // No system instruction for general chat
+              break;
+            default: // Fallback to KhonoPal context if an unexpected mode is encountered
+              currentSystemInstruction = KhonoPalContext.khonopalContext;
+              break;
+          }
+        }
+      }
+
+      // Add summarization instruction if _isSummarizeMode is true
+      if (_isSummarizeMode) {
+        if (currentSystemInstruction != null) {
+          currentSystemInstruction += "\n\nPlease summarize the response to 3-4 lines.";
+        } else {
+          currentSystemInstruction = "Summarize the following response to 3-4 lines.";
         }
       }
 
@@ -384,7 +428,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 _showQuickActions = false; // Hide quick actions when one is selected
               });
               // Send the quick action text to the chatbot
-              _sendMessage(messageContent: action);
+              _sendMessage(messageContent: action['text'], selectedModeOverride: 'KhonoPal Mode'); // Pass selectedModeOverride
             },
             style: TextButton.styleFrom(
               backgroundColor: Colors.white10, // A subtle background
@@ -396,7 +440,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
             ),
             child: Text(
-              action,
+              action['text']!,
               style: const TextStyle(fontSize: 14.0),
             ),
           );
@@ -438,30 +482,41 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  prefixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white70),
-                        onPressed: () {
-                          _showModeSelectionSheet(context);
-                        },
-                      ),
-                      // Text-to-speech button (AI Voice Playback)
-                      IconButton(
-                        icon: Icon(
-                          _isSpeaking ? Icons.volume_off : Icons.volume_up,
-                          color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
+                  prefixIcon: SizedBox(
+                    width: 120, // Adjust width as needed to fit both icons
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add, color: Colors.white70),
+                          onPressed: () {
+                            _showModeSelectionSheet(context);
+                          },
                         ),
-                        onPressed: (_lastAiResponse != null && !_isThinking) ? () {
-                          if (_isSpeaking) {
-                            _stop();
-                          } else if (_lastAiResponse != null) { // Only speak if there's a response
-                            _speak(_lastAiResponse!); // Speak the last AI response
-                          }
-                        } : null,
-                      ),
-                    ],
+                        // New Summarize Button
+                        IconButton(
+                          icon: Icon(
+                            Icons.summarize,
+                            color: _isSummarizeMode ? const Color(0xFFC10D00) : Colors.white70,
+                          ),
+                          onPressed: _toggleSummarizeMode,
+                        ),
+                        // Text-to-speech button (AI Voice Playback)
+                        IconButton(
+                          icon: Icon(
+                            _isSpeaking ? Icons.volume_off : Icons.volume_up,
+                            color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
+                          ),
+                          onPressed: (_lastAiResponse != null && !_isThinking) ? () {
+                            if (_isSpeaking) {
+                              _stop();
+                            } else if (_lastAiResponse != null) { // Only speak if there's a response
+                              _speak(_lastAiResponse!); // Speak the last AI response
+                            }
+                          } : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
@@ -469,7 +524,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             const SizedBox(width: 8.0),
             FloatingActionButton(
-              onPressed: _sendMessage,
+              onPressed: () => _sendMessage(),
               backgroundColor: const Color(0xFFC10D00),
               child: Image.asset(
                 'assets/Send_Paper Plane/Send_Plane_Red Badge_White.png',
@@ -671,7 +726,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Future<void> _saveChatHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encodedMessages = json.encode(_messages.map((msg) => {'text': msg.text, 'isUser': msg.isUser, 'fullText': msg.fullText}).toList());
+    final String encodedMessages = json.encode(_messages.map((msg) => {'text': msg.text, 'isUser': msg.isUser, 'fullText': msg.fullText, 'isGreeting': msg.isGreeting}).toList());
     await prefs.setString('chatHistory', encodedMessages);
   }
 
@@ -682,7 +737,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       final List<dynamic> decodedMessages = json.decode(encodedMessages);
       setState(() {
         _messages.clear();
-        _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'])).toList());
+        _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'], isGreeting: msg['isGreeting'] ?? false)).toList());
       });
     } else {
       // If no history or empty, the initial greeting will be set by initState.
@@ -695,8 +750,9 @@ class ChatMessage {
   String text; // Made mutable for typewriter effect
   final bool isUser;
   final String? fullText; // Stores the complete text for AI messages
+  final bool isGreeting; // New property to identify greeting messages
 
-  ChatMessage({required this.text, required this.isUser, this.fullText});
+  ChatMessage({required this.text, required this.isUser, this.fullText, this.isGreeting = false});
 }
 
 class ChatBubble extends StatelessWidget {
@@ -759,6 +815,22 @@ class ChatBubble extends StatelessWidget {
                         message.text,
                         style: const TextStyle(color: Colors.white),
                       ),
+                      if (!message.isUser && !message.isGreeting) // Only show for AI messages that are not greetings
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: IconButton(
+                              icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: message.fullText ?? message.text));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Response copied to clipboard!')),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
