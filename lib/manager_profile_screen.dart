@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io'; // Import for File
 import 'dart:ui'; // Added for ImageFilter
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
 
 void main() {
   runApp(const MyApp());
@@ -203,7 +204,22 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   }
 
   void _generateDevelopmentPlan() {
-    _showAlertDialog('Feature Unavailable', 'The development plan generation feature is not currently active. You can integrate your own API to enable this functionality.');
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AiChatbotScreen(
+          prompt: 'Generate a personalized development plan for ${_fullNameController.text} based on their current skills, areas for development, career aspirations, and current projects. Include specific goals, recommended resources, and actionable steps.',
+          onResult: (result) {
+            if (result.isNotEmpty) {
+              _careerAspirationsController.text = result; // Update the career aspirations field
+              _saveProfile(); // Save the updated profile
+              _showMotivationalMessageDialog('Your Personal Development Plan has been generated and updated in your profile!');
+            } else {
+              _showAlertDialog('No Plan Generated', 'Could not generate a development plan at this time.');
+            }
+          },
+        ),
+      ),
+    );
   }
 
   void _draftMotivationalMessage() {
