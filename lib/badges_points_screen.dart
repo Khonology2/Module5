@@ -1,152 +1,79 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
-import 'package:pdh/manager_nav_drawer.dart';
-import 'package:pdh/services/role_service.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
+// Drawers removed in favor of persistent sidebar
+import 'package:pdh/widgets/main_layout.dart';
+// Role-aware features handled inside MainLayout
+// Profile handled by MainLayout
 
 class BadgesPointsScreen extends StatelessWidget {
   const BadgesPointsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        title: const Text(
-          'Badges & Points',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0, // Remove AppBar shadow
-        actions: [
-          _buildProfileButton(context), // Use the new profile button widget
-        ],
-      ),
-      drawer: const _RoleAwareDrawer(),
-      body: Stack(
+    return MainLayout(
+      title: 'Badges & Points',
+      currentRouteName: '/badges_points',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
+          _buildPointsAndLevelCard(),
+          const SizedBox(height: 25),
+          _buildSectionHeader('Achievements'),
+          _buildAchievementsGrid(context),
+          const SizedBox(height: 25),
+          _buildLevelProgress(),
+          const SizedBox(height: 25),
+          _buildSectionHeader('Leaderboard'),
+          _buildLeaderboard(),
+          const SizedBox(height: 25),
+          _buildSectionHeader('Team Challenges'),
+          _buildTeamChallengeCard(
+            context: context,
+            title: 'Innovation Sprint',
+            description: 'Submit creative solutions for workplace efficiency',
+            progress: '7/15 participants',
+            endsIn: '5 days',
+            status: 'Join',
           ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildPointsAndLevelCard(),
-                      const SizedBox(height: 25),
-                      _buildSectionHeader('Achievements'),
-                      _buildAchievementsGrid(context),
-                      const SizedBox(height: 25),
-                      _buildLevelProgress(),
-                      const SizedBox(height: 25),
-                      _buildSectionHeader('Leaderboard'),
-                      _buildLeaderboard(),
-                      const SizedBox(height: 25),
-                      _buildSectionHeader('Team Challenges'),
-                      _buildTeamChallengeCard(
-                        context: context,
-                        title: 'Innovation Sprint',
-                        description: 'Submit creative solutions for workplace efficiency',
-                        progress: '7/15 participants',
-                        endsIn: '5 days',
-                        status: 'Join',
-                      ),
-                      const SizedBox(height: 15),
-                      _buildTeamChallengeCard(
-                        context: context,
-                        title: 'Wellness Week',
-                        description: 'Complete daily wellness activities with your team',
-                        progress: '12/20 participants',
-                        endsIn: '2 days',
-                        status: 'Joined',
-                      ),
-                      const SizedBox(height: 25),
-                      _buildSectionHeader('Recent Celebrations'),
-                      _buildCelebrationCard(
-                        icon: Icons.emoji_events, // Trophy icon
-                        iconColor: const Color(0xFFC10D00), // App's red color
-                        message: 'Alex completed the \'Code Review Champion\' badge!',
-                        time: '2 hours ago',
-                      ),
-                      const SizedBox(height: 10),
-                      _buildCelebrationCard(
-                        icon: Icons.thumb_up, // Thumbs up icon
-                        iconColor: const Color(0xFFC10D00), // App's red color
-                        message: 'Development Team reached Level 8!',
-                        time: 'Yesterday',
-                      ),
-                      const SizedBox(height: 10),
-                      _buildCelebrationCard(
-                        icon: Icons.workspace_premium, // Badge icon
-                        iconColor: const Color(0xFFC10D00), // App's red color
-                        message: 'Lisa earned \'Collaboration Expert\' achievement!',
-                        time: '3 days ago',
-                      ),
-                      const SizedBox(height: 20),
-                      _buildAISuggestionsCard(context),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          const SizedBox(height: 15),
+          _buildTeamChallengeCard(
+            context: context,
+            title: 'Wellness Week',
+            description: 'Complete daily wellness activities with your team',
+            progress: '12/20 participants',
+            endsIn: '2 days',
+            status: 'Joined',
           ),
+          const SizedBox(height: 25),
+          _buildSectionHeader('Recent Celebrations'),
+          _buildCelebrationCard(
+            icon: Icons.emoji_events,
+            iconColor: const Color(0xFFC10D00),
+            message: 'Alex completed the \'Code Review Champion\' badge!',
+            time: '2 hours ago',
+          ),
+          const SizedBox(height: 10),
+          _buildCelebrationCard(
+            icon: Icons.thumb_up,
+            iconColor: const Color(0xFFC10D00),
+            message: 'Development Team reached Level 8!',
+            time: 'Yesterday',
+          ),
+          const SizedBox(height: 10),
+          _buildCelebrationCard(
+            icon: Icons.workspace_premium,
+            iconColor: const Color(0xFFC10D00),
+            message: 'Lisa earned \'Collaboration Expert\' achievement!',
+            time: '3 days ago',
+          ),
+          const SizedBox(height: 20),
+          _buildAISuggestionsCard(context),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Profile handled by MainLayout
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -167,7 +94,10 @@ class BadgesPointsScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFC10D00), Color(0xFF0A1931)], // App's red to dark blue gradient
+          colors: [
+            Color(0xFFC10D00),
+            Color(0xFF0A1931),
+          ], // App's red to dark blue gradient
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -189,10 +119,7 @@ class BadgesPointsScreen extends StatelessWidget {
               ),
               Text(
                 'Total Points',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -209,10 +136,7 @@ class BadgesPointsScreen extends StatelessWidget {
               ),
               Text(
                 'Champion',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 14),
               ),
             ],
           ),
@@ -297,7 +221,9 @@ class BadgesPointsScreen extends StatelessWidget {
           Text(
             status,
             style: TextStyle(
-              color: status == 'In Progress' ? Colors.orange : const Color(0xFFC10D00), // App's red color
+              color: status == 'In Progress'
+                  ? Colors.orange
+                  : const Color(0xFFC10D00), // App's red color
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -336,7 +262,9 @@ class BadgesPointsScreen extends StatelessWidget {
         LinearProgressIndicator(
           value: 0.847,
           backgroundColor: Colors.grey.withValues(alpha: 0.3),
-          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)), // App's red color
+          valueColor: const AlwaysStoppedAnimation<Color>(
+            Color(0xFFC10D00),
+          ), // App's red color
           minHeight: 8,
           borderRadius: BorderRadius.circular(5),
         ),
@@ -389,13 +317,17 @@ class BadgesPointsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isYou ? const Color(0xFFC10D00).withValues(alpha: 0.4) : const Color(0xFF1F2840), // App's red and card colors
+        color: isYou
+            ? const Color(0xFFC10D00).withValues(alpha: 0.4)
+            : const Color(0xFF1F2840), // App's red and card colors
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: isYou ? Colors.white : const Color(0xFFC10D00), // App's red color
+            backgroundColor: isYou
+                ? Colors.white
+                : const Color(0xFFC10D00), // App's red color
             child: Text(
               '$rank',
               style: TextStyle(
@@ -475,7 +407,9 @@ class BadgesPointsScreen extends StatelessWidget {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: status == 'Joined' ? Colors.grey : const Color(0xFFC10D00), // App's red color
+                  backgroundColor: status == 'Joined'
+                      ? Colors.grey
+                      : const Color(0xFFC10D00), // App's red color
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                 ),
@@ -486,7 +420,10 @@ class BadgesPointsScreen extends StatelessWidget {
           const SizedBox(height: 5),
           Text(
             description,
-            style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 14),
+            style: TextStyle(
+              color: Colors.white70.withValues(alpha: 0.7),
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 15),
           Row(
@@ -494,7 +431,10 @@ class BadgesPointsScreen extends StatelessWidget {
             children: [
               Text(
                 'Progress: $progress',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 'Ends in $endsIn',
@@ -535,7 +475,10 @@ class BadgesPointsScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   time,
-                  style: TextStyle(color: Colors.white70.withValues(alpha: 0.7), fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.white70.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -550,7 +493,10 @@ class BadgesPointsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFC10D00), Color(0xFF0A1931)], // App's green to dark blue gradient
+          colors: [
+            Color(0xFFC10D00),
+            Color(0xFF0A1931),
+          ], // App's green to dark blue gradient
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -563,7 +509,11 @@ class BadgesPointsScreen extends StatelessWidget {
             children: [
               Text(
                 'AI Smart Alerts',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Icon(Icons.psychology, color: Color(0xFFC10D00), size: 22),
             ],
@@ -598,17 +548,4 @@ class BadgesPointsScreen extends StatelessWidget {
   }
 }
 
-class _RoleAwareDrawer extends StatelessWidget {
-  const _RoleAwareDrawer();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<String?>(
-      stream: RoleService.instance.roleStream(),
-      builder: (context, snapshot) {
-        final isManager = snapshot.data == 'manager';
-        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
-      },
-    );
-  }
-}
+// Drawer removed; persistent sidebar via MainLayout

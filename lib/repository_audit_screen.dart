@@ -1,184 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
-import 'package:pdh/manager_nav_drawer.dart';
+// Drawers removed in favor of persistent sidebar
+import 'package:pdh/widgets/main_layout.dart';
 import 'package:pdh/services/role_service.dart';
-import 'dart:ui'; // Import for ImageFilter
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
-import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+// Profile handled by MainLayout
 
 class RepositoryAuditScreen extends StatelessWidget {
   const RepositoryAuditScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Ensure transparent background for full-screen effect
-      extendBodyBehindAppBar: true, // Extend body behind AppBar
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Repository & Audit', style: TextStyle(color: Colors.white)),
-        actions: [
+    return MainLayout(
+      title: 'Repository & Audit',
+      currentRouteName: '/repository_audit',
+      body: Column(
+        children: [
+          _RepositoryAppBarContent(onMenuPressed: () {}),
           StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
             builder: (context, snapshot) {
-              final role = snapshot.data;
-              final isManager = role == 'manager';
-              return _buildProfileButton(context, isManager: isManager);
+              final isManager = snapshot.data == 'manager';
+              return _RoleSummaryBar(isManager: isManager);
             },
-          ), // Use the new profile button widget
-        ],
-      ),
-      drawer: const _RoleAwareDrawer(),
-      body: Stack(
-        children: [
-          // Background image
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
           ),
-          // Overlay for blur effect and gradient
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+          const SizedBox(height: 12),
+          StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
+            builder: (context, snapshot) {
+              final isManager = snapshot.data == 'manager';
+              return Column(
+                children: [
+                  _buildGoalCard(
+                    title: 'Increase Customer Satisfaction Score',
+                    date: 'March 15, 2024',
+                    status: 'Verified',
+                    statusColor: const Color(0xFFC10D00),
+                    evidence: [
+                      'Survey Results Report',
+                      'Dashboard Analytics Link',
+                      'Customer Feedback Files',
                     ],
-                    stops: [0.0, 1.0],
+                    acknowledgedBy: 'Sarah Chen',
+                    score: '4.8',
+                    isManager: isManager,
                   ),
-                ),
-                child: Column(
-                  children: [
-                    // AppBar replacement with search and title.
-                    _RepositoryAppBarContent(
-                      onMenuPressed: () => Scaffold.of(context).openDrawer(),
-                    ),
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0), // Padding for the list view
-                        children: [
-                          StreamBuilder<String?>(
-                            stream: RoleService.instance.roleStream(),
-                            builder: (context, snapshot) {
-                              final isManager = snapshot.data == 'manager';
-                              return _RoleSummaryBar(isManager: isManager);
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          StreamBuilder<String?>(
-                            stream: RoleService.instance.roleStream(),
-                            builder: (context, snapshot) {
-                              final isManager = snapshot.data == 'manager';
-                              return Column(children: [
-                                _buildGoalCard(
-                                  title: 'Increase Customer Satisfaction Score',
-                                  date: 'March 15, 2024',
-                                  status: 'Verified',
-                                  statusColor: const Color(0xFFC10D00),
-                                  evidence: [
-                                    'Survey Results Report',
-                                    'Dashboard Analytics Link',
-                                    'Customer Feedback Files',
-                                  ],
-                                  acknowledgedBy: 'Sarah Chen',
-                                  score: '4.8',
-                                  isManager: isManager,
-                                ),
-                                _buildGoalCard(
-                                  title: 'Launch New Product Feature',
-                                  date: 'February 28, 2024',
-                                  status: 'Pending',
-                                  statusColor: const Color(0xFFE4A11A),
-                                  evidence: [
-                                    'Feature Specification Document',
-                                    'GitHub Repository Link',
-                                  ],
-                                  acknowledgedBy: null,
-                                  score: null,
-                                  isManager: isManager,
-                                ),
-                                _buildGoalCard(
-                                  title: 'Strategic Market Expansion Plan',
-                                  date: 'January 20, 2024',
-                                  status: 'Verified',
-                                  statusColor: const Color(0xFFC10D00),
-                                  evidence: [
-                                    'Market Research Summary',
-                                    'Competitor Analysis',
-                                    'Expansion Proposal Document',
-                                  ],
-                                  acknowledgedBy: 'John Doe',
-                                  score: '4.5',
-                                  isManager: isManager,
-                                ),
-                                _buildGoalCard(
-                                  title: 'Complete Leadership Training',
-                                  date: 'December 10, 2023',
-                                  status: 'Verified',
-                                  statusColor: const Color(0xFFC10D00),
-                                  evidence: [
-                                    'Course Completion Certificate',
-                                    'Leadership Workshop Notes',
-                                  ],
-                                  acknowledgedBy: 'Jane Smith',
-                                  score: '4.9',
-                                  isManager: isManager,
-                                ),
-                              ]);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  _buildGoalCard(
+                    title: 'Launch New Product Feature',
+                    date: 'February 28, 2024',
+                    status: 'Pending',
+                    statusColor: const Color(0xFFE4A11A),
+                    evidence: [
+                      'Feature Specification Document',
+                      'GitHub Repository Link',
+                    ],
+                    acknowledgedBy: null,
+                    score: null,
+                    isManager: isManager,
+                  ),
+                  _buildGoalCard(
+                    title: 'Strategic Market Expansion Plan',
+                    date: 'January 20, 2024',
+                    status: 'Verified',
+                    statusColor: const Color(0xFFC10D00),
+                    evidence: [
+                      'Market Research Summary',
+                      'Competitor Analysis',
+                      'Expansion Proposal Document',
+                    ],
+                    acknowledgedBy: 'John Doe',
+                    score: '4.5',
+                    isManager: isManager,
+                  ),
+                  _buildGoalCard(
+                    title: 'Complete Leadership Training',
+                    date: 'December 10, 2023',
+                    status: 'Verified',
+                    statusColor: const Color(0xFFC10D00),
+                    evidence: [
+                      'Course Completion Certificate',
+                      'Leadership Workshop Notes',
+                    ],
+                    acknowledgedBy: 'Jane Smith',
+                    score: '4.9',
+                    isManager: isManager,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileButton(BuildContext context, {required bool isManager}) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          if (isManager) {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
-          } else {
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-          }
-        },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Profile handled by MainLayout
 
   // Removed bottom navigation; helper no longer needed
 
@@ -227,8 +141,14 @@ class RepositoryAuditScreen extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: ShapeDecoration(color: statusColor.withAlpha(0x33), shape: const StadiumBorder()), // Changed to StadiumBorder
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: ShapeDecoration(
+                  color: statusColor.withAlpha(0x33),
+                  shape: const StadiumBorder(),
+                ), // Changed to StadiumBorder
                 child: Text(
                   status,
                   style: TextStyle(
@@ -265,7 +185,10 @@ class RepositoryAuditScreen extends StatelessWidget {
                     onPressed: () {},
                     icon: const Icon(Icons.verified, size: 16),
                     label: const Text('Verify Evidence'),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white38),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -274,7 +197,10 @@ class RepositoryAuditScreen extends StatelessWidget {
                     onPressed: () {},
                     icon: const Icon(Icons.comment, size: 16),
                     label: const Text('Request Changes'),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white70, side: const BorderSide(color: Colors.white38)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white38),
+                    ),
                   ),
                 ),
               ],
@@ -294,7 +220,10 @@ class RepositoryAuditScreen extends StatelessWidget {
                   if (score != null)
                     Text(
                       '(Score: $score)',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
                 ],
               ),
@@ -307,9 +236,12 @@ class RepositoryAuditScreen extends StatelessWidget {
   // Helper widget to build individual evidence items.
   Widget _buildEvidenceItem(String text) {
     IconData icon;
-    if (text.toLowerCase().contains('report') || text.toLowerCase().contains('document') || text.toLowerCase().contains('files')) {
+    if (text.toLowerCase().contains('report') ||
+        text.toLowerCase().contains('document') ||
+        text.toLowerCase().contains('files')) {
       icon = Icons.description;
-    } else if (text.toLowerCase().contains('link') || text.toLowerCase().contains('repository')) {
+    } else if (text.toLowerCase().contains('link') ||
+        text.toLowerCase().contains('repository')) {
       icon = Icons.link;
     } else {
       icon = Icons.attachment;
@@ -340,35 +272,51 @@ class _RoleSummaryBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget chip(Color color, String label) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: ShapeDecoration(color: Colors.white.withAlpha(0x1A), shape: const StadiumBorder()), // Changed to StadiumBorder
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Text(label, style: const TextStyle(color: Colors.white)),
-            ],
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: ShapeDecoration(
+        color: Colors.white.withAlpha(0x1A),
+        shape: const StadiumBorder(),
+      ), // Changed to StadiumBorder
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-        );
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(color: Colors.white)),
+        ],
+      ),
+    );
 
     return Row(
       children: [
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: const Color(0x802C223E), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: const Color(0x802C223E),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(isManager ? Icons.manage_accounts : Icons.person, color: Colors.white),
+                    Icon(
+                      isManager ? Icons.manage_accounts : Icons.person,
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         isManager ? 'Manager view' : 'Employee view',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -404,7 +352,9 @@ class _RoleSummaryBar extends StatelessWidget {
 class _RepositoryAppBarContent extends StatelessWidget {
   final VoidCallback onMenuPressed; // Add the callback parameter
 
-  const _RepositoryAppBarContent({required this.onMenuPressed}); // Update constructor
+  const _RepositoryAppBarContent({
+    required this.onMenuPressed,
+  }); // Update constructor
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +407,11 @@ class _RepositoryAppBarContent extends StatelessWidget {
                   color: Colors.white.withAlpha(0x33),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.archive_outlined, color: Colors.white, size: 24),
+                child: const Icon(
+                  Icons.archive_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
             ],
           ),
@@ -467,17 +421,4 @@ class _RepositoryAppBarContent extends StatelessWidget {
   }
 }
 
-class _RoleAwareDrawer extends StatelessWidget {
-  const _RoleAwareDrawer();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<String?>(
-      stream: RoleService.instance.roleStream(),
-      builder: (context, snapshot) {
-        final isManager = snapshot.data == 'manager';
-        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
-      },
-    );
-  }
-}
+// Drawer removed; persistent sidebar via MainLayout

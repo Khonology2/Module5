@@ -1,53 +1,63 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/app_breakpoints.dart';
 
 class ResponsiveSidebar extends StatelessWidget {
-  const ResponsiveSidebar({super.key, required this.items, required this.onNavigate, required this.currentRouteName, required this.onLogout});
+  const ResponsiveSidebar({
+    super.key,
+    required this.items,
+    required this.onNavigate,
+    required this.currentRouteName,
+    required this.onLogout,
+  });
 
   final List<SidebarItem> items;
   final void Function(String route) onNavigate;
   final String? currentRouteName;
   final VoidCallback onLogout;
 
-  static const Color backgroundColor = Color(0xFF1F2840);
-  // Lighter shade shown on hover only
-  static const Color hoverColor = Color(0xFF2A3652);
-  // Distinct active/selected color
-  static const Color activeColor = Color(0xFFC10D00);
+  // Use design system colors
+  static const Color backgroundColor = AppColors.backgroundColor;
+  static const Color hoverColor = AppColors.hoverColor;
+  static const Color activeColor = AppColors.activeColor;
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-
-    // Small screens: show as drawer content only, caller should use Drawer
-    final isSmall = width < 600;
-    final isMedium = width >= 600 && width < 1000;
+    // Use design system breakpoints
+    final isSmall = AppBreakpoints.isSmall(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: SidebarState.instance.isCollapsed,
       builder: (context, collapsed, _) {
-        final effectiveCollapsed = isSmall ? true : (isMedium ? true : collapsed);
+        // Allow toggling on medium/large screens; always collapsed on small screens
+        final effectiveCollapsed = isSmall ? true : collapsed;
 
         return Container(
-          width: isSmall
-              ? double.infinity
-              : (effectiveCollapsed ? 72 : 240),
+          width: isSmall ? double.infinity : (effectiveCollapsed ? 72 : 240),
           color: backgroundColor,
           child: Column(
             children: [
               _buildHeader(context, effectiveCollapsed),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: items.map((it) => _NavTile(
-                    icon: it.icon,
-                    label: it.label,
-                    route: it.route,
-                    isActive: currentRouteName == it.route,
-                    collapsed: effectiveCollapsed,
-                    onTap: () => onNavigate(it.route),
-                  )).toList(),
+                  padding: AppSpacing.sidebarContentPadding,
+                  children: items
+                      .map(
+                        (it) => _NavTile(
+                          icon: it.icon,
+                          label: it.label,
+                          route: it.route,
+                          isActive: currentRouteName == it.route,
+                          collapsed: effectiveCollapsed,
+                          onTap: () => onNavigate(it.route),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
               _NavTile(
@@ -69,29 +79,49 @@ class ResponsiveSidebar extends StatelessWidget {
   Widget _buildHeader(BuildContext context, bool collapsed) {
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      alignment: Alignment.centerLeft,
+      padding: AppSpacing.sidebarHeaderPadding,
+      alignment: Alignment.center,
       child: GestureDetector(
         onTap: () {
-          if (collapsed) {
-            SidebarState.instance.isCollapsed.value = false;
-          } else {
-            // Navigate to employee dashboard landing after login
-            onNavigate('/employee_dashboard');
+          // Toggle collapse/expand when logo is tapped (medium/large screens)
+          if (!MediaQuery.of(context).size.width.isNaN) {
+            SidebarState.instance.isCollapsed.value =
+                !SidebarState.instance.isCollapsed.value;
           }
         },
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Image.asset('assets/khonodemy.png', width: 28, height: 28),
-            if (!collapsed) ...[
-              const SizedBox(width: 10),
-              const Text(
-                'PDH',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ]
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double availableWidth = constraints.maxWidth;
+            // Target widths for collapsed/expanded
+            final double targetWidth = collapsed ? 48.0 : 150.0;
+            // Keep some horizontal padding headroom to avoid overflow during animations
+            final double clampedWidth = math.max(
+              24.0,
+              math.min(targetWidth, availableWidth - 16.0),
+            );
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                SizedBox(
+                  width: clampedWidth,
+                  height: 60,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeInOut,
+                    alignment: Alignment.center,
+                    child: Image.asset(
+                      'assets/khonodemy-sidebar-logo-red.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (context, error, stack) =>
+                          const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -105,13 +135,14 @@ class _CollapseToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => SidebarState.instance.isCollapsed.value = !SidebarState.instance.isCollapsed.value,
+      onTap: () => SidebarState.instance.isCollapsed.value =
+          !SidebarState.instance.isCollapsed.value,
       child: Container(
         height: 44,
         alignment: Alignment.center,
         child: Icon(
           collapsed ? Icons.chevron_right : Icons.chevron_left,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -119,7 +150,14 @@ class _CollapseToggle extends StatelessWidget {
 }
 
 class _NavTile extends StatefulWidget {
-  const _NavTile({required this.icon, required this.label, required this.route, required this.isActive, required this.collapsed, required this.onTap});
+  const _NavTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.isActive,
+    required this.collapsed,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final String route;
@@ -137,49 +175,71 @@ class _NavTileState extends State<_NavTile> {
   Widget build(BuildContext context) {
     final bool isHovered = hovering && !widget.isActive;
     final bool isSelected = widget.isActive;
+    final bool isCollapsed = widget.collapsed;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? ResponsiveSidebar.activeColor
-                  : (isHovered ? ResponsiveSidebar.hoverColor : Colors.transparent),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: (isSelected || isHovered)
-                  ? [
-                      BoxShadow(
-                        color: (isSelected
-                                ? ResponsiveSidebar.activeColor
-                                : ResponsiveSidebar.hoverColor)
-                            .withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(widget.icon, color: Colors.white),
-                if (!widget.collapsed) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.label,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+        child: Tooltip(
+          message: widget.collapsed ? widget.label : '',
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                // When expanded: highlight background for active
+                // When collapsed: keep background transparent for a clean mini look
+                color: !isCollapsed
+                    ? (isSelected
+                          ? ResponsiveSidebar.activeColor
+                          : (isHovered
+                                ? ResponsiveSidebar.hoverColor
+                                : Colors.transparent))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: (!isCollapsed && (isSelected || isHovered))
+                    ? [
+                        BoxShadow(
+                          color:
+                              (isSelected
+                                      ? ResponsiveSidebar.activeColor
+                                      : ResponsiveSidebar.hoverColor)
+                                  .withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.icon,
+                    // Collapsed: make active icon stand out (bolder look via size/color)
+                    color: isCollapsed
+                        ? (isSelected
+                              ? ResponsiveSidebar.activeColor
+                              : AppColors.textPrimary)
+                        : AppColors.textPrimary,
+                    size: isCollapsed ? (isSelected ? 24 : 20) : 20,
                   ),
+                  if (!widget.collapsed) ...[
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        style: isSelected
+                            ? AppTypography.navigationActive
+                            : AppTypography.navigation,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -189,10 +249,12 @@ class _NavTileState extends State<_NavTile> {
 }
 
 class SidebarItem {
-  const SidebarItem({required this.icon, required this.label, required this.route});
+  const SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
   final IconData icon;
   final String label;
   final String route;
 }
-
-
