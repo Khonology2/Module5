@@ -10,9 +10,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
-import 'package:flutter/services.dart'; // Import for MethodChannel
 import 'package:flutter_tts/flutter_tts.dart'; // Import for text-to-speech
-import 'package:speech_to_text/speech_to_text.dart'; // Import for speech_to_text
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
@@ -34,18 +32,29 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late VideoPlayerController _videoController;
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
-  bool _isProofreadingActive = false; // New state variable for proofreading feature toggle
-  static const MethodChannel _channel = MethodChannel('com.example.khonopal/proofreading'); // Define the channel
   late FlutterTts flutterTts;
   String? _lastAiResponse; // To store the last AI response
   bool _isSpeaking = false; // To track if TTS is active
-  late SpeechToText _speechToText; // Speech to Text instance
-  bool _speechEnabled = false; // Is not an active speech session
-  bool _isListening = false; // To track if speech-to-text is active
   List<dynamic> _voices = []; // List of available voices
   String? _selectedVoiceId; // ID of the currently selected voice
   final TextEditingController _voiceSearchController = TextEditingController(); // Controller for voice search
   List<dynamic> _filteredVoices = []; // List of voices filtered by search
+
+  // Updated list of quick actions for context-based answers
+  final List<String> _quickActions = [
+    'What is KhonoPal Mode?',
+    'How does the Manager Dashboard work?',
+    'Tell me about Alerts & Nudges?',
+    'What are the features of the Leaderboard?',
+    'How can I track my Progress Visuals?',
+    'Explain the Repository & Audit screen.',
+    'What privacy settings are available?',
+    'How does voice selection work?',
+    'What is General Chat mode?',
+  ];
+
+  // New state variable to control quick actions visibility
+  bool _showQuickActions = true;
 
   @override
   void initState() {
@@ -62,14 +71,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _loadUserProfileAndSetGreeting();
     flutterTts = FlutterTts();
     _initTts();
-    _speechToText = SpeechToText();
-    _initSpeech();
     _getVoices(); // Fetch available voices
     _voiceSearchController.addListener(_filterVoices); // Listen for search input changes
+
+    // Ensure quick actions are visible when the screen is initialized
+    _showQuickActions = true; // Initialize to true here
 
     // If a prompt is provided, send it automatically
     if (widget.prompt != null && widget.prompt!.isNotEmpty) {
       _sendMessage(initialPrompt: widget.prompt);
+      _showQuickActions = false; // Hide quick actions if an initial prompt is sent
     }
   }
 
@@ -88,88 +99,39 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Future<void> _getVoices() async {
-    List<dynamic> fetchedVoices = await flutterTts.getVoices; // Fetch voices first
+    // Ensure fetchedVoices is not null. It might be null on some platforms or in some scenarios.
+    List<dynamic> fetchedVoices = (await flutterTts.getVoices) ?? [];
     _voices = []; // Initialize _voices as a growable list
     _voices.addAll(fetchedVoices); // Add all fetched voices
     // ignore: avoid_print
     print('Raw voices from flutterTts.getVoices: $_voices'); // Debug print
-    // Remove locale filtering here to show all voices
-    List<dynamic> allVoices = List.from(_voices);
 
-    if (allVoices.isEmpty) {
-      // Fallback for web or platforms where getVoices returns empty
-      allVoices = [
-        {'name': 'en-US-Standard-A', 'locale': 'en-US'}, // A typical male voice
-        {'name': 'en-US-Standard-B', 'locale': 'en-US'}, // Another typical male voice
-        {'name': 'en-US-Standard-C', 'locale': 'en-US'}, // A typical female voice
-        {'name': 'en-US-Standard-D', 'locale': 'en-US'}, // Another typical female voice
-        {'name': 'en-US-Wavenet-A', 'locale': 'en-US'}, // A high-quality neural voice (if supported)
-      ];
-      // Only add fallback voices if _voices is truly empty to avoid duplicates if platform voices appear later
-      if (_voices.isEmpty) {
-        _voices.addAll(allVoices);
-      }
-    }
+    // Directly use fetchedVoices for allVoices.
+    // The fallback has been removed to ensure only platform-provided voices are shown.
+    List<dynamic> allVoices = List.from(_voices);
 
     // ignore: avoid_print
     print('All available voices: $allVoices'); // Debug print
     if (allVoices.isNotEmpty) {
       setState(() {
-        // Try to find an English voice to set as default if one exists
-        _selectedVoiceId = allVoices.firstWhere((voice) => voice['locale']!.startsWith('en'), orElse: () => allVoices.first)['name'];
-        flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': allVoices.firstWhere((voice) => voice['name'] == _selectedVoiceId)['locale']});
+        // Use null-aware operators to safely access properties and provide default values
+        _selectedVoiceId = allVoices.firstWhere(
+          (voice) => (voice['locale'] as String?)?.startsWith('en') ?? false,
+          orElse: () => allVoices.first,
+        )['name'] as String?;
+        
+        final selectedVoiceLocale = allVoices.firstWhere(
+          (voice) => (voice['name'] as String?) == _selectedVoiceId,
+          orElse: () => {'locale': 'en-US'} // Provide a default locale if not found
+        )['locale'] as String? ?? 'en-US'; // Default to 'en-US' if locale is null
+        
+        if (_selectedVoiceId != null) {
+          flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': selectedVoiceLocale});
+        }
       });
     }
     setState(() {
       _filteredVoices = List.from(_voices); // Initialize _filteredVoices with all voices
-    });
-  }
-
-  /// This initializes the speech to text plugin.
-  void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize(
-      onStatus: (status) {
-        setState(() => _isListening = status == 'listening');
-        if (status == 'done' && _messageController.text.isNotEmpty) {
-          _sendMessage();
-        }
-      },
-      // ignore: avoid_print
-      onError: (errorNotification) => print('Error: ${errorNotification.errorMsg}'),
-    );
-    setState(() {});
-  }
-
-  // Each time to start a speech recognition session
-  void _startListening() async {
-    if (_speechEnabled) {
-      setState(() {
-        _isListening = true;
-      });
-      // ignore: avoid_print
-      print('Starting speech recognition...'); // Debug print
-      await _speechToText.listen(
-        onResult: (result) {
-          setState(() {
-            _messageController.text = result.recognizedWords;
-          });
-          // ignore: avoid_print
-          print('Recognized words: ${result.recognizedWords}'); // Debug print
-        },
-        // ignore: deprecated_member_use
-        partialResults: false, // Set to true to receive partial results
-        localeId: "en_US", // Optional, defaults to the device locale
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speech recognition not available.')));
-    }
-  }
-
-  // Manually stop the active speech recognition session
-  void _stopListening() async {
-    await _speechToText.stop();
-    setState(() {
-      _isListening = false;
     });
   }
 
@@ -195,16 +157,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     setState(() {
       _isSpeaking = false;
     });
-  }
-
-  // Function to toggle proofreading feature
-  void _toggleProofreading() {
-    setState(() {
-      _isProofreadingActive = !_isProofreadingActive;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Proofreading is ${_isProofreadingActive ? 'enabled' : 'disabled'}')),
-    );
   }
 
   Future<void> _loadUserProfileAndSetGreeting() async {
@@ -241,7 +193,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _messageController.dispose(); // Dispose controller
     flutterTts.stop(); // Stop any ongoing speech
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
-    _speechToText.cancel(); // Cancel any active speech recognition
+    // _speechToText.cancel(); // Cancel any active speech recognition
     _voiceSearchController.dispose(); // Dispose voice search controller
     _saveChatHistory(); // Save chat history when the screen is disposed
     super.dispose();
@@ -262,7 +214,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
 
     for (int i = 0; i < fullText.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 1)); // Adjusted typing speed to be faster
+      await Future.delayed(const Duration(microseconds: 100)); // Adjusted to be much faster
       if (!mounted) return; // Check if widget is still mounted before calling setState
       setState(() {
         message.text = fullText.substring(0, i + 1);
@@ -281,8 +233,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
-  Future<void> _sendMessage({String? initialPrompt}) async {
-    String text = _messageController.text.trim();
+  Future<void> _sendMessage({String? initialPrompt, String? messageContent}) async {
+    String text = messageContent ?? _messageController.text.trim(); // Use messageContent if provided, otherwise controller text
     if (text.isEmpty) return;
 
     // Input validation for text length
@@ -305,31 +257,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
     String pdpSystemInstruction = "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
 
-    if (_isProofreadingActive) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Proofreading...')),
-      );
-      final Map<String, dynamic>? proofreadResult = await _proofreadMessage(text);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-
-      if (proofreadResult != null && proofreadResult['status'] == 'SUCCESS') {
-        textToSendToGemini = proofreadResult['text'] as String? ?? text; // Use proofread text if available
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proofreading complete! Sending to AI...')),
-        );
-      } else if (proofreadResult != null && proofreadResult['status'] == 'NO_SUGGESTIONS') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No corrections needed, sending your original text to AI.')),
-        );
-      } else {
-        // This covers proofreadResult == null or proofreadResult['status'] == 'ERROR'
-        final errorMessage = proofreadResult?['message'] as String? ?? 'Unknown error.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Proofreading failed: $errorMessage. Sending original text to AI.')),
-        );
-      }
-    }
-
     try {
       // Dynamically set system instruction based on _selectedMode or if it's a PDP request
       String? currentSystemInstruction;
@@ -337,12 +264,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         currentSystemInstruction = pdpSystemInstruction;
       } else {
         switch (_selectedMode) {
-          case 'KhonoPal Mode': // New KhonoPal Mode
+          case 'KhonoPal Mode': // KhonoPal Mode
             currentSystemInstruction = KhonoPalContext.khonopalContext;
             break;
-          case 'General Chat':
-          default:
+          case 'General Chat': // General Chat mode
             currentSystemInstruction = null; // No system instruction for general chat
+            break;
+          default: // Should ideally not be reached if _selectedMode is always one of the above
+            currentSystemInstruction = null;
             break;
         }
       }
@@ -430,11 +359,48 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     },
                   ),
                 ),
+                // Conditionally display quick actions
+                if (_showQuickActions) _buildQuickActions(),
                 _buildMessageInput(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // New method to build quick action buttons
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Wrap(
+        spacing: 8.0, // Space between quick action buttons
+        runSpacing: 8.0, // Space between lines of quick action buttons
+        children: _quickActions.map((action) {
+          return TextButton(
+            onPressed: () {
+              setState(() {
+                _showQuickActions = false; // Hide quick actions when one is selected
+              });
+              // Send the quick action text to the chatbot
+              _sendMessage(messageContent: action);
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white10, // A subtle background
+              foregroundColor: Colors.white, // White text
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0), // Rounded corners
+                side: BorderSide(color: Colors.white30), // Light border
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            ),
+            child: Text(
+              action,
+              style: const TextStyle(fontSize: 14.0),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -517,30 +483,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Future<Map<String, dynamic>?> _proofreadMessage(String textToProofread) async {
-    if (textToProofread.isEmpty) {
-      return null;
-    }
-
-    try {
-      final String? rawResult = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
-      if (rawResult != null) {
-        return json.decode(rawResult) as Map<String, dynamic>;
-      }
-      return null;
-    } on PlatformException catch (_) {
-      return {'status': 'ERROR', 'message': 'Platform specific error during proofreading.'};
-    } catch (_) {
-      return {'status': 'ERROR', 'message': 'Unexpected error during proofreading.'};
-    }
-  }
-
   String _getHintTextForMode() {
     switch (_selectedMode) {
-      case 'KhonoPal Mode': // New KhonoPal Mode hint
-        return 'Ask anything across all contexts...';
+      case 'KhonoPal Mode':
+        return 'Ask anything within the app...';
       case 'General Chat':
-      default:
+        return 'Chat freely without specific context...';
+      default: // This case handles the initial state or any unexpected _selectedMode value
         return 'Send a message...';
     }
   }
@@ -569,11 +518,31 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       ),
                     ),
                     ListTile(
-                      leading: Icon(Icons.psychology, color: Colors.white70), // New icon for KhonoPal Mode
+                      leading: Icon(Icons.psychology, color: Colors.white70), // Icon for KhonoPal Mode
                       title: Text('KhonoPal Mode', style: TextStyle(color: Colors.white)),
                       onTap: () {
                         setState(() {
                           _selectedMode = 'KhonoPal Mode';
+                        });
+                        Navigator.pop(context);
+                      },
+                    ),
+                    // Re-added: Voice Selection
+                    ListTile(
+                      leading: Icon(Icons.record_voice_over, color: (_voices.isNotEmpty && _selectedVoiceId != null) ? const Color(0xFFC10D00) : Colors.white70),
+                      title: Text('Voice Selection (${_selectedVoiceId != null ? _selectedVoiceId!.split('#').first : 'Default'})', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        Navigator.pop(context); // Close the current bottom sheet
+                        _showVoiceSelectionSheet(context); // Open the voice selection sheet
+                      },
+                    ),
+                    // Re-added: General Chat
+                    ListTile(
+                      leading: Icon(Icons.chat_bubble_outline, color: Colors.white70),
+                      title: Text('General Chat', style: TextStyle(color: Colors.white)),
+                      onTap: () {
+                        setState(() {
+                          _selectedMode = 'General Chat';
                         });
                         Navigator.pop(context);
                       },
@@ -597,6 +566,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   void _showVoiceSelectionSheet(BuildContext context) {
+    _voiceSearchController.clear(); // Clear search on entry to show all voices
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -652,16 +622,23 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       child: ListView.builder(
                         itemCount: _filteredVoices.length, // Use filtered voices here
                         itemBuilder: (context, index) {
-                          final voice = _filteredVoices[index]; // Use filtered voices here
-                          final bool isSelected = voice['name'] == _selectedVoiceId;
+                          final voice = _filteredVoices[index]; // Each voice item is expected to be a Map<String, dynamic>
+                          // Safely access 'name' and 'locale' with null-aware operators and provide default strings
+                          final voiceName = (voice['name'] as String?) ?? 'Unknown Voice';
+                          final voiceLocale = (voice['locale'] as String?) ?? 'Unknown Locale';
+                          final bool isSelected = voiceName == _selectedVoiceId;
+
                           return ListTile(
-                            title: Text(voice['name'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white)),
-                            subtitle: Text(voice['locale'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white70)),
+                            title: Text(
+                              '$voiceName ($voiceLocale)', // Combine name and locale
+                              style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white),
+                            ),
                             trailing: isSelected ? Icon(Icons.check, color: const Color(0xFFC10D00)) : null,
                             onTap: () {
                               setState(() {
-                                _selectedVoiceId = voice['name'];
-                                flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': voice['locale']});
+                                _selectedVoiceId = voiceName;
+                                // Ensure locale is also safely accessed when setting the voice
+                                flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': voiceLocale});
                               });
                               Navigator.pop(context); // Close the bottom sheet
                             },
