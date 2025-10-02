@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:pdh/services/role_service.dart'; // Add RoleService import
-// Removed unused Google/Facebook/Firestore imports
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -46,6 +46,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   bool _isSigningIn = false;
 
   final microsoftProvider = MicrosoftAuthProvider();
+  final githubProvider = GithubAuthProvider();
 
   // Using FirebaseAuth OAuth providers across platforms
 
@@ -73,11 +74,27 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
       if (!context.mounted) return;
 
-      if (role != null) {
+      String? currentRole = role;
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null && currentRole == null) {
+        // User is authenticated but has no role yet, assign default 'employee' role
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+          {'role': 'employee'},
+          SetOptions(merge: true), // Merge with existing data
+        );
+        currentRole = 'employee'; // Update currentRole to employee
+        // Refresh the cached role in RoleService
+        await RoleService.instance.getRole(refresh: true);
+      }
+
+      if (!context.mounted) return;
+
+      if (currentRole != null) {
         // User already has a role, redirect to appropriate portal
-        if (role == 'manager') {
+        if (currentRole == 'manager') {
           Navigator.pushReplacementNamed(context, '/manager_portal');
-        } else if (role == 'employee') {
+        } else if (currentRole == 'employee') {
           // Route employees directly to the dashboard
           Navigator.pushReplacementNamed(context, '/employee_dashboard');
         } else {
@@ -579,14 +596,49 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                             onPressed: _isSigningIn
                                 ? null
                                 : () async {
-                                    // GitHub OAuth implementation would go here
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'GitHub sign-in coming soon!',
+                                    try {
+                                      if (kIsWeb) {
+                                        await FirebaseAuth.instance
+                                            .signInWithPopup(githubProvider);
+                                      } else {
+                                        await FirebaseAuth.instance
+                                            .signInWithProvider(githubProvider);
+                                      }
+                                      if (!mounted) return;
+                                      await _handlePostLoginNavigation(context);
+                                    } on FirebaseAuthException catch (e) {
+                                      String message =
+                                          e.message ?? 'GitHub Sign-In failed.';
+                                      if (e.code == 'popup-closed-by-user') {
+                                        message =
+                                            'Popup closed before completing sign-in.';
+                                      } else if (e.code ==
+                                          'network-request-failed') {
+                                        message =
+                                            'Network error. Check internet and authorized domains.';
+                                      } else if (e.code ==
+                                          'unauthorized-domain') {
+                                        message =
+                                            'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                      }
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(message)),
+                                      );
+                                    } catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'An unexpected error occurred: ${e.toString()}',
+                                          ),
                                         ),
-                                      ),
-                                    );
+                                      );
+                                    }
                                   },
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
