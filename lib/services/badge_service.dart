@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
-import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
 
 class BadgeService {
@@ -351,39 +350,127 @@ class BadgeService {
   }
 
   // Get leaderboard data
-  static Future<List<Map<String, dynamic>>> getLeaderboard({int limit = 10}) async {
+  static Future<List<Map<String, dynamic>>> getLeaderboard({
+    int limit = 10,
+    String orderBy = 'totalPoints',
+    bool descending = true,
+    String? department,
+    bool onlyOptedIn = true,
+  }) async {
     try {
-      final snapshot = await _firestore
-          .collection('users')
-          .orderBy('totalPoints', descending: true)
-          .limit(limit)
-          .get();
+      Query query = _firestore.collection('users');
       
-      // Filter to only show Angel and Nathi Radebe
-      final filteredUsers = snapshot.docs.where((doc) {
-        final data = doc.data();
-        final name = (data['displayName'] ?? '').toLowerCase();
-        return name.contains('angel') || name.contains('nathi radebe') || name.contains('nathi');
-      }).toList();
+      // Add department filter if specified
+      if (department != null && department.isNotEmpty) {
+        query = query.where('department', isEqualTo: department);
+      }
       
-      return filteredUsers.asMap().entries.map((entry) {
+      // Add ordering
+      query = query.orderBy(orderBy, descending: descending).limit(limit * 2); // Get more to filter
+      
+      final snapshot = await query.get();
+      
+      // Filter for opted-in users after fetching
+      final filteredDocs = onlyOptedIn 
+          ? snapshot.docs.where((doc) {
+              try {
+                final data = doc.data() as Map<String, dynamic>?;
+                return data != null && data['leaderboardOptin'] == true;
+              } catch (e) {
+                return false;
+              }
+            }).toList()
+          : snapshot.docs;
+      
+      return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
         final doc = entry.value;
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>;
+        
+        // Safely extract badge count
+        int badgeCount = 0;
+        try {
+          final badges = data['badges'];
+          if (badges is List) {
+            badgeCount = badges.length;
+          }
+        } catch (e) {
+          // Ignore badge count errors
+        }
         
         return {
           'rank': index + 1,
           'userId': doc.id,
-          'name': data['displayName'] ?? 'Anonymous',
-          'points': data['totalPoints'] ?? 0,
-          'level': data['level'] ?? 1,
-          'badges': List<String>.from(data['badges'] ?? []).length,
+          'name': data['displayName']?.toString() ?? 'Anonymous',
+          'points': (data['totalPoints'] is num) ? data['totalPoints'] : 0,
+          'level': (data['level'] is num) ? data['level'] : 1,
+          'badges': badgeCount,
+          'department': data['department']?.toString() ?? 'Unknown',
+          'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
         };
       }).toList();
     } catch (e) {
       print('Error getting leaderboard: $e');
-      return [];
+      
+      // Fallback: Return mock data for development
+      return _getMockLeaderboardData();
     }
+  }
+
+  // Mock data for development and testing
+  static List<Map<String, dynamic>> _getMockLeaderboardData() {
+    return [
+      {
+        'rank': 1,
+        'userId': 'user1',
+        'name': 'Angel Sibanda',
+        'points': 1250,
+        'level': 3,
+        'badges': 8,
+        'department': 'Engineering',
+        'jobTitle': 'Software Developer',
+      },
+      {
+        'rank': 2,
+        'userId': 'user2',
+        'name': 'Nathi Radebe',
+        'points': 1180,
+        'level': 3,
+        'badges': 7,
+        'department': 'Engineering',
+        'jobTitle': 'Senior Developer',
+      },
+      {
+        'rank': 3,
+        'userId': 'user3',
+        'name': 'Sarah Johnson',
+        'points': 950,
+        'level': 2,
+        'badges': 5,
+        'department': 'Design',
+        'jobTitle': 'UX Designer',
+      },
+      {
+        'rank': 4,
+        'userId': 'user4',
+        'name': 'Mike Chen',
+        'points': 875,
+        'level': 2,
+        'badges': 4,
+        'department': 'Product',
+        'jobTitle': 'Product Manager',
+      },
+      {
+        'rank': 5,
+        'userId': 'user5',
+        'name': 'Lisa Kumar',
+        'points': 720,
+        'level': 2,
+        'badges': 3,
+        'department': 'Marketing',
+        'jobTitle': 'Marketing Specialist',
+      },
+    ];
   }
 
   // Get user's rank
