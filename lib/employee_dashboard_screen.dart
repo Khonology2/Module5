@@ -10,8 +10,10 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/goal_detail_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -26,11 +28,43 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   List<Goal> userGoals = [];
   bool isLoading = true;
   String? error;
+  int currentStreak = 0;
+  bool hasActivityToday = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    // Temporarily disabled streak loading to isolate the error
+    // Future.delayed(const Duration(milliseconds: 500), () {
+    //   _loadStreakData();
+    // });
+  }
+
+  Future<void> _loadStreakData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final streak = await StreakService.getCurrentStreak(user.uid);
+        final activityToday = await StreakService.hasActivityToday(user.uid);
+        
+        if (mounted) {
+          setState(() {
+            currentStreak = streak;
+            hasActivityToday = activityToday;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading streak data: $e');
+      // Set default values on error
+      if (mounted) {
+        setState(() {
+          currentStreak = 0;
+          hasActivityToday = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -501,33 +535,63 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         goal.status == GoalStatus.completed).length;
     final totalPoints = userProfile?.totalPoints ?? 0;
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: AppComponents.kpiCard(
-            label: 'Active Goals',
-            value: activeGoals.toString(),
-            icon: Icons.track_changes,
-            iconColor: AppColors.activeColor,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: AppComponents.kpiCard(
+                label: 'Active Goals',
+                value: activeGoals.toString(),
+                icon: Icons.track_changes,
+                iconColor: AppColors.activeColor,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: AppComponents.kpiCard(
+                label: 'Completed',
+                value: completedGoals.toString(),
+                icon: Icons.check_circle,
+                iconColor: AppColors.successColor,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: AppComponents.kpiCard(
+                label: 'Points',
+                value: _formatNumber(totalPoints),
+                icon: Icons.stars,
+                iconColor: AppColors.warningColor,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: AppComponents.kpiCard(
-            label: 'Completed',
-            value: completedGoals.toString(),
-            icon: Icons.check_circle,
-            iconColor: AppColors.successColor,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: AppComponents.kpiCard(
-            label: 'Points',
-            value: _formatNumber(totalPoints),
-            icon: Icons.stars,
-            iconColor: AppColors.warningColor,
-          ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: AppComponents.kpiCard(
+                label: 'Level',
+                value: 'Level ${userProfile?.level ?? 1}',
+                icon: Icons.military_tech,
+                iconColor: AppColors.warningColor,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: AppComponents.kpiCard(
+                label: 'Badges',
+                value: '${userProfile?.badges.length ?? 0}',
+                icon: Icons.workspace_premium,
+                iconColor: AppColors.successColor,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Container(), // Empty space to maintain layout
+            ),
+          ],
         ),
       ],
     );
@@ -617,7 +681,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   iconColor: iconColor,
                 ),
               );
-            }).toList(),
+            }),
         ],
       ),
     );
@@ -779,7 +843,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   goal: goal,
                 ),
               );
-            }).toList(),
+            }),
         ],
       ),
     );
@@ -814,7 +878,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     return InkWell(
       onTap: () {
-        Navigator.pushNamed(context, '/my_goal_workspace');
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => GoalDetailScreen(goal: goal),
+          ),
+        );
       },
       borderRadius: BorderRadius.circular(8),
       child: AppComponents.card(
