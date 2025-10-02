@@ -12,7 +12,6 @@ import 'package:pdh/my_goal_workspace_screen.dart'; // Import MyGoalWorkspaceScr
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
-import 'package:pdh/ai_chatbot.dart'; // Import AiChatbotScreen
 
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -133,18 +132,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const AiChatbotScreen()));
-        },
-        backgroundColor: const Color(0xFFC10D00),
-        child: Image.asset(
-          'assets/Chatbot_Red.png',
-          width: 32.0, // Adjust width as needed
-          height: 32.0, // Adjust height as needed
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

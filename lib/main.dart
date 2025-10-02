@@ -245,8 +245,13 @@ class ChatbotButton extends StatelessWidget {
       '/badges_points',
       '/leaderboard',
       '/repository_audit',
+      '/settings',
+      '/gamification',
+      '/season_challenge',
+      '/manager_review_team_dashboard',
       '/employee_dashboard', // Employee dashboard route
       '/employee_portal', // Legacy mapping shows dashboard; keep chatbot visible
+      '/manager_portal', // Manager portal route
     ];
     if (currentRoute == null ||
         !allowedRoutes.contains(currentRoute) ||
