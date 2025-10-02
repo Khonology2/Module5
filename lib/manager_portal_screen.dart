@@ -15,8 +15,6 @@ import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/design_system/app_spacing.dart';
 
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -45,7 +43,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
-        return _buildDashboardWithWelcomeCard();
+        return const DashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
       case '/my_goal_workspace':
@@ -65,7 +63,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_review_team_dashboard':
         return const ManagerReviewTeamDashboardScreen();
       default:
-        return _buildDashboardWithWelcomeCard();
+        return const DashboardScreen();
     }
   }
 
@@ -186,56 +184,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     );
   }
 
-  Widget _buildDashboardWithWelcomeCard() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16.0, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildWelcomeCard(),
-          const SizedBox(height: AppSpacing.xl),
-          const DashboardScreen(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeCard() {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'Manager';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-
-    return AppComponents.accentCard(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 30,
-            backgroundColor: AppColors.activeColor,
-            child: Icon(Icons.person, size: 30, color: AppColors.textPrimary),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Welcome back, $userName!', style: AppTypography.heading4),
-                const SizedBox(height: 5),
-                Text(
-                  'Ready to lead your team to success today?',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
