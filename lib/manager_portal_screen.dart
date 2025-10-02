@@ -3,7 +3,7 @@ import 'package:pdh/widgets/sidebar.dart'; // Import ResponsiveSidebar
 import 'package:pdh/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
-import 'package:pdh/alerts_nudges_screen.dart'; // Import AlertsNudgesScreen
+import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/leaderboard_screen.dart'; // Import LeaderboardScreen
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
@@ -32,7 +32,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
     const SidebarItem(icon: Icons.work, label: 'Goal Workspace', route: '/my_goal_workspace'), // Re-using MyGoalWorkspaceScreen
     const SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-    const SidebarItem(icon: Icons.notifications, label: 'Alerts & Nudges', route: '/alerts_nudges'),
+    const SidebarItem(icon: Icons.message_outlined, label: 'Team Alerts & Nudges', route: '/manager_alerts_nudges'),
     const SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points', route: '/badges_points'),
     const SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/leaderboard'),
     const SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
@@ -50,8 +50,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const MyGoalWorkspaceScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
-      case '/alerts_nudges':
-        return const AlertsNudgesScreen(embedded: true);
+      case '/manager_alerts_nudges':
+        return const ManagerAlertsNudgesScreen(embedded: true);
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/leaderboard':

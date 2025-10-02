@@ -20,6 +20,8 @@ import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
+import 'package:pdh/manager_alerts_nudges_screen.dart';
+import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
@@ -151,6 +153,18 @@ class _MyAppState extends State<MyApp> {
               '/dashboard': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: const DashboardScreen(),
+              ),
+              '/manager_alerts_nudges': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerAlertsNudgesScreen(),
+              ),
+              '/employee_profile_detail': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: Builder(
+                  builder: (context) => EmployeeProfileDetailScreen(
+                    employeeId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+                  ),
+                ),
               ),
               '/ai_chatbot': (context) =>
                   const AiChatbotScreen(), // Add the new AI Chatbot route

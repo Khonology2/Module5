@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/alert_service.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
 
@@ -436,9 +437,38 @@ class ManagerRealtimeService {
           ? allGoals.map((g) => g.progress).reduce((a, b) => a + b) / allGoals.length 
           : 0.0;
 
-      // Get recent activity (mock for now - in real app would check streak service)
-      final lastActivity = DateTime.now().subtract(Duration(days: DateTime.now().day % 7));
-      final streakDays = DateTime.now().day % 30; // Mock streak data
+      // Get real recent activity from activities collection
+      DateTime lastActivity = DateTime.now().subtract(const Duration(days: 30)); // Default to inactive
+      int streakDays = 0;
+      List<QueryDocumentSnapshot> activityDocs = [];
+      
+      try {
+        final activityQuery = await _firestore
+            .collection('activities')
+            .where('userId', isEqualTo: profile.uid)
+            .orderBy('timestamp', descending: true)
+            .limit(1)
+            .get();
+            
+        if (activityQuery.docs.isNotEmpty) {
+          lastActivity = (activityQuery.docs.first.data()['timestamp'] as Timestamp?)?.toDate() ?? 
+                        DateTime.now().subtract(const Duration(days: 30));
+        }
+        
+        // Calculate streak days from recent activities
+        final streakQuerySnapshot = await _firestore
+            .collection('activities')
+            .where('userId', isEqualTo: profile.uid)
+            .orderBy('timestamp', descending: true)
+            .limit(30) // Check last 30 days
+            .get();
+            
+        streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
+        activityDocs = streakQuerySnapshot.docs;
+      } catch (e) {
+        developer.log('Error getting activity data for ${profile.uid}: $e');
+        // Keep default values
+      }
 
       // Determine status
       final status = _determineEmployeeStatus(allGoals, lastActivity);
@@ -455,7 +485,7 @@ class ManagerRealtimeService {
         avgProgress: avgProgress,
         streakDays: streakDays,
         status: status,
-        weeklyActivityCount: 0, // Will update with real calculation
+        weeklyActivityCount: _calculateWeeklyActivityCount(activityDocs),
         engagementScore: avgProgress, // Simplified calculation
         motivationLevel: avgProgress > 70 ? 'High' : avgProgress > 40 ? 'Medium' : 'Low',
       );
@@ -509,6 +539,79 @@ class ManagerRealtimeService {
     } else {
       return EmployeeStatus.onTrack;
     }
+  }
+
+  // Calculate streak days from activity documents
+  static int _calculateStreakDays(List<QueryDocumentSnapshot> activityDocs) {
+    if (activityDocs.isEmpty) return 0;
+    
+    final now = DateTime.now();
+    int streakDays = 0;
+    final activityDates = <String>[];
+    
+    // Extract unique dates from activities
+    for (final doc in activityDocs) {
+      final data = doc.data() as Map<String, dynamic>?;
+      final timestamp = (data?['timestamp'] as Timestamp?)?.toDate();
+      if (timestamp != null) {
+        final dateString = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+        if (!activityDates.contains(dateString)) {
+          activityDates.add(dateString);
+        }
+      }
+    }
+    
+    if (activityDates.isEmpty) return 0;
+    
+    // Sort dates descending
+    activityDates.sort((a, b) => b.compareTo(a));
+    
+    // Count consecutive days starting from today/yesterday
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // Count consecutive days
+    for (int i = 0; i < activityDates.length; i++) {
+      final expectedDate = today.subtract(Duration(days: i));
+      final expectedString = '${expectedDate.year}-${expectedDate.month.toString().padLeft(2, '0')}-${expectedDate.day.toString().padLeft(2, '0')}';
+      
+      if (activityDates.contains(expectedString)) {
+        streakDays++;
+      } else if (i == 0) {
+        // Check if yesterday is included
+        final yesterday = today.subtract(const Duration(days: 1));
+        final yesterdayString = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+        if (activityDates.contains(yesterdayString)) {
+          i = -1; // Start counting from yesterday
+          continue;
+        } else {
+          break; // No streak
+        }
+      } else {
+        break; // Gap found, end streak
+      }
+    }
+    
+    return streakDays;
+  }
+
+  // Calculate weekly activity count within last 7 days
+  static int _calculateWeeklyActivityCount(List<QueryDocumentSnapshot> activityDocs) {
+    if (activityDocs.isEmpty) return 0;
+    
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final activityDates = <String>{};
+    
+    for (final doc in activityDocs) {
+      final data = doc.data() as Map<String, dynamic>?;
+      final timestamp = (data?['timestamp'] as Timestamp?)?.toDate();
+      if (timestamp != null && timestamp.isAfter(sevenDaysAgo)) {
+        final dateString = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+        activityDates.add(dateString);
+      }
+    }
+    
+    return activityDates.length;
   }
 
   // Get risk score for sorting
@@ -596,25 +699,34 @@ class ManagerRealtimeService {
       final managerDoc = await _firestore.collection('users').doc(currentUser.uid).get();
       final managerName = managerDoc.data()?['displayName'] ?? 'Your Manager';
 
-      // Create nudge alert
-      await _firestore.collection('alerts').add({
-        'userId': employeeId,
-        'type': 'managerNudge',
-        'priority': 'high',
-        'title': 'Manager Nudge 📢',
-        'message': '$managerName sent you a nudge: $message',
-        'actionText': 'View Goal',
-        'actionRoute': '/my_goal_workspace',
-        'createdAt': FieldValue.serverTimestamp(),
-        'fromUserId': currentUser.uid,
-        'fromUserName': managerName,
-        'relatedGoalId': goalId,
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
-      });
+      // Get goal title
+      String goalTitle = 'Goal';
+      try {
+        final goalDoc = await _firestore.collection('goals').doc(goalId).get();
+        goalTitle = goalDoc.data()?['title'] ?? 'Goal';
+      } catch (e) {
+        developer.log('Could not fetch goal title: $e');
+      }
 
-      developer.log('Nudge sent to employee $employeeId for goal $goalId');
+      // Create enhanced manager nudge alert using AlertService
+      await AlertService.createManagerNudgeAlertEnhanced(
+        userId: employeeId,
+        goalId: goalId,
+        managerId: currentUser.uid,
+        managerName: managerName,
+        goalTitle: goalTitle,
+        nudgeMessage: message,
+      );
+
+      // Record manager action
+      await recordManagerAction(
+        actionType: ManagementAction.sendNudge,
+        employeeId: employeeId,
+        description: 'Sent nudge about "$goalTitle": $message',
+        details: {'goalId': goalId, 'message': message, 'nudgeType': nudgeType.name},
+      );
+
+      developer.log('Enhanced nudge sent to employee $employeeId for goal $goalId');
     } catch (e) {
       developer.log('Error sending nudge: $e');
       rethrow;

@@ -28,6 +28,11 @@ service cloud.firestore {
         (isManager() && userRole(userId) == 'employee' && sameDepartment(userId)) ||
         isAdmin()
       );
+      
+      // Allow managers to query employees in their department
+      allow list: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
 
       // Create allowed for the user to set their initial role.
       allow create: if isSignedIn() && request.auth.uid == userId;

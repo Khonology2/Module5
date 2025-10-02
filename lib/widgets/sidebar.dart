@@ -226,6 +226,7 @@ class _NavTileState extends State<_NavTile> {
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           widget.icon,
