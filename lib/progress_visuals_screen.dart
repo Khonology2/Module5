@@ -340,15 +340,15 @@ class _ProgressVisualsContent extends StatelessWidget {
   }) {
     return Container(
       height: 120,
-      decoration: BoxDecoration(
+                decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderColor),
-      ),
+                ),
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
           Row(
             children: [
               Icon(icon, color: color, size: 20),
@@ -357,10 +357,10 @@ class _ProgressVisualsContent extends StatelessWidget {
                 title,
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
           const Spacer(),
           Text(
             value,
@@ -419,7 +419,7 @@ class _ProgressVisualsContent extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
+                decoration: BoxDecoration(
               color: deadlineColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -427,9 +427,9 @@ class _ProgressVisualsContent extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                 Text(
                   'Next Deadline',
                   style: AppTypography.bodySmall.copyWith(
@@ -442,13 +442,13 @@ class _ProgressVisualsContent extends StatelessWidget {
                   style: AppTypography.bodyMedium.copyWith(
                     color: deadlineColor,
                     fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+                      ),
+                    ),
+                  ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
     );
   }
 
@@ -488,9 +488,9 @@ class _ProgressVisualsContent extends StatelessWidget {
                   'Add Goal',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.activeColor,
-                  ),
                 ),
               ),
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),
@@ -519,7 +519,7 @@ class _ProgressVisualsContent extends StatelessWidget {
         border: Border.all(color: AppColors.borderColor),
       ),
       child: Column(
-        children: [
+      children: [
           Icon(
             Icons.flag_outlined,
             size: 48,
@@ -936,7 +936,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                     color: iconColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
+            child: Text(
                     type.toUpperCase(),
                     style: AppTypography.bodySmall.copyWith(
                       color: iconColor,

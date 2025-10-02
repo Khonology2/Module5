@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum GoalCategory { personal, work, health, learning }
 
 enum GoalPriority { low, medium, high }
@@ -30,6 +32,32 @@ class Goal {
     required this.targetDate,
     required this.points,
   });
+
+  factory Goal.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>?;
+    return Goal(
+      id: doc.id,
+      userId: data?['userId'] ?? '',
+      title: data?['title'] ?? '',
+      description: data?['description'] ?? '',
+      category: GoalCategory.values.firstWhere(
+          (e) => e.name == (data?['category'] ?? 'personal'),
+          orElse: () => GoalCategory.personal,
+      ),
+      priority: GoalPriority.values.firstWhere(
+          (e) => e.name == (data?['priority'] ?? 'medium'),
+          orElse: () => GoalPriority.medium,
+      ),
+      status: GoalStatus.values.firstWhere(
+          (e) => e.name == (data?['status'] ?? 'notStarted'),
+          orElse: () => GoalStatus.notStarted,
+      ),
+      progress: (data?['progress'] ?? 0) as int,
+      createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      targetDate: (data?['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      points: (data?['points'] ?? 0) as int,
+    );
+  }
 
   Goal copyWith({
     String? id,
