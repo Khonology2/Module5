@@ -363,7 +363,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () {
-            Navigator.pushReplacementNamed(context, '/dashboard');
+            Navigator.pop(context);
           },
         ),
       ),
