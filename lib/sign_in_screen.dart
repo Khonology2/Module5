@@ -81,17 +81,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           // Route employees directly to the dashboard
           Navigator.pushReplacementNamed(context, '/employee_dashboard');
         } else {
-          // Unknown role, redirect to role selection
-          Navigator.pushReplacementNamed(context, '/rolebaseview');
+          // Unknown role or no role selected, redirect to sign in as fallback
+          Navigator.pushReplacementNamed(context, '/employee_dashboard'); // Default to employee dashboard
         }
       } else {
-        // User doesn't have a role yet, redirect to role selection
-        Navigator.pushReplacementNamed(context, '/rolebaseview');
+        // User doesn't have a role yet, redirect to sign in as fallback
+        Navigator.pushReplacementNamed(context, '/employee_dashboard'); // Default to employee dashboard
       }
     } catch (e) {
-      // If there's an error getting the role, redirect to role selection as fallback
+      // If there's an error getting the role, redirect to sign in as fallback
       if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, '/rolebaseview');
+      Navigator.pushReplacementNamed(context, '/employee_dashboard'); // Default to employee dashboard
     }
   }
 
