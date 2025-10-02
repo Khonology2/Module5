@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
-import 'package:pdh/services/database_service.dart';
+// Uncomment these imports when re-enabling authentication flow:
+// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:pdh/services/database_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
