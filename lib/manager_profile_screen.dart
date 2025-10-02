@@ -7,7 +7,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io'; // Import for File
-import 'dart:ui'; // Added for ImageFilter
+
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
 
@@ -331,24 +331,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                 image: DecorationImage(
                   image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
                   fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
                 ),
               ),
             ),

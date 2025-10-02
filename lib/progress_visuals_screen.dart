@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
 // Profile handled by MainLayout
 
 class ProgressVisualsScreen extends StatefulWidget {
@@ -23,12 +22,13 @@ class _ProgressVisualsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     // Retained for future role-specific tweaks; layout handles profile button
     // final args = ModalRoute.of(context)?.settings.arguments;
-    return MainLayout(
-      title: 'Progress Visuals',
-      currentRouteName: '/progress_visuals',
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Progress Visuals', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
           _buildPortfolioOverview(),
           const SizedBox(height: 30),
           _buildGoalsProgress(context),

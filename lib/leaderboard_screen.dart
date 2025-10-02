@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
-// import 'package:pdh/bottom_nav_bar.dart'; // Bottom nav removed on leaderboard
 import 'package:pdh/services/role_service.dart';
 // Profile handled by MainLayout
 
@@ -22,10 +20,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   @override
   Widget build(BuildContext context) {
     // Role-aware drawer/content
-    return MainLayout(
-      title: 'Leaderboard',
-      currentRouteName: '/leaderboard',
-      body: StreamBuilder<String?>(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: StreamBuilder<String?>(
         stream: RoleService.instance.roleStream(),
         builder: (context, snapshot) {
           final role = snapshot.data;
@@ -38,6 +35,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Text('Leaderboard', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
               _filtersBar(isManager: isManager),
               const SizedBox(height: 16),
               _podium(),

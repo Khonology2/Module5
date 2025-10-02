@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart'; // Import RoleService
-import 'package:pdh/manager_nav_drawer.dart';
 import 'package:pdh/employee_drawer.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -25,7 +24,7 @@ class AppDrawer extends StatelessWidget {
         }
 
         // Return the appropriate drawer based on the role
-        return isManager ? const ManagerNavDrawer() : const EmployeeDrawer();
+        return isManager ? const SizedBox.shrink() : const EmployeeDrawer(); // If manager, show nothing here, as ManagerPortalScreen has its own sidebar
       },
     );
   }
