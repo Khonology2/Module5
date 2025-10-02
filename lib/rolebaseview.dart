@@ -35,22 +35,23 @@ class RoleBaseViewScreen extends StatelessWidget {
                   ),
                 ),
                 child: Align(
-                  alignment: Alignment.centerRight,
+                  alignment: Alignment.center,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40.0),
                     child: SingleChildScrollView(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Icon(
-                            Icons.work,
-                            size: 80,
-                            color: Color(0xFFC10D00),
+                          Image.asset(
+                            'assets/khonodemy.png',
+                            height: 120,
+                            fit: BoxFit.contain,
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            'Welcome to Khono-Demy Your Personal Development Hub.',
+                            'Welcome to KhonoDemy Your Personal Development Programme.',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -60,61 +61,54 @@ class RoleBaseViewScreen extends StatelessWidget {
                           const SizedBox(height: 40),
                           const Text(
                             'Select your role.',
+                            textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                           const SizedBox(height: 20),
-                          _buildRoleButton(
-                            context,
-                            'Employee',
-                            Icons.person,
-                            () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null) {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .set({
-                                      'role': 'employee',
-                                      'roleSetAt': FieldValue.serverTimestamp(),
-                                    }, SetOptions(merge: true));
-                              }
-                              if (!context.mounted) return;
-                              // Send employees directly to the dashboard
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/employee_dashboard',
-                              );
-                            },
-                          ),
+                          _buildRoleButton(context, 'Employee', () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .set({
+                                    'role': 'employee',
+                                    'roleSetAt': FieldValue.serverTimestamp(),
+                                  }, SetOptions(merge: true));
+                            }
+                            if (!context.mounted) return;
+                            // Send employees directly to the dashboard
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/employee_dashboard',
+                            );
+                          }),
                           const SizedBox(height: 15),
-                          _buildRoleButton(
-                            context,
-                            'Manager',
-                            Icons.manage_accounts,
-                            () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user != null) {
-                                await FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(user.uid)
-                                    .set({
-                                      'role': 'manager',
-                                      'roleSetAt': FieldValue.serverTimestamp(),
-                                    }, SetOptions(merge: true));
-                              }
-                              if (!context.mounted) return;
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/manager_portal',
-                              );
-                            },
-                          ),
+                          _buildRoleButton(context, 'Manager', () async {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .set({
+                                    'role': 'manager',
+                                    'roleSetAt': FieldValue.serverTimestamp(),
+                                  }, SetOptions(merge: true));
+                            }
+                            if (!context.mounted) return;
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/manager_portal',
+                            );
+                          }),
                           const SizedBox(height: 40),
                           Container(
                             width: double.infinity,
-                            height: 50,
+                            height: 56,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(28),
+                              ),
                               gradient: const LinearGradient(
                                 colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
                                 begin: Alignment.centerLeft,
@@ -164,25 +158,24 @@ class RoleBaseViewScreen extends StatelessWidget {
   Widget _buildRoleButton(
     BuildContext context,
     String role,
-    IconData icon,
     VoidCallback onPressed,
   ) {
     return Container(
       width: double.infinity,
-      height: 60,
+      height: 56,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: const BorderRadius.all(Radius.circular(28)),
         gradient: const LinearGradient(
           colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
       ),
-      child: TextButton.icon(
+      child: TextButton(
         onPressed: onPressed,
-        icon: Icon(icon, color: Colors.white, size: 24),
-        label: Text(
+        child: Text(
           role,
+          textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 18,
             color: Colors.white,
