@@ -13,7 +13,12 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
-  const ProgressVisualsScreen({super.key});
+  final bool embedded;
+  
+  const ProgressVisualsScreen({
+    super.key,
+    this.embedded = false,
+  });
 
   @override
   State<ProgressVisualsScreen> createState() => _ProgressVisualsScreenState();
@@ -116,6 +121,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     return AppScaffold(
       title: 'Progress Visuals',
       showAppBar: false,
+      embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/progress_visuals',
       onNavigate: (route) {

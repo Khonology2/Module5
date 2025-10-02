@@ -12,7 +12,12 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/alert.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
-  const MyGoalWorkspaceScreen({super.key});
+  final bool embedded;
+  
+  const MyGoalWorkspaceScreen({
+    super.key,
+    this.embedded = false,
+  });
 
   @override
   State<MyGoalWorkspaceScreen> createState() => _MyGoalWorkspaceScreenState();
@@ -91,6 +96,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return AppScaffold(
       title: 'Goal Workspace',
       showAppBar: false,
+      embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/my_goal_workspace',
       onNavigate: (route) {

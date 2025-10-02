@@ -11,7 +11,12 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/alert.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
-  const AlertsNudgesScreen({super.key});
+  final bool embedded;
+  
+  const AlertsNudgesScreen({
+    super.key,
+    this.embedded = false,
+  });
 
   @override
   State<AlertsNudgesScreen> createState() => _AlertsNudgesScreenState();
@@ -30,6 +35,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return AppScaffold(
       title: 'Alerts & Nudges',
       showAppBar: false,
+      embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/alerts_nudges',
       onNavigate: (route) {

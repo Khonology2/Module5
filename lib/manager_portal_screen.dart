@@ -47,13 +47,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/my_pdp':
         return const MyPdpScreen();
       case '/my_goal_workspace':
-        return const MyGoalWorkspaceScreen();
+        return const MyGoalWorkspaceScreen(embedded: true);
       case '/progress_visuals':
-        return const ProgressVisualsScreen();
+        return const ProgressVisualsScreen(embedded: true);
       case '/alerts_nudges':
-        return const AlertsNudgesScreen();
+        return const AlertsNudgesScreen(embedded: true);
       case '/badges_points':
-        return const BadgesPointsScreen();
+        return const BadgesPointsScreen(embedded: true);
       case '/leaderboard':
         return const LeaderboardScreen();
       case '/repository_audit':
@@ -184,3 +184,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     );
   }
 }
+
