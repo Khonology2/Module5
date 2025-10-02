@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -10,7 +11,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/models/user_profile.dart';
-import 'package:pdh/models/badge.dart' as BadgeModel;
+import 'package:pdh/models/badge.dart' as badge_model;
 
 class BadgesPointsScreen extends StatefulWidget {
   const BadgesPointsScreen({super.key});
@@ -70,14 +71,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         if (mounted) {
           setState(() {
             userProfile = profile;
-            leaderboard = leaderboardData ?? [];
+            leaderboard = leaderboardData;
             userRank = rank > 0 ? rank : 1;
             currentStreak = streak >= 0 ? streak : 0;
             hasActivityToday = activityToday;
           });
         }
       } catch (e) {
-        print('Error loading data: $e');
+        developer.log('Error loading data: $e', name: 'BadgesPointsScreen');
         // Set safe default values on error
         if (mounted) {
           setState(() {
@@ -106,12 +107,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: Container(
         width: double.infinity,
@@ -123,7 +126,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             end: Alignment.bottomRight,
             colors: [
               AppColors.backgroundColor,
-              AppColors.backgroundColor.withOpacity(0.9),
+              AppColors.backgroundColor.withValues(alpha: 0.9),
             ],
           ),
         ),
@@ -203,7 +206,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.activeColor.withOpacity(0.3),
+            color: AppColors.activeColor.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -227,7 +230,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               Text(
                 'Total Points',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.8),
+                      color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
               ),
             ],
@@ -245,7 +248,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               Text(
                     _getLevelTitle(level),
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.8),
+                      color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
@@ -262,7 +265,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                   Text(
                     'Progress to Level ${level + 1}',
                     style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary.withOpacity(0.8),
+                      color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
                   ),
                   Text(
@@ -277,7 +280,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               const SizedBox(height: 8),
               LinearProgressIndicator(
                 value: progressPercentage,
-                backgroundColor: AppColors.textPrimary.withOpacity(0.2),
+                backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(4),
@@ -304,7 +307,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: AppColors.activeColor.withOpacity(0.2),
+              color: AppColors.activeColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: AppColors.activeColor, width: 2),
             ),
@@ -362,7 +365,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       );
     }
 
-    return StreamBuilder<List<BadgeModel.Badge>>(
+    return StreamBuilder<List<badge_model.Badge>>(
       stream: BadgeService.getUserBadgesStream(user.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -447,7 +450,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     );
   }
 
-  Widget _buildBadgeCard(BadgeModel.Badge badge) {
+  Widget _buildBadgeCard(badge_model.Badge badge) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Material(
@@ -461,7 +464,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             decoration: BoxDecoration(
               color: badge.isEarned 
                   ? AppColors.elevatedBackground
-                  : AppColors.elevatedBackground.withOpacity(0.5),
+                  : AppColors.elevatedBackground.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: badge.isEarned 
@@ -471,7 +474,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               ),
               boxShadow: badge.isEarned ? [
                 BoxShadow(
-                  color: _getBadgeRarityColor(badge.rarity).withOpacity(0.2),
+                  color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -483,7 +486,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: _getBadgeRarityColor(badge.rarity).withOpacity(0.2),
+                    color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
                       color: _getBadgeRarityColor(badge.rarity),
@@ -519,7 +522,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: _getBadgeRarityColor(badge.rarity).withOpacity(0.2),
+                              color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -685,9 +688,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: safeColor.withOpacity(0.1),
+        color: safeColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: safeColor.withOpacity(0.3)),
+        border: Border.all(color: safeColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -764,7 +767,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isYou
-            ? AppColors.activeColor.withOpacity(0.1)
+            ? AppColors.activeColor.withValues(alpha: 0.1)
             : AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
@@ -778,7 +781,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: rankColor.withOpacity(0.2),
+              color: rankColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(25),
               border: Border.all(color: rankColor, width: 2),
             ),
@@ -887,15 +890,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     return 'Keep climbing! 🚀';
   }
 
-  Color _getBadgeRarityColor(BadgeModel.BadgeRarity rarity) {
+  Color _getBadgeRarityColor(badge_model.BadgeRarity rarity) {
     switch (rarity) {
-      case BadgeModel.BadgeRarity.common:
+      case badge_model.BadgeRarity.common:
         return AppColors.textSecondary;
-      case BadgeModel.BadgeRarity.rare:
+      case badge_model.BadgeRarity.rare:
         return AppColors.activeColor;
-      case BadgeModel.BadgeRarity.epic:
+      case badge_model.BadgeRarity.epic:
         return AppColors.warningColor;
-      case BadgeModel.BadgeRarity.legendary:
+      case badge_model.BadgeRarity.legendary:
         return Color(0xFFFFD700); // Gold
     }
   }
@@ -942,7 +945,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  void _showBadgeDetail(BadgeModel.Badge badge) {
+  void _showBadgeDetail(badge_model.Badge badge) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -973,7 +976,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _getBadgeRarityColor(badge.rarity).withOpacity(0.2),
+                color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(

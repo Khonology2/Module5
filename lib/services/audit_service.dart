@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
@@ -107,7 +108,7 @@ class AuditService {
 
       await _firestore.collection('audit_entries').add(auditEntry.toFirestore());
     } catch (e) {
-      print('Error submitting goal for audit: $e');
+      developer.log('Error submitting goal for audit: $e');
       rethrow;
     }
   }
@@ -209,7 +210,7 @@ class AuditService {
         'verifiedDate': Timestamp.now(),
       });
     } catch (e) {
-      print('Error verifying audit entry: $e');
+      developer.log('Error verifying audit entry: $e');
       rethrow;
     }
   }
@@ -232,7 +233,7 @@ class AuditService {
         'rejectedDate': Timestamp.now(),
       });
     } catch (e) {
-      print('Error requesting changes: $e');
+      developer.log('Error requesting changes: $e');
       rethrow;
     }
   }
@@ -258,7 +259,7 @@ class AuditService {
         'rejected': entries.where((e) => e.status == 'rejected').length,
       };
     } catch (e) {
-      print('Error getting audit stats: $e');
+      developer.log('Error getting audit stats: $e');
       return {
         'total': 0,
         'verified': 0,

@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
@@ -38,11 +39,11 @@ class BadgeService {
             return b.progressPercentage.compareTo(a.progressPercentage);
           });
       } catch (e) {
-        print('Error processing badges: $e');
+        developer.log('Error processing badges: $e');
         return <Badge>[];
       }
     }).handleError((error) {
-      print('Error loading badges: $error');
+      developer.log('Error loading badges: $error');
       return <Badge>[];
     });
   }
@@ -64,7 +65,7 @@ class BadgeService {
       
       await batch.commit();
     } catch (e) {
-      print('Error initializing badges: $e');
+      developer.log('Error initializing badges: $e');
     }
   }
 
@@ -102,13 +103,13 @@ class BadgeService {
             if (updatedBadge.isEarned && !badge.isEarned) {
               // For now, we'll skip the badge alert since the method doesn't exist yet
               // This can be implemented later when AlertService is expanded
-              print('Badge earned: ${updatedBadge.name}');
+              developer.log('Badge earned: ${updatedBadge.name}');
             }
           }
         }
       }
     } catch (e) {
-      print('Error checking badges: $e');
+      developer.log('Error checking badges: $e');
     }
   }
 
@@ -410,7 +411,7 @@ class BadgeService {
         };
       }).toList();
     } catch (e) {
-      print('Error getting leaderboard: $e');
+      developer.log('Error getting leaderboard: $e');
       
       // Fallback: Return mock data for development
       return _getMockLeaderboardData();
@@ -486,7 +487,7 @@ class BadgeService {
       
       return higherRanked.docs.length + 1;
     } catch (e) {
-      print('Error getting user rank: $e');
+      developer.log('Error getting user rank: $e');
       return 0;
     }
   }

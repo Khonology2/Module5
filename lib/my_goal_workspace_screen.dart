@@ -100,12 +100,14 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: Container(
         decoration: BoxDecoration(
@@ -114,7 +116,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             end: Alignment.bottomRight,
             colors: [
               AppColors.backgroundColor,
-              AppColors.backgroundColor.withOpacity(0.8),
+              AppColors.backgroundColor.withValues(alpha: 0.8),
             ],
           ),
         ),
@@ -348,9 +350,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.activeColor.withOpacity(0.1),
+        color: AppColors.activeColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -437,9 +439,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   Future<void> _saveGoal() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    
     // Validate required fields
     if (_goalTitleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Please enter a goal title'),
           backgroundColor: Colors.red,
@@ -449,7 +454,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     }
 
     if (_targetDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Please select a target date'),
           backgroundColor: Colors.red,
@@ -518,26 +523,29 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         type: AlertType.goalCreated,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Goal created successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Goal created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-      // Navigate back to dashboard
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/employee_dashboard',
-        (route) => false,
-      );
+        // Navigate back to dashboard
+        navigator.pushNamedAndRemoveUntil(
+          '/employee_dashboard',
+          (route) => false,
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error creating goal: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error creating goal: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 

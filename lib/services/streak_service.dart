@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/alert_service.dart';
 
@@ -49,7 +50,7 @@ class StreakService {
         }
       }
     } catch (e) {
-      print('Error recording daily activity: $e');
+      developer.log('Error recording daily activity: $e');
     }
   }
 
@@ -106,7 +107,7 @@ class StreakService {
         await _checkStreakMilestones(userId, currentStreak);
       }
     } catch (e) {
-      print('Error updating streak: $e');
+      developer.log('Error updating streak: $e');
     }
   }
 
@@ -125,9 +126,13 @@ class StreakService {
         int bonusPoints = 0;
         if (streak == 7) {
           bonusPoints = 50;
-        } else if (streak == 30) bonusPoints = 100;
-        else if (streak == 100) bonusPoints = 200;
-        else if (streak == 365) bonusPoints = 500;
+        } else if (streak == 30) {
+          bonusPoints = 100;
+        } else if (streak == 100) {
+          bonusPoints = 200;
+        } else if (streak == 365) {
+          bonusPoints = 500;
+        }
         
         if (bonusPoints > 0) {
           await AlertService.createPointsAlert(
@@ -157,7 +162,7 @@ class StreakService {
       
       return (streak is int) ? streak : int.tryParse(streak.toString()) ?? 0;
     } catch (e) {
-      print('Error getting current streak: $e');
+      developer.log('Error getting current streak: $e');
       return 0;
     }
   }
@@ -189,7 +194,7 @@ class StreakService {
       
       return doc.exists;
     } catch (e) {
-      print('Error checking today\'s activity: $e');
+      developer.log('Error checking today\'s activity: $e');
       return false;
     }
   }
