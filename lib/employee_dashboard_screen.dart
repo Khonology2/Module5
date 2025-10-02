@@ -35,10 +35,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   void initState() {
     super.initState();
     _loadUserData();
-    // Temporarily disabled streak loading to isolate the error
-    // Future.delayed(const Duration(milliseconds: 500), () {
-    //   _loadStreakData();
-    // });
+    // Load streak data after a short delay to ensure other data loads first
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _loadStreakData();
+    });
   }
 
   Future<void> _loadStreakData() async {
@@ -572,19 +572,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           children: [
             Expanded(
               child: AppComponents.kpiCard(
-                label: 'Level',
-                value: 'Level ${userProfile?.level ?? 1}',
-                icon: Icons.military_tech,
-                iconColor: AppColors.warningColor,
+                label: 'Current Streak',
+                value: '${currentStreak.toString()} days',
+                icon: hasActivityToday ? Icons.local_fire_department : Icons.local_fire_department_outlined,
+                iconColor: hasActivityToday ? AppColors.warningColor : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: AppComponents.kpiCard(
-                label: 'Badges',
-                value: '${userProfile?.badges.length ?? 0}',
-                icon: Icons.workspace_premium,
-                iconColor: AppColors.successColor,
+                label: 'Today\'s Activity',
+                value: hasActivityToday ? 'Active' : 'None',
+                icon: hasActivityToday ? Icons.check_circle : Icons.schedule,
+                iconColor: hasActivityToday ? AppColors.successColor : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
