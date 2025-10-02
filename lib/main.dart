@@ -22,13 +22,15 @@ import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
+import 'package:pdh/manager_team_workspace_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
 import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
-import 'package:pdh/design_system/app_theme.dart'; // Import the design system theme
+import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
+import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -158,13 +160,21 @@ class _MyAppState extends State<MyApp> {
                 requiredRole: RequiredRole.manager,
                 child: const ManagerAlertsNudgesScreen(),
               ),
-              '/employee_profile_detail': (context) => RoleGate(
+               '/employee_profile_detail': (context) => RoleGate(
+                 requiredRole: RequiredRole.manager,
+                 child: Builder(
+                   builder: (context) => EmployeeProfileDetailScreen(
+                     employeeId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+                   ),
+                 ),
+               ),
+               '/team_goals': (context) => RoleGate(
+                 requiredRole: RequiredRole.employee,
+                 child: const TeamGoalsScreen(),
+               ),
+              '/manager_team_workspace': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
-                child: Builder(
-                  builder: (context) => EmployeeProfileDetailScreen(
-                    employeeId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
-                  ),
-                ),
+                child: const ManagerTeamWorkspaceScreen(),
               ),
               '/ai_chatbot': (context) =>
                   const AiChatbotScreen(), // Add the new AI Chatbot route

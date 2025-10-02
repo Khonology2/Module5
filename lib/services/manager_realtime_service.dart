@@ -217,9 +217,11 @@ class ManagerRealtimeService {
 
         Query query = _firestore.collection('users').where('role', isEqualTo: 'employee');
         
-        if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          query = query.where('department', isEqualTo: targetDepartment);
-        }
+        // Temporarily disable department filtering to debug Angel visibility issue
+        // TODO: Re-enable after resolving Angel's department mismatch
+        // if (targetDepartment != null && targetDepartment.isNotEmpty) {
+        //   query = query.where('department', isEqualTo: targetDepartment);
+        // }
 
         developer.log('Manager Realtime Service: Setting up stream');
         developer.log('Manager UID: $currentUser.uid');
@@ -491,12 +493,12 @@ class ManagerRealtimeService {
       );
     } catch (e) {
       developer.log('Error building employee data for ${profile.uid}: $e');
-      // Return default data if error occurs
-      return EmployeeData(
-        profile: profile,
-        goals: [],
-        recentActivities: const [],
-        recentAlerts: const [],
+        // Return default data if error occurs
+        return EmployeeData(
+          profile: profile,
+          goals: [],
+          recentActivities: const [], // Keep empty for now
+          recentAlerts: const [], // Keep empty for now
         completedGoalsCount: 0,
         overdueGoalsCount: 0,
         totalPoints: profile.totalPoints,

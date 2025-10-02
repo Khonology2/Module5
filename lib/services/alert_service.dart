@@ -133,6 +133,51 @@ class AlertService {
     await _createAlert(alert);
   }
 
+  static Future<void> createTeamGoalAlert({
+    required String userId,
+    required String teamGoalTitle,
+    required String managerName,
+    required int points,
+    required DateTime deadline,
+  }) async {
+    final alert = Alert(
+      id: '',
+      userId: userId,
+      type: AlertType.teamGoalAvailable,
+      priority: AlertPriority.high,
+      title: 'New Team Goal Available! 🎯',
+      message: '$managerName created a new team goal: "$teamGoalTitle". Join your team and earn $points points by ${deadline.day}/${deadline.month}/${deadline.year}!',
+      actionText: 'Join Team',
+      actionRoute: '/team_goals',
+      createdAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+
+    await _createAlert(alert);
+  }
+
+  static Future<void> createEmployeeJoinedTeamGoalAlert({
+    required String managerId,
+    required String employeeName,
+    required String teamGoalTitle,
+    required String teamGoalId,
+  }) async {
+    final alert = Alert(
+      id: '',
+      userId: managerId,
+      type: AlertType.employeeJoinedTeamGoal,
+      priority: AlertPriority.medium,
+      title: 'Employee Joined Team Goal! 👥',
+      message: '$employeeName joined your team goal "$teamGoalTitle". The team is growing stronger!',
+      actionText: 'View Team',
+      actionRoute: '/manager_team_workspace',
+      createdAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 7)),
+    );
+
+    await _createAlert(alert);
+  }
+
   static Future<void> createTeamAssignmentAlert({
     required String userId,
     required String teamName,

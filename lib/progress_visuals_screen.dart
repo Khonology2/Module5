@@ -10,6 +10,9 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/sample_data_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 
@@ -219,6 +222,26 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               _buildFilterDropdown(),
               const SizedBox(width: AppSpacing.md),
               _buildDepartmentDropdown(),
+              const SizedBox(width: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: _populateSampleData,
+                icon: const Icon(Icons.data_usage, size: 16),
+                label: const Text('Load Sample Data'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.activeColor,
+                  side: BorderSide(color: AppColors.activeColor),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: _showDebugInfo,
+                icon: const Icon(Icons.bug_report, size: 16),
+                label: const Text('Debug Data'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.warningColor,
+                  side: BorderSide(color: AppColors.warningColor),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -1102,6 +1125,153 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
       '/employee_profile_detail', 
       arguments: employee.profile.uid
     );
+  }
+
+  Future<void> _populateSampleData() async {
+    try {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Populate Sample Data'),
+          content: const Text(
+            'This will create sample activities and goals for all employees in your department. '
+            'This will help populate the manager dashboard with realistic data for testing.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Creating sample data...')),
+                );
+
+                try {
+                  await SampleDataService.populateManagerDashboardWithSampleData();
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Sample data created successfully! Refresh to see real data.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error creating sample data: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Create Sample Data'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _showDebugInfo() async {
+    try {
+      final FirebaseFirestore firestore = FirebaseFirestore.instance;
+      final FirebaseAuth auth = FirebaseAuth.instance;
+      
+      // Get manager info
+      final managerDoc = await firestore.collection('users').doc(auth.currentUser!.uid).get();
+      final managerData = managerDoc.data();
+      
+      // Get all employees 
+      final employeesQuery = await firestore
+          .collection('users')
+          .where('role', isEqualTo: 'employee')
+          .get();
+      
+      // Get Angel specifically if she exists
+      final angelQuery = await firestore
+          .collection('users')
+          .where('displayName', isEqualTo: 'Angel')
+          .get();
+      
+      // Get all activities
+      final activitiesQuery = await firestore
+          .collection('activities')
+          .limit(10)
+          .get();
+          
+      // Get all goals
+      final goalsQuery = await firestore
+          .collection('goals')
+          .limit(10)
+          .get();
+
+      String debugInfo = '''
+DEBUG INFORMATION:
+
+MANAGER:
+- UID: ${auth.currentUser!.uid}
+- Department: ${managerData?['department'] ?? 'NULL'}
+- Display Name: ${managerData?['displayName'] ?? 'NULL'}
+
+ALL EMPLOYEES (${employeesQuery.docs.length}):
+${employeesQuery.docs.map((doc) {
+  final data = doc.data();
+  return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
+}).join('\n')}
+
+ANGEL SPECIFICALLY:
+${angelQuery.docs.isNotEmpty ? 'FOUND Angel: ${angelQuery.docs.first.data()}' : 'Angel NOT FOUND in employees collection!'}
+
+RECENT ACTIVITIES (${activitiesQuery.docs.length}):
+${activitiesQuery.docs.map((doc) {
+  final data = doc.data();
+  return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
+}).join('\n')}
+
+RECENT GOALS (${goalsQuery.docs.length}):
+${goalsQuery.docs.map((doc) {
+  final data = doc.data();
+  return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
+}).join('\n')}
+      ''';
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Debug Information'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(
+                  debugInfo,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Debug Error: $e')),
+      );
+    }
   }
 }
 

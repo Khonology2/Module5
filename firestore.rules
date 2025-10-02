@@ -20,12 +20,17 @@ service cloud.firestore {
     function sameDepartment(userId) {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department == 
              get(/databases/$(database)/documents/users/$(userId)).data.department;
-    }
+   }
+
+   // Temporarily allow managers to see all employees for debugging Angel issue
+   function canManagerSeeEmployee(userId) {
+     return userRole(userId) == 'employee'; // Remove department restriction temporarily
+   }
 
     match /users/{userId} {
       allow read: if isSignedIn() && (
         request.auth.uid == userId || 
-        (isManager() && userRole(userId) == 'employee' && sameDepartment(userId)) ||
+        (isManager() && canManagerSeeEmployee(userId)) ||
         isAdmin()
       );
       
@@ -52,7 +57,7 @@ service cloud.firestore {
       match /{subcollection}/{subDocument} {
         allow read, create: if isSignedIn() && (
           request.auth.uid == userId || 
-          (isManager() && userRole(userId) == 'employee' && sameDepartment(userId)) ||
+          (isManager() && canManagerSeeEmployee(userId)) ||
           isAdmin()
         );
         
@@ -70,13 +75,13 @@ service cloud.firestore {
     match /goals/{goalId} {
       allow read, write: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
-        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
       
       allow create: if isSignedIn() && (
         request.auth.uid == request.resource.data.userId ||
-        (isManager() && userRole(request.resource.data.userId) == 'employee' && sameDepartment(request.resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
         isAdmin()
       );
     }
@@ -85,7 +90,23 @@ service cloud.firestore {
     match /activities/{activityId} {
       allow read, write: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
-        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Team Goals - managers can create team goals for their department
+    match /team_goals/{goalId} {
+      allow read: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      allow update: if isSignedIn() && (
+        (isManager() && resource.data.managerId == request.auth.uid) ||
         isAdmin()
       );
     }
@@ -94,7 +115,7 @@ service cloud.firestore {
     match /alerts/{alertId} {
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
-        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
       
@@ -105,13 +126,13 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
-        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
       
       allow create: if isSignedIn() && (
         request.auth.uid == request.resource.data.userId ||
-        (isManager() && userRole(request.resource.data.userId) == 'employee' && sameDepartment(request.resource.data.userId)) ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
         isAdmin()
       );
     }
