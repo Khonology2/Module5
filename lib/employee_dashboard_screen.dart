@@ -1,5 +1,6 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 import 'package:pdh/design_system/app_colors.dart';
@@ -35,6 +36,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       },
       onLogout: () async {
         await AuthService().signOut();
+        if (!mounted) return;
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/sign_in',

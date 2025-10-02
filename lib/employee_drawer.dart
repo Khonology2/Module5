@@ -26,7 +26,11 @@ class EmployeeDrawer extends StatelessWidget {
               alignment: Alignment.bottomLeft,
               child: Text(
                 'Employee Portal',
-                style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -138,7 +142,7 @@ class EmployeeDrawer extends StatelessWidget {
                     blurRadius: 10,
                     spreadRadius: 1,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -152,11 +156,12 @@ class EmployeeDrawer extends StatelessWidget {
                 '/manager_portal',
                 '/dashboard',
                 '/manager_review_team_dashboard',
-                '/rolebaseview',
               };
               if (blocked.contains(route)) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Access restricted to managers')),
+                  const SnackBar(
+                    content: Text('Access restricted to managers'),
+                  ),
                 );
                 return;
               }
@@ -184,5 +189,3 @@ class EmployeeDrawer extends StatelessWidget {
     );
   }
 }
-
-

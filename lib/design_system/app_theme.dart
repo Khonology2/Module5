@@ -190,33 +190,33 @@ class AppTheme {
         linearTrackColor: AppColors.elevatedBackground,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.activeColor;
           }
           return AppColors.textMuted;
         }),
-        trackColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.activeColor.withValues(alpha: 0.5);
           }
           return AppColors.elevatedBackground;
         }),
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.activeColor;
           }
           return Colors.transparent;
         }),
-        checkColor: MaterialStateProperty.all(Colors.white),
+        checkColor: WidgetStateProperty.all(Colors.white),
         side: const BorderSide(color: AppColors.borderColor, width: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
       radioTheme: RadioThemeData(
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return AppColors.activeColor;
           }
           return AppColors.textMuted;
@@ -238,12 +238,11 @@ class AppTheme {
       primary: AppColors.activeColor,
       secondary: AppColors.infoColor,
       surface: AppColors.cardBackground,
-      background: AppColors.backgroundColor,
+      // background: AppColors.backgroundColor,
       error: AppColors.dangerColor,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: AppColors.textPrimary,
-      onBackground: AppColors.textPrimary,
       onError: Colors.white,
     );
   }

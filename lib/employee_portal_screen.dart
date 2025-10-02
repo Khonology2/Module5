@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'package:pdh/employee_drawer.dart';
 
 class EmployeePortalScreen extends StatelessWidget {
@@ -41,35 +40,6 @@ class EmployeePortalScreen extends StatelessWidget {
             child: Image.asset(
               'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
               fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(
-        decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F),
-                      Color(0x88040610),
-                    ],
-                    stops: [0.0, 1.0],
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            'Open menu to navigate',
-            style: TextStyle(
-              fontSize: 16.0,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-              ),
             ),
           ),
         ],

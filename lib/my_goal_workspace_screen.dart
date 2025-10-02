@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // Import for ImageFilter
 // Drawer removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   const MyGoalWorkspaceScreen({super.key});
@@ -86,12 +84,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      title: 'Personal Development Goal',
-      currentRouteName: '/my_goal_workspace',
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Personal Development Goal', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
           _buildSectionHeader('Goal Information'),
           _buildTextField(
             controller: _goalTitleController,

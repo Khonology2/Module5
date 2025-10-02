@@ -17,14 +17,13 @@ import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
-import 'package:pdh/rolebaseview.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
-import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
+import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the design system theme
@@ -136,7 +135,6 @@ class _MyAppState extends State<MyApp> {
               ),
               '/badges_points': (context) => const BadgesPointsScreen(),
               '/leaderboard': (context) => const LeaderboardScreen(),
-              '/rolebaseview': (context) => const RoleBaseViewScreen(),
               // Map legacy employee_portal route to the dashboard to remove the old portal screen
               '/employee_portal': (context) => RoleGate(
                 requiredRole: RequiredRole.employee,
