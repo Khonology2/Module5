@@ -12,6 +12,9 @@ import 'package:pdh/my_goal_workspace_screen.dart'; // Import MyGoalWorkspaceScr
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -130,7 +133,53 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
               ),
             ),
           ),
+          // Profile button positioned in top-right corner
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _buildProfileButton(context),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ManagerProfileScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: AppTypography.bodySmall.copyWith(color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
