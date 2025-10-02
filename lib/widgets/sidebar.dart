@@ -182,7 +182,7 @@ class _NavTileState extends State<_NavTile> {
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
         child: Tooltip(
-          message: widget.collapsed ? widget.label : '',
+          message: isCollapsed ? widget.label : '',
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(12),
@@ -206,7 +206,7 @@ class _NavTileState extends State<_NavTile> {
                               (isSelected
                                       ? ResponsiveSidebar.activeColor
                                       : ResponsiveSidebar.hoverColor)
-                                  .withValues(alpha: 0.35),
+                                  .withValues(alpha: 0x35),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
@@ -215,6 +215,9 @@ class _NavTileState extends State<_NavTile> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
+                mainAxisAlignment: isCollapsed
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start, // Center when collapsed, start when expanded
                 children: [
                   Icon(
                     widget.icon,
@@ -226,7 +229,7 @@ class _NavTileState extends State<_NavTile> {
                         : AppColors.textPrimary,
                     size: isCollapsed ? (isSelected ? 24 : 20) : 20,
                   ),
-                  if (!widget.collapsed) ...[
+                  if (!isCollapsed) ...[
                     const SizedBox(width: AppSpacing.md),
                     Expanded(
                       child: Text(

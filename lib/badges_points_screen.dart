@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:ui'; // Import for ImageFilter
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
 // Role-aware features handled inside MainLayout
 // Profile handled by MainLayout
 
@@ -10,12 +8,13 @@ class BadgesPointsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      title: 'Badges & Points',
-      currentRouteName: '/badges_points',
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Badges & Points', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
           _buildPointsAndLevelCard(),
           const SizedBox(height: 25),
           _buildSectionHeader('Achievements'),
@@ -73,8 +72,6 @@ class BadgesPointsScreen extends StatelessWidget {
       ),
     );
   }
-
-  // Profile handled by MainLayout
 
   Widget _buildSectionHeader(String title) {
     return Padding(

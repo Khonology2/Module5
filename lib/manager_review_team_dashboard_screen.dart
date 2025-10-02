@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import 'package:pdh/manager_nav_drawer.dart';
-import 'dart:ui'; // Added for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 
@@ -24,7 +22,6 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
           _buildProfileButton(context), // Use the new profile button widget
         ],
       ),
-      drawer: const ManagerNavDrawer(),
       body: Stack(
         children: [
           Positioned.fill(
@@ -38,80 +35,77 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
             ),
           ),
           Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.2,
+                  colors: [
+                    Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                    Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                  ],
+                  stops: [0.0, 1.0],
                 ),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final horizontalPadding = constraints.maxWidth < 400
-                        ? 12.0
-                        : constraints.maxWidth < 700
-                            ? 16.0
-                            : 24.0;
-                    return SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(horizontalPadding, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, horizontalPadding, 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildKpiRow(),
-                          const SizedBox(height: 20),
-                          _buildHeader(),
-                          const SizedBox(height: 20),
-                          _buildAtRiskSection(),
-                          const SizedBox(height: 20),
-                          _buildGoalCard(
-                            context,
-                            name: 'Sarah Johnson',
-                            goal: 'Increase social media engagement by 25%',
-                            dueDate: 'Due in 5 days',
-                            progress: 0.75,
-                            status: 'On Track',
-                            statusColor: Colors.green,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildGoalCard(
-                            context,
-                            name: 'Michael Chen',
-                            goal: 'Launch new product campaign',
-                            dueDate: 'Overdue 2 days',
-                            progress: 0.20,
-                            status: 'At Risk',
-                            statusColor: Colors.redAccent,
-                          ),
-                          const SizedBox(height: 20),
-                          _buildGoalCard(
-                            context,
-                            name: 'Emily Rodriguez',
-                            goal: 'Improve customer retention rate',
-                            dueDate: 'Due in 12 days',
-                            progress: 0.90,
-                            status: 'Ahead',
-                            statusColor: const Color(0xFFC10D00),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildAIManagerInsights(),
-                          const SizedBox(height: 20),
-                          _buildUpcomingSection(),
-                          const SizedBox(height: 20),
-                          _buildRecentlyCompletedSection(),
-                          const SizedBox(height: 24),
-                          _buildQuickActions(),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final horizontalPadding = constraints.maxWidth < 400
+                      ? 12.0
+                      : constraints.maxWidth < 700
+                          ? 16.0
+                          : 24.0;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(horizontalPadding, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, horizontalPadding, 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildKpiRow(),
+                        const SizedBox(height: 20),
+                        _buildHeader(),
+                        const SizedBox(height: 20),
+                        _buildAtRiskSection(),
+                        const SizedBox(height: 20),
+                        _buildGoalCard(
+                          context,
+                          name: 'Sarah Johnson',
+                          goal: 'Increase social media engagement by 25%',
+                          dueDate: 'Due in 5 days',
+                          progress: 0.75,
+                          status: 'On Track',
+                          statusColor: Colors.green,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildGoalCard(
+                          context,
+                          name: 'Michael Chen',
+                          goal: 'Launch new product campaign',
+                          dueDate: 'Overdue 2 days',
+                          progress: 0.20,
+                          status: 'At Risk',
+                          statusColor: Colors.redAccent,
+                        ),
+                        const SizedBox(height: 20),
+                        _buildGoalCard(
+                          context,
+                          name: 'Emily Rodriguez',
+                          goal: 'Improve customer retention rate',
+                          dueDate: 'Due in 12 days',
+                          progress: 0.90,
+                          status: 'Ahead',
+                          statusColor: const Color(0xFFC10D00),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildAIManagerInsights(),
+                        const SizedBox(height: 20),
+                        _buildUpcomingSection(),
+                        const SizedBox(height: 20),
+                        _buildRecentlyCompletedSection(),
+                        const SizedBox(height: 24),
+                        _buildQuickActions(),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),

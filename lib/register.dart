@@ -22,6 +22,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  String? _selectedRole; // New: Variable to store selected role
   // Removed unused _formKey
   // Removed unused _passwordStrength
   // Removed unused _passwordStrengthColor
@@ -186,6 +187,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                           hintText: _confirmPasswordHints[_currentHintIndex],
                         ),
+                        const SizedBox(height: 20),
+                        // Role Selection Dropdown
+                        _buildFieldLabel('Role'),
+                        const SizedBox(height: 8),
+                        _buildRoleDropdown(),
                         const SizedBox(height: 30),
                         // Sign Up Button
                         Container(
@@ -237,6 +243,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 );
                                 return;
                               }
+                              if (_selectedRole == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select a role.')),
+                                );
+                                return;
+                              }
 
                               try {
                                 UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -249,15 +261,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   userCredential.user!.uid,
                                   _fullNameController.text,
                                   _emailController.text,
-                                  role: 'employee', // Default to employee role on registration
+                                  role: _selectedRole!, // Use the selected role
                                 );
 
                                 if (!context.mounted) return; // Guard against context use after async gap
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Registration Successful!')),
                                 );
-                                // Require explicit login next
-                                await FirebaseAuth.instance.signOut();
                                 if (!context.mounted) return; // Guard against context use after async gap
                                 Navigator.pushReplacementNamed(context, '/sign_in');
                               } on FirebaseAuthException catch (e) {
@@ -351,6 +361,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
           style: const TextStyle(color: Colors.white),
           validator: validator,
           onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleDropdown() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        child: DropdownButtonFormField<String>(
+          value: _selectedRole,
+          decoration: _inputDecoration().copyWith(
+            hintText: 'Select your role',
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+          ),
+          dropdownColor: const Color(0x880A0F1F), // Darker background for dropdown
+          style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'), // Apply Poppins to selected item
+          items: <String>['employee', 'manager'].map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(
+                value == 'employee' ? 'Employee' : 'Manager',
+                style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'), // Apply Poppins to dropdown items
+              ),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {
+            setState(() {
+              _selectedRole = newValue;
+            });
+          },
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please select a role';
+            }
+            return null;
+          },
         ),
       ),
     );

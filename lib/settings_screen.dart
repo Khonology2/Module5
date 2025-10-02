@@ -3,14 +3,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
-// import 'package:pdh/bottom_nav_bar.dart'; // Bottom nav removed on settings
 import 'package:pdh/auth_service.dart'; // Import AuthService
 import 'package:pdh/services/role_service.dart';
 // Firebase import not needed here after MainLayout
 // Profile handled by MainLayout
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
-import 'package:pdh/services/speech_recognition_service.dart'; // Import SpeechRecognitionService
 import 'package:flutter/foundation.dart' show kDebugMode; // Import kDebugMode
 
 class SettingsScreen extends StatefulWidget {
@@ -29,14 +26,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // int _selectedIndex = 0; // Bottom nav removed
 
   // Settings & Privacy state
-  bool _privateGoals = true;
-  bool _managerOnly = false;
-  bool _teamShare = false;
-  bool _pushNotifications = true;
-  String _emailFrequency = 'Weekly';
-  bool _soundAlerts = true;
-  bool _leaderboardParticipation = true;
-  bool _celebrationFeed = false;
+  final bool _privateGoals = true;
+  final bool _managerOnly = false;
+  final bool _teamShare = false;
+  final bool _pushNotifications = true;
+  final bool _soundAlerts = true;
+  final bool _leaderboardParticipation = true;
+  final bool _celebrationFeed = false;
   bool _speechRecognitionEnabled =
       false; // Ensure it's non-nullable and initialized
 
@@ -99,10 +95,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      title: 'Settings',
-      currentRouteName: '/settings',
-      body: StreamBuilder<String?>(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: StreamBuilder<String?>(
         stream: RoleService.instance.roleStream(),
         builder: (context, snapshot) {
           final role = snapshot.data;
@@ -112,164 +107,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
             );
           }
           final isManager = role == 'manager';
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start, // Align content to the start
+            children: [
+              Text('Settings', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(0x1A),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isManager ? Icons.manage_accounts : Icons.person,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isManager ? 'Manager settings' : 'Employee settings',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              _buildBlurredTextField(
+                controller: _displayNameController,
+                hintText: 'Display Name',
+              ),
+              const SizedBox(height: 10),
+              _buildBlurredTextField(
+                controller: _photoUrlController,
+                hintText: 'Photo URL',
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  await _authService.updateProfile(
+                    _displayNameController.text,
+                    _photoUrlController.text,
+                  );
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Profile updated successfully!'),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(0x1A),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isManager ? Icons.manage_accounts : Icons.person,
-                        color: Colors.white,
+                  shape: const StadiumBorder(),
+                ),
+                child: const Text('Update Profile'),
+              ),
+              const SizedBox(height: 30),
+              _buildBlurredTextField(
+                controller: _resetEmailController,
+                hintText: 'Email for Password Reset',
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  await _authService.resetPassword(
+                    _resetEmailController.text,
+                  );
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Password reset email sent to ${_resetEmailController.text}',
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isManager ? 'Manager settings' : 'Employee settings',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Settings',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 30),
-                _buildBlurredTextField(
-                  controller: _displayNameController,
-                  hintText: 'Display Name',
-                ),
-                const SizedBox(height: 10),
-                _buildBlurredTextField(
-                  controller: _photoUrlController,
-                  hintText: 'Photo URL',
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _authService.updateProfile(
-                      _displayNameController.text,
-                      _photoUrlController.text,
-                    );
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Profile updated successfully!'),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
                     ),
-                    shape: const StadiumBorder(),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                  child: const Text('Update Profile'),
+                  shape: const StadiumBorder(),
                 ),
-                const SizedBox(height: 30),
-                _buildBlurredTextField(
-                  controller: _resetEmailController,
-                  hintText: 'Email for Password Reset',
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _authService.resetPassword(
-                      _resetEmailController.text,
-                    );
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Password reset email sent to ${_resetEmailController.text}',
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                child: const Text('Send Password Reset Email'),
+              ),
+              const SizedBox(height: 30),
+              // ... keep all existing settings sections here (unchanged) ...
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () async {
+                  await _authService.deleteAccount();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Account deleted successfully!'),
                     ),
-                    shape: const StadiumBorder(),
+                  );
+                  if (!mounted) return;
+                  Navigator.pushReplacementNamed(context, '/sign_in');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                  child: const Text('Send Password Reset Email'),
+                  shape: const StadiumBorder(),
                 ),
-                const SizedBox(height: 30),
-                // ... keep all existing settings sections here (unchanged) ...
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _authService.deleteAccount();
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Account deleted successfully!'),
-                      ),
-                    );
-                    if (!mounted) return;
-                    Navigator.pushReplacementNamed(context, '/sign_in');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: const StadiumBorder(),
+                child: const Text('Delete Account'),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () async {
+                  await _authService.signOut();
+                  if (!mounted) return;
+                  Navigator.pushReplacementNamed(context, '/sign_in');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
                   ),
-                  child: const Text('Delete Account'),
+                  shape: const StadiumBorder(),
                 ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _authService.signOut();
-                    if (!mounted) return;
-                    Navigator.pushReplacementNamed(context, '/sign_in');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: const StadiumBorder(),
-                  ),
-                  child: const Text('Sign Out'),
-                ),
-              ],
-            ),
+                child: const Text('Sign Out'),
+              ),
+            ],
           );
         },
       ),
     );
   }
-
-  // Profile handled by MainLayout
 
   InputDecoration _inputDecoration({String? hintText}) {
     return InputDecoration(
@@ -318,144 +301,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
-  // Settings & Privacy helpers
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsCard({required List<Widget> children}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C3E50),
-        borderRadius: BorderRadius.circular(15.0),
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildToggleRow({
-    required String title,
-    required String subtitle,
-    required bool? value, // Make value nullable
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white70.withAlpha(0xB3),
-                    fontSize: 13,
-                  ),
-                ), // Using withAlpha for consistency
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: value ?? false, // Provide a default false if value is null
-            onChanged: onChanged,
-            activeTrackColor: const Color(0xFFC10D00),
-            activeThumbColor: Colors.white,
-            inactiveTrackColor: Colors.grey.withAlpha(0x7F),
-            inactiveThumbColor: Colors.grey,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDropdownRow({
-    required String title,
-    required String subtitle,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white70.withAlpha(0xB3),
-                    fontSize: 13,
-                  ),
-                ), // Using withAlpha for consistency
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2840),
-              borderRadius: BorderRadius.circular(8.0),
-              border: Border.all(
-                color: Colors.white70.withAlpha(0x4C),
-              ), // Using withAlpha for consistency
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: value,
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
-                dropdownColor: const Color(0xFF1F2840),
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-                onChanged: onChanged,
-                items: items.map<DropdownMenuItem<String>>((String itemValue) {
-                  return DropdownMenuItem<String>(
-                    value: itemValue,
-                    child: Text(itemValue),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Divider(
-      color: Colors.white.withAlpha(0x1A),
-      height: 1,
-      thickness: 0.5,
-    ); // Using withAlpha for consistency
-  }
 }
-
-// Drawer removed; persistent sidebar via MainLayout

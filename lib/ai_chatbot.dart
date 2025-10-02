@@ -10,20 +10,16 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
 import 'package:video_player/video_player.dart';
-import 'package:flutter/services.dart'; // Import for MethodChannel
-import 'package:flutter_tts/flutter_tts.dart'; // Import for text-to-speech
-import 'package:speech_to_text/speech_to_text.dart'; // Import for speech_to_text
-import'package:pdh/context_maps/manager_maps/dashboard_context.dart'; // Update the import path
-import 'package:pdh/context_maps/manager_maps/progress_visuals_context.dart';
-import 'package:pdh/context_maps/manager_maps/alerts_nudges_context.dart';
-import 'package:pdh/context_maps/manager_maps/leaderboard_context.dart';
-import 'package:pdh/context_maps/manager_maps/repository_audit_context.dart';
-import 'package:pdh/context_maps/manager_maps/settings_privacy_context.dart';
+import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
+import 'package:flutter_tts/flutter_tts.dart'; // Import for Text-to-Speech
+import 'package:flutter/services.dart'; // Import for Clipboard
 
 class AiChatbotScreen extends StatefulWidget {
-  const AiChatbotScreen({super.key});
+  final String? prompt; // Optional initial prompt
+  final Function(String)? onResult; // Callback for when a result is generated and should be returned
+  const AiChatbotScreen({super.key, this.prompt, this.onResult});
 
   @override
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
@@ -37,18 +33,43 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   late VideoPlayerController _videoController;
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
-  bool _isProofreadingActive = false; // New state variable for proofreading feature toggle
-  static const MethodChannel _channel = MethodChannel('com.example.khonopal/proofreading'); // Define the channel
   late FlutterTts flutterTts;
   String? _lastAiResponse; // To store the last AI response
   bool _isSpeaking = false; // To track if TTS is active
-  late SpeechToText _speechToText; // Speech to Text instance
-  bool _speechEnabled = false; // Is not an active speech session
-  bool _isListening = false; // To track if speech-to-text is active
   List<dynamic> _voices = []; // List of available voices
   String? _selectedVoiceId; // ID of the currently selected voice
   final TextEditingController _voiceSearchController = TextEditingController(); // Controller for voice search
   List<dynamic> _filteredVoices = []; // List of voices filtered by search
+  bool _isSummarizeMode = false; // New state variable for summarize mode
+
+  // Updated list of quick actions for context-based answers
+  final List<Map<String, String>> _quickActions = [
+    {'text': 'What is KhonoPal Mode?', 'promptKey': 'khonopal_mode'},
+    {'text': 'How does the Manager Dashboard work?', 'promptKey': 'manager_dashboard'},
+    {'text': 'Tell me about Alerts & Nudges?', 'promptKey': 'alerts_nudges'},
+    {'text': 'What are the features of the Leaderboard?', 'promptKey': 'leaderboard_features'},
+    {'text': 'How can I track my Progress Visuals?', 'promptKey': 'progress_visuals'},
+    {'text': 'Explain the Repository & Audit screen.', 'promptKey': 'repository_audit'},
+    {'text': 'What privacy settings are available?', 'promptKey': 'privacy_settings'},
+    {'text': 'How does voice selection work?', 'promptKey': 'voice_selection'},
+    {'text': 'What is General Chat mode?', 'promptKey': 'general_chat'},
+  ];
+
+  // Map to store system prompts for quick actions
+  final Map<String, String> _quickActionSystemPrompts = {
+    'khonopal_mode': 'Explain the purpose and functionalities of KhonoPal Mode within the application.',
+    'manager_dashboard': 'Describe the key features and functionalities of the Manager Dashboard, including what information managers can view and actions they can perform.',
+    'alerts_nudges': 'Elaborate on the Alerts & Nudges system, explaining how it works, what kind of alerts/nudges users receive, and their benefits.',
+    'leaderboard_features': 'Detail the features of the Leaderboard, such as how points are earned, how rankings are displayed, and any competitive elements.',
+    'progress_visuals': 'Explain how users can track their progress through visual representations in the app, including what metrics are shown and how they are visualized.',
+    'repository_audit': 'Provide a comprehensive overview of the Repository & Audit screen, including its purpose, what data it displays, and its utility for users.',
+    'privacy_settings': 'List and describe the available privacy settings in the application, explaining what data is protected and how users can manage their privacy.',
+    'voice_selection': 'Describe the process and options for voice selection in the AI Chatbot, including how to search for voices and what customization is available.',
+    'general_chat': 'Explain that General Chat mode allows for free-form conversation without specific application context, and how it differs from KhonoPal mode.',
+  };
+
+  // New state variable to control quick actions visibility
+  bool _showQuickActions = true;
 
   @override
   void initState() {
@@ -65,10 +86,17 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _loadUserProfileAndSetGreeting();
     flutterTts = FlutterTts();
     _initTts();
-    _speechToText = SpeechToText();
-    _initSpeech();
     _getVoices(); // Fetch available voices
     _voiceSearchController.addListener(_filterVoices); // Listen for search input changes
+
+    // Ensure quick actions are visible when the screen is initialized
+    _showQuickActions = true; // Initialize to true here
+
+    // If a prompt is provided, send it automatically
+    if (widget.prompt != null && widget.prompt!.isNotEmpty) {
+      _sendMessage(initialPrompt: widget.prompt);
+      _showQuickActions = false; // Hide quick actions if an initial prompt is sent
+    }
   }
 
   void _filterVoices() {
@@ -86,88 +114,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Future<void> _getVoices() async {
-    List<dynamic> fetchedVoices = await flutterTts.getVoices; // Fetch voices first
+    // Ensure fetchedVoices is not null. It might be null on some platforms or in some scenarios.
+    List<dynamic> fetchedVoices = (await flutterTts.getVoices) ?? [];
     _voices = []; // Initialize _voices as a growable list
     _voices.addAll(fetchedVoices); // Add all fetched voices
-    // ignore: avoid_print
-    print('Raw voices from flutterTts.getVoices: $_voices'); // Debug print
-    // Remove locale filtering here to show all voices
+
+    // Directly use fetchedVoices for allVoices.
+    // The fallback has been removed to ensure only platform-provided voices are shown.
     List<dynamic> allVoices = List.from(_voices);
 
-    if (allVoices.isEmpty) {
-      // Fallback for web or platforms where getVoices returns empty
-      allVoices = [
-        {'name': 'en-US-Standard-A', 'locale': 'en-US'}, // A typical male voice
-        {'name': 'en-US-Standard-B', 'locale': 'en-US'}, // Another typical male voice
-        {'name': 'en-US-Standard-C', 'locale': 'en-US'}, // A typical female voice
-        {'name': 'en-US-Standard-D', 'locale': 'en-US'}, // Another typical female voice
-        {'name': 'en-US-Wavenet-A', 'locale': 'en-US'}, // A high-quality neural voice (if supported)
-      ];
-      // Only add fallback voices if _voices is truly empty to avoid duplicates if platform voices appear later
-      if (_voices.isEmpty) {
-        _voices.addAll(allVoices);
-      }
-    }
-
-    // ignore: avoid_print
-    print('All available voices: $allVoices'); // Debug print
     if (allVoices.isNotEmpty) {
       setState(() {
-        // Try to find an English voice to set as default if one exists
-        _selectedVoiceId = allVoices.firstWhere((voice) => voice['locale']!.startsWith('en'), orElse: () => allVoices.first)['name'];
-        flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': allVoices.firstWhere((voice) => voice['name'] == _selectedVoiceId)['locale']});
+        // Use null-aware operators to safely access properties and provide default values
+        _selectedVoiceId = allVoices.firstWhere(
+          (voice) => (voice['locale'] as String?)?.startsWith('en') ?? false,
+          orElse: () => allVoices.first,
+        )['name'] as String?;
+        
+        final selectedVoiceLocale = allVoices.firstWhere(
+          (voice) => (voice['name'] as String?) == _selectedVoiceId,
+          orElse: () => {'locale': 'en-US'} // Provide a default locale if not found
+        )['locale'] as String? ?? 'en-US'; // Default to 'en-US' if locale is null
+        
+        if (_selectedVoiceId != null) {
+          flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': selectedVoiceLocale});
+        }
       });
     }
     setState(() {
       _filteredVoices = List.from(_voices); // Initialize _filteredVoices with all voices
-    });
-  }
-
-  /// This initializes the speech to text plugin.
-  void _initSpeech() async {
-    _speechEnabled = await _speechToText.initialize(
-      onStatus: (status) {
-        setState(() => _isListening = status == 'listening');
-        if (status == 'done' && _messageController.text.isNotEmpty) {
-          _sendMessage();
-        }
-      },
-      // ignore: avoid_print
-      onError: (errorNotification) => print('Error: ${errorNotification.errorMsg}'),
-    );
-    setState(() {});
-  }
-
-  // Each time to start a speech recognition session
-  void _startListening() async {
-    if (_speechEnabled) {
-      setState(() {
-        _isListening = true;
-      });
-      // ignore: avoid_print
-      print('Starting speech recognition...'); // Debug print
-      await _speechToText.listen(
-        onResult: (result) {
-          setState(() {
-            _messageController.text = result.recognizedWords;
-          });
-          // ignore: avoid_print
-          print('Recognized words: ${result.recognizedWords}'); // Debug print
-        },
-        // ignore: deprecated_member_use
-        partialResults: false, // Set to true to receive partial results
-        localeId: "en_US", // Optional, defaults to the device locale
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Speech recognition not available.')));
-    }
-  }
-
-  // Manually stop the active speech recognition session
-  void _stopListening() async {
-    await _speechToText.stop();
-    setState(() {
-      _isListening = false;
     });
   }
 
@@ -176,6 +151,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     flutterTts.setSpeechRate(1.0); // Increased speech rate
     flutterTts.setVolume(1.0);
     flutterTts.setPitch(1.0);
+  }
+
+  void _toggleSummarizeMode() {
+    setState(() {
+      _isSummarizeMode = !_isSummarizeMode;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_isSummarizeMode ? 'Summarize mode enabled!' : 'Summarize mode disabled!')),
+    );
   }
 
   Future _speak(String text) async {
@@ -193,16 +177,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     setState(() {
       _isSpeaking = false;
     });
-  }
-
-  // Function to toggle proofreading feature
-  void _toggleProofreading() {
-    setState(() {
-      _isProofreadingActive = !_isProofreadingActive;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Proofreading is ${_isProofreadingActive ? 'enabled' : 'disabled'}')),
-    );
   }
 
   Future<void> _loadUserProfileAndSetGreeting() async {
@@ -227,7 +201,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     // Only add greeting if messages list is empty (i.e., no history loaded)
     if (_messages.isEmpty) {
       setState(() {
-        _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false));
+        _messages.add(ChatMessage(text: 'Hello, $userName I am KhonoPal how can I help you today?', isUser: false, isGreeting: true));
       });
     }
   }
@@ -239,8 +213,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _messageController.dispose(); // Dispose controller
     flutterTts.stop(); // Stop any ongoing speech
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
-    _speechToText.cancel(); // Cancel any active speech recognition
     _voiceSearchController.dispose(); // Dispose voice search controller
+    _saveChatHistory(); // Save chat history when the screen is disposed
     super.dispose();
   }
 
@@ -259,7 +233,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
 
     for (int i = 0; i < fullText.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 1)); // Adjusted typing speed to be faster
+      await Future.delayed(const Duration(microseconds: 100)); // Adjusted to be much faster
       if (!mounted) return; // Check if widget is still mounted before calling setState
       setState(() {
         message.text = fullText.substring(0, i + 1);
@@ -278,8 +252,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    String text = _messageController.text.trim();
+  Future<void> _sendMessage({String? initialPrompt, String? messageContent, String? selectedModeOverride}) async {
+    String text = messageContent ?? _messageController.text.trim(); // Use messageContent if provided, otherwise controller text
     if (text.isEmpty) return;
 
     // Input validation for text length
@@ -300,57 +274,46 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
     String textToSendToGemini = text;
 
-    if (_isProofreadingActive) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Proofreading...')),
-      );
-      final Map<String, dynamic>? proofreadResult = await _proofreadMessage(text);
-      ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide loading snackbar
-
-      if (proofreadResult != null && proofreadResult['status'] == 'SUCCESS') {
-        textToSendToGemini = proofreadResult['text'] as String? ?? text; // Use proofread text if available
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Proofreading complete! Sending to AI...')),
-        );
-      } else if (proofreadResult != null && proofreadResult['status'] == 'NO_SUGGESTIONS') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No corrections needed, sending your original text to AI.')),
-        );
-      } else {
-        // This covers proofreadResult == null or proofreadResult['status'] == 'ERROR'
-        final errorMessage = proofreadResult?['message'] as String? ?? 'Unknown error.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Proofreading failed: $errorMessage. Sending original text to AI.')),
-        );
-      }
-    }
+    String pdpSystemInstruction = "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
 
     try {
-      // Dynamically set system instruction based on _selectedMode
+      // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
       String? currentSystemInstruction;
-      switch (_selectedMode) {
-        case 'Dashboard Mode':
-          currentSystemInstruction = DashboardContext.managerDashboardContext;
-          break;
-        case 'Progress Visuals Mode':
-          currentSystemInstruction = ProgressVisualsContext.progressVisualsContext;
-          break;
-        case 'Alerts & Nudges Mode':
-          currentSystemInstruction = AlertsNudgesContext.alertsNudgesContext;
-          break;
-        case 'Leaderboard Mode':
-          currentSystemInstruction = LeaderboardContext.leaderboardContext;
-          break;
-        case 'Repository & Audit Mode':
-          currentSystemInstruction = RepositoryAuditContext.repositoryAuditContext;
-          break;
-        case 'Settings & Privacy Mode':
-          currentSystemInstruction = SettingsPrivacyContext.settingsPrivacyContext;
-          break;
-        case 'General Chat':
-        default:
-          currentSystemInstruction = null; // No system instruction for general chat
-          break;
+      if (initialPrompt != null) {
+        currentSystemInstruction = pdpSystemInstruction;
+      } else {
+        String actualSelectedMode = selectedModeOverride ?? _selectedMode;
+        
+        // Check if the message is a quick action and get its specific prompt
+        String? quickActionPromptKey = _quickActions.firstWhere(
+          (action) => action['text'] == text,
+          orElse: () => {},
+        )['promptKey'];
+
+        if (quickActionPromptKey != null && _quickActionSystemPrompts.containsKey(quickActionPromptKey)) {
+          currentSystemInstruction = _quickActionSystemPrompts[quickActionPromptKey];
+        } else {
+          switch (actualSelectedMode) {
+            case 'KhonoPal Mode': // KhonoPal Mode
+              currentSystemInstruction = KhonoPalContext.khonopalContext;
+              break;
+            case 'General Chat': // General Chat mode
+              currentSystemInstruction = null; // No system instruction for general chat
+              break;
+            default: // Fallback to KhonoPal context if an unexpected mode is encountered
+              currentSystemInstruction = KhonoPalContext.khonopalContext;
+              break;
+          }
+        }
+      }
+
+      // Add summarization instruction if _isSummarizeMode is true
+      if (_isSummarizeMode) {
+        if (currentSystemInstruction != null) {
+          currentSystemInstruction += "\n\nPlease summarize the response to 3-4 lines.";
+        } else {
+          currentSystemInstruction = "Summarize the following response to 3-4 lines.";
+        }
       }
 
       _model = FirebaseAI.googleAI().generativeModel(
@@ -372,6 +335,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       _startTypewriterAnimation(aiMessage);
       _videoController.play(); // Ensure video keeps playing
       _saveChatHistory(); // Save chat after AI response
+
+      // If there's an onResult callback and a PDP was generated, send it back
+      if (widget.onResult != null && currentSystemInstruction == pdpSystemInstruction) {
+        widget.onResult!(cleanedResponseText);
+        Navigator.pop(context); // Pop the chatbot screen after generating PDP
+      }
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
@@ -430,11 +399,48 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     },
                   ),
                 ),
+                // Conditionally display quick actions
+                if (_showQuickActions) _buildQuickActions(),
                 _buildMessageInput(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // New method to build quick action buttons
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Wrap(
+        spacing: 8.0, // Space between quick action buttons
+        runSpacing: 8.0, // Space between lines of quick action buttons
+        children: _quickActions.map((action) {
+          return TextButton(
+            onPressed: () {
+              setState(() {
+                _showQuickActions = false; // Hide quick actions when one is selected
+              });
+              // Send the quick action text to the chatbot
+              _sendMessage(messageContent: action['text'], selectedModeOverride: 'KhonoPal Mode'); // Pass selectedModeOverride
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white10, // A subtle background
+              foregroundColor: Colors.white, // White text
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0), // Rounded corners
+                side: BorderSide(color: Colors.white30), // Light border
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            ),
+            child: Text(
+              action['text']!,
+              style: const TextStyle(fontSize: 14.0),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -472,30 +478,41 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  prefixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white70),
-                        onPressed: () {
-                          _showModeSelectionSheet(context);
-                        },
-                      ),
-                      // Text-to-speech button (AI Voice Playback)
-                      IconButton(
-                        icon: Icon(
-                          _isSpeaking ? Icons.volume_off : Icons.volume_up,
-                          color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
+                  prefixIcon: SizedBox(
+                    width: 120, // Adjust width as needed to fit both icons
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add, color: Colors.white70),
+                          onPressed: () {
+                            _showModeSelectionSheet(context);
+                          },
                         ),
-                        onPressed: (_lastAiResponse != null && !_isThinking) ? () {
-                          if (_isSpeaking) {
-                            _stop();
-                          } else if (_lastAiResponse != null) { // Only speak if there's a response
-                            _speak(_lastAiResponse!); // Speak the last AI response
-                          }
-                        } : null,
-                      ),
-                    ],
+                        // New Summarize Button
+                        IconButton(
+                          icon: Icon(
+                            Icons.summarize,
+                            color: _isSummarizeMode ? const Color(0xFFC10D00) : Colors.white70,
+                          ),
+                          onPressed: _toggleSummarizeMode,
+                        ),
+                        // Text-to-speech button (AI Voice Playback)
+                        IconButton(
+                          icon: Icon(
+                            _isSpeaking ? Icons.volume_off : Icons.volume_up,
+                            color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
+                          ),
+                          onPressed: (_lastAiResponse != null && !_isThinking) ? () {
+                            if (_isSpeaking) {
+                              _stop();
+                            } else if (_lastAiResponse != null) { // Only speak if there's a response
+                              _speak(_lastAiResponse!); // Speak the last AI response
+                            }
+                          } : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
@@ -503,7 +520,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             const SizedBox(width: 8.0),
             FloatingActionButton(
-              onPressed: _sendMessage,
+              onPressed: () => _sendMessage(),
               backgroundColor: const Color(0xFFC10D00),
               child: Image.asset(
                 'assets/Send_Paper Plane/Send_Plane_Red Badge_White.png',
@@ -517,40 +534,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Future<Map<String, dynamic>?> _proofreadMessage(String textToProofread) async {
-    if (textToProofread.isEmpty) {
-      return null;
-    }
-
-    try {
-      final String? rawResult = await _channel.invokeMethod('proofreadText', {'text': textToProofread});
-      if (rawResult != null) {
-        return json.decode(rawResult) as Map<String, dynamic>;
-      }
-      return null;
-    } on PlatformException catch (_) {
-      return {'status': 'ERROR', 'message': 'Platform specific error during proofreading.'};
-    } catch (_) {
-      return {'status': 'ERROR', 'message': 'Unexpected error during proofreading.'};
-    }
-  }
-
   String _getHintTextForMode() {
     switch (_selectedMode) {
-      case 'Dashboard Mode':
-        return 'Ask anything about the Manager Review Team Dashboard...';
-      case 'Progress Visuals Mode':
-        return 'Ask anything about Progress Visuals...';
-      case 'Alerts & Nudges Mode':
-        return 'Ask anything about Alerts & Nudges...';
-      case 'Leaderboard Mode':
-        return 'Ask anything about the Leaderboard...';
-      case 'Repository & Audit Mode':
-        return 'Ask anything about Repository & Audit...';
-      case 'Settings & Privacy Mode':
-        return 'Ask anything about Settings & Privacy...';
+      case 'KhonoPal Mode':
+        return 'Ask anything within the app...';
       case 'General Chat':
-      default:
+        return 'Chat freely without specific context...';
+      default: // This case handles the initial state or any unexpected _selectedMode value
         return 'Send a message...';
     }
   }
@@ -579,41 +569,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       ),
                     ),
                     ListTile(
-                      leading: Icon(Icons.dashboard, color: Colors.white70),
-                      title: Text('Dashboard Mode', style: TextStyle(color: Colors.white)),
+                      leading: Icon(Icons.psychology, color: Colors.white70), // Icon for KhonoPal Mode
+                      title: Text('KhonoPal Mode', style: TextStyle(color: Colors.white)),
                       onTap: () {
                         setState(() {
-                          _selectedMode = 'Dashboard Mode';
+                          _selectedMode = 'KhonoPal Mode';
                         });
                         Navigator.pop(context);
                       },
                     ),
-                    // New: Proofreading toggle
-                    ListTile(
-                      leading: Icon(Icons.spellcheck, color: _isProofreadingActive ? const Color(0xFFC10D00) : Colors.white70),
-                      title: Text('Proofreading (${_isProofreadingActive ? 'Enabled' : 'Disabled'})', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        _toggleProofreading();
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // New: Speech-to-Text toggle
-                    ListTile(
-                      leading: Icon(_isListening ? Icons.mic_off : Icons.mic, color: _isListening ? const Color(0xFFC10D00) : (_speechEnabled ? Colors.white70 : Colors.grey)),
-                      title: Text('Speech-to-Text (${_isListening ? 'Listening' : 'Off'})', style: TextStyle(color: Colors.white)),
-                      onTap: _speechEnabled
-                          ? () {
-                              _stop(); // Stop TTS if active
-                              if (_isListening) {
-                                _stopListening();
-                              } else {
-                                _startListening();
-                              }
-                              Navigator.pop(context);
-                            }
-                          : null,
-                    ),
-                    // New: Voice Selection
+                    // Re-added: Voice Selection
                     ListTile(
                       leading: Icon(Icons.record_voice_over, color: (_voices.isNotEmpty && _selectedVoiceId != null) ? const Color(0xFFC10D00) : Colors.white70),
                       title: Text('Voice Selection (${_selectedVoiceId != null ? _selectedVoiceId!.split('#').first : 'Default'})', style: TextStyle(color: Colors.white)),
@@ -622,56 +587,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         _showVoiceSelectionSheet(context); // Open the voice selection sheet
                       },
                     ),
-                    ListTile(
-                      leading: Icon(Icons.show_chart, color: Colors.white70),
-                      title: Text('Progress Visuals', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Progress Visuals Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.notifications_active, color: Colors.white70),
-                      title: Text('Alerts & Nudges', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Alerts & Nudges Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.leaderboard, color: Colors.white70),
-                      title: Text('Leaderboard', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Leaderboard Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.security, color: Colors.white70),
-                      title: Text('Repository & Audit', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Repository & Audit Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: Icon(Icons.settings, color: Colors.white70),
-                      title: Text('Settings & Privacy', style: TextStyle(color: Colors.white)),
-                      onTap: () {
-                        setState(() {
-                          _selectedMode = 'Settings & Privacy Mode';
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
+                    // Re-added: General Chat
                     ListTile(
                       leading: Icon(Icons.chat_bubble_outline, color: Colors.white70),
                       title: Text('General Chat', style: TextStyle(color: Colors.white)),
@@ -690,8 +606,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         Navigator.pop(context);
                       },
                     ),
-                    // Add more modes here if needed
-                    // SizedBox(height: MediaQuery.of(context).padding.bottom), // Adjust for safe area
                   ],
                 ),
               ),
@@ -703,12 +617,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   void _showVoiceSelectionSheet(BuildContext context) {
+    _voiceSearchController.clear(); // Clear search on entry to show all voices
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        // ignore: avoid_print
-        print('Voices in _showVoiceSelectionSheet: $_voices'); // Debug print
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
           child: BackdropFilter(
@@ -758,16 +671,23 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       child: ListView.builder(
                         itemCount: _filteredVoices.length, // Use filtered voices here
                         itemBuilder: (context, index) {
-                          final voice = _filteredVoices[index]; // Use filtered voices here
-                          final bool isSelected = voice['name'] == _selectedVoiceId;
+                          final voice = _filteredVoices[index]; // Each voice item is expected to be a Map<String, dynamic>
+                          // Safely access 'name' and 'locale' with null-aware operators and provide default strings
+                          final voiceName = (voice['name'] as String?) ?? 'Unknown Voice';
+                          final voiceLocale = (voice['locale'] as String?) ?? 'Unknown Locale';
+                          final bool isSelected = voiceName == _selectedVoiceId;
+
                           return ListTile(
-                            title: Text(voice['name'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white)),
-                            subtitle: Text(voice['locale'], style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white70)),
+                            title: Text(
+                              '$voiceName ($voiceLocale)', // Combine name and locale
+                              style: TextStyle(color: isSelected ? const Color(0xFFC10D00) : Colors.white),
+                            ),
                             trailing: isSelected ? Icon(Icons.check, color: const Color(0xFFC10D00)) : null,
                             onTap: () {
                               setState(() {
-                                _selectedVoiceId = voice['name'];
-                                flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': voice['locale']});
+                                _selectedVoiceId = voiceName;
+                                // Ensure locale is also safely accessed when setting the voice
+                                flutterTts.setVoice({'name': _selectedVoiceId!, 'locale': voiceLocale});
                               });
                               Navigator.pop(context); // Close the bottom sheet
                             },
@@ -800,7 +720,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Future<void> _saveChatHistory() async {
     final prefs = await SharedPreferences.getInstance();
-    final String encodedMessages = json.encode(_messages.map((msg) => {'text': msg.text, 'isUser': msg.isUser, 'fullText': msg.fullText}).toList());
+    final String encodedMessages = json.encode(_messages.map((msg) => {'text': msg.text, 'isUser': msg.isUser, 'fullText': msg.fullText, 'isGreeting': msg.isGreeting}).toList());
     await prefs.setString('chatHistory', encodedMessages);
   }
 
@@ -811,7 +731,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       final List<dynamic> decodedMessages = json.decode(encodedMessages);
       setState(() {
         _messages.clear();
-        _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'])).toList());
+        _messages.addAll(decodedMessages.map((msg) => ChatMessage(text: msg['text'], isUser: msg['isUser'], fullText: msg['fullText'], isGreeting: msg['isGreeting'] ?? false)).toList());
       });
     } else {
       // If no history or empty, the initial greeting will be set by initState.
@@ -824,8 +744,9 @@ class ChatMessage {
   String text; // Made mutable for typewriter effect
   final bool isUser;
   final String? fullText; // Stores the complete text for AI messages
+  final bool isGreeting; // New property to identify greeting messages
 
-  ChatMessage({required this.text, required this.isUser, this.fullText});
+  ChatMessage({required this.text, required this.isUser, this.fullText, this.isGreeting = false});
 }
 
 class ChatBubble extends StatelessWidget {
@@ -888,6 +809,22 @@ class ChatBubble extends StatelessWidget {
                         message.text,
                         style: const TextStyle(color: Colors.white),
                       ),
+                      if (!message.isUser && !message.isGreeting) // Only show for AI messages that are not greetings
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: IconButton(
+                              icon: const Icon(Icons.copy, color: Colors.white70, size: 18),
+                              onPressed: () {
+                                Clipboard.setData(ClipboardData(text: message.fullText ?? message.text));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Response copied to clipboard!')),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -961,40 +898,36 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
             bottomRight: Radius.circular(15.0),
           ),
         ),
-        constraints: BoxConstraints(maxWidth: desiredWidth),
-        child: SizedBox(
-          height: 48, // Fixed height for the loader animation
-          width: desiredWidth - 24, // Adjust width considering padding
-          child: Stack(
-            children: [
-              // Background text
-              const Center(
-                child: Text(
-                  'KhonoPal is Thinking',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
+        constraints: BoxConstraints(maxWidth: desiredWidth, minHeight: 48, maxHeight: 48),
+        child: Stack(
+          children: [
+            // Background text
+            const Center(
+              child: Text(
+                'KhonoPal is Thinking',
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
-              // First animated bar
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  final currentLeft = _leftAnimation.value * (desiredWidth - 24 - 15); // Adjust for bar width
-                  final currentHeight = _heightAnimation.value;
-                  final currentWidth = _widthAnimation.value;
-                  return Positioned(
-                    left: currentLeft,
-                    top: (_leftAnimation.value < 0.5) ? (48 - currentHeight) / 2 : 0, // Top/Bottom logic for alternating effect
-                    bottom: (_leftAnimation.value >= 0.5) ? (48 - currentHeight) / 2 : 0,
-                    child: Container(
-                      width: currentWidth,
-                      height: currentHeight,
-                      color: const Color(0xFFC10D00), // Red color for the loader
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
+            ),
+            // First animated bar
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final currentLeft = _leftAnimation.value * (desiredWidth - 24 - 15); // Adjust for bar width
+                final currentHeight = _heightAnimation.value;
+                final currentWidth = _widthAnimation.value;
+                return Positioned(
+                  left: currentLeft,
+                  top: (_leftAnimation.value < 0.5) ? (48 - currentHeight) / 2 : 0, // Top/Bottom logic for alternating effect
+                  bottom: (_leftAnimation.value >= 0.5) ? (48 - currentHeight) / 2 : 0,
+                  child: Container(
+                    width: currentWidth,
+                    height: currentHeight,
+                    color: const Color(0xFFC10D00), // Red color for the loader
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
