@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/design_system/app_components.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -44,8 +40,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildWelcomeCard(),
-                  const SizedBox(height: 20),
                   _filtersBar(),
                   const SizedBox(height: 16),
                   _kpiRow(),
@@ -379,45 +373,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildWelcomeCard() {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'Manager';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-
-    return AppComponents.accentCard(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 30,
-            backgroundColor: AppColors.activeColor,
-            child: Icon(Icons.person, size: 30, color: AppColors.textPrimary),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Welcome back, $userName!', style: AppTypography.heading4),
-                const SizedBox(height: 5),
-                Text(
-                  'Ready to lead your team to success today?',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
