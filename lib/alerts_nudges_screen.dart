@@ -615,6 +615,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icons.local_fire_department;
       case AlertType.deadlineReminder:
         return Icons.access_time;
+      case AlertType.teamGoalAvailable:
+        return Icons.group_work;
+      case AlertType.employeeJoinedTeamGoal:
+        return Icons.group_add;
     }
   }
 

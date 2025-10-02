@@ -4,6 +4,7 @@ import 'package:pdh/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
+import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
 import 'package:pdh/leaderboard_screen.dart'; // Import LeaderboardScreen
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
@@ -29,8 +30,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   final List<SidebarItem> _managerSidebarItems = [
     const SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-    const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
-    const SidebarItem(icon: Icons.work, label: 'Goal Workspace', route: '/my_goal_workspace'), // Re-using MyGoalWorkspaceScreen
+           const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
+           const SidebarItem(icon: Icons.work, label: 'Team Workspace', route: '/manager_team_workspace'), // Manager-specific team workspace
     const SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
     const SidebarItem(icon: Icons.message_outlined, label: 'Team Alerts & Nudges', route: '/manager_alerts_nudges'),
     const SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points', route: '/badges_points'),
@@ -46,8 +47,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const DashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
-      case '/my_goal_workspace':
-        return const MyGoalWorkspaceScreen(embedded: true);
+             case '/manager_team_workspace':
+               return const ManagerTeamWorkspaceScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':

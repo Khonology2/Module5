@@ -13,6 +13,8 @@ enum AlertType {
   achievementUnlocked,
   streakMilestone,
   deadlineReminder,
+  teamGoalAvailable,
+  employeeJoinedTeamGoal, // New alert type for managers
 }
 
 enum AlertPriority {
