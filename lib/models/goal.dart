@@ -30,6 +30,34 @@ class Goal {
     required this.targetDate,
     required this.points,
   });
+
+  Goal copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    String? description,
+    GoalCategory? category,
+    GoalPriority? priority,
+    GoalStatus? status,
+    int? progress,
+    DateTime? createdAt,
+    DateTime? targetDate,
+    int? points,
+  }) {
+    return Goal(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      priority: priority ?? this.priority,
+      status: status ?? this.status,
+      progress: progress ?? this.progress,
+      createdAt: createdAt ?? this.createdAt,
+      targetDate: targetDate ?? this.targetDate,
+      points: points ?? this.points,
+    );
+  }
 }
 
 

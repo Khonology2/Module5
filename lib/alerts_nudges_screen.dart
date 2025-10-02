@@ -1,233 +1,429 @@
 import 'package:flutter/material.dart';
-// Drawers removed in favor of persistent sidebar
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
-// Profile handled by MainLayout
+import 'package:pdh/models/alert.dart';
 
-class AlertsNudgesScreen extends StatelessWidget {
+class AlertsNudgesScreen extends StatefulWidget {
   const AlertsNudgesScreen({super.key});
 
   @override
+  State<AlertsNudgesScreen> createState() => _AlertsNudgesScreenState();
+}
+
+class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Check for new alerts when screen loads
+    AlertService.checkAndCreateGoalAlerts();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0), // Adjusted padding
+    return AppScaffold(
+      title: 'Alerts & Nudges',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/alerts_nudges',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        await AuthService().signOut();
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/sign_in',
+          (route) => false,
+        );
+      },
+      content: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.backgroundColor,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.backgroundColor,
+              AppColors.backgroundColor.withOpacity(0.9),
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: AppSpacing.screenPadding,
+          physics: const AlwaysScrollableScrollPhysics(),
       child: StreamBuilder<String?>(
         stream: RoleService.instance.roleStream(),
-        builder: (context, snapshot) {
-          final role = snapshot.data;
-          final isManager = role == 'manager';
+            builder: (context, roleSnapshot) {
+              final role = roleSnapshot.data;
+              
           if (role == null) {
             return const Center(
-              child: CircularProgressIndicator(color: Colors.white70),
-            );
-          }
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  ),
+                );
+              }
+
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) {
+                return Center(
+                  child: Text(
+                    'Please sign in to view alerts',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                );
+              }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Alerts & Nudges', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              _aiSmartAlertsCard(),
+                  Text(
+                    'Alerts & Nudges',
+                    style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSmartAlertsCard(),
+                  const SizedBox(height: AppSpacing.lg),
+                  StreamBuilder<List<Alert>>(
+                    stream: AlertService.getUserAlertsStream(user.uid),
+                    builder: (context, alertsSnapshot) {
+                      if (alertsSnapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          ),
+                        );
+                      }
+
+                      if (alertsSnapshot.hasError) {
+                        final errorMessage = alertsSnapshot.error.toString();
+                        
+                        // Check if it's a permission error
+                        if (errorMessage.contains('permission-denied') || 
+                            errorMessage.contains('Missing or insufficient permissions')) {
+                          return _buildPermissionErrorState();
+                        }
+                        
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: AppColors.dangerColor,
+                              ),
               const SizedBox(height: 16),
-              if (isManager) _managerSummaryChips(),
-              if (isManager) const SizedBox(height: 16),
-              if (isManager)
-                _managerAlerts(context)
-              else
-                _employeeAlerts(context),
+                              Text(
+                                'Error loading alerts',
+                                style: AppTypography.heading4.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please try again later',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final alerts = alertsSnapshot.data ?? [];
+                      
+                      return Column(
+                        children: [
+                          _buildAlertSummary(alerts),
+                          const SizedBox(height: AppSpacing.lg),
+                          _buildAlertsList(alerts),
+                        ],
+                      );
+                    },
+                  ),
             ],
           );
         },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _aiSmartAlertsCard() {
+  Widget _buildSmartAlertsCard() {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.activeColor.withOpacity(0.1),
+            AppColors.elevatedBackground,
+          ],
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.psychology,
+                      color: AppColors.activeColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
               Text(
-                'AI Smart Alerts',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                    'Smart Alerts',
+                    style: AppTypography.heading4.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.activeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  'AI POWERED',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
                 ),
               ),
-              Icon(Icons.psychology, color: Color(0xFFC10D00), size: 22),
             ],
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Personalized nudges based on habits and goals',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+          const SizedBox(height: 8),
+          Text(
+            'Personalized notifications based on your goals, habits, and progress patterns',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _managerSummaryChips() {
-    Widget chip(Color color, String label) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+  Widget _buildAlertSummary(List<Alert> alerts) {
+    final unreadCount = alerts.where((alert) => !alert.isRead).length;
+    final urgentCount = alerts.where((alert) => alert.priority == AlertPriority.urgent).length;
+    final dueSoonCount = alerts.where((alert) => alert.type == AlertType.goalDueSoon).length;
+    final overdueCount = alerts.where((alert) => alert.type == AlertType.goalOverdue).length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSummaryChip(
+            'Unread',
+            unreadCount.toString(),
+            AppColors.activeColor,
+            Icons.notifications,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildSummaryChip(
+            'Urgent',
+            urgentCount.toString(),
+            AppColors.dangerColor,
+            Icons.priority_high,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildSummaryChip(
+            'Due Soon',
+            dueSoonCount.toString(),
+            AppColors.warningColor,
+            Icons.schedule,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildSummaryChip(
+            'Overdue',
+            overdueCount.toString(),
+            AppColors.dangerColor,
+            Icons.warning,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryChip(String label, String count, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            count,
+            style: AppTypography.heading4.copyWith(
           color: color,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
+            ),
+          ),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        chip(Colors.redAccent, '3 Overdue'),
-        chip(Colors.orangeAccent, '5 At Risk'),
-        chip(Color(0xFFC10D00), '7 Due Soon'),
-        chip(Colors.greenAccent, '4 Kudos'),
-      ],
-    );
   }
 
-  Widget _managerAlerts(BuildContext context) {
+  Widget _buildAlertsList(List<Alert> alerts) {
+    if (alerts.isEmpty) {
+      return _buildEmptyAlertsState();
+    }
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _alertCard(
-          context,
-          icon: Icons.warning_amber_rounded,
-          iconColor: Colors.redAccent,
-          title: 'Overdue: Launch new product campaign',
-          subtitle: 'Michael Chen • Due 2 days ago',
-          primaryText: 'Nudge',
-          secondaryText: 'Reassign',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Nudge sent'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Reassign flow'))),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Alerts',
+              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+            ),
+            if (alerts.any((alert) => !alert.isRead))
+              TextButton(
+                onPressed: () async {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    await AlertService.markAllAsRead(user.uid);
+                  }
+                },
+                child: Text(
+                  'Mark All Read',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                  ),
+                ),
+              ),
+          ],
         ),
-        const SizedBox(height: 12),
-        _alertCard(
-          context,
-          icon: Icons.schedule,
-          iconColor: Colors.orangeAccent,
-          title: 'Due soon: Quarterly roadmap draft',
-          subtitle: 'Sarah Johnson • Due in 5 days',
-          primaryText: 'Assign Reviewer',
-          secondaryText: 'Snooze',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Reviewer assigned'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Snoozed'))),
-        ),
-        const SizedBox(height: 12),
-        _alertCard(
-          context,
-          icon: Icons.emoji_events,
-          iconColor: Colors.greenAccent,
-          title: 'Kudos: Retention win‑back workflow',
-          subtitle: 'Emily Rodriguez • Completed 2d ago',
-          primaryText: 'Give Kudos',
-          secondaryText: 'Share',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Kudos sent'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Shared'))),
-        ),
+        const SizedBox(height: AppSpacing.md),
+        ...alerts.map((alert) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: _buildAlertCard(alert),
+          );
+        }),
       ],
     );
   }
 
-  Widget _employeeAlerts(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildEmptyAlertsState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
       children: [
-        _alertCard(
-          context,
-          icon: Icons.lightbulb_outline,
-          iconColor: Colors.orange,
-          title: 'Tip: Share your progress notes before Friday',
-          subtitle: 'Keeps your streak and helps your manager review',
-          primaryText: 'Add Notes',
-          secondaryText: 'Later',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Opening notes'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Remind later'))),
-        ),
-        const SizedBox(height: 12),
-        _alertCard(
-          context,
-          icon: Icons.event,
-          iconColor: Color(0xFFC10D00),
-          title: 'Due soon: Fitness Challenge goal',
-          subtitle: 'Due in 3 days',
-          primaryText: 'Open Goal',
-          secondaryText: 'Snooze',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Opening goal'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Snoozed'))),
-        ),
-        const SizedBox(height: 12),
-        _alertCard(
-          context,
-          icon: Icons.emoji_events,
-          iconColor: Colors.green,
-          title: 'Nice work! You earned +20 points yesterday',
-          subtitle: 'Keep your streak to unlock a badge',
-          primaryText: 'View Points',
-          secondaryText: 'Dismiss',
-          onPrimary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Viewing points'))),
-          onSecondary: () => ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Dismissed'))),
-        ),
-      ],
+          Icon(
+            Icons.notifications_none,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Alerts Yet',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You\'ll see notifications about your goals, achievements, and team updates here.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(context, '/my_goal_workspace');
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Create Your First Goal'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.activeColor,
+              foregroundColor: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _alertCard(
-    BuildContext context, {
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    String? subtitle,
-    required String primaryText,
-    required String secondaryText,
-    required VoidCallback onPrimary,
-    required VoidCallback onSecondary,
-  }) {
+  Widget _buildAlertCard(Alert alert) {
+    final alertColor = _getAlertColor(alert.type, alert.priority);
+    final alertIcon = _getAlertIcon(alert.type);
+    
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(
+          color: alert.isRead 
+              ? AppColors.borderColor 
+              : alertColor.withOpacity(0.3),
+          width: alert.isRead ? 1 : 2,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,75 +433,239 @@ class AlertsNudgesScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8.0),
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.18),
+                  color: alertColor.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
+                child: Icon(alertIcon, color: alertColor, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            alert.title,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (!alert.isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: AppColors.activeColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
+                    const SizedBox(height: 4),
+                    Text(
+                      alert.message,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
                       Text(
-                        subtitle,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
+                          _getTimeAgo(alert.createdAt),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                        if (alert.fromUserName != null) ...[
+                          Text(
+                            ' • from ${alert.fromUserName}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: alertColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            alert.priority.name.toUpperCase(),
+                            style: AppTypography.bodySmall.copyWith(
+                              color: alertColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 9,
+                            ),
                         ),
                       ),
                     ],
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          if (alert.actionText != null) ...[
+            const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: onPrimary,
+                    onPressed: () async {
+                      // Mark as read when action is taken
+                      await AlertService.markAsRead(alert.id);
+                      
+                      // Navigate to action route if provided
+                      if (alert.actionRoute != null) {
+                        Navigator.pushNamed(context, alert.actionRoute!);
+                      }
+                    },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: iconColor,
-                    foregroundColor: Colors.white,
+                      backgroundColor: alertColor,
+                      foregroundColor: AppColors.textPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Text(primaryText),
+                    child: Text(alert.actionText!),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
+                const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: onSecondary,
+                    onPressed: () async {
+                      await AlertService.dismissAlert(alert.id);
+                    },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: BorderSide(
-                      color: Colors.white70.withValues(alpha: 0.5),
-                    ),
+                      foregroundColor: AppColors.textSecondary,
+                      side: BorderSide(color: AppColors.borderColor),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Text(secondaryText),
+                    child: const Text('Dismiss'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _getAlertColor(AlertType type, AlertPriority priority) {
+    switch (priority) {
+      case AlertPriority.urgent:
+        return AppColors.dangerColor;
+      case AlertPriority.high:
+        return AppColors.warningColor;
+      case AlertPriority.medium:
+        return AppColors.activeColor;
+      case AlertPriority.low:
+        return AppColors.successColor;
+    }
+  }
+
+  IconData _getAlertIcon(AlertType type) {
+    switch (type) {
+      case AlertType.goalCreated:
+        return Icons.flag;
+      case AlertType.goalCompleted:
+        return Icons.check_circle;
+      case AlertType.goalDueSoon:
+        return Icons.schedule;
+      case AlertType.goalOverdue:
+        return Icons.warning;
+      case AlertType.pointsEarned:
+        return Icons.stars;
+      case AlertType.levelUp:
+        return Icons.trending_up;
+      case AlertType.badgeEarned:
+        return Icons.workspace_premium;
+      case AlertType.teamAssigned:
+        return Icons.group_add;
+      case AlertType.managerNudge:
+        return Icons.notifications_active;
+      case AlertType.achievementUnlocked:
+        return Icons.emoji_events;
+      case AlertType.streakMilestone:
+        return Icons.local_fire_department;
+      case AlertType.deadlineReminder:
+        return Icons.access_time;
+    }
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  Widget _buildPermissionErrorState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.warningColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.security,
+            size: 48,
+            color: AppColors.warningColor,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Alerts Setup Required',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'The alerts system needs to be configured by your administrator. In the meantime, you can still use all other features of the app.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'You\'ll be notified when alerts are available!',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.warningColor,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
     );
   }
+
 }
 
 // Drawer removed; persistent sidebar via MainLayout
+
