@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
 import 'package:pdh/services/role_service.dart';
 // Profile handled by MainLayout
 
@@ -9,12 +8,60 @@ class RepositoryAuditScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      title: 'Repository & Audit',
-      currentRouteName: '/repository_audit',
-      body: Column(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RepositoryAppBarContent(onMenuPressed: () {}),
+          Text('Repository & Audit', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search completed goals, audit logs...',
+              hintStyle: const TextStyle(color: Colors.white54),
+              prefixIcon: const Icon(Icons.search, color: Colors.white54),
+              filled: true,
+              fillColor: const Color(0x802C223E),
+              border: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(15.0)),
+                borderSide: BorderSide.none,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            ),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 25), // Spacing between search bar and title
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Expanded(
+                child: Text(
+                  'Completed Goals Archive',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              // Archive icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(0x33),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.archive_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
           StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
             builder: (context, snapshot) {
@@ -92,11 +139,6 @@ class RepositoryAuditScreen extends StatelessWidget {
     );
   }
 
-  // Profile handled by MainLayout
-
-  // Removed bottom navigation; helper no longer needed
-
-  // Helper widget to build individual goal cards.
   Widget _buildGoalCard({
     required String title,
     required String date,
@@ -348,77 +390,3 @@ class _RoleSummaryBar extends StatelessWidget {
     );
   }
 }
-
-class _RepositoryAppBarContent extends StatelessWidget {
-  final VoidCallback onMenuPressed; // Add the callback parameter
-
-  const _RepositoryAppBarContent({
-    required this.onMenuPressed,
-  }); // Update constructor
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 50, 20, 0), // Adjusted top padding
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search completed goals, audit logs...',
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    prefixIcon: const Icon(Icons.search, color: Colors.white54),
-                    filled: true,
-                    fillColor: const Color(0x802C223E),
-                    border: const OutlineInputBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                      borderSide: BorderSide.none,
-                    ),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 25), // Spacing between search bar and title
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Expanded(
-                child: Text(
-                  'Completed Goals Archive',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ),
-              // Archive icon
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(0x33),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.archive_outlined,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Drawer removed; persistent sidebar via MainLayout

@@ -1,10 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pdh/manager_nav_drawer.dart';
-import 'dart:ui'; // Added for ImageFilter
-import 'package:pdh/employee_profile_screen.dart'; // Import the new profile screen
-import 'package:pdh/manager_profile_screen.dart'; // Import the new manager profile screen
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/database_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,134 +8,57 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  bool _isManager = false;
-  bool _isLoading = true; // Add loading state
-
-  @override
-  void initState() {
-    super.initState();
-    _checkUserRole();
-  }
-
-  Future<void> _checkUserRole() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      // ignore: avoid_print
-      print('User is logged in: ${user.uid}');
-      try {
-        final userProfile = await DatabaseService.getUserProfile(user.uid);
-        setState(() {
-          _isManager = userProfile.role == 'manager';
-          _isLoading = false; // Set loading to false after role is determined
-          // ignore: avoid_print
-          print('Is manager: $_isManager, Is loading: $_isLoading');
-        });
-      } catch (e) {
-        // Handle error, e.g., show a snackbar or log it
-        // ignore: avoid_print
-        print('Error fetching user role: $e');
-        setState(() {
-          _isLoading = false; // Stop loading even if there's an error
-          // ignore: avoid_print
-          print('Error state - Is manager: $_isManager, Is loading: $_isLoading');
-        });
-      }
-    } else {
-      // ignore: avoid_print
-      print('User is null - not logged in.');
-      setState(() {
-        _isLoading = false; // Stop loading if user is null
-        // ignore: avoid_print
-        print('Not logged in state - Is manager: $_isManager, Is loading: $_isLoading');
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
-      appBar: AppBar(
-        backgroundColor: Colors.transparent, // Make AppBar transparent
-        elevation: 0,
-        title: const Text(
-          'Dashboard',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
         ),
-        actions: [
-          if (_isLoading) // Show a loading indicator if still loading
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(color: Colors.white),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.person, color: Colors.white),
-              onPressed: () {
-                if (_isManager) {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileScreen()));
-                }
-              },
+        Positioned.fill(
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.2,
+                colors: [
+                  Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
+                  Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
+                ],
+                stops: [0.0, 1.0],
+              ),
             ),
-        ],
-      ),
-      drawer: _isManager ? const ManagerNavDrawer() : null,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16.0, 16, 16), // Adjusted padding
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _filtersBar(),
+                  const SizedBox(height: 16),
+                  _kpiRow(),
+                  const SizedBox(height: 20),
+                  _quickActions(context),
+                  const SizedBox(height: 20),
+                  _aiInsights(),
+                  const SizedBox(height: 20),
+                  _workloadHeatmap(),
+                  const SizedBox(height: 20),
+                  _engagementSummary(),
+                  const SizedBox(height: 20),
+                  _statusSections(),
+                ],
               ),
             ),
           ),
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                      Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _filtersBar(),
-                      const SizedBox(height: 16),
-                      _kpiRow(),
-                      const SizedBox(height: 20),
-                      _quickActions(context),
-                      const SizedBox(height: 20),
-                      _aiInsights(),
-                      const SizedBox(height: 20),
-                      _workloadHeatmap(),
-                      const SizedBox(height: 20),
-                      _engagementSummary(),
-                      const SizedBox(height: 20),
-                      _statusSections(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

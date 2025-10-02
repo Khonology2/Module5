@@ -378,13 +378,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
           ),
           dropdownColor: const Color(0x880A0F1F), // Darker background for dropdown
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'), // Apply Poppins to selected item
           items: <String>['employee', 'manager'].map((String value) {
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
                 value == 'employee' ? 'Employee' : 'Manager',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'), // Apply Poppins to dropdown items
               ),
             );
           }).toList(),

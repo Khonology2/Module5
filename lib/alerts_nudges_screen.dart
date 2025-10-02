@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 // Drawers removed in favor of persistent sidebar
-import 'package:pdh/widgets/main_layout.dart';
 import 'package:pdh/services/role_service.dart';
 // Profile handled by MainLayout
 
@@ -9,10 +8,9 @@ class AlertsNudgesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MainLayout(
-      title: 'Alerts & Nudges',
-      currentRouteName: '/alerts_nudges',
-      body: StreamBuilder<String?>(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0), // Adjusted padding
+      child: StreamBuilder<String?>(
         stream: RoleService.instance.roleStream(),
         builder: (context, snapshot) {
           final role = snapshot.data;
@@ -25,6 +23,8 @@ class AlertsNudgesScreen extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text('Alerts & Nudges', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
               _aiSmartAlertsCard(),
               const SizedBox(height: 16),
               if (isManager) _managerSummaryChips(),
@@ -39,8 +39,6 @@ class AlertsNudgesScreen extends StatelessWidget {
       ),
     );
   }
-
-  // Profile handled by MainLayout
 
   Widget _aiSmartAlertsCard() {
     return Container(

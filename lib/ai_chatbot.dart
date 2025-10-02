@@ -118,15 +118,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     List<dynamic> fetchedVoices = (await flutterTts.getVoices) ?? [];
     _voices = []; // Initialize _voices as a growable list
     _voices.addAll(fetchedVoices); // Add all fetched voices
-    // ignore: avoid_print
-    print('Raw voices from flutterTts.getVoices: $_voices'); // Debug print
 
     // Directly use fetchedVoices for allVoices.
     // The fallback has been removed to ensure only platform-provided voices are shown.
     List<dynamic> allVoices = List.from(_voices);
 
-    // ignore: avoid_print
-    print('All available voices: $allVoices'); // Debug print
     if (allVoices.isNotEmpty) {
       setState(() {
         // Use null-aware operators to safely access properties and provide default values
@@ -626,8 +622,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        // ignore: avoid_print
-        print('Voices in _showVoiceSelectionSheet: $_voices'); // Debug print
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20.0)),
           child: BackdropFilter(
@@ -904,40 +898,36 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
             bottomRight: Radius.circular(15.0),
           ),
         ),
-        constraints: BoxConstraints(maxWidth: desiredWidth),
-        child: SizedBox(
-          height: 48, // Fixed height for the loader animation
-          width: desiredWidth - 24, // Adjust width considering padding
-          child: Stack(
-            children: [
-              // Background text
-              const Center(
-                child: Text(
-                  'KhonoPal is Thinking',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
+        constraints: BoxConstraints(maxWidth: desiredWidth, minHeight: 48, maxHeight: 48),
+        child: Stack(
+          children: [
+            // Background text
+            const Center(
+              child: Text(
+                'KhonoPal is Thinking',
+                style: TextStyle(color: Colors.white, fontSize: 16),
               ),
-              // First animated bar
-              AnimatedBuilder(
-                animation: _controller,
-                builder: (context, child) {
-                  final currentLeft = _leftAnimation.value * (desiredWidth - 24 - 15); // Adjust for bar width
-                  final currentHeight = _heightAnimation.value;
-                  final currentWidth = _widthAnimation.value;
-                  return Positioned(
-                    left: currentLeft,
-                    top: (_leftAnimation.value < 0.5) ? (48 - currentHeight) / 2 : 0, // Top/Bottom logic for alternating effect
-                    bottom: (_leftAnimation.value >= 0.5) ? (48 - currentHeight) / 2 : 0,
-                    child: Container(
-                      width: currentWidth,
-                      height: currentHeight,
-                      color: const Color(0xFFC10D00), // Red color for the loader
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
+            ),
+            // First animated bar
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final currentLeft = _leftAnimation.value * (desiredWidth - 24 - 15); // Adjust for bar width
+                final currentHeight = _heightAnimation.value;
+                final currentWidth = _widthAnimation.value;
+                return Positioned(
+                  left: currentLeft,
+                  top: (_leftAnimation.value < 0.5) ? (48 - currentHeight) / 2 : 0, // Top/Bottom logic for alternating effect
+                  bottom: (_leftAnimation.value >= 0.5) ? (48 - currentHeight) / 2 : 0,
+                  child: Container(
+                    width: currentWidth,
+                    height: currentHeight,
+                    color: const Color(0xFFC10D00), // Red color for the loader
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
