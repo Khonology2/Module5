@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -56,7 +57,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         }
       }
     } catch (e) {
-      print('Error loading streak data: $e');
+      developer.log('Error loading streak data: $e', name: 'EmployeeDashboardScreen');
       // Set default values on error
       if (mounted) {
         setState(() {
@@ -190,12 +191,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: AppComponents.backgroundWithImage(
         imagePath:
@@ -477,8 +480,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              AppColors.activeColor.withOpacity(0.1),
-              AppColors.warningColor.withOpacity(0.1),
+              AppColors.activeColor.withValues(alpha: 0.1),
+              AppColors.warningColor.withValues(alpha: 0.1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -489,7 +492,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.activeColor.withOpacity(0.2),
+                color: AppColors.activeColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Icon(
@@ -905,10 +908,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _getPriorityColor(goal.priority).withOpacity(0.1),
+                    color: _getPriorityColor(goal.priority).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _getPriorityColor(goal.priority).withOpacity(0.3),
+                      color: _getPriorityColor(goal.priority).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(

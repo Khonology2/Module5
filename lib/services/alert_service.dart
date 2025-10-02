@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/alert.dart';
@@ -200,7 +201,7 @@ class AlertService {
     try {
       await _firestore.collection('alerts').add(alert.toFirestore());
     } catch (e) {
-      print('Error creating alert: $e');
+      developer.log('Error creating alert: $e');
       // Silently fail for now - alerts are not critical for app functionality
     }
   }
@@ -228,11 +229,11 @@ class AlertService {
         alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return alerts.take(50).toList();
       } catch (e) {
-        print('Error processing alerts: $e');
+        developer.log('Error processing alerts: $e');
         return <Alert>[];
       }
     }).handleError((error) {
-      print('Error loading alerts: $error');
+      developer.log('Error loading alerts: $error');
       return <Alert>[];
     });
   }
@@ -243,7 +244,7 @@ class AlertService {
         'isRead': true,
       });
     } catch (e) {
-      print('Error marking alert as read: $e');
+      developer.log('Error marking alert as read: $e');
     }
   }
 
@@ -253,7 +254,7 @@ class AlertService {
         'isDismissed': true,
       });
     } catch (e) {
-      print('Error dismissing alert: $e');
+      developer.log('Error dismissing alert: $e');
     }
   }
 
@@ -272,7 +273,7 @@ class AlertService {
 
       await batch.commit();
     } catch (e) {
-      print('Error marking all alerts as read: $e');
+      developer.log('Error marking all alerts as read: $e');
     }
   }
 
@@ -354,7 +355,7 @@ class AlertService {
         }
       }
     } catch (e) {
-      print('Error checking goal alerts: $e');
+      developer.log('Error checking goal alerts: $e');
     }
   }
 

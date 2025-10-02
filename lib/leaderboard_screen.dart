@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,7 +19,7 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   // Initialize with concrete values to prevent initialization errors
-  Set<LeaderboardFilter> _selectedFilters = {LeaderboardFilter.thisMonth, LeaderboardFilter.points};
+  final Set<LeaderboardFilter> _selectedFilters = <LeaderboardFilter>{LeaderboardFilter.thisMonth, LeaderboardFilter.points};
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
   UserProfile? _currentUser;
   bool _isLoading = true;
@@ -41,7 +42,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           });
         }
       } catch (e) {
-        print('Error loading current user: $e');
+        developer.log('Error loading current user: $e');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -106,7 +107,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           final data = doc.data() as Map<String, dynamic>?;
           return data != null && data['leaderboardOptin'] == true;
         } catch (e) {
-          print('Error processing doc ${doc.id}: $e');
+          developer.log('Error processing doc ${doc.id}: $e');
           return false;
         }
       }).toList();
@@ -124,7 +125,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             badgeCount = badges.length;
           }
         } catch (e) {
-          print('Error processing badges for user ${doc.id}: $e');
+          developer.log('Error processing badges for user ${doc.id}: $e');
         }
         
         return {
@@ -139,7 +140,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         };
       }).toList();
     } catch (e) {
-      print('Error processing leaderboard data: $e');
+      developer.log('Error processing leaderboard data: $e');
       return <Map<String, dynamic>>[];
     }
   }
@@ -175,7 +176,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 }
 
                 if (leaderboardSnapshot.hasError) {
-                  print('Leaderboard error: ${leaderboardSnapshot.error}');
+                  developer.log('Leaderboard error: ${leaderboardSnapshot.error}');
                   return _buildErrorState();
                 }
 
@@ -185,7 +186,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       ? _processLeaderboardData(leaderboardSnapshot.data!.docs)
                       : <Map<String, dynamic>>[];
                 } catch (e) {
-                  print('Error processing leaderboard data: $e');
+                  developer.log('Error processing leaderboard data: $e');
                   return _buildErrorState();
                 }
 
@@ -432,8 +433,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.withOpacity(colors[position], 0.8),
-                  AppColors.withOpacity(colors[position], 0.4),
+                  colors[position].withValues(alpha: 0.8),
+                  colors[position].withValues(alpha: 0.4),
                 ],
               ),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
@@ -453,7 +454,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       );
     }
 
-    return Container(
+    return SizedBox(
       height: 240, // Increased height to prevent overflow
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -576,7 +577,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isCurrentUser 
-            ? AppColors.activeWithOpacity(0.2)
+            ? AppColors.activeColor.withValues(alpha: 0.2)
             : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(10),
         border: isCurrentUser 
@@ -590,7 +591,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: AppColors.withOpacity(rankColor, 0.2),
+              color: rankColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: rankColor, width: 1),
             ),
@@ -684,9 +685,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.withOpacity(color, 0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.withOpacity(color, 0.3), width: 0.5),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

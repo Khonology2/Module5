@@ -125,12 +125,14 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: Container(
         decoration: BoxDecoration(
@@ -139,7 +141,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
             end: Alignment.bottomRight,
             colors: [
               AppColors.backgroundColor,
-              AppColors.backgroundColor.withOpacity(0.8),
+              AppColors.backgroundColor.withValues(alpha: 0.8),
             ],
           ),
         ),
@@ -413,14 +415,14 @@ class _ProgressVisualsContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: deadlineColor.withOpacity(0.3)),
+        border: Border.all(color: deadlineColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-              color: deadlineColor.withOpacity(0.1),
+              color: deadlineColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(deadlineIcon, color: deadlineColor, size: 20),
@@ -627,10 +629,10 @@ class _ProgressVisualsContent extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: progressColor.withOpacity(0.1),
+                        color: progressColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: progressColor.withOpacity(0.3),
+                          color: progressColor.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -733,9 +735,9 @@ class _ProgressVisualsContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.activeColor.withOpacity(0.1),
+                color: AppColors.activeColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+                border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -905,7 +907,7 @@ class _ProgressVisualsContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: iconColor.withOpacity(0.2)),
+        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -913,7 +915,7 @@ class _ProgressVisualsContent extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: iconColor, size: 18),
@@ -933,7 +935,7 @@ class _ProgressVisualsContent extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
+                    color: iconColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
             child: Text(

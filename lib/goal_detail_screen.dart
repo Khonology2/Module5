@@ -36,6 +36,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Future<void> _startGoal() async {
     if (isLoading) return;
     
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
     setState(() {
       isLoading = true;
     });
@@ -58,33 +60,41 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           reason: 'starting "${currentGoal.title}"',
         );
 
-        setState(() {
-          currentGoal = currentGoal.copyWith(status: GoalStatus.inProgress);
-        });
+        if (mounted) {
+          setState(() {
+            currentGoal = currentGoal.copyWith(status: GoalStatus.inProgress);
+          });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Goal started! +20 points earned 🎉'),
-            backgroundColor: Colors.green,
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('Goal started! +20 points earned 🎉'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error starting goal: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error starting goal: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _completeGoal() async {
     if (isLoading) return;
+    
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     setState(() {
       isLoading = true;
@@ -111,36 +121,44 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           reason: 'completing "${currentGoal.title}"',
         );
 
-        setState(() {
-          currentGoal = currentGoal.copyWith(
-            status: GoalStatus.completed,
-            progress: 100,
-          );
-        });
+        if (mounted) {
+          setState(() {
+            currentGoal = currentGoal.copyWith(
+              status: GoalStatus.completed,
+              progress: 100,
+            );
+          });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Goal completed! +100 points earned 🏆'),
-            backgroundColor: Colors.green,
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(
+              content: Text('Goal completed! +100 points earned 🏆'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error completing goal: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error completing goal: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _updateProgress(int newProgress) async {
     if (isLoading) return;
+    
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     setState(() {
       isLoading = true;
@@ -149,36 +167,42 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     try {
       await DatabaseService.updateGoalProgress(currentGoal.id, newProgress);
       
-      setState(() {
-        currentGoal = currentGoal.copyWith(progress: newProgress);
-      });
+      if (mounted) {
+        setState(() {
+          currentGoal = currentGoal.copyWith(progress: newProgress);
+        });
 
-      // Award points for progress milestones
-      if (newProgress >= 25 && currentGoal.progress < 25) {
-        _awardMilestonePoints(25, '25% progress milestone');
-      } else if (newProgress >= 50 && currentGoal.progress < 50) {
-        _awardMilestonePoints(50, '50% progress milestone');
-      } else if (newProgress >= 75 && currentGoal.progress < 75) {
-        _awardMilestonePoints(75, '75% progress milestone');
+        // Award points for progress milestones
+        if (newProgress >= 25 && currentGoal.progress < 25) {
+          _awardMilestonePoints(25, '25% progress milestone');
+        } else if (newProgress >= 50 && currentGoal.progress < 50) {
+          _awardMilestonePoints(50, '50% progress milestone');
+        } else if (newProgress >= 75 && currentGoal.progress < 75) {
+          _awardMilestonePoints(75, '75% progress milestone');
+        }
+
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Progress updated to $newProgress%'),
+            backgroundColor: Colors.blue,
+          ),
+        );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Progress updated to $newProgress%'),
-          backgroundColor: Colors.blue,
-        ),
-      );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating progress: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error updating progress: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -207,12 +231,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: Container(
         width: double.infinity,
@@ -224,7 +250,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             end: Alignment.bottomRight,
             colors: [
               AppColors.backgroundColor,
-              AppColors.backgroundColor.withOpacity(0.9),
+              AppColors.backgroundColor.withValues(alpha: 0.9),
             ],
           ),
         ),
@@ -271,7 +297,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: _getStatusColor().withOpacity(0.2),
+            color: _getStatusColor().withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _getStatusColor()),
           ),
@@ -475,9 +501,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.successColor.withOpacity(0.1),
+          color: AppColors.successColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.successColor.withOpacity(0.3)),
+          border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -595,10 +621,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     height: 40,
                     decoration: BoxDecoration(
                       color: isCompleted 
-                          ? AppColors.successColor.withOpacity(0.2)
+                          ? AppColors.successColor.withValues(alpha: 0.2)
                           : isCurrent
-                              ? AppColors.activeColor.withOpacity(0.2)
-                              : AppColors.borderColor.withOpacity(0.2),
+                              ? AppColors.activeColor.withValues(alpha: 0.2)
+                              : AppColors.borderColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isCompleted 

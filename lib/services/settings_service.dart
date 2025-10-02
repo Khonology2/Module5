@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -211,7 +212,7 @@ class SettingsService {
       }
       return UserSettings.fromFirestore(snapshot);
     }).handleError((error) {
-      print('Error in user settings stream: $error');
+      developer.log('Error in user settings stream: $error');
       // Return default settings if there's an error
       return getDefaultSettings(user);
     });
@@ -227,7 +228,7 @@ class SettingsService {
       if (!snapshot.exists) return null;
       return UserSettings.fromFirestore(snapshot);
     } catch (e) {
-      print('Error getting user settings: $e');
+      developer.log('Error getting user settings: $e');
       return null;
     }
   }
@@ -246,7 +247,7 @@ class SettingsService {
       // Also save certain settings locally
       await _saveLocalSettings(settings);
     } catch (e) {
-      print('Error updating user settings: $e');
+      developer.log('Error updating user settings: $e');
       rethrow;
     }
   }
@@ -274,7 +275,7 @@ class SettingsService {
         }
       }
     } catch (e) {
-      print('Error updating setting $key: $e');
+      developer.log('Error updating setting $key: $e');
       rethrow;
     }
   }
@@ -327,7 +328,7 @@ class SettingsService {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error updating profile: $e');
+      developer.log('Error updating profile: $e');
       rethrow;
     }
   }
@@ -337,7 +338,7 @@ class SettingsService {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
-      print('Error sending password reset email: $e');
+      developer.log('Error sending password reset email: $e');
       rethrow;
     }
   }
@@ -370,7 +371,7 @@ class SettingsService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
     } catch (e) {
-      print('Error deleting account: $e');
+      developer.log('Error deleting account: $e');
       rethrow;
     }
   }
@@ -393,7 +394,7 @@ class SettingsService {
         'exportDate': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('Error exporting user data: $e');
+      developer.log('Error exporting user data: $e');
       rethrow;
     }
   }
@@ -426,7 +427,7 @@ class SettingsService {
           .doc(user.uid)
           .set(defaultSettings.toFirestore());
     } catch (e) {
-      print('Error initializing user settings: $e');
+      developer.log('Error initializing user settings: $e');
       rethrow;
     }
   }

@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -51,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _displayNameController.text = user.displayName ?? '';
       _photoUrlController.text = user.photoURL ?? '';
           } catch (e) {
-            print('Error loading current user: $e');
+            developer.log('Error loading current user: $e');
           }
         }
       });
@@ -67,7 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _departmentController.dispose();
       _jobTitleController.dispose();
     } catch (e) {
-      print('Error disposing controllers: $e');
+      developer.log('Error disposing controllers: $e');
     }
     super.dispose();
   }
@@ -149,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _departmentController.text = settings.department ?? '';
             _jobTitleController.text = settings.jobTitle ?? '';
           } catch (e) {
-            print('Error updating controllers: $e');
+            developer.log('Error updating controllers: $e');
             // Reinitialize controllers if they became null
             _initializeControllers();
           }
@@ -709,7 +710,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.activeColor,
+            activeThumbColor: AppColors.activeColor,
             activeTrackColor: AppColors.withOpacity(AppColors.activeColor, 0.3),
             inactiveThumbColor: AppColors.textMuted,
             inactiveTrackColor: AppColors.withOpacity(AppColors.textMuted, 0.3),
@@ -740,7 +741,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: value,
+            initialValue: value,
             items: items,
             onChanged: onChanged,
             decoration: InputDecoration(

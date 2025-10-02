@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
@@ -95,7 +96,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           children: [
             Expanded(
               child: DropdownButtonFormField<String>(
-                value: _statusFilter,
+                initialValue: _statusFilter,
                 decoration: InputDecoration(
                   labelText: 'Filter by Status',
                   labelStyle: TextStyle(color: AppColors.textMuted),
@@ -159,7 +160,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.withOpacity(AppColors.textPrimary, 0.2),
+            color: AppColors.textPrimary.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -228,9 +229,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.withOpacity(color, 0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.withOpacity(color, 0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -276,7 +277,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         }
 
         if (snapshot.hasError) {
-          print('Audit entries error: ${snapshot.error}');
+          developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
           // Fallback to mock data
           final mockEntries = AuditService.getMockAuditEntries();
           return Column(
@@ -376,7 +377,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.withOpacity(statusColor, 0.2),
+                  color: statusColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: statusColor),
                 ),
@@ -517,7 +518,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.withOpacity(AppColors.dangerColor, 0.1),
+                color: AppColors.dangerColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.dangerColor),
               ),
@@ -608,6 +609,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               final score = double.tryParse(scoreController.text);
               if (score != null && score >= 1.0 && score <= 5.0) {
                 try {
@@ -616,14 +619,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     score,
                     commentsController.text.isEmpty ? null : commentsController.text,
                   );
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) navigator.pop();
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error verifying entry: $e')),
-                  );
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error verifying entry: $e')),
+                    );
+                  }
                 }
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
+                scaffoldMessenger.showSnackBar(
                   const SnackBar(content: Text('Please enter a valid score between 1.0 and 5.0')),
                 );
               }
@@ -671,17 +676,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
               if (reasonController.text.isNotEmpty) {
                 try {
                   await AuditService.requestChanges(entry.id, reasonController.text);
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) navigator.pop();
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error requesting changes: $e')),
-                  );
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error requesting changes: $e')),
+                    );
+                  }
                 }
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
+                scaffoldMessenger.showSnackBar(
                   const SnackBar(content: Text('Please provide a reason for the changes')),
                 );
               }

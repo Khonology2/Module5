@@ -39,12 +39,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         }
       },
       onLogout: () async {
+        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          '/sign_in',
-          (route) => false,
-        );
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
       },
       content: Container(
         width: double.infinity,
@@ -56,7 +58,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             end: Alignment.bottomRight,
             colors: [
               AppColors.backgroundColor,
-              AppColors.backgroundColor.withOpacity(0.9),
+              AppColors.backgroundColor.withValues(alpha: 0.9),
             ],
           ),
         ),
@@ -173,12 +175,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.activeColor.withOpacity(0.1),
+            AppColors.activeColor.withValues(alpha: 0.1),
             AppColors.elevatedBackground,
           ],
         ),
@@ -194,7 +196,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.activeColor.withOpacity(0.2),
+                      color: AppColors.activeColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -215,9 +217,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.activeColor.withOpacity(0.1),
+                  color: AppColors.activeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   'AI POWERED',
@@ -293,9 +295,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -421,7 +423,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         border: Border.all(
           color: alert.isRead 
               ? AppColors.borderColor 
-              : alertColor.withOpacity(0.3),
+              : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
       ),
@@ -433,7 +435,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               Container(
                 padding: const EdgeInsets.all(8.0),
                 decoration: BoxDecoration(
-                  color: alertColor.withOpacity(0.2),
+                  color: alertColor.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(alertIcon, color: alertColor, size: 20),
@@ -495,7 +497,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: alertColor.withOpacity(0.1),
+                            color: alertColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -521,12 +523,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               Expanded(
                 child: ElevatedButton(
                     onPressed: () async {
+                      final navigator = Navigator.of(context);
+                      final actionRoute = alert.actionRoute;
+                      
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
                       
                       // Navigate to action route if provided
-                      if (alert.actionRoute != null) {
-                        Navigator.pushNamed(context, alert.actionRoute!);
+                      if (mounted && actionRoute != null) {
+                        navigator.pushNamed(actionRoute);
                       }
                     },
                   style: ElevatedButton.styleFrom(
@@ -628,7 +633,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warningColor.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warningColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
