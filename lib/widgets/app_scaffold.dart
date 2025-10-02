@@ -16,6 +16,7 @@ class AppScaffold extends StatelessWidget {
     required this.onLogout,
     this.showAppBar = false,
     this.topRightAction,
+    this.embedded = false,
   });
 
   final String title;
@@ -26,9 +27,15 @@ class AppScaffold extends StatelessWidget {
   final VoidCallback onLogout;
   final bool showAppBar;
   final Widget? topRightAction;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
+    // If embedded, return just the content without scaffold elements
+    if (embedded) {
+      return content;
+    }
+
     final isSmall = AppBreakpoints.isSmall(context);
     final isMedium = AppBreakpoints.isMedium(context);
 

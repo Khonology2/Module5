@@ -9,8 +9,25 @@ service cloud.firestore {
       return request.auth.token.admin == true; // set via custom claims
     }
 
+    function isManager() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    function userRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    function sameDepartment(userId) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department == 
+             get(/databases/$(database)/documents/users/$(userId)).data.department;
+    }
+
     match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || 
+        (isManager() && userRole(userId) == 'employee' && sameDepartment(userId)) ||
+        isAdmin()
+      );
 
       // Create allowed for the user to set their initial role.
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -28,9 +45,70 @@ service cloud.firestore {
 
       // Rules for subcollections
       match /{subcollection}/{subDocument} {
-        allow read, create: if isSignedIn() && request.auth.uid == userId;
-        // Add more specific rules for update/delete if needed for subcollections
+        allow read, create: if isSignedIn() && (
+          request.auth.uid == userId || 
+          (isManager() && userRole(userId) == 'employee' && sameDepartment(userId)) ||
+          isAdmin()
+        );
+        
+        // Allow managers to create alerts, nudges for their employees
+        allow create: if isManager() && userRole(userId) == 'employee' && 
+          sameDepartment(userId) && subcollection == 'alerts';
+        
+        // Allow managers to update employee goals, progress
+        allow update: if isManager() && userRole(userId) == 'employee' && 
+          sameDepartment(userId) && (subcollection == 'goals' || subcollection == 'activities');
       }
+    }
+
+    // Goals collection - managers can read/write employee goals
+    match /goals/{goalId} {
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && userRole(request.resource.data.userId) == 'employee' && sameDepartment(request.resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Activities tracking for managers
+    match /activities/{activityId} {
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Alerts - managers can create alerts for employees
+    match /alerts/{alertId} {
+      allow read, update: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn();
+    }
+
+    // Notifications - managers can read notifications sent to their employees
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && userRole(resource.data.userId) == 'employee' && sameDepartment(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && userRole(request.resource.data.userId) == 'employee' && sameDepartment(request.resource.data.userId)) ||
+        isAdmin()
+      );
     }
   }
 }

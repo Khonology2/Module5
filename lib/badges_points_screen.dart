@@ -14,7 +14,12 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 
 class BadgesPointsScreen extends StatefulWidget {
-  const BadgesPointsScreen({super.key});
+  final bool embedded;
+  
+  const BadgesPointsScreen({
+    super.key,
+    this.embedded = false,
+  });
 
   @override
   State<BadgesPointsScreen> createState() => _BadgesPointsScreenState();
@@ -98,6 +103,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     return AppScaffold(
       title: 'Badges & Points',
       showAppBar: false,
+      embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/badges_points',
       onNavigate: (route) {
