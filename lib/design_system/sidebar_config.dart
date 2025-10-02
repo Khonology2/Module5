@@ -75,8 +75,13 @@ class SidebarConfig {
       route: '/progress_visuals',
     ),
     SidebarItem(
+      icon: Icons.message_outlined,
+      label: 'Team Alerts & Nudges',
+      route: '/manager_alerts_nudges',
+    ),
+    SidebarItem(
       icon: Icons.notifications_none,
-      label: 'Alerts & Visuals.',
+      label: 'Personal Alerts',
       route: '/alerts_nudges',
     ),
     SidebarItem(

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -174,6 +175,54 @@ class AlertService {
     );
 
     await _createAlert(alert);
+  }
+
+  /// Create manager nudge alert with enhanced data
+  static Future<void> createManagerNudgeAlertEnhanced({
+    required String userId,
+    required String goalId,
+    required String managerId,
+    required String managerName,
+    required String goalTitle,
+    required String nudgeMessage,
+  }) async {
+    try {
+      await _firestore.collection('alerts').add({
+        'userId': userId,
+        'type': AlertType.managerNudge.name,
+        'priority': AlertPriority.high.name,
+        'title': 'Manager Nudge 📢',
+        'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
+        'actionText': 'View Goal',
+        'actionRoute': '/my_goal_workspace',
+        'actionData': {'goalId': goalId},
+        'createdAt': FieldValue.serverTimestamp(),
+        'fromUserId': managerId,
+        'fromUserName': managerName,
+        'relatedGoalId': goalId,
+        'isRead': false,
+        'isDismissed': false,
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      });
+
+      // Record activity for the employee
+      await ManagerRealtimeService.recordEmployeeActivity(
+        employeeId: userId,
+        activityType: 'nudge_received',
+        description: 'Received a nudge from $managerName about "$goalTitle"',
+        metadata: {
+          'goalId': goalId,
+          'goalTitle': goalTitle,
+          'managerName': managerName,
+          'managerId': managerId,
+        },
+      );
+
+      developer.log('Created enhanced manager nudge alert for user $userId');
+    } catch (e) {
+      developer.log('Error creating enhanced manager nudge alert: $e');
+      rethrow;
+    }
   }
 
   static Future<void> createStreakAlert({
