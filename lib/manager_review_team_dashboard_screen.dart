@@ -116,7 +116,12 @@ class ManagerReviewTeamDashboardScreen extends StatelessWidget {
 
   Widget _buildProfileButton(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
     return Padding(
       padding: const EdgeInsets.only(right: 16.0),
       child: InkWell(

@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
@@ -36,7 +34,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       },
       onLogout: () async {
         await AuthService().signOut();
-        if (!mounted) return;
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/sign_in',
@@ -69,7 +66,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _profileButton(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final userName = user?.displayName ?? 'Profile';
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
     return InkWell(
       onTap: () {
         Navigator.push(
