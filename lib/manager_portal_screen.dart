@@ -3,16 +3,19 @@ import 'package:pdh/widgets/sidebar.dart'; // Import ResponsiveSidebar
 import 'package:pdh/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
-import 'package:pdh/alerts_nudges_screen.dart'; // Import AlertsNudgesScreen
+import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
+import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
 import 'package:pdh/leaderboard_screen.dart'; // Import LeaderboardScreen
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
 import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
-import 'package:pdh/my_goal_workspace_screen.dart'; // Import MyGoalWorkspaceScreen
+// Import MyGoalWorkspaceScreen
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
-import 'package:pdh/ai_chatbot.dart'; // Import AiChatbotScreen
+import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 
 class ManagerPortalScreen extends StatefulWidget {
@@ -27,10 +30,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   final List<SidebarItem> _managerSidebarItems = [
     const SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-    const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
-    const SidebarItem(icon: Icons.work, label: 'Goal Workspace', route: '/my_goal_workspace'), // Re-using MyGoalWorkspaceScreen
+           const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
+           const SidebarItem(icon: Icons.work, label: 'Team Workspace', route: '/manager_team_workspace'), // Manager-specific team workspace
     const SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-    const SidebarItem(icon: Icons.notifications, label: 'Alerts & Nudges', route: '/alerts_nudges'),
+    const SidebarItem(icon: Icons.message_outlined, label: 'Team Alerts & Nudges', route: '/manager_alerts_nudges'),
     const SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points', route: '/badges_points'),
     const SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/leaderboard'),
     const SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
@@ -44,14 +47,14 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const DashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
-      case '/my_goal_workspace':
-        return const MyGoalWorkspaceScreen();
+             case '/manager_team_workspace':
+               return const ManagerTeamWorkspaceScreen(embedded: true);
       case '/progress_visuals':
-        return const ProgressVisualsScreen();
-      case '/alerts_nudges':
-        return const AlertsNudgesScreen();
+        return const ProgressVisualsScreen(embedded: true);
+      case '/manager_alerts_nudges':
+        return const ManagerAlertsNudgesScreen(embedded: true);
       case '/badges_points':
-        return const BadgesPointsScreen();
+        return const BadgesPointsScreen(embedded: true);
       case '/leaderboard':
         return const LeaderboardScreen();
       case '/repository_audit':
@@ -131,20 +134,55 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
               ),
             ),
           ),
+          // Profile button positioned in top-right corner
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _buildProfileButton(context),
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const AiChatbotScreen()));
-        },
-        backgroundColor: const Color(0xFFC10D00),
-        child: Image.asset(
-          'assets/Chatbot_Red.png',
-          width: 32.0, // Adjust width as needed
-          height: 32.0, // Adjust height as needed
+    );
+  }
+
+  Widget _buildProfileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ManagerProfileScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: AppTypography.bodySmall.copyWith(color: Colors.white),
+            ),
+          ],
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
+

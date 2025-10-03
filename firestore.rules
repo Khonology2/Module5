@@ -9,17 +9,46 @@ service cloud.firestore {
       return request.auth.token.admin == true; // set via custom claims
     }
 
+    function isManager() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+    }
+
+    function userRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+
+    function sameDepartment(userId) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department == 
+             get(/databases/$(database)/documents/users/$(userId)).data.department;
+   }
+
+   // Temporarily allow managers to see all employees for debugging Angel issue
+   function canManagerSeeEmployee(userId) {
+     return userRole(userId) == 'employee'; // Remove department restriction temporarily
+   }
+
     match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Allow reads for: the user themselves, managers/admins per policy,
+      // or any user document where the owner has opted-in to leaderboard visibility
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (isManager() && canManagerSeeEmployee(userId)) ||
+        isAdmin() ||
+        resource.data.leaderboardOptin == true
+      );
+
+      // Allow listing for signed-in users; individual docs still must satisfy read rule
+      allow list: if isSignedIn();
 
       // Create allowed for the user to set their initial role.
       allow create: if isSignedIn() && request.auth.uid == userId;
 
-      // Allow owner to update their profile, with specific conditions for the 'role' field.
+      // Allow owner to update their own profile as long as they are not changing role.
+      // Permit initial role set only if roleSetAt is not set yet.
       allow update: if isSignedIn() && request.auth.uid == userId && (
-        // Allow setting the role if it doesn't exist yet OR if the new role is the same as the old role (no actual change to role).
-        (!('role' in resource.data) || request.resource.data.role == resource.data.role) ||
-        // Allow changing role ONLY if roleSetAt has not been set, meaning it's the first time they are choosing a role.
+        // Either role is not changing (not present in the request or same value)
+        !('role' in request.resource.data) || request.resource.data.role == resource.data.role ||
+        // Or first-time role selection allowed when roleSetAt isn't set yet
         (!('roleSetAt' in resource.data) && ('role' in request.resource.data))
       );
 
@@ -28,9 +57,86 @@ service cloud.firestore {
 
       // Rules for subcollections
       match /{subcollection}/{subDocument} {
-        allow read, create: if isSignedIn() && request.auth.uid == userId;
-        // Add more specific rules for update/delete if needed for subcollections
+        allow read, create: if isSignedIn() && (
+          request.auth.uid == userId || 
+          (isManager() && canManagerSeeEmployee(userId)) ||
+          isAdmin()
+        );
+        
+        // Allow managers to create alerts, nudges for their employees
+        allow create: if isManager() && userRole(userId) == 'employee' && 
+          sameDepartment(userId) && subcollection == 'alerts';
+        
+        // Allow managers to update employee goals, progress
+        allow update: if isManager() && userRole(userId) == 'employee' && 
+          sameDepartment(userId) && (subcollection == 'goals' || subcollection == 'activities');
       }
+    }
+
+    // Goals collection - managers can read/write employee goals
+    match /goals/{goalId} {
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Activities tracking for managers
+    match /activities/{activityId} {
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Team Goals - managers can create team goals for their department
+    match /team_goals/{goalId} {
+      allow read: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      allow update: if isSignedIn() && (
+        (isManager() && resource.data.managerId == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+
+    // Alerts - managers can create alerts for employees
+    match /alerts/{alertId} {
+      allow read, update: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn();
+    }
+
+    // Notifications - managers can read notifications sent to their employees
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
+        isAdmin()
+      );
     }
   }
 }

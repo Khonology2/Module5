@@ -66,7 +66,12 @@ class _ProfileButton extends StatelessWidget {
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
         final user = FirebaseAuth.instance.currentUser;
-        final userName = user?.displayName ?? 'Profile';
+        String userName = 'User';
+        if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+          userName = user.displayName!.split(' ').first;
+        } else if (user?.email != null && user!.email!.isNotEmpty) {
+          userName = user.email!.split('@').first;
+        }
         final isManager = snapshot.data == 'manager';
         return InkWell(
           onTap: () {
