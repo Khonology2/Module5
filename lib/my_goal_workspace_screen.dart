@@ -84,87 +84,90 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0), // Adjusted padding
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Personal Development Goal', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          _buildSectionHeader('Goal Information'),
-          _buildTextField(
-            controller: _goalTitleController,
-            hintText: 'Enter your development goal title',
-          ),
-          _buildTextField(
-            controller: _goalDescriptionController,
-            hintText: 'Describe your goal in detail...',
-            maxLines: 5,
-          ),
-          const SizedBox(height: 20),
-          _buildSectionHeader('Goal Details'),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDateInput(
-                  context,
-                  'Start Date',
-                  _startDate,
-                  isStartDate: true,
+    return FocusScope(
+      node: FocusScopeNode(), // Create a new FocusScopeNode
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0), // Adjusted padding
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Personal Development Goal', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Goal Information'),
+            _buildTextField(
+              controller: _goalTitleController,
+              hintText: 'Enter your development goal title',
+            ),
+            _buildTextField(
+              controller: _goalDescriptionController,
+              hintText: 'Describe your goal in detail...',
+              maxLines: 5,
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Goal Details'),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDateInput(
+                    context,
+                    'Start Date',
+                    _startDate,
+                    isStartDate: true,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildDateInput(
-                  context,
-                  'Target Date',
-                  _targetDate,
-                  isStartDate: false,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildDateInput(
+                    context,
+                    'Target Date',
+                    _targetDate,
+                    isStartDate: false,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildDropdownField(
-            hintText: 'Select category',
-            value: _goalCategory,
-            items: _goalCategories,
-            onChanged: (String? newValue) {
-              setState(() {
-                _goalCategory = newValue;
-              });
-            },
-          ),
-          _buildDropdownField(
-            hintText: 'Select status',
-            value: _currentStatus,
-            items: _currentStatuses,
-            onChanged: (String? newValue) {
-              setState(() {
-                _currentStatus = newValue;
-              });
-            },
-          ),
-          const SizedBox(height: 20),
-          _buildSmartCriteriaSection(),
-          const SizedBox(height: 20),
-          _buildSectionHeader('Dependencies & Prerequisites'),
-          _buildTextField(
-            controller: _dependenciesController,
-            hintText:
-                'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-            maxLines: 4,
-          ),
-          const SizedBox(height: 20),
-          _buildSectionHeader('Success Metrics'),
-          _buildTextField(
-            controller: _successMetricsController,
-            hintText: 'Define specific metrics or milestones...',
-            maxLines: 4,
-          ),
-          const SizedBox(height: 40),
-          _buildActionButtons(),
-        ],
+              ],
+            ),
+            const SizedBox(height: 10),
+            _buildDropdownField(
+              hintText: 'Select category',
+              value: _goalCategory,
+              items: _goalCategories,
+              onChanged: (String? newValue) {
+                setState(() {
+                  _goalCategory = newValue;
+                });
+              },
+            ),
+            _buildDropdownField(
+              hintText: 'Select status',
+              value: _currentStatus,
+              items: _currentStatuses,
+              onChanged: (String? newValue) {
+                setState(() {
+                  _currentStatus = newValue;
+                });
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildSmartCriteriaSection(),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Dependencies & Prerequisites'),
+            _buildTextField(
+              controller: _dependenciesController,
+              hintText:
+                  'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+              maxLines: 4,
+            ),
+            const SizedBox(height: 20),
+            _buildSectionHeader('Success Metrics'),
+            _buildTextField(
+              controller: _successMetricsController,
+              hintText: 'Define specific metrics or milestones...',
+              maxLines: 4,
+            ),
+            const SizedBox(height: 40),
+            _buildActionButtons(),
+          ],
+        ),
       ),
     );
   }
@@ -194,15 +197,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         color: const Color(0xFF1F2840), // App's card background color
         borderRadius: BorderRadius.circular(8),
       ),
-      child: TextField(
-        controller: controller,
-        maxLines: maxLines,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
+      child: Material(
+        color: Colors.transparent, // Make the Material widget transparent
+        child: TextField(
+          controller: controller,
+          maxLines: maxLines,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+          ),
         ),
       ),
     );
@@ -214,32 +220,35 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     DateTime? date, {
     required bool isStartDate,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840), // App's card background color
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
-            style: TextStyle(
-              color: date != null
-                  ? Colors.white
-                  : Colors.white70.withAlpha(0x80),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2840), // App's card background color
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
+              style: TextStyle(
+                color: date != null
+                    ? Colors.white
+                    : Colors.white70.withAlpha(0x80),
+              ),
             ),
-          ),
-          GestureDetector(
-            onTap: () => _selectDate(context, isStartDate: isStartDate),
-            child: const Icon(
-              Icons.calendar_today,
-              color: Colors.white70,
-              size: 20,
+            GestureDetector(
+              onTap: () => _selectDate(context, isStartDate: isStartDate),
+              child: const Icon(
+                Icons.calendar_today,
+                color: Colors.white70,
+                size: 20,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -250,27 +259,31 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840), // App's card background color
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonFormField<String>(
-        initialValue: value,
-        dropdownColor: const Color(0xFF1F2840), // App's card background color
-        style: const TextStyle(color: Colors.white, fontSize: 16),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
-          border: InputBorder.none,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F2840), // App's card background color
+          borderRadius: BorderRadius.circular(8),
         ),
-        icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-        onChanged: onChanged,
-        items: items.map<DropdownMenuItem<String>>((String value) {
-          return DropdownMenuItem<String>(value: value, child: Text(value));
-        }).toList(),
+        child: DropdownButtonFormField<String>(
+          initialValue: value,
+          dropdownColor: const Color(0xFF1F2840), // App's card background color
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+          ),
+          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          onChanged: onChanged,
+          items: items.map<DropdownMenuItem<String>>((String value) {
+            return DropdownMenuItem<String>(value: value, child: Text(value));
+          }).toList(),
+        ),
       ),
     );
   }
