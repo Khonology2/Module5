@@ -495,10 +495,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             // Moved Text-to-speech button (AI Voice Playback) outside TextField
             IconButton(
-              icon: Icon(
-                _isSpeaking ? Icons.volume_off : Icons.volume_up,
+              icon: Image.asset(
+                'assets/1.Audio Sound.png', // Updated to use the new asset
+                width: 62.0, // Increased size to match Plus_Addition icon
+                height: 62.0, // Increased size to match Plus_Addition icon
                 color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey),
-                size: 32.0, // Adjusted size
               ),
               onPressed: (_lastAiResponse != null && !_isThinking) ? () {
                 if (_isSpeaking) {
