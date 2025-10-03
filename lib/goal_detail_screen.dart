@@ -209,6 +209,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Future<void> _awardMilestonePoints(int milestone, String reason) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Update user points and then create an alert so points reflect immediately
+      await DatabaseService.updateUserPoints(user.uid, 10, reason);
       await AlertService.createPointsAlert(
         userId: user.uid,
         pointsEarned: 10,

@@ -11,8 +11,6 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/sample_data_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 
