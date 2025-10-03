@@ -490,7 +490,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
             // Moved Summarize Button outside TextField
             IconButton(
-              icon: Image.asset('assets/Document_Upload.png', width: 32.0, height: 32.0), // Replaced with Image.asset
+              icon: Image.asset('assets/Document_Upload.png', width: 62.0, height: 62.0), // Increased size to match Plus_Addition icon
               onPressed: _toggleSummarizeMode,
             ),
             // Moved Text-to-speech button (AI Voice Playback) outside TextField
