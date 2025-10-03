@@ -707,13 +707,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: AppColors.activeColor,
-            activeTrackColor: AppColors.withOpacity(AppColors.activeColor, 0.3),
-            inactiveThumbColor: AppColors.textMuted,
-            inactiveTrackColor: AppColors.withOpacity(AppColors.textMuted, 0.3),
+          Stack(
+            children: [
+              Switch(
+                value: value,
+                onChanged: _isLoading ? null : onChanged,
+                activeThumbColor: AppColors.activeColor,
+                activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
+                inactiveThumbColor: AppColors.textMuted,
+                inactiveTrackColor: AppColors.textMuted.withValues(alpha: 0.3),
+              ),
+              if (_isLoading)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.activeColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -803,17 +826,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _updateSetting(String key, dynamic value) async {
+    setState(() => _isLoading = true);
     try {
       await SettingsService.updateSetting(key, value);
+      
+      // Show success messages for important settings changes
+      if (mounted) {
+        String message = _getSuccessMessage(key, value);
+        if (message.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: AppColors.successColor,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating setting: $e'),
+            content: Text('Error updating ${_getSettingName(key)}: $e'),
             backgroundColor: AppColors.dangerColor,
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _getSuccessMessage(String key, dynamic value) {
+    switch (key) {
+      case 'leaderboardParticipation':
+        return value == true 
+          ? 'Leaderboard participation enabled! Your progress will now appear on the leaderboard.'
+          : 'Leaderboard participation disabled.';
+      case 'privateGoals':
+        return value == true 
+          ? 'Goals are now private and hidden from team members.'
+          : 'Goals are now visible to team members.';
+      case 'managerOnly':
+        return value == true 
+          ? 'Goals are now only visible to managers.'
+          : 'Goal visibility restored to normal.';
+      case 'pushNotifications':
+        return value == true 
+          ? 'Push notifications enabled.'
+          : 'Push notifications disabled.';
+      case 'emailNotifications':
+        return value == true 
+          ? 'Email notifications enabled.'
+          : 'Email notifications disabled.';
+      case 'soundAlerts':
+        return value == true 
+          ? 'Sound alerts enabled.'
+          : 'Sound alerts disabled.';
+      case 'twoFactorAuth':
+        return value == true 
+          ? 'Two-factor authentication enabled for enhanced security.'
+          : 'Two-factor authentication disabled.';
+      case 'sessionTimeout':
+        return value == true 
+          ? 'Session timeout enabled.'
+          : 'Session timeout disabled.';
+      default:
+        return 'Setting updated successfully.';
+    }
+  }
+
+  String _getSettingName(String key) {
+    switch (key) {
+      case 'leaderboardParticipation': return 'Leaderboard Participation';
+      case 'privateGoals': return 'Private Goals';
+      case 'managerOnly': return 'Manager Only Visibility';
+      case 'teamShare': return 'Team Sharing';
+      case 'profileVisible': return 'Profile Visibility';
+      case 'pushNotifications': return 'Push Notifications';
+      case 'emailNotifications': return 'Email Notifications';
+      case 'soundAlerts': return 'Sound Alerts';
+      case 'goalReminders': return 'Goal Reminders';
+      case 'weeklyReports': return 'Weekly Reports';
+      case 'speechRecognitionEnabled': return 'Speech Recognition';
+      case 'celebrationFeed': return 'Celebration Feed';
+      case 'autoSync': return 'Auto Sync';
+      case 'language': return 'Language';
+      case 'twoFactorAuth': return 'Two-Factor Authentication';
+      case 'sessionTimeout': return 'Session Timeout';
+      case 'sessionTimeoutMinutes': return 'Session Timeout Duration';
+      default: return key;
     }
   }
 

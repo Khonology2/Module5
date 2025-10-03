@@ -31,7 +31,7 @@ class DatabaseService {
       longGoals: data['longGoals'] ?? '',
       notificationFrequency: data['notificationFrequency'] ?? 'daily',
       goalVisibility: data['goalVisibility'] ?? 'private',
-      leaderboardOptin: data['leaderboardOptin'] ?? false,
+      leaderboardOptin: data['leaderboardOptin'] ?? data['leaderboardParticipation'] ?? false,
       badgeName: data['badgeName'] ?? '',
       celebrationConsent: data['celebrationConsent'] ?? 'private',
     );
