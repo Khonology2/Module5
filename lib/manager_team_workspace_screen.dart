@@ -589,16 +589,12 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
 
   void _viewTeamDetails(String goalId) {
     // Navigate to team details screen
-    // TODO: Implement team details screen
     Navigator.pushNamed(context, '/team_details', arguments: goalId);
   }
 
   void _manageTeamMembers(String goalId) {
     // Navigate to team management screen
-    // TODO: Implement team management screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Team management feature coming soon!')),
-    );
+    Navigator.pushNamed(context, '/team_management', arguments: goalId);
   }
 
   @override

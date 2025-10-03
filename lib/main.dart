@@ -31,6 +31,8 @@ import 'package:pdh/services/speech_recognition_service.dart'; // Import the spe
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
+import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
+import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -176,8 +178,24 @@ class _MyAppState extends State<MyApp> {
                 requiredRole: RequiredRole.manager,
                 child: const ManagerTeamWorkspaceScreen(),
               ),
+              '/team_details': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: Builder(
+                  builder: (context) => TeamDetailsScreen(
+                    teamGoalId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+                  ),
+                ),
+              ),
               '/ai_chatbot': (context) =>
                   const AiChatbotScreen(), // Add the new AI Chatbot route
+              '/team_management': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: Builder(
+                  builder: (context) => TeamManagementScreen(
+                    teamGoalId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+                  ),
+                ),
+              ),
             },
             debugShowCheckedModeBanner: false,
             // Add the custom NavigatorObserver
