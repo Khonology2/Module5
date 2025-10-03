@@ -1188,11 +1188,15 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
       final managerDoc = await firestore.collection('users').doc(auth.currentUser!.uid).get();
       final managerData = managerDoc.data();
       
-      // Get all employees 
-      final employeesQuery = await firestore
+      // Get all employees the manager is allowed to view
+      // Prefer same department if set; otherwise fallback to all employees
+      Query<Map<String, dynamic>> employeesQueryRef = firestore
           .collection('users')
-          .where('role', isEqualTo: 'employee')
-          .get();
+          .where('role', isEqualTo: 'employee');
+      if ((managerData?['department'] as String?)?.isNotEmpty == true) {
+        employeesQueryRef = employeesQueryRef.where('department', isEqualTo: managerData!['department']);
+      }
+      final employeesQuery = await employeesQueryRef.get();
       
       // Get Angel specifically if she exists
       final angelQuery = await firestore
@@ -1200,17 +1204,32 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
           .where('displayName', isEqualTo: 'Angel')
           .get();
       
-      // Get all activities
-      final activitiesQuery = await firestore
-          .collection('activities')
-          .limit(10)
-          .get();
+      // Get activities only for these employees (avoid cross-user reads)
+      final employeeIds = employeesQuery.docs.map((d) => d.id).toList();
+      // Avoid composite index by not combining whereIn with orderBy. Sort in-memory.
+      final activitiesBaseRef = firestore.collection('activities');
+      final activitiesSnapshot = employeeIds.isEmpty
+          ? await activitiesBaseRef.orderBy('timestamp', descending: true).limit(10).get()
+          : await activitiesBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
+      // Sort and trim after fetch
+      final activitiesDocs = activitiesSnapshot.docs
+        ..sort((a, b) {
+          final at = (a.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bt = (b.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bt.compareTo(at);
+        });
           
-      // Get all goals
-      final goalsQuery = await firestore
-          .collection('goals')
-          .limit(10)
-          .get();
+      // Get goals only for these employees
+      final goalsBaseRef = firestore.collection('goals');
+      final goalsSnapshot = employeeIds.isEmpty
+          ? await goalsBaseRef.orderBy('createdAt', descending: true).limit(10).get()
+          : await goalsBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
+      final goalsDocs = goalsSnapshot.docs
+        ..sort((a, b) {
+          final at = (a.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bt = (b.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bt.compareTo(at);
+        });
 
       String debugInfo = '''
 DEBUG INFORMATION:
@@ -1229,14 +1248,14 @@ ${employeesQuery.docs.map((doc) {
 ANGEL SPECIFICALLY:
 ${angelQuery.docs.isNotEmpty ? 'FOUND Angel: ${angelQuery.docs.first.data()}' : 'Angel NOT FOUND in employees collection!'}
 
-RECENT ACTIVITIES (${activitiesQuery.docs.length}):
-${activitiesQuery.docs.map((doc) {
+RECENT ACTIVITIES (${activitiesDocs.length}):
+${activitiesDocs.map((doc) {
   final data = doc.data();
   return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
 }).join('\n')}
 
-RECENT GOALS (${goalsQuery.docs.length}):
-${goalsQuery.docs.map((doc) {
+RECENT GOALS (${goalsDocs.length}):
+${goalsDocs.map((doc) {
   final data = doc.data();
   return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
 }).join('\n')}

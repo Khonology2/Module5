@@ -443,6 +443,7 @@ class ManagerRealtimeService {
       DateTime lastActivity = DateTime.now().subtract(const Duration(days: 30)); // Default to inactive
       int streakDays = 0;
       List<QueryDocumentSnapshot> activityDocs = [];
+      List<EmployeeActivity> recentActivities = const [];
       
       try {
         final activityQuery = await _firestore
@@ -467,6 +468,12 @@ class ManagerRealtimeService {
             
         streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
         activityDocs = streakQuerySnapshot.docs;
+
+        // Build recent activities list (limit 10)
+        recentActivities = streakQuerySnapshot.docs
+            .take(10)
+            .map((doc) => EmployeeActivity.fromFirestore(doc))
+            .toList();
       } catch (e) {
         developer.log('Error getting activity data for ${profile.uid}: $e');
         // Keep default values
@@ -478,8 +485,8 @@ class ManagerRealtimeService {
       return EmployeeData(
         profile: profile,
         goals: goals,
-        recentActivities: const [], // Will update this next
-        recentAlerts: const [], // Will update this next
+        recentActivities: recentActivities,
+        recentAlerts: const [], // Not implemented yet
         completedGoalsCount: completedGoals,
         overdueGoalsCount: overdueGoals,
         totalPoints: profile.totalPoints,
