@@ -214,35 +214,37 @@ class _NavTileState extends State<_NavTile> {
                     : null,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisAlignment: isCollapsed
-                    ? MainAxisAlignment.center
-                    : MainAxisAlignment.start, // Center when collapsed, start when expanded
-                children: [
-                  Icon(
-                    widget.icon,
-                    // Collapsed: make active icon stand out (bolder look via size/color)
-                    color: isCollapsed
-                        ? (isSelected
-                              ? ResponsiveSidebar.activeColor
-                              : AppColors.textPrimary)
-                        : AppColors.textPrimary,
-                    size: isCollapsed ? (isSelected ? 24 : 20) : 20,
-                  ),
-                  if (!isCollapsed) ...[
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Text(
-                        widget.label,
-                        style: isSelected
-                            ? AppTypography.navigationActive
-                            : AppTypography.navigation,
-                        overflow: TextOverflow.ellipsis,
+              child: isCollapsed
+                  ? Center(
+                      child: Icon(
+                        widget.icon,
+                        color: isSelected
+                            ? ResponsiveSidebar.activeColor
+                            : AppColors.textPrimary,
+                        size: isSelected ? 24 : 20,
                       ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          widget.icon,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            widget.label,
+                            style: isSelected
+                                ? AppTypography.navigationActive
+                                : AppTypography.navigation,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ],
-              ),
             ),
           ),
         ),

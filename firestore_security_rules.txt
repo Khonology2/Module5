@@ -1,0 +1,46 @@
+// Add these rules to your Firestore Security Rules in the Firebase Console
+// Go to: Firebase Console > Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Existing rules for users collection
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Existing rules for goals collection  
+    match /goals/{goalId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // NEW: Rules for alerts collection
+    match /alerts/{alertId} {
+      // Users can read their own alerts
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Users can update their own alerts (mark as read, dismiss)
+      allow update: if request.auth != null && 
+                   request.auth.uid == resource.data.userId &&
+                   // Only allow updating isRead and isDismissed fields
+                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'isDismissed']);
+      
+      // System can create alerts for users (this allows the app to create alerts)
+      allow create: if request.auth != null && 
+                   request.auth.uid == request.resource.data.userId;
+      
+      // Allow managers to create alerts for their team members (optional - for future manager features)
+      allow create: if request.auth != null && 
+                   request.resource.data.keys().hasAll(['userId', 'type', 'title', 'message']);
+    }
+    
+    // Allow other existing collections to continue working
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+
+

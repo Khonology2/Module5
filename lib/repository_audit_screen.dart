@@ -1,279 +1,710 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-// Drawers removed in favor of persistent sidebar
 import 'package:pdh/services/role_service.dart';
-// Profile handled by MainLayout
+import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/design_system/app_colors.dart';
 
-class RepositoryAuditScreen extends StatelessWidget {
+class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
 
   @override
+  State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
+}
+
+class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _statusFilter;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0), // Adjusted padding
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Repository & Audit', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Search completed goals, audit logs...',
-              hintStyle: const TextStyle(color: Colors.white54),
-              prefixIcon: const Icon(Icons.search, color: Colors.white54),
-              filled: true,
-              fillColor: const Color(0x802C223E),
-              border: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(15.0)),
-                borderSide: BorderSide.none,
-              ),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            ),
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 25), // Spacing between search bar and title
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.backgroundColor,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
-                child: Text(
-                  'Completed Goals Archive',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+              Text(
+                'Repository & Audit', 
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.textPrimary, 
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              // Archive icon
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(0x33),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.archive_outlined,
-                  color: Colors.white,
-                  size: 24,
-                ),
+              const SizedBox(height: 20),
+              _buildSearchAndFilters(),
+              const SizedBox(height: 25),
+              _buildHeader(),
+              StreamBuilder<String?>(
+                stream: RoleService.instance.roleStream(),
+                builder: (context, roleSnapshot) {
+                  final isManager = roleSnapshot.data == 'manager';
+                  return Column(
+                    children: [
+                      _buildRoleSummaryBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      _buildAuditEntriesList(isManager: isManager),
+                    ],
+                  );
+                },
               ),
             ],
           ),
-          StreamBuilder<String?>(
-            stream: RoleService.instance.roleStream(),
-            builder: (context, snapshot) {
-              final isManager = snapshot.data == 'manager';
-              return _RoleSummaryBar(isManager: isManager);
-            },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    return Column(
+      children: [
+        TextField(
+          controller: _searchController,
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value;
+            });
+          },
+          decoration: InputDecoration(
+            hintText: 'Search completed goals, audit logs...',
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
+            filled: true,
+            fillColor: AppColors.elevatedBackground,
+            border: OutlineInputBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(15.0)),
+              borderSide: BorderSide.none,
+            ),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           ),
-          const SizedBox(height: 12),
-          StreamBuilder<String?>(
-            stream: RoleService.instance.roleStream(),
-            builder: (context, snapshot) {
-              final isManager = snapshot.data == 'manager';
-              return Column(
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _statusFilter,
+                decoration: InputDecoration(
+                  labelText: 'Filter by Status',
+                  labelStyle: TextStyle(color: AppColors.textMuted),
+                  filled: true,
+                  fillColor: AppColors.elevatedBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  isDense: true,
+                ),
+                dropdownColor: AppColors.elevatedBackground,
+                style: TextStyle(color: AppColors.textPrimary),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('All Statuses')),
+                  DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                  DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _statusFilter = value;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _searchController.clear();
+                  _searchQuery = '';
+                  _statusFilter = null;
+                });
+              },
+              icon: Icon(Icons.clear, color: AppColors.textMuted),
+              tooltip: 'Clear filters',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            'Completed Goals Archive',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.textPrimary.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            Icons.archive_outlined,
+            color: AppColors.textPrimary,
+            size: 24,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleSummaryBar({required bool isManager}) {
+    return StreamBuilder<Map<String, int>>(
+      stream: Stream.fromFuture(AuditService.getAuditStats()),
+      builder: (context, snapshot) {
+        final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
+        
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  _buildGoalCard(
-                    title: 'Increase Customer Satisfaction Score',
-                    date: 'March 15, 2024',
-                    status: 'Verified',
-                    statusColor: const Color(0xFFC10D00),
-                    evidence: [
-                      'Survey Results Report',
-                      'Dashboard Analytics Link',
-                      'Customer Feedback Files',
-                    ],
-                    acknowledgedBy: 'Sarah Chen',
-                    score: '4.8',
-                    isManager: isManager,
+                  Icon(
+                    isManager ? Icons.manage_accounts : Icons.person,
+                    color: AppColors.textPrimary,
                   ),
-                  _buildGoalCard(
-                    title: 'Launch New Product Feature',
-                    date: 'February 28, 2024',
-                    status: 'Pending',
-                    statusColor: const Color(0xFFE4A11A),
-                    evidence: [
-                      'Feature Specification Document',
-                      'GitHub Repository Link',
-                    ],
-                    acknowledgedBy: null,
-                    score: null,
-                    isManager: isManager,
-                  ),
-                  _buildGoalCard(
-                    title: 'Strategic Market Expansion Plan',
-                    date: 'January 20, 2024',
-                    status: 'Verified',
-                    statusColor: const Color(0xFFC10D00),
-                    evidence: [
-                      'Market Research Summary',
-                      'Competitor Analysis',
-                      'Expansion Proposal Document',
-                    ],
-                    acknowledgedBy: 'John Doe',
-                    score: '4.5',
-                    isManager: isManager,
-                  ),
-                  _buildGoalCard(
-                    title: 'Complete Leadership Training',
-                    date: 'December 10, 2023',
-                    status: 'Verified',
-                    statusColor: const Color(0xFFC10D00),
-                    evidence: [
-                      'Course Completion Certificate',
-                      'Leadership Workshop Notes',
-                    ],
-                    acknowledgedBy: 'Jane Smith',
-                    score: '4.9',
-                    isManager: isManager,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isManager ? 'Manager View' : 'Employee View',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
-              );
-            },
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildStatusChip('Verified', stats['verified'] ?? 0, AppColors.successColor),
+                  _buildStatusChip('Pending', stats['pending'] ?? 0, AppColors.warningColor),
+                  if (isManager)
+                    _buildStatusChip('Rejected', stats['rejected'] ?? 0, AppColors.dangerColor),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusChip(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$label $count',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildGoalCard({
-    required String title,
-    required String date,
-    required String status,
-    required Color statusColor,
-    required List<String> evidence,
-    String? acknowledgedBy,
-    String? score,
-    required bool isManager,
-  }) {
+  Widget _buildAuditEntriesList({required bool isManager}) {
+    return StreamBuilder<List<AuditEntry>>(
+      stream: isManager 
+          ? AuditService.getManagerAuditEntriesStream(
+              status: _statusFilter,
+              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            )
+          : AuditService.getEmployeeAuditEntriesStream(
+              status: _statusFilter,
+              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.activeColor),
+          );
+        }
+
+        if (snapshot.hasError) {
+          developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
+          // Fallback to mock data
+          final mockEntries = AuditService.getMockAuditEntries();
+          return Column(
+            children: mockEntries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+          );
+        }
+
+        final entries = snapshot.data ?? [];
+
+        if (entries.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return Column(
+          children: entries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10.0),
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E172F), // Card background color
-        borderRadius: BorderRadius.circular(20.0),
-        boxShadow: [
-          // Optional: subtle shadow for cards
-          BoxShadow(
-            color: Colors.black.withAlpha(0x33),
-            blurRadius: 5,
-            offset: const Offset(0, 3),
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.archive_outlined,
+            color: AppColors.textMuted,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No audit entries found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Complete some goals to see them here for audit',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 14,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAuditEntryCard(AuditEntry entry, bool isManager) {
+    Color statusColor;
+    switch (entry.status) {
+      case 'verified':
+        statusColor = AppColors.successColor;
+        break;
+      case 'pending':
+        statusColor = AppColors.warningColor;
+        break;
+      case 'rejected':
+        statusColor = AppColors.dangerColor;
+        break;
+      default:
+        statusColor = AppColors.textMuted;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
+              Expanded(
                 child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  entry.goalTitle,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor),
                 ),
-                decoration: ShapeDecoration(
-                  color: statusColor.withAlpha(0x33),
-                  shape: const StadiumBorder(),
-                ), // Changed to StadiumBorder
                 child: Text(
-                  status,
+                  entry.status.toUpperCase(),
                   style: TextStyle(
                     color: statusColor,
-                    fontWeight: FontWeight.bold,
                     fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
-          Text(
-            'Completed on $date',
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Completed: ${_formatDate(entry.completedDate)}',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              ),
+              if (isManager) ...[
+                const SizedBox(width: 16),
+                Text(
+                  'By: ${entry.userDisplayName}',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  entry.userDepartment,
+                  style: TextStyle(color: AppColors.activeColor, fontSize: 14),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 15),
-          const Text(
+          const SizedBox(height: 16),
+          Text(
             'Evidence & Documentation:',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 10),
-          ...evidence.map((item) => _buildEvidenceItem(item)),
-          if (isManager) ...[
-            const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          ...entry.evidence.map((evidence) => _buildEvidenceItem(evidence)),
+          
+          if (isManager && entry.status == 'pending') ...[
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {},
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showVerifyDialog(entry),
                     icon: const Icon(Icons.verified, size: 16),
-                    label: const Text('Verify Evidence'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: const BorderSide(color: Colors.white38),
+                    label: const Text('Verify'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.successColor,
+                      foregroundColor: Colors.white,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _showRejectDialog(entry),
                     icon: const Icon(Icons.comment, size: 16),
                     label: const Text('Request Changes'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white70,
-                      side: const BorderSide(color: Colors.white38),
+                      foregroundColor: AppColors.dangerColor,
+                      side: BorderSide(color: AppColors.dangerColor),
                     ),
                   ),
                 ),
               ],
             ),
           ],
-          if (acknowledgedBy != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 15.0),
-              child: Row(
-                children: [
-                  const Icon(Icons.person, color: Colors.white70, size: 20),
-                  const SizedBox(width: 5),
+          
+          if (entry.acknowledgedBy != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Icon(Icons.person, color: AppColors.textMuted, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Acknowledged by ${entry.acknowledgedBy}',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                if (entry.score != null) ...[
+                  const SizedBox(width: 8),
                   Text(
-                    'Acknowledged by $acknowledgedBy',
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  if (score != null)
-                    Text(
-                      '(Score: $score)',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                      ),
+                    '(Score: ${entry.score!.toStringAsFixed(1)})',
+                    style: TextStyle(
+                      color: AppColors.successColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+          
+          if (entry.comments != null && entry.comments!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.elevatedBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Comments:',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.comments!,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
             ),
+          ],
+          
+          if (entry.rejectionReason != null && entry.rejectionReason!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.dangerColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.dangerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Requested Changes:',
+                    style: TextStyle(
+                      color: AppColors.dangerColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.rejectionReason!,
+                    style: TextStyle(
+                      color: AppColors.dangerColor,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _showVerifyDialog(AuditEntry entry) {
+    final scoreController = TextEditingController();
+    final commentsController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          'Verify Goal',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: scoreController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Score (1.0 - 5.0)',
+                labelStyle: TextStyle(color: AppColors.textMuted),
+                filled: true,
+                fillColor: AppColors.elevatedBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentsController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Comments (optional)',
+                labelStyle: TextStyle(color: AppColors.textMuted),
+                filled: true,
+                fillColor: AppColors.elevatedBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              final score = double.tryParse(scoreController.text);
+              if (score != null && score >= 1.0 && score <= 5.0) {
+                try {
+                  await AuditService.verifyAuditEntry(
+                    entry.id,
+                    score,
+                    commentsController.text.isEmpty ? null : commentsController.text,
+                  );
+                  if (mounted) navigator.pop();
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error verifying entry: $e')),
+                    );
+                  }
+                }
+              } else {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid score between 1.0 and 5.0')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.successColor,
+            ),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectDialog(AuditEntry entry) {
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          'Request Changes',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: TextField(
+          controller: reasonController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Reason for changes',
+            labelStyle: TextStyle(color: AppColors.textMuted),
+            filled: true,
+            fillColor: AppColors.elevatedBackground,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              if (reasonController.text.isNotEmpty) {
+                try {
+                  await AuditService.requestChanges(entry.id, reasonController.text);
+                  if (mounted) navigator.pop();
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error requesting changes: $e')),
+                    );
+                  }
+                }
+              } else {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Please provide a reason for the changes')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.dangerColor,
+            ),
+            child: const Text('Request Changes'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   // Helper widget to build individual evidence items.
   Widget _buildEvidenceItem(String text) {
@@ -290,103 +721,22 @@ class RepositoryAuditScreen extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white70, size: 20),
-          const SizedBox(width: 10),
-          Flexible(
+          Icon(icon, color: AppColors.textMuted, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _RoleSummaryBar extends StatelessWidget {
-  final bool isManager;
-  const _RoleSummaryBar({required this.isManager});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget chip(Color color, String label) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: ShapeDecoration(
-        color: Colors.white.withAlpha(0x1A),
-        shape: const StadiumBorder(),
-      ), // Changed to StadiumBorder
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white)),
-        ],
-      ),
-    );
-
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0x802C223E),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      isManager ? Icons.manage_accounts : Icons.person,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isManager ? 'Manager view' : 'Employee view',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: isManager
-                        ? [
-                            chip(const Color(0xFFC10D00), 'Verified 12'),
-                            chip(const Color(0xFFE4A11A), 'Pending 5'),
-                          ]
-                        : [
-                            chip(const Color(0xFFC10D00), 'My Verified 4'),
-                            chip(const Color(0xFFE4A11A), 'My Pending 1'),
-                          ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

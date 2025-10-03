@@ -20,13 +20,17 @@ import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
+import 'package:pdh/manager_alerts_nudges_screen.dart';
+import 'package:pdh/employee_profile_detail_screen.dart';
+import 'package:pdh/manager_team_workspace_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
 import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
-import 'package:pdh/design_system/app_theme.dart'; // Import the design system theme
+import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
+import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -105,60 +109,80 @@ class _MyAppState extends State<MyApp> {
         textDirection: TextDirection.ltr,
         children: [
           MaterialApp(
-              navigatorKey: navigatorKey, // Assign the global key to MaterialApp
-              title: 'Personal Development Hub',
-              theme: AppTheme.darkTheme,
-              initialRoute: '/landing',
-              routes: {
-                '/landing': (context) => const PersonalDevelopmentHubScreen(),
-                '/': (context) =>
-                    const AuthWrapper(), // Set the root route to AuthWrapper
-                '/register': (context) => const RegisterScreen(),
-                '/sign_in': (context) => const LoginScreen(),
-                '/my_pdp': (context) => RoleGate(
-                  requiredRole: RequiredRole.employee,
-                  child: const MyPdpScreen(),
-                ),
-                '/progress_visuals': (context) => const ProgressVisualsScreen(),
-                '/my_goal_workspace': (context) => RoleGate(
-                  requiredRole: RequiredRole.employee,
-                  child: const MyGoalWorkspaceScreen(),
-                ),
-                '/gamification': (context) => const GamificationScreen(),
-                '/repository_audit': (context) => const RepositoryAuditScreen(),
-                '/alerts_nudges': (context) => const AlertsNudgesScreen(),
-                '/season_challenge': (context) => const SeasonChallengeScreen(),
-                '/settings': (context) => const SettingsScreen(),
-                '/manager_review_team_dashboard': (context) => RoleGate(
-                  requiredRole: RequiredRole.manager,
-                  child: const ManagerReviewTeamDashboardScreen(),
-                ),
-                '/badges_points': (context) => const BadgesPointsScreen(),
-                '/leaderboard': (context) => const LeaderboardScreen(),
-                // Map legacy employee_portal route to the dashboard to remove the old portal screen
-                '/employee_portal': (context) => RoleGate(
-                  requiredRole: RequiredRole.employee,
-                  child: const EmployeeDashboardScreen(),
-                ),
-                '/employee_dashboard': (context) => RoleGate(
-                  requiredRole: RequiredRole.employee,
-                  child: const EmployeeDashboardScreen(),
-                ),
-                '/manager_portal': (context) => RoleGate(
-                  requiredRole: RequiredRole.manager,
-                  child: const ManagerPortalScreen(),
-                ),
-                '/dashboard': (context) => RoleGate(
-                  requiredRole: RequiredRole.manager,
-                  child: const DashboardScreen(),
-                ),
-                '/ai_chatbot': (context) =>
-                    const AiChatbotScreen(), // Add the new AI Chatbot route
-              },
-              debugShowCheckedModeBanner: false,
-              // Add the custom NavigatorObserver
-              navigatorObservers: [MyNavigatorObserver()],
-            ),
+            navigatorKey: navigatorKey, // Assign the global key to MaterialApp
+            title: 'Personal Development Hub',
+            theme: AppTheme.darkTheme,
+            initialRoute: '/landing',
+            routes: {
+              '/landing': (context) => const PersonalDevelopmentHubScreen(),
+              '/': (context) =>
+                  const AuthWrapper(), // Set the root route to AuthWrapper
+              '/register': (context) => const RegisterScreen(),
+              '/sign_in': (context) => const LoginScreen(),
+              '/my_pdp': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const MyPdpScreen(),
+              ),
+              '/progress_visuals': (context) => const ProgressVisualsScreen(),
+              '/my_goal_workspace': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const MyGoalWorkspaceScreen(),
+              ),
+              '/gamification': (context) => const GamificationScreen(),
+              '/repository_audit': (context) => const RepositoryAuditScreen(),
+              '/alerts_nudges': (context) => const AlertsNudgesScreen(),
+              '/season_challenge': (context) => const SeasonChallengeScreen(),
+              '/settings': (context) => const SettingsScreen(),
+              '/manager_review_team_dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerReviewTeamDashboardScreen(),
+              ),
+              '/badges_points': (context) => const BadgesPointsScreen(),
+              '/leaderboard': (context) => const LeaderboardScreen(),
+              // Map legacy employee_portal route to the dashboard to remove the old portal screen
+              '/employee_portal': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const EmployeeDashboardScreen(),
+              ),
+              '/employee_dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const EmployeeDashboardScreen(),
+              ),
+              '/manager_portal': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerPortalScreen(),
+              ),
+              '/dashboard': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const DashboardScreen(),
+              ),
+              '/manager_alerts_nudges': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerAlertsNudgesScreen(),
+              ),
+               '/employee_profile_detail': (context) => RoleGate(
+                 requiredRole: RequiredRole.manager,
+                 child: Builder(
+                   builder: (context) => EmployeeProfileDetailScreen(
+                     employeeId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
+                   ),
+                 ),
+               ),
+               '/team_goals': (context) => RoleGate(
+                 requiredRole: RequiredRole.employee,
+                 child: const TeamGoalsScreen(),
+               ),
+              '/manager_team_workspace': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerTeamWorkspaceScreen(),
+              ),
+              '/ai_chatbot': (context) =>
+                  const AiChatbotScreen(), // Add the new AI Chatbot route
+            },
+            debugShowCheckedModeBanner: false,
+            // Add the custom NavigatorObserver
+            navigatorObservers: [MyNavigatorObserver()],
+          ),
           // Speech recognition feedback overlay
           ValueListenableBuilder<String?>(
             valueListenable: speechRecognitionStatusNotifier,
@@ -254,8 +278,13 @@ class _ChatbotButtonState extends State<ChatbotButton> {
       '/badges_points',
       '/leaderboard',
       '/repository_audit',
+      '/settings',
+      '/gamification',
+      '/season_challenge',
+      '/manager_review_team_dashboard',
       '/employee_dashboard', // Employee dashboard route
       '/employee_portal', // Legacy mapping shows dashboard; keep chatbot visible
+      '/manager_portal', // Manager portal route
     ];
     if (widget.currentRoute == null ||
         !allowedRoutes.contains(widget.currentRoute) ||

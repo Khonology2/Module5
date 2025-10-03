@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
-// Drawer removed in favor of persistent sidebar
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/auth_service.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/alert.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
-  const MyGoalWorkspaceScreen({super.key});
+  final bool embedded;
+  
+  const MyGoalWorkspaceScreen({
+    super.key,
+    this.embedded = false,
+  });
 
   @override
   State<MyGoalWorkspaceScreen> createState() => _MyGoalWorkspaceScreenState();
@@ -38,12 +53,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Finance',
     'Other',
   ];
-  final List<String> _currentStatuses = [
-    'In Progress',
-    'On Track',
-    'At Risk',
-    'Completed',
-  ];
 
   Future<void> _selectDate(
     BuildContext context, {
@@ -57,14 +66,14 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       builder: (BuildContext context, Widget? child) {
         return Theme(
           data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFFC10D00), // App's red color
-              onPrimary: Colors.white,
-              surface: Color(0xFF1F2840), // App's card background
-              onSurface: Colors.white,
+            colorScheme: ColorScheme.dark(
+              primary: AppColors.activeColor,
+              onPrimary: AppColors.textPrimary,
+              surface: AppColors.elevatedBackground,
+              onSurface: AppColors.textPrimary,
             ),
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFF0A1931), // App's background
+            dialogTheme: DialogThemeData(
+              backgroundColor: AppColors.backgroundColor,
             ),
           ),
           child: child!,
@@ -84,89 +93,124 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FocusScope(
-      node: FocusScopeNode(), // Create a new FocusScopeNode
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0), // Adjusted padding
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Personal Development Goal', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Goal Information'),
-            _buildTextField(
-              controller: _goalTitleController,
-              hintText: 'Enter your development goal title',
-            ),
-            _buildTextField(
-              controller: _goalDescriptionController,
-              hintText: 'Describe your goal in detail...',
-              maxLines: 5,
-            ),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Goal Details'),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDateInput(
-                    context,
-                    'Start Date',
-                    _startDate,
-                    isStartDate: true,
+    return AppScaffold(
+      title: 'Goal Workspace',
+      showAppBar: false,
+      embedded: widget.embedded,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/my_goal_workspace',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil(
+            '/sign_in',
+            (route) => false,
+          );
+        }
+      },
+      content: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.backgroundColor,
+              AppColors.backgroundColor.withValues(alpha: 0.8),
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: AppSpacing.screenPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Create Personal Development Goal',
+                style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSectionHeader('Goal Information'),
+              _buildTextField(
+                controller: _goalTitleController,
+                hintText: 'Enter your development goal title',
+              ),
+              _buildTextField(
+                controller: _goalDescriptionController,
+                hintText: 'Describe your goal in detail...',
+                maxLines: 5,
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSectionHeader('Goal Details'),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateInput(
+                      context,
+                      'Start Date',
+                      _startDate,
+                      isStartDate: true,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildDateInput(
-                    context,
-                    'Target Date',
-                    _targetDate,
-                    isStartDate: false,
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: _buildDateInput(
+                      context,
+                      'Target Date',
+                      _targetDate,
+                      isStartDate: false,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _buildDropdownField(
-              hintText: 'Select category',
-              value: _goalCategory,
-              items: _goalCategories,
-              onChanged: (String? newValue) {
-                setState(() {
-                  _goalCategory = newValue;
-                });
-              },
-            ),
-            _buildDropdownField(
-              hintText: 'Select status',
-              value: _currentStatus,
-              items: _currentStatuses,
-              onChanged: (String? newValue) {
-                setState(() {
-                  _currentStatus = newValue;
-                });
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildSmartCriteriaSection(),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Dependencies & Prerequisites'),
-            _buildTextField(
-              controller: _dependenciesController,
-              hintText:
-                  'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-              maxLines: 4,
-            ),
-            const SizedBox(height: 20),
-            _buildSectionHeader('Success Metrics'),
-            _buildTextField(
-              controller: _successMetricsController,
-              hintText: 'Define specific metrics or milestones...',
-              maxLines: 4,
-            ),
-            const SizedBox(height: 40),
-            _buildActionButtons(),
-          ],
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _buildDropdownField(
+                hintText: 'Select category',
+                value: _goalCategory,
+                items: _goalCategories,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _goalCategory = newValue;
+                  });
+                },
+              ),
+              _buildDropdownField(
+                hintText: 'Select priority',
+                value: _currentStatus,
+                items: ['High', 'Medium', 'Low'],
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _currentStatus = newValue;
+                  });
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSmartCriteriaSection(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSectionHeader('Dependencies & Prerequisites'),
+              _buildTextField(
+                controller: _dependenciesController,
+                hintText:
+                    'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                maxLines: 4,
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSectionHeader('Success Metrics'),
+              _buildTextField(
+                controller: _successMetricsController,
+                hintText: 'Define specific metrics or milestones...',
+                maxLines: 4,
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+              _buildActionButtons(),
+            ],
+          ),
         ),
       ),
     );
@@ -174,13 +218,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10.0),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
+        style: AppTypography.heading4.copyWith(
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -192,20 +234,26 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     int maxLines = 1,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 15),
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840), // App's card background color
+        color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.borderColor,
+          width: 1,
+        ),
       ),
       child: Material(
-        color: Colors.transparent, // Make the Material widget transparent
+        color: Colors.transparent,
         child: TextField(
           controller: controller,
           maxLines: maxLines,
-          style: const TextStyle(color: Colors.white),
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.all(16),
           ),
@@ -220,34 +268,39 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     DateTime? date, {
     required bool isStartDate,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F2840), // App's card background color
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.borderColor,
+          width: 1,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
-              style: TextStyle(
-                color: date != null
-                    ? Colors.white
-                    : Colors.white70.withAlpha(0x80),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _selectDate(context, isStartDate: isStartDate),
+          borderRadius: BorderRadius.circular(8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: date != null
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
               ),
-            ),
-            GestureDetector(
-              onTap: () => _selectDate(context, isStartDate: isStartDate),
-              child: const Icon(
+              Icon(
                 Icons.calendar_today,
-                color: Colors.white70,
+                color: AppColors.textSecondary,
                 size: 20,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -259,29 +312,40 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 15),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1F2840), // App's card background color
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.borderColor,
+          width: 1,
         ),
+      ),
+      child: Material(
+        color: Colors.transparent,
         child: DropdownButtonFormField<String>(
           initialValue: value,
-          dropdownColor: const Color(0xFF1F2840), // App's card background color
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          dropdownColor: AppColors.elevatedBackground,
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hintText,
-            hintStyle: TextStyle(color: Colors.white70.withAlpha(0x80)),
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.all(16),
           ),
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
           onChanged: onChanged,
           items: items.map<DropdownMenuItem<String>>((String value) {
-            return DropdownMenuItem<String>(value: value, child: Text(value));
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(
+                value,
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              ),
+            );
           }).toList(),
         ),
       ),
@@ -292,70 +356,69 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(
-          0xFFC10D00,
-        ).withAlpha(0x33), // App's red color with transparency
+        color: AppColors.activeColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFC10D00).withAlpha(0x7F)),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: const [
-              Icon(
-                Icons.lightbulb_outline,
-                color: Color(0xFFC10D00),
-                size: 20,
-              ), // App's red color
-              SizedBox(width: 10),
-              Text(
-                'SMART Criteria Verification',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.lightbulb_outline,
+                  color: AppColors.activeColor,
+                  size: 20,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildSmartCheckbox(
-            'Specific - Goal is clear and well-defined',
-            _isSpecific,
-            (value) {
-              setState(() => _isSpecific = value!);
-            },
-          ),
-          _buildSmartCheckbox(
-            'Measurable - Progress can be tracked',
-            _isMeasurable,
-            (value) {
-              setState(() => _isMeasurable = value!);
-            },
-          ),
-          _buildSmartCheckbox(
-            'Achievable - Goal is realistic and attainable',
-            _isAchievable,
-            (value) {
-              setState(() => _isAchievable = value!);
-            },
-          ),
-          _buildSmartCheckbox(
-            'Relevant - Goal aligns with your values',
-            _isRelevant,
-            (value) {
-              setState(() => _isRelevant = value!);
-            },
-          ),
-          _buildSmartCheckbox(
-            'Time-bound - Goal has a clear deadline',
-            _isTimeBound,
-            (value) {
-              setState(() => _isTimeBound = value!);
-            },
-          ),
-        ],
+                const SizedBox(width: 10),
+                Text(
+                  'SMART Criteria Verification',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildSmartCheckbox(
+              'Specific - Goal is clear and well-defined',
+              _isSpecific,
+              (value) {
+                setState(() => _isSpecific = value!);
+              },
+            ),
+            _buildSmartCheckbox(
+              'Measurable - Progress can be tracked',
+              _isMeasurable,
+              (value) {
+                setState(() => _isMeasurable = value!);
+              },
+            ),
+            _buildSmartCheckbox(
+              'Achievable - Goal is realistic and attainable',
+              _isAchievable,
+              (value) {
+                setState(() => _isAchievable = value!);
+              },
+            ),
+            _buildSmartCheckbox(
+              'Relevant - Goal aligns with your values',
+              _isRelevant,
+              (value) {
+                setState(() => _isRelevant = value!);
+              },
+            ),
+            _buildSmartCheckbox(
+              'Time-bound - Goal has a clear deadline',
+              _isTimeBound,
+              (value) {
+                setState(() => _isTimeBound = value!);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -366,19 +429,141 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     ValueChanged<bool?> onChanged,
   ) {
     return Theme(
-      data: ThemeData(unselectedWidgetColor: Colors.white70),
+      data: ThemeData(unselectedWidgetColor: AppColors.textSecondary),
       child: CheckboxListTile(
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
         ),
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFFC10D00), // App's red color
-        checkColor: Colors.white,
+        activeColor: AppColors.activeColor,
+        checkColor: AppColors.textPrimary,
         contentPadding: EdgeInsets.zero,
       ),
     );
+  }
+
+  Future<void> _saveGoal() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    
+    // Validate required fields
+    if (_goalTitleController.text.trim().isEmpty) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a goal title'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_targetDate == null) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please select a target date'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Map category to GoalCategory enum
+      GoalCategory category;
+      switch (_goalCategory?.toLowerCase()) {
+        case 'career':
+          category = GoalCategory.work;
+          break;
+        case 'skills':
+        case 'learning':
+          category = GoalCategory.learning;
+          break;
+        case 'wellness':
+          category = GoalCategory.health;
+          break;
+        default:
+          category = GoalCategory.personal;
+      }
+
+      // Map priority to GoalPriority enum
+      GoalPriority priority;
+      switch (_currentStatus?.toLowerCase()) {
+        case 'high':
+          priority = GoalPriority.high;
+          break;
+        case 'low':
+          priority = GoalPriority.low;
+          break;
+        default:
+          priority = GoalPriority.medium;
+      }
+
+      final goal = Goal(
+        id: '', // Will be set by Firestore
+        userId: user.uid,
+        title: _goalTitleController.text.trim(),
+        description: _goalDescriptionController.text.trim(),
+        category: category,
+        priority: priority,
+        status: GoalStatus.notStarted,
+        progress: 0,
+        createdAt: DateTime.now(),
+        targetDate: _targetDate!,
+        points: _calculatePoints(priority),
+      );
+
+      final goalId = await DatabaseService.createGoal(goal);
+      
+      // Create goal with the returned ID for alert
+      final createdGoal = goal.copyWith(id: goalId);
+      
+      // Create alert for goal creation
+      await AlertService.createGoalAlert(
+        userId: user.uid,
+        goal: createdGoal,
+        type: AlertType.goalCreated,
+      );
+
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Goal created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate back to dashboard
+        navigator.pushNamedAndRemoveUntil(
+          '/employee_dashboard',
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text('Error creating goal: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  int _calculatePoints(GoalPriority priority) {
+    switch (priority) {
+      case GoalPriority.high:
+        return 100;
+      case GoalPriority.medium:
+        return 50;
+      case GoalPriority.low:
+        return 25;
+    }
   }
 
   Widget _buildActionButtons() {
@@ -387,38 +572,32 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         Expanded(
           child: OutlinedButton(
             onPressed: () {
-              // Handle "Back to Dashboard"
               Navigator.pop(context);
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white70),
+              foregroundColor: AppColors.textPrimary,
+              side: BorderSide(color: AppColors.borderColor),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text('Back to Dashboard'),
+            child: const Text('Cancel'),
           ),
         ),
-        const SizedBox(width: 15),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: ElevatedButton(
-            onPressed: () {
-              // Handle "Save Goal"
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Goal saved!')));
-            },
+            onPressed: _saveGoal,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC10D00), // App's red color
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.activeColor,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text('Save Goal'),
+            child: const Text('Create Goal'),
           ),
         ),
       ],
