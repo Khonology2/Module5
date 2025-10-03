@@ -217,11 +217,12 @@ class ManagerRealtimeService {
 
         Query query = _firestore.collection('users').where('role', isEqualTo: 'employee');
         
-        // Temporarily disable department filtering to debug Angel visibility issue
-        // TODO: Re-enable after resolving Angel's department mismatch
-        // if (targetDepartment != null && targetDepartment.isNotEmpty) {
-        //   query = query.where('department', isEqualTo: targetDepartment);
-        // }
+        if (targetDepartment != null && targetDepartment.isNotEmpty) {
+          query = query.where('department', isEqualTo: targetDepartment);
+        } else if (targetDepartment != null && targetDepartment.isEmpty) {
+          // If targetDepartment is an empty string, specifically query for employees with empty department
+          query = query.where('department', isEqualTo: '');
+        }
 
         developer.log('Manager Realtime Service: Setting up stream');
         developer.log('Manager UID: $currentUser.uid');
