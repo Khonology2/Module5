@@ -250,6 +250,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 return;
                               }
 
+                              // Enforce domain rule: Only emails ending with @khonodemy or @khonodemy.com
+                              // can register as manager. Others must register as employee.
+                              final String emailLower = _emailController.text.trim().toLowerCase();
+                              final bool isKhonodemyEmail = emailLower.endsWith('@khonodemy') || emailLower.endsWith('@khonodemy.com');
+                              if (_selectedRole == 'manager' && !isKhonodemyEmail) {
+                                await _showManagerRestrictionDialog(context);
+                                return; // Stop submission; user must adjust role
+                              }
+
                               try {
                                 UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
                                   email: _emailController.text,
@@ -401,6 +410,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Future<void> _showManagerRestrictionDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: const [
+              Icon(Icons.lock_outline, color: Color(0xFFC10D00)),
+              SizedBox(width: 8),
+              Text('Access restricted', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: const Text(
+            'Only users with emails ending in @khonodemy can sign up as Manager.\n\nPlease register as Employee instead.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Close', style: TextStyle(color: Colors.white70)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
+              onPressed: () {
+                setState(() {
+                  _selectedRole = 'employee';
+                });
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Role changed to Employee. You can proceed to sign up.')),
+                );
+              },
+              child: const Text('Select Employee'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
