@@ -17,6 +17,7 @@ import 'package:pdh/sign_in_screen.dart';
 import 'package:pdh/manager_review_team_dashboard_screen.dart';
 import 'package:pdh/badges_points_screen.dart';
 import 'package:pdh/leaderboard_screen.dart';
+import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
@@ -141,6 +142,10 @@ class _MyAppState extends State<MyApp> {
               ),
               '/badges_points': (context) => const BadgesPointsScreen(),
               '/leaderboard': (context) => const LeaderboardScreen(),
+              '/manager_leaderboard': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerLeaderboardScreen(),
+              ),
               // Map legacy employee_portal route to the dashboard to remove the old portal screen
               '/employee_portal': (context) => RoleGate(
                 requiredRole: RequiredRole.employee,

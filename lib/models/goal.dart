@@ -35,22 +35,29 @@ class Goal {
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
+    final rawCategory = (data?['category'] ?? 'personal').toString().toLowerCase();
+    final rawPriority = (data?['priority'] ?? 'medium').toString().toLowerCase();
+    final rawStatus = (data?['status'] ?? 'notStarted').toString().toLowerCase();
+
     return Goal(
       id: doc.id,
       userId: data?['userId'] ?? '',
       title: data?['title'] ?? '',
       description: data?['description'] ?? '',
       category: GoalCategory.values.firstWhere(
-          (e) => e.name == (data?['category'] ?? 'personal'),
+          (e) => e.name.toLowerCase() == rawCategory,
           orElse: () => GoalCategory.personal,
       ),
       priority: GoalPriority.values.firstWhere(
-          (e) => e.name == (data?['priority'] ?? 'medium'),
+          (e) => e.name.toLowerCase() == rawPriority,
           orElse: () => GoalPriority.medium,
       ),
       status: GoalStatus.values.firstWhere(
-          (e) => e.name == (data?['status'] ?? 'notStarted'),
-          orElse: () => GoalStatus.notStarted,
+        (e) => e.name.toLowerCase() == rawStatus ||
+                // tolerate common alternative spellings/cases
+                (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
+                (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
+        orElse: () => GoalStatus.notStarted,
       ),
       progress: (data?['progress'] ?? 0) as int,
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
