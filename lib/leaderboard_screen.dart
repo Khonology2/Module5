@@ -87,7 +87,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Query<Map<String, dynamic>> _buildQuery() {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('users');
+        .collection('users')
+        // Only users who opted in should be included in leaderboard
+        .where('leaderboardOptin', isEqualTo: true);
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) && _currentUser != null && _currentUser!.department.isNotEmpty) {
