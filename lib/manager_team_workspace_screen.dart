@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -533,6 +535,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
         ),
       );
     } catch (e) {
+      if (!mounted) return; // Add this line
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error creating team goal: $e')),
       );

@@ -1129,7 +1129,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
     try {
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
           title: const Text('Populate Sample Data'),
           content: const Text(
             'This will create sample activities and goals for all employees in your department. '
@@ -1137,32 +1137,33 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
               child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () async {
-                Navigator.of(context).pop();
+                Navigator.of(dialogContext).pop(); // Use dialogContext
                 
                 // Show loading
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                if (!mounted) return; // Re-added
+                final scaffoldMessenger = ScaffoldMessenger.of(dialogContext); // Capture ScaffoldMessenger
+                scaffoldMessenger.showSnackBar(
                   const SnackBar(content: Text('Creating sample data...')),
                 );
 
                 try {
                   await SampleDataService.populateManagerDashboardWithSampleData();
                   
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return; // Re-added
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(
                       content: Text('Sample data created successfully! Refresh to see real data.'),
                       backgroundColor: Colors.green,
                     ),
                   );
                 } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  if (!mounted) return; // Re-added
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Error creating sample data: $e'),
                       backgroundColor: Colors.red,
@@ -1176,6 +1177,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
         ),
       );
     } catch (e) {
+      if (!mounted) return; 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
@@ -1245,10 +1247,10 @@ ${goalsQuery.docs.map((doc) {
 }).join('\n')}
       ''';
 
-      if (!mounted) return;
+      if (!mounted) return; // Add this line here
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
           title: const Text('Debug Information'),
           content: SingleChildScrollView(
             child: Column(
@@ -1263,14 +1265,14 @@ ${goalsQuery.docs.map((doc) {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
               child: const Text('Close'),
             ),
           ],
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return; // Re-added
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Debug Error: $e')),
       );

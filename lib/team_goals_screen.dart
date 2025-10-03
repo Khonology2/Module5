@@ -237,9 +237,9 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
                   vertical: AppSpacing.xs,
                 ),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -345,9 +345,9 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -454,6 +454,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
           teamGoalId: teamGoalId,
         );
 
+        if (!mounted) return; // Add this line here
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Successfully joined the team goal!'),
@@ -462,6 +463,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
         );
         } // Close currentUser null check
       } catch (e) {
+        if (!mounted) return; // Add this line
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error joining team goal: $e'),
