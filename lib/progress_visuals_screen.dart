@@ -1145,6 +1145,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                 Navigator.of(context).pop();
                 
                 // Show loading
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Creating sample data...')),
                 );
@@ -1152,6 +1153,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                 try {
                   await SampleDataService.populateManagerDashboardWithSampleData();
                   
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Sample data created successfully! Refresh to see real data.'),
@@ -1159,6 +1161,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                     ),
                   );
                 } catch (e) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Error creating sample data: $e'),
@@ -1242,6 +1245,7 @@ ${goalsQuery.docs.map((doc) {
 }).join('\n')}
       ''';
 
+      if (!mounted) return;
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -1266,6 +1270,7 @@ ${goalsQuery.docs.map((doc) {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Debug Error: $e')),
       );

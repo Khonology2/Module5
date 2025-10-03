@@ -76,14 +76,9 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
                             timeFilter: _selectedTimeFilter,
                           ),
                               builder: (context, employeesSnapshot) {
-                                // Debug logging
-                                print('Employees snapshot - hasData: ${employeesSnapshot.hasData}');
-                                print('Employees snapshot - hasError: ${employeesSnapshot.hasError}');
                                 if (employeesSnapshot.hasError) {
-                                  print('Employees snapshot error: ${employeesSnapshot.error}');
                                 }
                                 if (employeesSnapshot.hasData) {
-                                  print('Employees count: ${employeesSnapshot.data!.length}');
                                 }
 
                                 return StreamBuilder<List<TeamInsight>>(
@@ -92,14 +87,9 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
                                     timeFilter: _selectedTimeFilter,
                                   ),
                                   builder: (context, insightsSnapshot) {
-                                    // Debug logging
-                                    print('Insights snapshot - hasData: ${insightsSnapshot.hasData}');
-                                    print('Insights snapshot - hasError: ${insightsSnapshot.hasError}');
                                     if (insightsSnapshot.hasError) {
-                                      print('Insights snapshot error: ${insightsSnapshot.error}');
                                     }
                                     if (insightsSnapshot.hasData) {
-                                      print('Insights count: ${insightsSnapshot.data!.length}');
                                     }
 
                                     return Column(
@@ -845,7 +835,7 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
   void _scheduleOneOnOne(EmployeeData employee) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog( // Capture dialogContext here
         backgroundColor: const Color(0xFF1F2840),
         title: Text(
           'Schedule 1:1 with ${employee.profile.displayName}',
@@ -878,16 +868,15 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
                     scheduledTime: scheduledTime,
                     purpose: 'Performance check-in',
                   );
-                  
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  Navigator.pop(dialogContext); // Use dialogContext
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       content: Text('1:1 scheduled with ${employee.profile.displayName}'),
                       backgroundColor: const Color(0xFFC10D00),
                     ),
                   );
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       content: Text('Error scheduling meeting: $e'),
                       backgroundColor: Colors.red,
@@ -902,7 +891,7 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
             child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
         ],
@@ -913,7 +902,7 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
   void _giveRecognition(EmployeeData employee) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog( // Capture dialogContext here
         backgroundColor: const Color(0xFF1F2840),
         title: Text(
           'Give Recognition to ${employee.profile.displayName}',
@@ -946,16 +935,15 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
                           points: 50,
                           badgeName: 'Manager Recognition',
                         );
-                        
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        Navigator.pop(dialogContext); // Use dialogContext
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(
                             content: Text('Recognition sent to ${employee.profile.displayName}'),
                             backgroundColor: Colors.green,
                           ),
                         );
                       } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(
                             content: Text('Error giving recognition: $e'),
                             backgroundColor: Colors.red,
@@ -973,7 +961,7 @@ class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDash
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
             child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
         ],
