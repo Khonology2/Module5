@@ -251,24 +251,26 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   return _buildErrorState();
                 }
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 20),
-                      _buildFiltersBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      if (leaderboardData.isEmpty)
-                        _buildEmptyState()
-                      else ...[
-                        _buildPodium(leaderboardData),
+                return FocusTraversalGroup(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
                         const SizedBox(height: 20),
-                        _buildLeaderList(leaderboardData),
+                        _buildFiltersBar(isManager: isManager),
+                        const SizedBox(height: 16),
+                        if (leaderboardData.isEmpty)
+                          _buildEmptyState()
+                        else ...[
+                          _buildPodium(leaderboardData),
+                          const SizedBox(height: 20),
+                          _buildLeaderList(leaderboardData),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 );
               },
@@ -543,11 +545,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final topPerformers = leaderboardData.take(5).toList();
     final remainingUsers = leaderboardData.skip(3).toList();
 
-    return IntrinsicHeight(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
         // Current user's position (if not in top 3)
         if (currentUserId != null && _currentUser != null) ...[
           const Text(
@@ -587,8 +588,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const SizedBox(height: 10),
           ...remainingUsers.map((user) => _buildLeaderboardItem(user)),
         ],
-        ],
-      ),
+      ],
     );
   }
 
