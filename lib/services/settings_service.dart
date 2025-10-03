@@ -49,7 +49,7 @@ class UserSettings {
     this.privateGoals = false,
     this.managerOnly = false,
     this.teamShare = true,
-    this.leaderboardParticipation = true,
+    this.leaderboardParticipation = false, // Default to false, require opt-in
     this.profileVisible = true,
     this.pushNotifications = true,
     this.emailNotifications = true,
@@ -80,7 +80,7 @@ class UserSettings {
       privateGoals: data['privateGoals'] ?? false,
       managerOnly: data['managerOnly'] ?? false,
       teamShare: data['teamShare'] ?? true,
-      leaderboardParticipation: data['leaderboardParticipation'] ?? true,
+      leaderboardParticipation: data['leaderboardParticipation'] ?? false,
       profileVisible: data['profileVisible'] ?? true,
       pushNotifications: data['pushNotifications'] ?? true,
       emailNotifications: data['emailNotifications'] ?? true,
@@ -111,6 +111,7 @@ class UserSettings {
       'managerOnly': managerOnly,
       'teamShare': teamShare,
       'leaderboardParticipation': leaderboardParticipation,
+      'leaderboardOptin': leaderboardParticipation, // Sync both fields for compatibility
       'profileVisible': profileVisible,
       'pushNotifications': pushNotifications,
       'emailNotifications': emailNotifications,
@@ -258,10 +259,17 @@ class SettingsService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
-      await _firestore.collection('users').doc(user.uid).update({
+      Map<String, dynamic> updateData = {
         key: value,
         'lastUpdated': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Sync leaderboardParticipation with leaderboardOptin for compatibility
+      if (key == 'leaderboardParticipation') {
+        updateData['leaderboardOptin'] = value;
+      }
+
+      await _firestore.collection('users').doc(user.uid).update(updateData);
 
       // Save locally if it's a critical setting
       if (_criticalSettings.contains(key)) {
@@ -406,6 +414,14 @@ class SettingsService {
     'pushNotifications',
     'autoSync',
     'language',
+    'leaderboardParticipation',
+    'privateGoals',
+    'managerOnly',
+    'soundAlerts',
+    'emailNotifications',
+    'twoFactorAuth',
+    'sessionTimeout',
+    'celebrationFeed',
   ];
 
   // Get default settings for new users

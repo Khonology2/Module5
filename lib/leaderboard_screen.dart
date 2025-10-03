@@ -94,27 +94,63 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       query = query.where('department', isEqualTo: _currentUser!.department);
     }
 
-    // For now, let's avoid the compound query that requires an index
-    // We'll filter for leaderboard opt-in users in the processing step instead
-    return query.orderBy(_getOrderByField(), descending: true).limit(100);
+    // Default to ordering by totalPoints and add safety for missing fields
+    String orderField = 'totalPoints';
+    try {
+      orderField = _getOrderByField();
+    } catch (e) {
+      developer.log('Error getting order field, defaulting to totalPoints: $e');
+    }
+
+    // Only order by fields that are guaranteed to exist
+    if (orderField == 'badges') {
+      // For badges, we'll handle this in processing instead of ordering
+      orderField = 'totalPoints';
+    }
+
+    return query.orderBy(orderField, descending: true).limit(100);
   }
 
   List<Map<String, dynamic>> _processLeaderboardData(List<QueryDocumentSnapshot> docs) {
     try {
+      developer.log('Processing ${docs.length} documents for leaderboard');
+      
+      // If no docs, return empty list but don't treat as error
+      if (docs.isEmpty) {
+        developer.log('No documents to process');
+        return [];
+      }
+
       // First filter for users who have opted into the leaderboard
       final filteredDocs = docs.where((doc) {
         try {
           final data = doc.data() as Map<String, dynamic>?;
-          return data != null && data['leaderboardOptin'] == true;
+          if (data != null) {
+            // Check both field names for compatibility
+            final opted = data['leaderboardParticipation'] == true || data['leaderboardOptin'] == true;
+            developer.log('User ${doc.id}: leaderboardParticipation = ${data['leaderboardParticipation']}, leaderboardOptin = ${data['leaderboardOptin']}, opted = $opted');
+            return opted;
+          }
+          return false;
         } catch (e) {
           developer.log('Error processing doc ${doc.id}: $e');
           return false;
         }
       }).toList();
       
-      return filteredDocs.asMap().entries.map((entry) {
-        final index = entry.key;
-        final doc = entry.value;
+      developer.log('${filteredDocs.length} users opted into leaderboard');
+
+      // If no users opted in, return empty list but show a helpful message
+      if (filteredDocs.isEmpty) {
+        developer.log('No users have opted into leaderboard');
+        // For testing purposes, if no users have opted in, we can show all users with low priority
+        // In production, this would require user consent
+        developer.log('No opted-in users found. Users need to enable leaderboard participation in their settings.');
+        return [];
+      }
+
+      // Process and sort data
+      List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         
         // Safely extract badge count
@@ -129,7 +165,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         }
         
         return {
-          'rank': index + 1,
           'userId': doc.id,
           'name': data['displayName']?.toString() ?? 'Anonymous',
           'points': (data['totalPoints'] is num) ? data['totalPoints'] : 0,
@@ -139,6 +174,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
         };
       }).toList();
+
+      // Sort by the selected metric
+      switch (_currentMetric) {
+        case LeaderboardMetric.points:
+          processedData.sort((a, b) => (b['points'] as num).compareTo(a['points'] as num));
+          break;
+        case LeaderboardMetric.level:
+          processedData.sort((a, b) => (b['level'] as num).compareTo(a['level'] as num));
+          break;
+        case LeaderboardMetric.badges:
+          processedData.sort((a, b) => (b['badges'] as int).compareTo(a['badges'] as int));
+          break;
+      }
+
+      // Add rankings
+      return processedData.asMap().entries.map((entry) {
+        final index = entry.key;
+        final user = entry.value;
+        user['rank'] = index + 1;
+        return user;
+      }).toList();
+
     } catch (e) {
       developer.log('Error processing leaderboard data: $e');
       return <Map<String, dynamic>>[];
@@ -147,25 +204,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.backgroundColor,
-      ),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: StreamBuilder<String?>(
-            stream: RoleService.instance.roleStream(),
-            builder: (context, roleSnapshot) {
-              final role = roleSnapshot.data;
-              if (role == null || _isLoading) {
-                return const Center(
-                  child: CircularProgressIndicator(color: AppColors.activeColor),
-                );
-              }
-              
-              final isManager = role == 'manager';
+    return Scaffold(
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        child: StreamBuilder<String?>(
+          stream: RoleService.instance.roleStream(),
+          builder: (context, roleSnapshot) {
+            final role = roleSnapshot.data;
+            if (role == null || _isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.activeColor),
+              );
+            }
             
+            final isManager = role == 'manager';
+          
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _buildQuery().snapshots(),
               builder: (context, leaderboardSnapshot) {
@@ -177,7 +230,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
                 if (leaderboardSnapshot.hasError) {
                   developer.log('Leaderboard error: ${leaderboardSnapshot.error}');
+                  developer.log('Error details: ${leaderboardSnapshot.error.toString()}');
                   return _buildErrorState();
+                }
+
+                // Add debugging info
+                if (leaderboardSnapshot.hasData) {
+                  developer.log('Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore');
                 }
 
                 List<Map<String, dynamic>> leaderboardData;
@@ -190,26 +249,29 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   return _buildErrorState();
                 }
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: 20),
-                    _buildFiltersBar(isManager: isManager),
-                    const SizedBox(height: 16),
-                    if (leaderboardData.isEmpty)
-                      _buildEmptyState()
-                    else ...[
-                      _buildPodium(leaderboardData),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeader(),
                       const SizedBox(height: 20),
-                      _buildLeaderList(leaderboardData),
+                      _buildFiltersBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      if (leaderboardData.isEmpty)
+                        _buildEmptyState()
+                      else ...[
+                        _buildPodium(leaderboardData),
+                        const SizedBox(height: 20),
+                        _buildLeaderList(leaderboardData),
+                      ],
                     ],
-                  ],
+                  ),
                 );
               },
             );
-            },
-          ),
+          },
         ),
       ),
     );
@@ -479,9 +541,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final topPerformers = leaderboardData.take(5).toList();
     final remainingUsers = leaderboardData.skip(3).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return IntrinsicHeight(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
         // Current user's position (if not in top 3)
         if (currentUserId != null && _currentUser != null) ...[
           const Text(
@@ -521,7 +585,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           const SizedBox(height: 10),
           ...remainingUsers.map((user) => _buildLeaderboardItem(user)),
         ],
-      ],
+        ],
+      ),
     );
   }
 
@@ -715,18 +780,51 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.borderColor),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           children: [
-            Icon(Icons.leaderboard, color: AppColors.textMuted, size: 48),
+            Icon(Icons.trending_up_outlined, color: AppColors.textMuted, size: 48),
             SizedBox(height: 12),
             Text(
-              'No leaderboard data available',
+              'Leaderboard Coming Soon',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              textAlign: TextAlign.center,
             ),
+            SizedBox(height: 8),
             Text(
-              'Complete some goals to see the leaderboard!',
+              'Users need to enable leaderboard participation in their profile settings.',
               style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.activeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.settings, color: AppColors.activeColor, size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        'To Enable:',
+                        style: TextStyle(color: AppColors.activeColor, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '1. Go to Profile Settings\n2. Enable "Leaderboard Participation"',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
