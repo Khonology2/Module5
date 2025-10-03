@@ -478,45 +478,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  prefixIcon: SizedBox(
-                    width: 120, // Adjust width as needed to fit both icons
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.add, color: Colors.white70),
-                          onPressed: () {
-                            _showModeSelectionSheet(context);
-                          },
-                        ),
-                        // New Summarize Button
-                        IconButton(
-                          icon: Icon(
-                            Icons.summarize,
-                            color: _isSummarizeMode ? const Color(0xFFC10D00) : Colors.white70,
-                          ),
-                          onPressed: _toggleSummarizeMode,
-                        ),
-                        // Text-to-speech button (AI Voice Playback)
-                        IconButton(
-                          icon: Icon(
-                            _isSpeaking ? Icons.volume_off : Icons.volume_up,
-                            color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey), // Red if speaking, otherwise white70 or grey
-                          ),
-                          onPressed: (_lastAiResponse != null && !_isThinking) ? () {
-                            if (_isSpeaking) {
-                              _stop();
-                            } else if (_lastAiResponse != null) { // Only speak if there's a response
-                              _speak(_lastAiResponse!); // Speak the last AI response
-                            }
-                          } : null,
-                        ),
-                      ],
-                    ),
+                  prefixIcon: IconButton( // Only the plus icon here
+                    icon: Image.asset('assets/Plus_Addition.png', width: 62.0, height: 62.0),
+                    onPressed: () {
+                      _showModeSelectionSheet(context);
+                    },
                   ),
                 ),
                 onSubmitted: (_) => _sendMessage(),
               ),
+            ),
+            // Moved Summarize Button outside TextField
+            IconButton(
+              icon: Image.asset('assets/Document_Upload.png', width: 32.0, height: 32.0), // Replaced with Image.asset
+              onPressed: _toggleSummarizeMode,
+            ),
+            // Moved Text-to-speech button (AI Voice Playback) outside TextField
+            IconButton(
+              icon: Icon(
+                _isSpeaking ? Icons.volume_off : Icons.volume_up,
+                color: _isSpeaking ? const Color(0xFFC10D00) : ((_lastAiResponse != null && !_isThinking) ? Colors.white70 : Colors.grey),
+                size: 32.0, // Adjusted size
+              ),
+              onPressed: (_lastAiResponse != null && !_isThinking) ? () {
+                if (_isSpeaking) {
+                  _stop();
+                } else if (_lastAiResponse != null) {
+                  _speak(_lastAiResponse!);
+                }
+              } : null,
             ),
             const SizedBox(width: 8.0),
             FloatingActionButton(
