@@ -7,6 +7,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/alert.dart';
@@ -46,6 +47,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await DatabaseService.startGoal(currentGoal.id, user.uid);
+        // Record activity: goal started
+        await ActivityService.recordGoalActivity(
+          goalId: currentGoal.id,
+          goalTitle: currentGoal.title,
+          activityType: 'goal_started',
+          description: 'Started goal',
+        );
         
         // Create alerts
         await AlertService.createGoalAlert(
@@ -104,6 +112,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await DatabaseService.completeGoal(currentGoal.id, user.uid);
+        // Record activity: goal completed
+        await ActivityService.recordGoalActivity(
+          goalId: currentGoal.id,
+          goalTitle: currentGoal.title,
+          activityType: 'goal_completed',
+          description: 'Completed goal',
+        );
         
         // Create completion alerts
         await AlertService.createGoalAlert(
@@ -166,6 +181,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
     try {
       await DatabaseService.updateGoalProgress(currentGoal.id, newProgress);
+      // Record activity: goal progress update
+      await ActivityService.recordGoalActivity(
+        goalId: currentGoal.id,
+        goalTitle: currentGoal.title,
+        activityType: 'goal_progress',
+        description: 'Updated progress to $newProgress%',
+        metadata: {'progress': newProgress},
+      );
       
       if (mounted) {
         setState(() {
