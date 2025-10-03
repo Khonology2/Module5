@@ -111,7 +111,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                   const SizedBox(height: 16),
                   if (top.isNotEmpty) _buildPodium(top),
                   const SizedBox(height: 16),
-                  ...rest.map((e) => _buildListItem(e)).toList(),
+                  ...rest.map((e) => _buildListItem(e)),
                 ],
               );
             },
