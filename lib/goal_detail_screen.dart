@@ -103,6 +103,25 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     if (isLoading) return;
     
     final scaffoldMessenger = ScaffoldMessenger.of(context);
+    // Guard: ensure started and at 100% before attempting to complete
+    if (currentGoal.status != GoalStatus.inProgress) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please start the goal before completing it.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    if (currentGoal.progress < 100) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Set progress to 100% to complete.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     
     setState(() {
       isLoading = true;
@@ -192,7 +211,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       
       if (mounted) {
         setState(() {
-          currentGoal = currentGoal.copyWith(progress: newProgress);
+          // If progress moves above 0 and we were not started, reflect auto-transition to inProgress
+          final nextStatus = (newProgress > 0 && currentGoal.status == GoalStatus.notStarted)
+              ? GoalStatus.inProgress
+              : currentGoal.status;
+          currentGoal = currentGoal.copyWith(progress: newProgress, status: nextStatus);
         });
 
         // Award points for progress milestones

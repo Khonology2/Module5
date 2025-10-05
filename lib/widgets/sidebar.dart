@@ -224,26 +224,48 @@ class _NavTileState extends State<_NavTile> {
                         size: isSelected ? 24 : 20,
                       ),
                     )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          widget.icon,
-                          color: AppColors.textPrimary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            widget.label,
-                            style: isSelected
-                                ? AppTypography.navigationActive
-                                : AppTypography.navigation,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // If there isn't enough width to safely render icon + label,
+                        // fall back to icon-only to avoid overflows during animations/resizes.
+                        final bool tooNarrow = constraints.maxWidth < 80;
+                        if (tooNarrow) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.icon,
+                                color: AppColors.textPrimary,
+                                size: 20,
+                              ),
+                            ],
+                          );
+                        }
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.max,
+                          children: [
+                            Icon(
+                              widget.icon,
+                              color: AppColors.textPrimary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                widget.label,
+                                style: isSelected
+                                    ? AppTypography.navigationActive
+                                    : AppTypography.navigation,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                softWrap: false,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
             ),
           ),
