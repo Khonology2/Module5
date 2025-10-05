@@ -300,12 +300,33 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 : () async {
                                     if (_formKey.currentState!.validate()) {
                                       try {
-                                        await FirebaseAuth.instance
+                                        final cred = await FirebaseAuth.instance
                                             .signInWithEmailAndPassword(
                                               email: _emailController.text,
                                               password:
                                                   _passwordController.text,
                                             );
+                                        // Store lastLoginAt and record daily login activity
+                                        final user = cred.user;
+                                        if (user != null) {
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(user.uid)
+                                              .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                          // Also record a light-weight daily activity for streaks
+                                          try {
+                                            await FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(user.uid)
+                                                .collection('daily_activities')
+                                                .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                                .set({
+                                                  'date': FieldValue.serverTimestamp(),
+                                                  'activities': FieldValue.arrayUnion(['login']),
+                                                  'createdAt': FieldValue.serverTimestamp(),
+                                                }, SetOptions(merge: true));
+                                          } catch (_) {}
+                                        }
                                         if (!mounted) return;
                                         await _handlePostLoginNavigation(
                                           context,
@@ -415,16 +436,37 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ? null
                                 : () async {
                                     try {
+                                      UserCredential cred;
                                       if (kIsWeb) {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithPopup(
                                               GoogleAuthProvider(),
                                             );
                                       } else {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithProvider(
                                               GoogleAuthProvider(),
                                             );
+                                      }
+                                      // Store lastLoginAt and record daily login activity
+                                      final user = cred.user;
+                                      if (user != null) {
+                                        await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(user.uid)
+                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(user.uid)
+                                              .collection('daily_activities')
+                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .set({
+                                                'date': FieldValue.serverTimestamp(),
+                                                'activities': FieldValue.arrayUnion(['login']),
+                                                'createdAt': FieldValue.serverTimestamp(),
+                                              }, SetOptions(merge: true));
+                                        } catch (_) {}
                                       }
                                       if (!mounted) return;
                                       await _handlePostLoginNavigation(context);
@@ -504,14 +546,34 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       setState(() {
                                         _isSigningIn = true;
                                       });
+                                      UserCredential cred;
                                       if (kIsWeb) {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithPopup(microsoftProvider);
                                       } else {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithProvider(
                                               microsoftProvider,
                                             );
+                                      }
+                                      final user = cred.user;
+                                      if (user != null) {
+                                        await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(user.uid)
+                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(user.uid)
+                                              .collection('daily_activities')
+                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .set({
+                                                'date': FieldValue.serverTimestamp(),
+                                                'activities': FieldValue.arrayUnion(['login']),
+                                                'createdAt': FieldValue.serverTimestamp(),
+                                              }, SetOptions(merge: true));
+                                        } catch (_) {}
                                       }
                                       if (!mounted) return;
                                       await _handlePostLoginNavigation(context);
@@ -592,12 +654,32 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ? null
                                 : () async {
                                     try {
+                                      UserCredential cred;
                                       if (kIsWeb) {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithPopup(githubProvider);
                                       } else {
-                                        await FirebaseAuth.instance
+                                        cred = await FirebaseAuth.instance
                                             .signInWithProvider(githubProvider);
+                                      }
+                                      final user = cred.user;
+                                      if (user != null) {
+                                        await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(user.uid)
+                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(user.uid)
+                                              .collection('daily_activities')
+                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .set({
+                                                'date': FieldValue.serverTimestamp(),
+                                                'activities': FieldValue.arrayUnion(['login']),
+                                                'createdAt': FieldValue.serverTimestamp(),
+                                              }, SetOptions(merge: true));
+                                        } catch (_) {}
                                       }
                                       if (!mounted) return;
                                       await _handlePostLoginNavigation(context);

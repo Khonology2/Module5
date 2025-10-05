@@ -109,10 +109,28 @@ class DatabaseService {
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
-    await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
-      'progress': progress,
+    final goals = FirebaseFirestore.instance.collection('goals');
+    final goalRef = goals.doc(goalId);
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(goalRef);
+      if (!snap.exists) return;
+      final data = snap.data() as Map<String, dynamic>;
+      final currentStatus = (data['status'] ?? 'notStarted').toString();
+      final userId = data['userId'] as String?;
+
+      // Always update progress
+      tx.update(goalRef, {'progress': progress});
+
+      // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
+      if (progress > 0 && currentStatus != GoalStatus.inProgress.name && currentStatus != GoalStatus.completed.name) {
+        tx.update(goalRef, {'status': GoalStatus.inProgress.name});
+        if (userId != null && userId.isNotEmpty) {
+          final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+          tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        }
+      }
     });
-    
+
     // Record daily activity for streak tracking when making progress
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -142,22 +160,35 @@ class DatabaseService {
   }
 
   static Future<void> completeGoal(String goalId, String userId) async {
-    final batch = FirebaseFirestore.instance.batch();
-    
-    // Update goal status and progress
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    batch.update(goalRef, {
-      'status': GoalStatus.completed.name,
-      'progress': 100,
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(goalRef);
+      if (!snap.exists) {
+        throw Exception('Goal not found');
+      }
+      final data = snap.data() as Map<String, dynamic>;
+      final status = (data['status'] ?? 'notStarted').toString();
+      final progress = (data['progress'] ?? 0) as int;
+
+      // Enforce: must be inProgress and progress 100 to complete
+      if (status != GoalStatus.inProgress.name) {
+        throw Exception('Start the goal before completing it.');
+      }
+      if (progress < 100) {
+        throw Exception('Set progress to 100% before completing.');
+      }
+
+      // Update goal status to completed
+      tx.update(goalRef, {
+        'status': GoalStatus.completed.name,
+      });
+
+      // Award points for completing goal
+      final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+      tx.update(userRef, {
+        'totalPoints': FieldValue.increment(100),
+      });
     });
-    
-    // Award points for completing goal
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    batch.update(userRef, {
-      'totalPoints': FieldValue.increment(100),
-    });
-    
-    await batch.commit();
     
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');

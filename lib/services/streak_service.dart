@@ -69,6 +69,28 @@ class StreakService {
 
       int currentStreak = 0;
       DateTime? lastDate;
+
+      // Enforce: streak only counts if user logged in today (lastLoginAt)
+      final now = DateTime.now();
+      final todayOnly = DateTime(now.year, now.month, now.day);
+      try {
+        final userDoc = await _firestore.collection('users').doc(userId).get();
+        final lastLoginTs = userDoc.data()?['lastLoginAt'] as Timestamp?;
+        if (lastLoginTs != null) {
+          final lastLogin = lastLoginTs.toDate();
+          final lastLoginOnly = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+          if (!lastLoginOnly.isAtSameMomentAs(todayOnly)) {
+            await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+            return;
+          }
+        } else {
+          await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+          return;
+        }
+      } catch (_) {
+        await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+        return;
+      }
       
       for (final doc in activitiesSnapshot.docs) {
         final activityDate = (doc.data()['date'] as Timestamp).toDate();

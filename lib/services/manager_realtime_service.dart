@@ -447,6 +447,25 @@ class ManagerRealtimeService {
       List<EmployeeActivity> recentActivities = const [];
       
       try {
+        // Pull lastLoginAt from user profile
+        try {
+          final userDoc = await _firestore.collection('users').doc(profile.uid).get();
+          final data = userDoc.data();
+          final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
+          if (lastLoginTs != null) {
+            final lastLogin = lastLoginTs.toDate();
+            // If no login today, enforce streak = 0 later by passing empty docs
+            final now = DateTime.now();
+            final todayOnly = DateTime(now.year, now.month, now.day);
+            final lastLoginOnly = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+            final hasLoggedInToday = lastLoginOnly.isAtSameMomentAs(todayOnly);
+            if (!hasLoggedInToday) {
+              // Skip activity-based streak; ensure streakDays becomes 0
+              streakDays = 0;
+            }
+          }
+        } catch (_) {}
+
         final activityQuery = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
@@ -467,7 +486,12 @@ class ManagerRealtimeService {
             .limit(30) // Check last 30 days
             .get();
             
-        streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
+        // If lastLoginAt isn't today, streakDays is already 0; otherwise compute
+        if (streakDays == 0) {
+          // keep as 0
+        } else {
+          streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
+        }
         activityDocs = streakQuerySnapshot.docs;
 
         // Build recent activities list (limit 10)
@@ -576,8 +600,14 @@ class ManagerRealtimeService {
     // Sort dates descending
     activityDates.sort((a, b) => b.compareTo(a));
     
-    // Count consecutive days starting from today/yesterday
+    // Count consecutive days starting strictly from today
     final today = DateTime(now.year, now.month, now.day);
+    final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    // Require activity today to maintain any streak
+    if (!activityDates.contains(todayString)) {
+      return 0;
+    }
     
     // Count consecutive days
     for (int i = 0; i < activityDates.length; i++) {
@@ -586,16 +616,6 @@ class ManagerRealtimeService {
       
       if (activityDates.contains(expectedString)) {
         streakDays++;
-      } else if (i == 0) {
-        // Check if yesterday is included
-        final yesterday = today.subtract(const Duration(days: 1));
-        final yesterdayString = '${yesterday.year}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-        if (activityDates.contains(yesterdayString)) {
-          i = -1; // Start counting from yesterday
-          continue;
-        } else {
-          break; // No streak
-        }
       } else {
         break; // Gap found, end streak
       }
