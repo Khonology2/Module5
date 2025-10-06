@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async'; // Required for Future.delayed
+import 'package:cloud_firestore/cloud_firestore.dart'; // New: Import Cloud Firestore
+import 'package:firebase_auth/firebase_auth.dart'; // New: Import Firebase Auth
 
 // --- 1. Custom Color Definitions (from Dashboard Spec) ---
 const Color accentRed = Color(0xFFC10D00); // Primary Accent Color
@@ -24,30 +26,64 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _linkController = TextEditingController();
+  DateTime? _selectedDate; // New: To store the selected date
 
   Future<void> _submitEvidence() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedDate == null) {
+        setState(() {
+          _message = 'Please select a completion date.';
+        });
+        return;
+      }
+
       setState(() {
         _isSubmitting = true;
         _message = null; // Clear previous messages
       });
 
-      // Simulate network delay/API call (1.5 seconds)
-      await Future.delayed(const Duration(milliseconds: 1500));
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          setState(() {
+            _message = 'User not logged in.';
+            _isSubmitting = false;
+          });
+          return;
+        }
 
-      // Simulate successful submission
-      setState(() {
-        _isSubmitting = false;
-        _message = 'Evidence submitted successfully! Great job on completing your goal.';
+        await FirebaseFirestore.instance.collection('goalEvidence').add({
+          'userId': user.uid,
+          'title': _titleController.text.trim(),
+          'description': _descriptionController.text.trim(),
+          'evidenceLink': _linkController.text.trim(),
+          'completionDate': Timestamp.fromDate(_selectedDate!),
+          'submissionDate': FieldValue.serverTimestamp(),
+        });
+
+        // Simulate network delay/API call (1.5 seconds) - Removed, as Firestore call is async
+        await Future.delayed(const Duration(milliseconds: 500)); // Small delay for UI feedback
+
+        // Simulate successful submission
+        setState(() {
+          _isSubmitting = false;
+          _message = 'Evidence submitted successfully! Great job on completing your goal.';
+          
+          // Reset form fields
+          _titleController.clear();
+          _descriptionController.clear();
+          _linkController.clear();
+          _selectedDate = null; // Clear selected date as well
+        });
         
-        // Reset form fields
-        _titleController.clear();
-        _descriptionController.clear();
-        _linkController.clear();
-      });
-      
-      // In a real app, file upload logic would go here, 
-      // but for this UI, we just simulate the success state.
+        // In a real app, file upload logic would go here, 
+        // but for this UI, we just simulate the success state.
+      } catch (e) {
+        setState(() {
+          _isSubmitting = false;
+          _message = 'Failed to submit evidence: ${e.toString()}';
+        });
+      }
     }
   }
 
@@ -104,23 +140,58 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
                 color: textLight, fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ),
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: tileDark,
-            borderRadius: BorderRadius.circular(10.0),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Select date (Required)',
-                style: TextStyle(color: textFaded.withValues(alpha: 127)),
-              ),
-              const Icon(Icons.calendar_today, size: 18, color: textFaded),
-            ],
+        GestureDetector(
+          onTap: () async {
+            DateTime? pickedDate = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate ?? DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2101),
+              builder: (context, child) {
+                return Theme(
+                  data: ThemeData.dark().copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: accentRed, // Header background color
+                      onPrimary: textLight, // Header text color
+                      surface: containerDark, // Calendar background color
+                      onSurface: textLight, // Calendar text color
+                    ),
+                    textButtonTheme: TextButtonThemeData(
+                      style: TextButton.styleFrom(
+                        foregroundColor: accentRed, // Button text color
+                      ),
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (pickedDate != null && pickedDate != _selectedDate) {
+              setState(() {
+                _selectedDate = pickedDate;
+              });
+            }
+          },
+          child: Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: tileDark,
+              borderRadius: BorderRadius.circular(10.0),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedDate == null
+                      ? 'Select date (Required)'
+                      : '${_selectedDate!.toLocal().day}/${_selectedDate!.toLocal().month}/${_selectedDate!.toLocal().year}',
+                  style: TextStyle(color: _selectedDate == null ? textFaded.withValues(alpha: 127) : textLight),
+                ),
+                const Icon(Icons.calendar_today, size: 18, color: textFaded),
+              ],
+            ),
           ),
         ),
       ],
