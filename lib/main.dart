@@ -34,6 +34,8 @@ import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system t
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
+import 'package:pdh/goal_evidence_submission_screen.dart'; // Import the new GoalEvidenceSubmissionScreen
+import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -126,7 +128,11 @@ class _MyAppState extends State<MyApp> {
                 requiredRole: RequiredRole.employee,
                 child: const MyPdpScreen(),
               ),
-              '/progress_visuals': (context) => const ProgressVisualsScreen(),
+              '/progress_visuals': (context) => MainLayout(
+                title: 'Progress Visuals',
+                currentRouteName: '/progress_visuals',
+                body: const ProgressVisualsScreen(),
+              ),
               '/my_goal_workspace': (context) => RoleGate(
                 requiredRole: RequiredRole.employee,
                 child: const MyGoalWorkspaceScreen(),
@@ -199,6 +205,14 @@ class _MyAppState extends State<MyApp> {
                   builder: (context) => TeamManagementScreen(
                     teamGoalId: (ModalRoute.of(context)?.settings.arguments as String?) ?? '',
                   ),
+                ),
+              ),
+              '/goal_evidence_submission': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: MainLayout(
+                  title: 'Goal Proof',
+                  currentRouteName: '/goal_evidence_submission',
+                  body: const SubmissionScreen(),
                 ),
               ),
             },
