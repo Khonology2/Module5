@@ -93,6 +93,30 @@ class AlertService {
     await _createAlert(alert);
   }
 
+  // Simple motivational alert used for progress encouragement
+  static Future<void> createMotivationalAlert({
+    required String userId,
+    required String message,
+    String? goalId,
+  }) async {
+    final alert = Alert(
+      id: '',
+      userId: userId,
+      type: AlertType.achievementUnlocked,
+      priority: AlertPriority.low,
+      title: 'Keep Going! 💪',
+      message: message,
+      actionText: goalId != null ? 'View Goal' : null,
+      actionRoute: goalId != null ? '/my_goal_workspace' : null,
+      actionData: goalId != null ? {'goalId': goalId} : null,
+      createdAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 3)),
+      relatedGoalId: goalId,
+    );
+
+    await _createAlert(alert);
+  }
+
   static Future<void> createLevelUpAlert({
     required String userId,
     required int newLevel,

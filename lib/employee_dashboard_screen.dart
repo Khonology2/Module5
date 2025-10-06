@@ -771,7 +771,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Widget _buildUpcomingGoals() {
     // Get active goals sorted by target date
     final upcomingGoals = userGoals
-        .where((goal) => goal.status != GoalStatus.completed)
+        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
         .toList()
       ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
 
