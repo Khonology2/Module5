@@ -27,6 +27,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Removed unused _passwordStrength
   // Removed unused _passwordStrengthColor
 
+  double _passwordStrength = 0.0; // New: To store password strength (0.0 to 1.0)
+  Color _passwordStrengthColor =
+      Colors.grey; // New: To store the color of the strength meter
+  String _passwordHint =
+      ''; // New: To store the hint text for password requirements
+
   List<String> _fullNameHints = [];
   List<String> _usernameHints = [];
   List<String> _emailHints = [];
@@ -79,7 +85,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // Removed _updatePasswordStrength method
+  void _updatePasswordStrength(String password) {
+    setState(() {
+      _passwordStrength = 0.0;
+      _passwordStrengthColor = Colors.grey;
+      _passwordHint = '';
+
+      if (password.isEmpty) {
+        _passwordStrength = 0.0;
+        _passwordStrengthColor = Colors.grey;
+        _passwordHint = 'Please enter a password';
+        return;
+      }
+
+      // Criteria for password strength
+      bool hasMinLength = password.length >= 8;
+      bool hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      bool hasLowercase = password.contains(RegExp(r'[a-z]'));
+      bool hasDigit = password.contains(RegExp(r'[0-9]'));
+      bool hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?\":{}|<>] '));
+
+      int strengthScore = 0;
+      if (hasMinLength) strengthScore++;
+      if (hasUppercase) strengthScore++;
+      if (hasLowercase) strengthScore++;
+      if (hasDigit) strengthScore++;
+      if (hasSpecialChar) strengthScore++;
+
+      // Determine strength and color
+      if (strengthScore == 0) {
+        _passwordStrength = 0.0;
+        _passwordStrengthColor = Colors.grey;
+        _passwordHint = 'Enter password';
+      } else if (strengthScore == 1) {
+        _passwordStrength = 0.2;
+        _passwordStrengthColor = Colors.red;
+        _passwordHint = 'Weak: Add more characters, numbers, and symbols';
+      } else if (strengthScore == 2) {
+        _passwordStrength = 0.4;
+        _passwordStrengthColor = Colors.orange;
+        _passwordHint = 'Moderate: Try to include uppercase and special characters';
+      } else if (strengthScore == 3) {
+        _passwordStrength = 0.6;
+        _passwordStrengthColor = Colors.yellow;
+        _passwordHint = 'Good: Almost there! Consider adding more variety';
+      } else if (strengthScore == 4) {
+        _passwordStrength = 0.8;
+        _passwordStrengthColor = Colors.lightGreen;
+        _passwordHint = 'Strong: Excellent password!';
+      } else if (strengthScore == 5) {
+        _passwordStrength = 1.0;
+        _passwordStrengthColor = Colors.green;
+        _passwordHint = 'Very Strong: Great job!';
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +263,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                           hintText: _passwordHints[_currentHintIndex],
+                          onChanged: _updatePasswordStrength,
+                        ),
+                        const SizedBox(height: 5), // Added space for strength meter
+                        LinearProgressIndicator(
+                          value: _passwordStrength,
+                          backgroundColor: Colors.grey[300],
+                          color: _passwordStrengthColor,
+                          minHeight: 5,
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          _passwordHint,
+                          style: TextStyle(color: _passwordStrengthColor, fontSize: 12),
                         ),
                         const SizedBox(height: 20),
                         // Confirm Password
@@ -335,15 +408,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   role: _selectedRole!, // Use the selected role
                                 );
 
-                                if (!context.mounted)
+                                if (!context.mounted) {
                                   return; // Guard against context use after async gap
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Registration Successful!'),
                                   ),
                                 );
-                                if (!context.mounted)
+                                if (!context.mounted) {
                                   return; // Guard against context use after async gap
+                                }
                                 Navigator.pushReplacementNamed(
                                   context,
                                   '/sign_in',
@@ -360,14 +435,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   message =
                                       e.message ?? 'An unknown error occurred.';
                                 }
-                                if (!context.mounted)
+                                if (!context.mounted) {
                                   return; // Guard against context use after async gap
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text(message)),
                                 );
                               } catch (e) {
-                                if (!context.mounted)
+                                if (!context.mounted) {
                                   return; // Guard against context use after async gap
+                                }
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(

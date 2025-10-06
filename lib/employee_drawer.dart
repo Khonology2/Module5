@@ -92,6 +92,13 @@ class EmployeeDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
+            icon: Icons.upload_file,
+            text: 'Goal Evidence Submission',
+            route: '/goal_evidence_submission',
+            isSelected: currentRoute == '/goal_evidence_submission',
+          ),
+          _buildDrawerItem(
+            context: context,
             icon: Icons.settings_outlined,
             text: 'Settings & Privacy.',
             route: '/settings',
