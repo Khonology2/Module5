@@ -88,6 +88,12 @@ service cloud.firestore {
       );
     }
 
+    // New rule for goalEvidence collection
+    match /goalEvidence/{documentId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+    }
+
     // Activities tracking for managers
     match /activities/{activityId} {
       allow read, write: if isSignedIn() && (
