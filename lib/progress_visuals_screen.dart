@@ -5,9 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/sample_data_service.dart';
@@ -79,108 +76,71 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Progress Visuals',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: isManager 
-          ? SidebarConfig.getItemsForRole('manager')
-          : SidebarConfig.getItemsForRole('employee'),
-      currentRouteName: '/progress_visuals',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
+    return StreamBuilder<UserProfile?>(
+      stream: _getUserProfileStream(),
+      builder: (context, profileSnapshot) {
+        if (profileSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
           );
         }
-      },
-      content: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.8),
-            ],
-          ),
-        ),
-        child: StreamBuilder<UserProfile?>(
-          stream: _getUserProfileStream(),
-          builder: (context, profileSnapshot) {
-            if (profileSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                ),
-              );
-            }
 
-            if (profileSnapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: AppColors.dangerColor,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading user data',
-                      style: AppTypography.heading4,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      profileSnapshot.error.toString(),
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {}); 
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
+        if (profileSnapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: AppColors.dangerColor,
                 ),
-              );
-            }
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading user data',
+                  style: AppTypography.heading4,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  profileSnapshot.error.toString(),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {}); 
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
 
-            userProfile = profileSnapshot.data;
-            
-            if (userProfile == null) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                ),
-              );
-            }
-            
-            return RefreshIndicator(
-              onRefresh: () async {
-                setState(() {}); 
-              },
-              child: isManager 
-                  ? ManagerProgressVisualsContent(userProfile: userProfile!)
-                  : EmployeeProgressVisualsContent(userProfile: userProfile!),
-            );
+        userProfile = profileSnapshot.data;
+        
+        if (userProfile == null) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+        
+        return RefreshIndicator(
+          onRefresh: () async {
+            setState(() {}); 
           },
-        ),
-      ),
+          child: isManager 
+              ? ManagerProgressVisualsContent(userProfile: userProfile!)
+              : EmployeeProgressVisualsContent(userProfile: userProfile!),
+        );
+      },
     );
   }
 }

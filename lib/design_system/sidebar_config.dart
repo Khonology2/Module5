@@ -50,6 +50,11 @@ class SidebarConfig {
       route: '/repository_audit',
     ),
     SidebarItem(
+      icon: Icons.upload_file,
+      label: 'Goal Proof',
+      route: '/goal_evidence_submission',
+    ),
+    SidebarItem(
       icon: Icons.settings_outlined,
       label: 'Settings & Privacy.',
       route: '/settings',

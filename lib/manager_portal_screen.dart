@@ -185,5 +185,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       ),
     );
   }
+
 }
 
