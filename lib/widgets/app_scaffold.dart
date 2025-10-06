@@ -71,15 +71,15 @@ class AppScaffold extends StatelessWidget {
             ),
           ),
         ),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              content,
-              if (topRightAction != null)
-                Positioned(top: 8, right: 8, child: topRightAction!),
-            ],
-          ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(child: content),
+            if (topRightAction != null)
+              Positioned(top: 8, right: 8, child: topRightAction!),
+          ],
         ),
+      ),
       );
     }
 
@@ -130,7 +130,7 @@ class AppScaffold extends StatelessWidget {
                   child: ClipRect(
                     child: Stack(
                       children: [
-                        content,
+                        Positioned.fill(child: content),
                         if (topRightAction != null)
                           Positioned(
                             top: 16,

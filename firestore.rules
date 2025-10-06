@@ -62,7 +62,10 @@ service cloud.firestore {
           (isManager() && canManagerSeeEmployee(userId)) ||
           isAdmin()
         );
-        
+
+        // Allow user to update their own daily activity tracking entries
+        allow update: if isSignedIn() && request.auth.uid == userId && subcollection == 'daily_activities';
+
         // Allow managers to create alerts, nudges for their employees
         allow create: if isManager() && userRole(userId) == 'employee' && 
           sameDepartment(userId) && subcollection == 'alerts';
@@ -90,7 +93,22 @@ service cloud.firestore {
 
     // Activities tracking for managers
     match /activities/{activityId} {
-      allow read, write: if isSignedIn() && (
+      // Reads allowed to owner, managers, admins
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+
+      // Create must validate against request.resource since resource doesn't exist yet
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
+        isAdmin()
+      );
+
+      // Updates/deletes validate against existing resource
+      allow update, delete: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()

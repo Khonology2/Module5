@@ -169,6 +169,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               backgroundColor: Colors.green,
             ),
           );
+          // Navigate back to previous screen after a short delay
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) Navigator.of(context).pop();
+          });
         }
       }
     } catch (e) {
@@ -218,11 +222,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           currentGoal = currentGoal.copyWith(progress: newProgress, status: nextStatus);
         });
 
-        // Award points for progress milestones
+        // Award points for progress milestones (backend handles 50% with +20 and motivational alert)
         if (newProgress >= 25 && currentGoal.progress < 25) {
           _awardMilestonePoints(25, '25% progress milestone');
-        } else if (newProgress >= 50 && currentGoal.progress < 50) {
-          _awardMilestonePoints(50, '50% progress milestone');
         } else if (newProgress >= 75 && currentGoal.progress < 75) {
           _awardMilestonePoints(75, '75% progress milestone');
         }
@@ -523,7 +525,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [25, 50, 75, 100].map((progress) {
+              children: List.generate(10, (i) => (i + 1) * 10).map((progress) {
                 final isDisabled = progress <= currentGoal.progress;
                 return ElevatedButton(
                   onPressed: isDisabled ? null : () => _updateProgress(progress),
@@ -538,6 +540,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 );
               }).toList(),
             ),
+            if (currentGoal.progress >= 90 && currentGoal.progress < 100) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: isLoading ? null : () => _updateProgress(100),
+                  icon: const Icon(Icons.trending_up),
+                  label: const Text('Set to 100%'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    side: BorderSide(color: AppColors.activeColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -602,7 +620,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ] else if (currentGoal.status == GoalStatus.inProgress) ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: isLoading ? null : _completeGoal,
+              onPressed: (isLoading || currentGoal.progress < 90) ? null : _completeGoal,
               icon: isLoading 
                   ? const SizedBox(
                       width: 16,
@@ -627,13 +645,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildMilestoneTracker() {
-    final milestones = [
-      {'progress': 0, 'label': 'Started', 'points': 20, 'icon': Icons.play_arrow},
-      {'progress': 25, 'label': '25% Complete', 'points': 10, 'icon': Icons.trending_up},
-      {'progress': 50, 'label': '50% Complete', 'points': 10, 'icon': Icons.trending_up},
-      {'progress': 75, 'label': '75% Complete', 'points': 10, 'icon': Icons.trending_up},
-      {'progress': 100, 'label': 'Completed', 'points': 100, 'icon': Icons.check_circle},
-    ];
+    final List<int> steps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    final Map<int, int> pointsByStep = {
+      0: 20, // start
+      50: 20, // halfway bonus
+      100: 100, // completion
+    };
+    final milestones = steps.map((p) => {
+      'progress': p,
+      'label': p == 0 ? 'Started' : '$p% Complete',
+      'points': pointsByStep[p] ?? 0,
+      'icon': p == 0
+          ? Icons.play_arrow
+          : p == 100
+              ? Icons.check_circle
+              : Icons.trending_up,
+    }).toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -706,12 +733,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                             fontWeight: isCompleted ? FontWeight.w600 : FontWeight.normal,
                           ),
                         ),
-                        Text(
-                          '+${milestone['points']} points',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.warningColor,
+                        if ((milestone['points'] as int) > 0)
+                          Text(
+                            '+${milestone['points']} points',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.warningColor,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

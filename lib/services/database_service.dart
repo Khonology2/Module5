@@ -109,6 +109,9 @@ class DatabaseService {
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
+    // Snap progress to 10% steps and clamp 0..100
+    int snapped = ((progress / 10).round() * 10).clamp(0, 100);
+
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
     await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -117,17 +120,28 @@ class DatabaseService {
       final data = snap.data() as Map<String, dynamic>;
       final currentStatus = (data['status'] ?? 'notStarted').toString();
       final userId = data['userId'] as String?;
+      final previousProgress = (data['progress'] ?? 0) as int;
+      final milestones = Map<String, dynamic>.from(data['milestones'] ?? const {});
 
       // Always update progress
-      tx.update(goalRef, {'progress': progress});
+      tx.update(goalRef, {'progress': snapped});
 
       // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
-      if (progress > 0 && currentStatus != GoalStatus.inProgress.name && currentStatus != GoalStatus.completed.name) {
+      if (snapped > 0 && currentStatus != GoalStatus.inProgress.name && currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
         if (userId != null && userId.isNotEmpty) {
           final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
           tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
         }
+      }
+
+      // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
+      final crossed50 = previousProgress < 50 && snapped >= 50;
+      if (crossed50 && userId != null && userId.isNotEmpty && milestones['p50'] != true) {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+        tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        milestones['p50'] = true;
+        tx.update(goalRef, {'milestones': milestones});
       }
     });
 
@@ -136,6 +150,29 @@ class DatabaseService {
     if (user != null) {
       await StreakService.recordDailyActivity(user.uid, 'goal_progress');
     }
+
+    // Create alerts after transaction if 50% milestone reached
+    try {
+      final snap = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final data = snap.data();
+      if (data != null) {
+        final userId = data['userId'] as String?;
+        final progressNow = (data['progress'] ?? 0) as int;
+        final milestones = Map<String, dynamic>.from(data['milestones'] ?? const {});
+        if (userId != null && userId.isNotEmpty && progressNow >= 50 && milestones['p50'] == true) {
+          await AlertService.createPointsAlert(
+            userId: userId,
+            pointsEarned: 20,
+            reason: 'reaching 50% progress milestone',
+          );
+          await AlertService.createMotivationalAlert(
+            userId: userId,
+            message: 'Great momentum! You\'re halfway there. Keep pushing to the finish!',
+            goalId: goalId,
+          );
+        }
+      }
+    } catch (_) {}
   }
 
   static Future<void> startGoal(String goalId, String userId) async {
