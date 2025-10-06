@@ -212,9 +212,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
           ),
         ),
         ElevatedButton.icon(
-          onPressed: _isSubmitting ? null : () {
-            // Simulate file selection action
-          },
+          onPressed: null, // Temporarily disable file upload
           icon: const Icon(Icons.upload_file, size: 16, color: accentRed),
           label: const Text('Choose File', style: TextStyle(color: textLight, fontWeight: FontWeight.w600)),
           style: ElevatedButton.styleFrom(
