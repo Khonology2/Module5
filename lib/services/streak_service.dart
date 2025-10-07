@@ -1,16 +1,21 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/badge_service.dart';
 
 class StreakService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Record daily activity (goal progress, completion, etc.)
-  static Future<void> recordDailyActivity(String userId, String activityType) async {
+  static Future<void> recordDailyActivity(
+    String userId,
+    String activityType,
+  ) async {
     try {
       final today = DateTime.now();
-      final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-      
+      final todayString =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
       // Check if activity already recorded today
       final existingActivity = await _firestore
           .collection('users')
@@ -27,16 +32,18 @@ class StreakService {
             .collection('daily_activities')
             .doc(todayString)
             .set({
-          'date': Timestamp.fromDate(today),
-          'activities': [activityType],
-          'createdAt': Timestamp.fromDate(today),
-        });
+              'date': Timestamp.fromDate(today),
+              'activities': [activityType],
+              'createdAt': Timestamp.fromDate(today),
+            });
 
         // Update streak
         await _updateStreak(userId);
       } else {
         // Add activity to existing day
-        final activities = List<String>.from(existingActivity.data()?['activities'] ?? []);
+        final activities = List<String>.from(
+          existingActivity.data()?['activities'] ?? [],
+        );
         if (!activities.contains(activityType)) {
           activities.add(activityType);
           await _firestore
@@ -44,18 +51,15 @@ class StreakService {
               .doc(userId)
               .collection('daily_activities')
               .doc(todayString)
-              .update({
-            'activities': activities,
-          });
+              .update({'activities': activities});
         }
       }
 
       // Also refresh lastLoginAt on any activity so streak counts without a fresh sign-in
       try {
-        await _firestore.collection('users').doc(userId).set(
-          {'lastLoginAt': FieldValue.serverTimestamp()},
-          SetOptions(merge: true),
-        );
+        await _firestore.collection('users').doc(userId).set({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       } catch (_) {}
     } catch (e) {
       developer.log('Error recording daily activity: $e');
@@ -86,24 +90,38 @@ class StreakService {
         final lastLoginTs = userDoc.data()?['lastLoginAt'] as Timestamp?;
         if (lastLoginTs != null) {
           final lastLogin = lastLoginTs.toDate();
-          final lastLoginOnly = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+          final lastLoginOnly = DateTime(
+            lastLogin.year,
+            lastLogin.month,
+            lastLogin.day,
+          );
           if (!lastLoginOnly.isAtSameMomentAs(todayOnly)) {
-            await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+            await _firestore.collection('users').doc(userId).update({
+              'currentStreak': 0,
+            });
             return;
           }
         } else {
-          await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+          await _firestore.collection('users').doc(userId).update({
+            'currentStreak': 0,
+          });
           return;
         }
       } catch (_) {
-        await _firestore.collection('users').doc(userId).update({'currentStreak': 0});
+        await _firestore.collection('users').doc(userId).update({
+          'currentStreak': 0,
+        });
         return;
       }
-      
+
       for (final doc in activitiesSnapshot.docs) {
         final activityDate = (doc.data()['date'] as Timestamp).toDate();
-        final activityDateOnly = DateTime(activityDate.year, activityDate.month, activityDate.day);
-        
+        final activityDateOnly = DateTime(
+          activityDate.year,
+          activityDate.month,
+          activityDate.day,
+        );
+
         if (lastDate == null) {
           // First activity (most recent)
           lastDate = activityDateOnly;
@@ -125,11 +143,14 @@ class StreakService {
       final userRef = _firestore.collection('users').doc(userId);
       final userDoc = await userRef.get();
       final previousStreak = (userDoc.data()?['currentStreak'] ?? 0) as int;
-      
+
       await userRef.update({
         'currentStreak': currentStreak,
-        'longestStreak': FieldValue.increment(currentStreak > (userDoc.data()?['longestStreak'] ?? 0) ? 
-            currentStreak - (userDoc.data()?['longestStreak'] ?? 0) : 0),
+        'longestStreak': FieldValue.increment(
+          currentStreak > (userDoc.data()?['longestStreak'] ?? 0)
+              ? currentStreak - (userDoc.data()?['longestStreak'] ?? 0)
+              : 0,
+        ),
       });
 
       // Check for streak milestones
@@ -144,14 +165,14 @@ class StreakService {
   static Future<void> _checkStreakMilestones(String userId, int streak) async {
     // Award alerts for streak milestones
     final milestones = [3, 7, 14, 30, 60, 100, 365];
-    
+
     for (final milestone in milestones) {
       if (streak == milestone) {
         await AlertService.createStreakAlert(
           userId: userId,
           streakDays: streak,
         );
-        
+
         // Award bonus points for major milestones
         int bonusPoints = 0;
         if (streak == 7) {
@@ -163,7 +184,7 @@ class StreakService {
         } else if (streak == 365) {
           bonusPoints = 500;
         }
-        
+
         if (bonusPoints > 0) {
           await AlertService.createPointsAlert(
             userId: userId,
@@ -171,6 +192,9 @@ class StreakService {
             reason: 'reaching $streak-day streak milestone',
           );
         }
+
+        // After alerts and points, update badges progress/awards
+        await BadgeService.checkAndAwardBadges(userId);
         break;
       }
     }
@@ -180,16 +204,16 @@ class StreakService {
   static Future<int> getCurrentStreak(String userId) async {
     try {
       if (userId.isEmpty) return 0;
-      
+
       final userDoc = await _firestore.collection('users').doc(userId).get();
       if (!userDoc.exists) return 0;
-      
+
       final data = userDoc.data();
       if (data == null) return 0;
-      
+
       final streak = data['currentStreak'];
       if (streak == null) return 0;
-      
+
       return (streak is int) ? streak : int.tryParse(streak.toString()) ?? 0;
     } catch (e) {
       developer.log('Error getting current streak: $e');
@@ -211,17 +235,18 @@ class StreakService {
   static Future<bool> hasActivityToday(String userId) async {
     try {
       if (userId.isEmpty) return false;
-      
+
       final today = DateTime.now();
-      final todayString = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-      
+      final todayString =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
       final doc = await _firestore
           .collection('users')
           .doc(userId)
           .collection('daily_activities')
           .doc(todayString)
           .get();
-      
+
       return doc.exists;
     } catch (e) {
       developer.log('Error checking today\'s activity: $e');
@@ -230,11 +255,14 @@ class StreakService {
   }
 
   // Get activity history for visualization
-  static Future<List<Map<String, dynamic>>> getActivityHistory(String userId, {int days = 30}) async {
+  static Future<List<Map<String, dynamic>>> getActivityHistory(
+    String userId, {
+    int days = 30,
+  }) async {
     try {
       final endDate = DateTime.now();
       final startDate = endDate.subtract(Duration(days: days));
-      
+
       final snapshot = await _firestore
           .collection('users')
           .doc(userId)

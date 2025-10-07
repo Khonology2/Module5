@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:pdh/services/role_service.dart'; // Add RoleService import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:pdh/services/badge_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -90,6 +91,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
       if (!context.mounted) return;
 
+      // Before navigating, ensure badges are up to date for this session
+      if (user != null) {
+        await BadgeService.checkAndAwardBadges(user.uid);
+      }
+
       // User already has a role, redirect to appropriate portal
       if (currentRole == 'manager') {
         Navigator.pushReplacementNamed(context, '/manager_portal');
@@ -98,12 +104,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else {
         // Unknown role or no role selected, redirect to sign in as fallback
-        Navigator.pushReplacementNamed(context, '/employee_dashboard'); // Default to employee dashboard
+        Navigator.pushReplacementNamed(
+          context,
+          '/employee_dashboard',
+        ); // Default to employee dashboard
       }
-        } catch (e) {
+    } catch (e) {
       // If there's an error getting the role, redirect to sign in as fallback
       if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, '/employee_dashboard'); // Default to employee dashboard
+      Navigator.pushReplacementNamed(
+        context,
+        '/employee_dashboard',
+      ); // Default to employee dashboard
     }
   }
 
@@ -312,18 +324,28 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                           await FirebaseFirestore.instance
                                               .collection('users')
                                               .doc(user.uid)
-                                              .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                              .set({
+                                                'lastLoginAt':
+                                                    FieldValue.serverTimestamp(),
+                                              }, SetOptions(merge: true));
                                           // Also record a light-weight daily activity for streaks
                                           try {
                                             await FirebaseFirestore.instance
                                                 .collection('users')
                                                 .doc(user.uid)
                                                 .collection('daily_activities')
-                                                .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                                .doc(
+                                                  '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                )
                                                 .set({
-                                                  'date': FieldValue.serverTimestamp(),
-                                                  'activities': FieldValue.arrayUnion(['login']),
-                                                  'createdAt': FieldValue.serverTimestamp(),
+                                                  'date':
+                                                      FieldValue.serverTimestamp(),
+                                                  'activities':
+                                                      FieldValue.arrayUnion([
+                                                        'login',
+                                                      ]),
+                                                  'createdAt':
+                                                      FieldValue.serverTimestamp(),
                                                 }, SetOptions(merge: true));
                                           } catch (_) {}
                                         }
@@ -454,17 +476,27 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(user.uid)
-                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                            .set({
+                                              'lastLoginAt':
+                                                  FieldValue.serverTimestamp(),
+                                            }, SetOptions(merge: true));
                                         try {
                                           await FirebaseFirestore.instance
                                               .collection('users')
                                               .doc(user.uid)
                                               .collection('daily_activities')
-                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .doc(
+                                                '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                              )
                                               .set({
-                                                'date': FieldValue.serverTimestamp(),
-                                                'activities': FieldValue.arrayUnion(['login']),
-                                                'createdAt': FieldValue.serverTimestamp(),
+                                                'date':
+                                                    FieldValue.serverTimestamp(),
+                                                'activities':
+                                                    FieldValue.arrayUnion([
+                                                      'login',
+                                                    ]),
+                                                'createdAt':
+                                                    FieldValue.serverTimestamp(),
                                               }, SetOptions(merge: true));
                                         } catch (_) {}
                                       }
@@ -561,17 +593,27 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(user.uid)
-                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                            .set({
+                                              'lastLoginAt':
+                                                  FieldValue.serverTimestamp(),
+                                            }, SetOptions(merge: true));
                                         try {
                                           await FirebaseFirestore.instance
                                               .collection('users')
                                               .doc(user.uid)
                                               .collection('daily_activities')
-                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .doc(
+                                                '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                              )
                                               .set({
-                                                'date': FieldValue.serverTimestamp(),
-                                                'activities': FieldValue.arrayUnion(['login']),
-                                                'createdAt': FieldValue.serverTimestamp(),
+                                                'date':
+                                                    FieldValue.serverTimestamp(),
+                                                'activities':
+                                                    FieldValue.arrayUnion([
+                                                      'login',
+                                                    ]),
+                                                'createdAt':
+                                                    FieldValue.serverTimestamp(),
                                               }, SetOptions(merge: true));
                                         } catch (_) {}
                                       }
@@ -667,17 +709,27 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(user.uid)
-                                            .set({'lastLoginAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+                                            .set({
+                                              'lastLoginAt':
+                                                  FieldValue.serverTimestamp(),
+                                            }, SetOptions(merge: true));
                                         try {
                                           await FirebaseFirestore.instance
                                               .collection('users')
                                               .doc(user.uid)
                                               .collection('daily_activities')
-                                              .doc('${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}')
+                                              .doc(
+                                                '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                              )
                                               .set({
-                                                'date': FieldValue.serverTimestamp(),
-                                                'activities': FieldValue.arrayUnion(['login']),
-                                                'createdAt': FieldValue.serverTimestamp(),
+                                                'date':
+                                                    FieldValue.serverTimestamp(),
+                                                'activities':
+                                                    FieldValue.arrayUnion([
+                                                      'login',
+                                                    ]),
+                                                'createdAt':
+                                                    FieldValue.serverTimestamp(),
                                               }, SetOptions(merge: true));
                                         } catch (_) {}
                                       }

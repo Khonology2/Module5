@@ -15,22 +15,21 @@ import 'package:pdh/models/badge.dart' as badge_model;
 
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
-  
-  const BadgesPointsScreen({
-    super.key,
-    this.embedded = false,
-  });
+
+  const BadgesPointsScreen({super.key, this.embedded = false});
 
   @override
   State<BadgesPointsScreen> createState() => _BadgesPointsScreenState();
 }
 
-class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProviderStateMixin {
+class _BadgesPointsScreenState extends State<BadgesPointsScreen>
+    with TickerProviderStateMixin {
   UserProfile? userProfile;
   List<Map<String, dynamic>> leaderboard = <Map<String, dynamic>>[];
   int userRank = 1;
   int currentStreak = 0;
   bool hasActivityToday = false;
+  bool _attemptedInitBadges = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -44,7 +43,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
-    
+
     // Initialize default values to prevent null issues
     setState(() {
       currentStreak = 0;
@@ -52,7 +51,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       userRank = 0;
       leaderboard = [];
     });
-    
+
     _loadData();
     _animationController.forward();
   }
@@ -67,12 +66,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
+        // Ensure badge progress is up to date for this user
+        await BadgeService.checkAndAwardBadges(user.uid);
+
         final profile = await DatabaseService.getUserProfile(user.uid);
         final leaderboardData = await BadgeService.getLeaderboard();
         final rank = await BadgeService.getUserRank(user.uid);
         final streak = await StreakService.getCurrentStreak(user.uid);
         final activityToday = await StreakService.hasActivityToday(user.uid);
-        
+
         if (mounted) {
           setState(() {
             userProfile = profile;
@@ -116,10 +118,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
       content: Container(
@@ -143,23 +142,25 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             physics: const AlwaysScrollableScrollPhysics(),
             child: FadeTransition(
               opacity: _fadeAnimation,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
                     'Badges & Points',
-                    style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-          _buildPointsAndLevelCard(),
+                  _buildPointsAndLevelCard(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildUserRankCard(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Your Badges'),
                   _buildBadgesSection(),
                   const SizedBox(height: AppSpacing.xl),
-          _buildSectionHeader('Leaderboard'),
-          _buildLeaderboard(),
+                  _buildSectionHeader('Leaderboard'),
+                  _buildLeaderboard(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Progress Stats'),
                   _buildProgressStats(),
@@ -177,9 +178,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: AppTypography.heading3.copyWith(
-          color: AppColors.textPrimary,
-        ),
+        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
       ),
     );
   }
@@ -190,8 +189,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     final nextLevelPoints = level * 500;
     final currentLevelPoints = (level - 1) * 500;
     final progressToNext = nextLevelPoints - points;
-    final progressPercentage = level > 1 
-        ? ((points - currentLevelPoints) / (nextLevelPoints - currentLevelPoints)).clamp(0.0, 1.0)
+    final progressPercentage = level > 1
+        ? ((points - currentLevelPoints) /
+                  (nextLevelPoints - currentLevelPoints))
+              .clamp(0.0, 1.0)
         : (points / 500).clamp(0.0, 1.0);
 
     return Container(
@@ -221,37 +222,37 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
       child: Column(
         children: [
           Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
                     _formatNumber(points),
                     style: AppTypography.heading1.copyWith(
                       color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'Total Points',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Total Points',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
                     'Level $level',
                     style: AppTypography.heading1.copyWith(
                       color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
                     _getLevelTitle(level),
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
@@ -287,7 +288,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               LinearProgressIndicator(
                 value: progressPercentage,
                 backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.textPrimary,
+                ),
                 minHeight: 8,
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -331,7 +334,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+              children: [
                 Text(
                   'Your Global Rank',
                   style: AppTypography.bodyMedium.copyWith(
@@ -349,11 +352,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
               ],
             ),
           ),
-          Icon(
-            Icons.emoji_events,
-            color: AppColors.warningColor,
-            size: 32,
-          ),
+          Icon(Icons.emoji_events, color: AppColors.warningColor, size: 32),
         ],
       ),
     );
@@ -366,7 +365,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         padding: const EdgeInsets.all(20),
         child: Text(
           'Please sign in to view badges',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       );
     }
@@ -387,22 +388,43 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             padding: const EdgeInsets.all(20),
             child: Text(
               'Error loading badges',
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.dangerColor),
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.dangerColor,
+              ),
             ),
           );
         }
 
         final badges = snapshot.data ?? [];
-        
-        if (badges.isEmpty) {
+        // Filter out any placeholder docs like 'init'
+        final visibleBadges = badges.where((b) => b.id != 'init').toList();
+
+        if (visibleBadges.isEmpty) {
+          // Initialize a user's badge catalog on first visit if missing
+          if (!_attemptedInitBadges) {
+            _attemptedInitBadges = true;
+            final u = FirebaseAuth.instance.currentUser;
+            if (u != null) {
+              Future.microtask(() async {
+                try {
+                  await BadgeService.initializeUserBadges(u.uid);
+                  await BadgeService.checkAndAwardBadges(u.uid);
+                } catch (_) {}
+              });
+            }
+          }
           return _buildEmptyBadgesState();
         }
 
         return Column(
-          children: badges.map((badge) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: _buildBadgeCard(badge),
-          )).toList(),
+          children: visibleBadges
+              .map(
+                (badge) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: _buildBadgeCard(badge),
+                ),
+              )
+              .toList(),
         );
       },
     );
@@ -468,23 +490,27 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: badge.isEarned 
+              color: badge.isEarned
                   ? AppColors.elevatedBackground
                   : AppColors.elevatedBackground.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: badge.isEarned 
+                color: badge.isEarned
                     ? _getBadgeRarityColor(badge.rarity)
                     : AppColors.borderColor,
                 width: badge.isEarned ? 2 : 1,
               ),
-              boxShadow: badge.isEarned ? [
-                BoxShadow(
-                  color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ] : null,
+              boxShadow: badge.isEarned
+                  ? [
+                      BoxShadow(
+                        color: _getBadgeRarityColor(
+                          badge.rarity,
+                        ).withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
             child: Row(
               children: [
@@ -492,7 +518,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
+                    color: _getBadgeRarityColor(
+                      badge.rarity,
+                    ).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(30),
                     border: Border.all(
                       color: _getBadgeRarityColor(badge.rarity),
@@ -501,7 +529,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                   ),
                   child: Icon(
                     _getBadgeIcon(badge.iconName),
-                    color: badge.isEarned 
+                    color: badge.isEarned
                         ? _getBadgeRarityColor(badge.rarity)
                         : AppColors.textSecondary,
                     size: 28,
@@ -510,15 +538,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
                           Expanded(
                             child: Text(
                               badge.name,
                               style: AppTypography.bodyLarge.copyWith(
-                                color: badge.isEarned 
+                                color: badge.isEarned
                                     ? AppColors.textPrimary
                                     : AppColors.textSecondary,
                                 fontWeight: FontWeight.w600,
@@ -526,9 +554,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
+                              color: _getBadgeRarityColor(
+                                badge.rarity,
+                              ).withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -565,7 +598,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                               ),
                             ),
                             const SizedBox(width: 8),
-            Text(
+                            Text(
                               '${badge.progress}/${badge.maxProgress}',
                               style: AppTypography.bodySmall.copyWith(
                                 color: AppColors.textSecondary,
@@ -583,23 +616,39 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                               size: 16,
                             ),
                             const SizedBox(width: 4),
-            Text(
+                            Text(
                               'Earned ${_formatDate(badge.earnedAt!)}',
                               style: AppTypography.bodySmall.copyWith(
                                 color: AppColors.successColor,
                                 fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: AppColors.textSecondary,
-                  size: 16,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        (badge.isEarned ? Colors.red : AppColors.textSecondary)
+                            .withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge.isEarned ? 'Earned' : 'Locked',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: badge.isEarned
+                          ? Colors.red
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -664,8 +713,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
                 child: _buildStatItem(
                   'Current Streak',
                   '${safeCurrentStreak.toString()} days',
-                  safeHasActivityToday ? Icons.local_fire_department : Icons.local_fire_department_outlined,
-                  safeHasActivityToday ? AppColors.warningColor : AppColors.textSecondary,
+                  safeHasActivityToday
+                      ? Icons.local_fire_department
+                      : Icons.local_fire_department_outlined,
+                  safeHasActivityToday
+                      ? AppColors.warningColor
+                      : AppColors.textSecondary,
                 ),
               ),
               Expanded(
@@ -683,7 +736,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     // Ensure all parameters are safe
     final safeLabel = label.isNotEmpty ? label : 'Unknown';
     final safeValue = value.isNotEmpty ? value : '0';
@@ -729,7 +787,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         padding: const EdgeInsets.all(20),
         child: Text(
           'Loading leaderboard...',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       );
     }
@@ -739,7 +799,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
         final user = entry.value;
         final currentUser = FirebaseAuth.instance.currentUser;
         final isYou = currentUser != null && user['userId'] == currentUser.uid;
-        
+
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: _buildLeaderboardEntry(
@@ -943,7 +1003,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date).inDays;
-    
+
     if (difference == 0) return 'today';
     if (difference == 1) return 'yesterday';
     if (difference < 7) return '${difference}d ago';
@@ -982,7 +1042,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen> with TickerProv
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _getBadgeRarityColor(badge.rarity).withValues(alpha: 0.2),
+                color: _getBadgeRarityColor(
+                  badge.rarity,
+                ).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
