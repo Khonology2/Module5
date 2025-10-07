@@ -1354,8 +1354,8 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
 
   Widget _buildPersonalOverview(List<Goal> goals) {
     final totalGoals = goals.length;
-    final completedGoals = goals.where((goal) => goal.status == GoalStatus.completed).length;
-    final activeGoals = goals.where((goal) => goal.status == GoalStatus.inProgress).length;
+    final completedGoals = goals.where((goal) => goal.status == GoalStatus.completed || goal.progress >= 100).length;
+    final activeGoals = goals.where((goal) => goal.status != GoalStatus.completed && goal.progress < 100).length;
     final overallProgress = totalGoals > 0 ? (completedGoals / totalGoals) : 0.0;
     
     return Row(
@@ -1435,7 +1435,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
 
   Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
     final activeGoals = goals
-        .where((goal) => goal.status != GoalStatus.completed)
+        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
         .toList()
       ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
 
