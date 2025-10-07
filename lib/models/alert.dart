@@ -15,6 +15,8 @@ enum AlertType {
   deadlineReminder,
   teamGoalAvailable,
   employeeJoinedTeamGoal, // New alert type for managers
+  inactivity, // No progress for N days
+  milestoneRisk, // Behind schedule vs timeline/dependencies
 }
 
 enum AlertPriority {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdh/design_system/app_components.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -18,44 +19,53 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   Widget build(BuildContext context) {
     return FocusScope(
       node: FocusScopeNode(), // Create a new FocusScopeNode
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0), // Adjust padding as needed
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('My Personal Development Plan', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _buildKeyPerformanceArea(
-              title: 'Operational Excellence',
-              isExpanded: _isOperationalExpanded,
-              onToggle: (bool expanded) {
-                setState(() {
-                  _isOperationalExpanded = expanded;
-                });
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildKeyPerformanceArea(
-              title: 'Customer Excellence',
-              isExpanded: _isCustomerExpanded,
-              onToggle: (bool expanded) {
-                setState(() {
-                  _isCustomerExpanded = expanded;
-                });
-              },
-            ),
-            const SizedBox(height: 20),
-            _buildKeyPerformanceArea(
-              title: 'Financial Excellence',
-              isExpanded: _isFinancialExpanded,
-              onToggle: (bool expanded) {
-                setState(() {
-                  _isFinancialExpanded = expanded;
-                });
-              },
-            ),
-            const SizedBox(height: 80),
-          ],
+      child: AppComponents.backgroundWithImage(
+        imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0), // Adjust padding as needed
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'My Personal Development Plan',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              _buildKeyPerformanceArea(
+                title: 'Operational Excellence',
+                isExpanded: _isOperationalExpanded,
+                onToggle: (bool expanded) {
+                  setState(() {
+                    _isOperationalExpanded = expanded;
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+              _buildKeyPerformanceArea(
+                title: 'Customer Excellence',
+                isExpanded: _isCustomerExpanded,
+                onToggle: (bool expanded) {
+                  setState(() {
+                    _isCustomerExpanded = expanded;
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+              _buildKeyPerformanceArea(
+                title: 'Financial Excellence',
+                isExpanded: _isFinancialExpanded,
+                onToggle: (bool expanded) {
+                  setState(() {
+                    _isFinancialExpanded = expanded;
+                  });
+                },
+              ),
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
     );

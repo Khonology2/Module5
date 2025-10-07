@@ -581,9 +581,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       case AlertPriority.urgent:
         return AppColors.dangerColor;
       case AlertPriority.high:
-        return AppColors.warningColor;
+        return AppColors.warningColor; // Amber for due soon / milestone risk
       case AlertPriority.medium:
-        return AppColors.activeColor;
+        return AppColors.activeColor; // Inactivity, informational
       case AlertPriority.low:
         return AppColors.successColor;
     }
@@ -599,6 +599,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icons.schedule;
       case AlertType.goalOverdue:
         return Icons.warning;
+      case AlertType.inactivity:
+        return Icons.notifications_active_outlined;
+      case AlertType.milestoneRisk:
+        return Icons.warning_amber_outlined;
       case AlertType.pointsEarned:
         return Icons.stars;
       case AlertType.levelUp:

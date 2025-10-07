@@ -1,7 +1,8 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
 import 'package:flutter/material.dart';
-import 'dart:ui'; // For ImageFilter
+// For ImageFilter
+import 'package:pdh/design_system/app_components.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -356,36 +357,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
-      body: Stack(
-        children: [
-          // Background Image
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          // Blurred Gradient Overlay
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F),
-                      Color(0x88040610),
-                    ],
-                    stops: [0.0, 1.0],
-                  ),
-                ),
-                child: SingleChildScrollView(
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+        child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, 16, 16),
                   child: Center(
                     child: Container(
@@ -762,11 +736,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
