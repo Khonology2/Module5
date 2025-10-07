@@ -41,7 +41,7 @@ class AlertService {
         message = '"${goal.title}" is due in $daysLeft day${daysLeft == 1 ? '' : 's'}. Keep pushing!';
         actionText = 'Update Progress';
         actionRoute = '/my_goal_workspace';
-        priority = AlertPriority.high;
+        priority = AlertPriority.high; // Amber in UI
         break;
       case AlertType.goalOverdue:
         final daysOverdue = DateTime.now().difference(goal.targetDate).inDays;
@@ -49,7 +49,21 @@ class AlertService {
         message = '"${goal.title}" is overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}. Don\'t give up!';
         actionText = 'Reschedule';
         actionRoute = '/my_goal_workspace';
-        priority = AlertPriority.urgent;
+        priority = AlertPriority.urgent; // Red in UI
+        break;
+      case AlertType.inactivity:
+        title = 'We\'re here to help';
+        message = 'No progress on "${goal.title}" recently. Try the next step to get moving again.';
+        actionText = 'Next Step';
+        actionRoute = '/my_goal_workspace';
+        priority = AlertPriority.medium; // Calm, informational
+        break;
+      case AlertType.milestoneRisk:
+        title = 'Milestone at Risk';
+        message = 'A dependency changed and may impact "${goal.title}". Review the plan.';
+        actionText = 'Review Plan';
+        actionRoute = '/my_goal_workspace';
+        priority = AlertPriority.high; // Amber emphasis
         break;
       default:
         return;
@@ -432,9 +446,9 @@ class AlertService {
           points: (data['points'] ?? 0) as int,
         );
 
-        // Check for due soon alerts (3 days before)
+        // Due Soon: within typical effort window; using 7 days as illustrative
         final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
-        if (daysUntilDue <= 3 && daysUntilDue > 0 && goal.status != GoalStatus.completed) {
+        if (daysUntilDue <= 7 && daysUntilDue > 0 && goal.status != GoalStatus.completed) {
           // Check if alert already exists
           final existingAlert = await _firestore
               .collection('alerts')
@@ -453,7 +467,7 @@ class AlertService {
           }
         }
 
-        // Check for overdue alerts
+        // Overdue alerts
         if (daysUntilDue < 0 && goal.status != GoalStatus.completed) {
           final existingAlert = await _firestore
               .collection('alerts')
@@ -469,6 +483,26 @@ class AlertService {
               goal: goal,
               type: AlertType.goalOverdue,
             );
+          }
+        }
+
+        // Inactivity: no progress for N days while in active period
+        if (goal.status == GoalStatus.inProgress) {
+          final lastActivityDoc = await _firestore
+              .collection('users')
+              .doc(user.uid)
+              .collection('daily_activities')
+              .orderBy('date', descending: true)
+              .limit(1)
+              .get();
+          final lastActivityDate = lastActivityDoc.docs.isNotEmpty
+              ? (lastActivityDoc.docs.first.data()['date'] as Timestamp).toDate()
+              : null;
+          final daysSinceActivity = lastActivityDate != null
+              ? DateTime.now().difference(lastActivityDate).inDays
+              : 999;
+          if (daysSinceActivity >= 5) {
+            await createGoalAlert(userId: user.uid, goal: goal, type: AlertType.inactivity);
           }
         }
       }
