@@ -18,6 +18,8 @@ class Goal {
   final DateTime createdAt;
   final DateTime targetDate;
   final int points;
+  // Key Performance Area tag for persistent excellence grouping
+  final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
 
   const Goal({
     required this.id,
@@ -31,6 +33,7 @@ class Goal {
     required this.createdAt,
     required this.targetDate,
     required this.points,
+    this.kpa,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -63,6 +66,7 @@ class Goal {
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       targetDate: (data?['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       points: (data?['points'] ?? 0) as int,
+      kpa: (data?['kpa'] as String?)?.toLowerCase(),
     );
   }
 
@@ -78,6 +82,7 @@ class Goal {
     DateTime? createdAt,
     DateTime? targetDate,
     int? points,
+    String? kpa,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -91,6 +96,7 @@ class Goal {
       createdAt: createdAt ?? this.createdAt,
       targetDate: targetDate ?? this.targetDate,
       points: points ?? this.points,
+      kpa: kpa ?? this.kpa,
     );
   }
 }
