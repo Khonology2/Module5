@@ -67,6 +67,7 @@ class DatabaseService {
           createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
           points: (data['points'] ?? 0) as int,
+          kpa: (data['kpa'] as String?)?.toLowerCase(),
         );
       }).toList();
       
@@ -77,6 +78,42 @@ class DatabaseService {
       // Return empty list if there's an error (like missing index)
       return [];
     }
+  }
+
+  static Stream<List<Goal>> getUserGoalsStream(String uid) {
+    return FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              return Goal(
+                id: doc.id,
+                userId: data['userId'] ?? uid,
+                title: data['title'] ?? '',
+                description: data['description'] ?? '',
+                category: GoalCategory.values.firstWhere(
+                  (e) => e.name == (data['category'] ?? 'personal'),
+                  orElse: () => GoalCategory.personal,
+                ),
+                priority: GoalPriority.values.firstWhere(
+                  (e) => e.name == (data['priority'] ?? 'medium'),
+                  orElse: () => GoalPriority.medium,
+                ),
+                status: GoalStatus.values.firstWhere(
+                  (e) => e.name == (data['status'] ?? 'notStarted'),
+                  orElse: () => GoalStatus.notStarted,
+                ),
+                progress: (data['progress'] ?? 0) as int,
+                createdAt:
+                    (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                targetDate:
+                    (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                points: (data['points'] ?? 0) as int,
+                kpa: (data['kpa'] as String?)?.toLowerCase(),
+              );
+            }).toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
   }
 
   static Future<String> createGoal(Goal goal) async {
@@ -91,6 +128,7 @@ class DatabaseService {
       'createdAt': Timestamp.fromDate(goal.createdAt),
       'targetDate': Timestamp.fromDate(goal.targetDate),
       'points': goal.points,
+      'kpa': goal.kpa,
     });
     return doc.id;
   }
@@ -105,7 +143,19 @@ class DatabaseService {
       'progress': goal.progress,
       'targetDate': Timestamp.fromDate(goal.targetDate),
       'points': goal.points,
+      'kpa': goal.kpa,
     });
+  }
+
+  static Future<void> attachGoalEvidence({
+    required String goalId,
+    required List<String> evidence,
+  }) async {
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await goalRef.set({
+      'evidence': FieldValue.arrayUnion(evidence),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
