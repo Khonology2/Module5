@@ -16,36 +16,35 @@ class BadgeService {
         .collection('badges')
         .snapshots()
         .map((snapshot) {
-      try {
-        return snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
-          ..sort((a, b) {
-            // Sort earned badges first, then by rarity
-            if (a.isEarned && !b.isEarned) return -1;
-            if (!a.isEarned && b.isEarned) return 1;
-            
-            // Then by rarity (legendary first)
-            final rarityOrder = {
-              BadgeRarity.legendary: 0,
-              BadgeRarity.epic: 1,
-              BadgeRarity.rare: 2,
-              BadgeRarity.common: 3,
-            };
-            final aOrder = rarityOrder[a.rarity] ?? 4;
-            final bOrder = rarityOrder[b.rarity] ?? 4;
-            
-            if (aOrder != bOrder) return aOrder.compareTo(bOrder);
-            
-            // Finally by progress
-            return b.progressPercentage.compareTo(a.progressPercentage);
-          });
-      } catch (e) {
-        developer.log('Error processing badges: $e');
-        return <Badge>[];
-      }
-    }).handleError((error) {
-      developer.log('Error loading badges: $error');
-      return <Badge>[];
-    });
+          try {
+            return snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
+              ..sort((a, b) {
+                // Primary: rarity order Common -> Rare -> Epic -> Legendary
+                final rarityOrder = {
+                  BadgeRarity.common: 0,
+                  BadgeRarity.rare: 1,
+                  BadgeRarity.epic: 2,
+                  BadgeRarity.legendary: 3,
+                };
+                final aOrder = rarityOrder[a.rarity] ?? 99;
+                final bOrder = rarityOrder[b.rarity] ?? 99;
+                if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+
+                // Secondary: earned first within the same rarity
+                if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+
+                // Tertiary: higher progress first
+                return b.progressPercentage.compareTo(a.progressPercentage);
+              });
+          } catch (e) {
+            developer.log('Error processing badges: $e');
+            return <Badge>[];
+          }
+        })
+        .handleError((error) {
+          developer.log('Error loading badges: $error');
+          return <Badge>[];
+        });
   }
 
   // Initialize default badges for a user
@@ -53,7 +52,7 @@ class BadgeService {
     try {
       final defaultBadges = _getDefaultBadges();
       final batch = _firestore.batch();
-      
+
       for (final badge in defaultBadges) {
         final docRef = _firestore
             .collection('users')
@@ -62,7 +61,7 @@ class BadgeService {
             .doc(badge.id);
         batch.set(docRef, badge.toFirestore());
       }
-      
+
       await batch.commit();
     } catch (e) {
       developer.log('Error initializing badges: $e');
@@ -75,30 +74,54 @@ class BadgeService {
       // Get user profile and goals
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final userProfile = UserProfile.fromFirestore(userDoc);
-      
+
       final goalsSnapshot = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: userId)
           .get();
-      
-      final goals = goalsSnapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-      
+
+      List<Goal> goals = goalsSnapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
+
+      // Also check user subcollection (if app stores goals there)
+      try {
+        final subSnap = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('goals')
+            .get();
+        final subGoals = subSnap.docs
+            .map((doc) => Goal.fromFirestore(doc))
+            .toList();
+        final seen = goals.map((g) => g.id).toSet();
+        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
+      } catch (_) {}
+
       // Get user badges
       final badgesSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('badges')
           .get();
-      
-      final userBadges = badgesSnapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList();
-      
+
+      final userBadges = badgesSnapshot.docs
+          .map((doc) => Badge.fromFirestore(doc))
+          .toList();
+
       // Check each badge criteria
       for (final badge in userBadges) {
         if (!badge.isEarned) {
-          final updatedBadge = await _checkBadgeCriteria(badge, userProfile, goals, userId);
-          if (updatedBadge.progress != badge.progress || updatedBadge.isEarned != badge.isEarned) {
+          final updatedBadge = await _checkBadgeCriteria(
+            badge,
+            userProfile,
+            goals,
+            userId,
+          );
+          if (updatedBadge.progress != badge.progress ||
+              updatedBadge.isEarned != badge.isEarned) {
             await _updateUserBadge(userId, updatedBadge);
-            
+
             // Create alert if badge was earned
             if (updatedBadge.isEarned && !badge.isEarned) {
               // For now, we'll skip the badge alert since the method doesn't exist yet
@@ -124,7 +147,12 @@ class BadgeService {
   }
 
   // Check badge criteria and update progress
-  static Future<Badge> _checkBadgeCriteria(Badge badge, UserProfile userProfile, List<Goal> goals, String userId) async {
+  static Future<Badge> _checkBadgeCriteria(
+    Badge badge,
+    UserProfile userProfile,
+    List<Goal> goals,
+    String userId,
+  ) async {
     int newProgress = badge.progress;
     bool isEarned = false;
 
@@ -132,59 +160,89 @@ class BadgeService {
       case 'first_goal':
         newProgress = goals.isNotEmpty ? 1 : 0;
         break;
-        
+
+      // Complete 5 goals (progressive)
+      case 'goal_completer_5':
+        final completed = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+        newProgress = completed.clamp(0, badge.maxProgress);
+        break;
+
       case 'goal_starter':
         newProgress = goals.length;
         break;
-        
+
       case 'goal_finisher':
-        newProgress = goals.where((g) => g.status == GoalStatus.completed).length;
+        newProgress = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
         break;
-        
+
+      // Complete 25 goals (progressive)
+      case 'goal_legend_25':
+        final completed25 = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+        newProgress = completed25.clamp(0, badge.maxProgress);
+        break;
+
       case 'streak_master_7':
         // Get current streak from StreakService
         final currentStreak = await StreakService.getCurrentStreak(userId);
         newProgress = currentStreak >= 7 ? 1 : 0;
         break;
-        
+
       case 'streak_master_30':
         // Get current streak from StreakService
         final currentStreak = await StreakService.getCurrentStreak(userId);
         newProgress = currentStreak >= 30 ? 1 : 0;
         break;
-        
+
       case 'point_collector_100':
         newProgress = userProfile.totalPoints >= 100 ? 1 : 0;
         break;
-        
+
       case 'point_collector_500':
         newProgress = userProfile.totalPoints >= 500 ? 1 : 0;
         break;
-        
+
       case 'point_collector_1000':
         newProgress = userProfile.totalPoints >= 1000 ? 1 : 0;
         break;
-        
+
+      case 'point_collector_2000':
+        newProgress = userProfile.totalPoints >= 2000 ? 1 : 0;
+        break;
+
       case 'level_up_5':
         newProgress = userProfile.level >= 5 ? 1 : 0;
         break;
-        
+
       case 'level_up_10':
         newProgress = userProfile.level >= 10 ? 1 : 0;
         break;
-        
+
+      case 'level_up_20':
+        newProgress = userProfile.level >= 20 ? 1 : 0;
+        break;
+
       case 'category_explorer':
         final uniqueCategories = goals.map((g) => g.category).toSet();
         newProgress = uniqueCategories.length;
         break;
-        
+
       case 'priority_master':
         final highPriorityCompleted = goals
-            .where((g) => g.priority == GoalPriority.high && g.status == GoalStatus.completed)
+            .where(
+              (g) =>
+                  g.priority == GoalPriority.high &&
+                  g.status == GoalStatus.completed,
+            )
             .length;
         newProgress = highPriorityCompleted;
         break;
-        
+
       case 'consistency_king':
         // Get longest streak from StreakService
         final longestStreak = await StreakService.getLongestStreak(userId);
@@ -206,7 +264,7 @@ class BadgeService {
     return [
       Badge(
         id: 'first_goal',
-        name: 'Goal Setter',
+        name: 'First Goal',
         description: 'Create your first goal',
         iconName: 'emoji_events',
         category: BadgeCategory.goals,
@@ -214,6 +272,17 @@ class BadgeService {
         pointsRequired: 0,
         criteria: {'goals_created': 1},
         maxProgress: 1,
+      ),
+      Badge(
+        id: 'goal_completer_5',
+        name: 'Goal Completer',
+        description: 'Complete 5 goals',
+        iconName: 'check_circle',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'goals_completed': 5},
+        maxProgress: 5,
       ),
       Badge(
         id: 'goal_starter',
@@ -228,7 +297,7 @@ class BadgeService {
       ),
       Badge(
         id: 'goal_finisher',
-        name: 'Achievement Hunter',
+        name: 'Goal Master',
         description: 'Complete 10 goals',
         iconName: 'check_circle',
         category: BadgeCategory.achievement,
@@ -236,6 +305,17 @@ class BadgeService {
         pointsRequired: 0,
         criteria: {'goals_completed': 10},
         maxProgress: 10,
+      ),
+      Badge(
+        id: 'goal_legend_25',
+        name: 'Goal Legend',
+        description: 'Complete 25 goals',
+        iconName: 'check_circle',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.epic,
+        pointsRequired: 0,
+        criteria: {'goals_completed': 25},
+        maxProgress: 25,
       ),
       Badge(
         id: 'streak_master_7',
@@ -261,8 +341,8 @@ class BadgeService {
       ),
       Badge(
         id: 'point_collector_100',
-        name: 'Point Collector',
-        description: 'Earn 100 total points',
+        name: 'First 100 Points',
+        description: 'Earn your first 100 points',
         iconName: 'stars',
         category: BadgeCategory.achievement,
         rarity: BadgeRarity.common,
@@ -273,7 +353,7 @@ class BadgeService {
       Badge(
         id: 'point_collector_500',
         name: 'Point Master',
-        description: 'Earn 500 total points',
+        description: 'Earn 500 points',
         iconName: 'star',
         category: BadgeCategory.achievement,
         rarity: BadgeRarity.rare,
@@ -284,7 +364,7 @@ class BadgeService {
       Badge(
         id: 'point_collector_1000',
         name: 'Point Legend',
-        description: 'Earn 1000 total points',
+        description: 'Earn 1000 points',
         iconName: 'workspace_premium',
         category: BadgeCategory.achievement,
         rarity: BadgeRarity.legendary,
@@ -293,9 +373,20 @@ class BadgeService {
         maxProgress: 1,
       ),
       Badge(
+        id: 'point_collector_2000',
+        name: 'Point Legend',
+        description: 'Earn 2000 points',
+        iconName: 'workspace_premium',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.legendary,
+        pointsRequired: 2000,
+        criteria: {'total_points': 2000},
+        maxProgress: 1,
+      ),
+      Badge(
         id: 'level_up_5',
-        name: 'Level 5 Hero',
-        description: 'Reach Level 5',
+        name: 'Level 5 Achiever',
+        description: 'Reach level 5',
         iconName: 'military_tech',
         category: BadgeCategory.achievement,
         rarity: BadgeRarity.common,
@@ -305,13 +396,24 @@ class BadgeService {
       ),
       Badge(
         id: 'level_up_10',
-        name: 'Level 10 Champion',
-        description: 'Reach Level 10',
+        name: 'Level 10 Expert',
+        description: 'Reach level 10',
         iconName: 'shield',
         category: BadgeCategory.achievement,
         rarity: BadgeRarity.epic,
         pointsRequired: 0,
         criteria: {'level': 10},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'level_up_20',
+        name: 'Level 20 Master',
+        description: 'Reach level 20',
+        iconName: 'trending_up',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.legendary,
+        pointsRequired: 0,
+        criteria: {'level': 20},
         maxProgress: 1,
       ),
       Badge(
@@ -360,19 +462,21 @@ class BadgeService {
   }) async {
     try {
       Query query = _firestore.collection('users');
-      
+
       // Add department filter if specified
       if (department != null && department.isNotEmpty) {
         query = query.where('department', isEqualTo: department);
       }
-      
+
       // Add ordering
-      query = query.orderBy(orderBy, descending: descending).limit(limit * 2); // Get more to filter
-      
+      query = query
+          .orderBy(orderBy, descending: descending)
+          .limit(limit * 2); // Get more to filter
+
       final snapshot = await query.get();
-      
+
       // Filter for opted-in users after fetching
-      final filteredDocs = onlyOptedIn 
+      final filteredDocs = onlyOptedIn
           ? snapshot.docs.where((doc) {
               try {
                 final data = doc.data() as Map<String, dynamic>?;
@@ -382,12 +486,12 @@ class BadgeService {
               }
             }).toList()
           : snapshot.docs;
-      
+
       return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
         final doc = entry.value;
         final data = doc.data() as Map<String, dynamic>;
-        
+
         // Safely extract badge count
         int badgeCount = 0;
         try {
@@ -398,7 +502,7 @@ class BadgeService {
         } catch (e) {
           // Ignore badge count errors
         }
-        
+
         return {
           'rank': index + 1,
           'userId': doc.id,
@@ -412,7 +516,7 @@ class BadgeService {
       }).toList();
     } catch (e) {
       developer.log('Error getting leaderboard: $e');
-      
+
       // Fallback: Return mock data for development
       return _getMockLeaderboardData();
     }
@@ -479,12 +583,12 @@ class BadgeService {
     try {
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final userPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
-      
+
       final higherRanked = await _firestore
           .collection('users')
           .where('totalPoints', isGreaterThan: userPoints)
           .get();
-      
+
       return higherRanked.docs.length + 1;
     } catch (e) {
       developer.log('Error getting user rank: $e');

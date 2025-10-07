@@ -4,10 +4,14 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/services/badge_service.dart';
 
 class DatabaseService {
   static Future<UserProfile> getUserProfile(String uid) async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
     final data = doc.data() ?? {};
     return UserProfile(
       uid: uid,
@@ -26,12 +30,15 @@ class DatabaseService {
       careerAspirations: data['careerAspirations'] ?? '',
       currentProjects: data['currentProjects'] ?? '',
       learningStyle: data['learningStyle'] ?? '',
-      preferredDevActivities: List<String>.from(data['preferredDevActivities'] ?? const []),
+      preferredDevActivities: List<String>.from(
+        data['preferredDevActivities'] ?? const [],
+      ),
       shortGoals: data['shortGoals'] ?? '',
       longGoals: data['longGoals'] ?? '',
       notificationFrequency: data['notificationFrequency'] ?? 'daily',
       goalVisibility: data['goalVisibility'] ?? 'private',
-      leaderboardOptin: data['leaderboardOptin'] ?? data['leaderboardParticipation'] ?? false,
+      leaderboardOptin:
+          data['leaderboardOptin'] ?? data['leaderboardParticipation'] ?? false,
       badgeName: data['badgeName'] ?? '',
       celebrationConsent: data['celebrationConsent'] ?? 'private',
     );
@@ -52,25 +59,27 @@ class DatabaseService {
           title: data['title'] ?? '',
           description: data['description'] ?? '',
           category: GoalCategory.values.firstWhere(
-              (e) => e.name == (data['category'] ?? 'personal'),
-              orElse: () => GoalCategory.personal,
+            (e) => e.name == (data['category'] ?? 'personal'),
+            orElse: () => GoalCategory.personal,
           ),
           priority: GoalPriority.values.firstWhere(
-              (e) => e.name == (data['priority'] ?? 'medium'),
-              orElse: () => GoalPriority.medium,
+            (e) => e.name == (data['priority'] ?? 'medium'),
+            orElse: () => GoalPriority.medium,
           ),
           status: GoalStatus.values.firstWhere(
-              (e) => e.name == (data['status'] ?? 'notStarted'),
-              orElse: () => GoalStatus.notStarted,
+            (e) => e.name == (data['status'] ?? 'notStarted'),
+            orElse: () => GoalStatus.notStarted,
           ),
           progress: (data['progress'] ?? 0) as int,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdAt:
+              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          targetDate:
+              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
           points: (data['points'] ?? 0) as int,
           kpa: (data['kpa'] as String?)?.toLowerCase(),
         );
       }).toList();
-      
+
       // Sort in memory to avoid Firestore index requirements
       goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return goals;
@@ -85,35 +94,37 @@ class DatabaseService {
         .collection('goals')
         .where('userId', isEqualTo: uid)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
-              final data = doc.data();
-              return Goal(
-                id: doc.id,
-                userId: data['userId'] ?? uid,
-                title: data['title'] ?? '',
-                description: data['description'] ?? '',
-                category: GoalCategory.values.firstWhere(
-                  (e) => e.name == (data['category'] ?? 'personal'),
-                  orElse: () => GoalCategory.personal,
-                ),
-                priority: GoalPriority.values.firstWhere(
-                  (e) => e.name == (data['priority'] ?? 'medium'),
-                  orElse: () => GoalPriority.medium,
-                ),
-                status: GoalStatus.values.firstWhere(
-                  (e) => e.name == (data['status'] ?? 'notStarted'),
-                  orElse: () => GoalStatus.notStarted,
-                ),
-                progress: (data['progress'] ?? 0) as int,
-                createdAt:
-                    (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-                targetDate:
-                    (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-                points: (data['points'] ?? 0) as int,
-                kpa: (data['kpa'] as String?)?.toLowerCase(),
-              );
-            }).toList()
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+        .map(
+          (snapshot) => snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Goal(
+              id: doc.id,
+              userId: data['userId'] ?? uid,
+              title: data['title'] ?? '',
+              description: data['description'] ?? '',
+              category: GoalCategory.values.firstWhere(
+                (e) => e.name == (data['category'] ?? 'personal'),
+                orElse: () => GoalCategory.personal,
+              ),
+              priority: GoalPriority.values.firstWhere(
+                (e) => e.name == (data['priority'] ?? 'medium'),
+                orElse: () => GoalPriority.medium,
+              ),
+              status: GoalStatus.values.firstWhere(
+                (e) => e.name == (data['status'] ?? 'notStarted'),
+                orElse: () => GoalStatus.notStarted,
+              ),
+              progress: (data['progress'] ?? 0) as int,
+              createdAt:
+                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              targetDate:
+                  (data['targetDate'] as Timestamp?)?.toDate() ??
+                  DateTime.now(),
+              points: (data['points'] ?? 0) as int,
+              kpa: (data['kpa'] as String?)?.toLowerCase(),
+            );
+          }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+        );
   }
 
   static Future<String> createGoal(Goal goal) async {
@@ -171,24 +182,35 @@ class DatabaseService {
       final currentStatus = (data['status'] ?? 'notStarted').toString();
       final userId = data['userId'] as String?;
       final previousProgress = (data['progress'] ?? 0) as int;
-      final milestones = Map<String, dynamic>.from(data['milestones'] ?? const {});
+      final milestones = Map<String, dynamic>.from(
+        data['milestones'] ?? const {},
+      );
 
       // Always update progress
       tx.update(goalRef, {'progress': snapped});
 
       // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
-      if (snapped > 0 && currentStatus != GoalStatus.inProgress.name && currentStatus != GoalStatus.completed.name) {
+      if (snapped > 0 &&
+          currentStatus != GoalStatus.inProgress.name &&
+          currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
         if (userId != null && userId.isNotEmpty) {
-          final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+          final userRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId);
           tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
         }
       }
 
       // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
       final crossed50 = previousProgress < 50 && snapped >= 50;
-      if (crossed50 && userId != null && userId.isNotEmpty && milestones['p50'] != true) {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+      if (crossed50 &&
+          userId != null &&
+          userId.isNotEmpty &&
+          milestones['p50'] != true) {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
         tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
         milestones['p50'] = true;
         tx.update(goalRef, {'milestones': milestones});
@@ -199,17 +221,26 @@ class DatabaseService {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       await StreakService.recordDailyActivity(user.uid, 'goal_progress');
+      await BadgeService.checkAndAwardBadges(user.uid);
     }
 
     // Create alerts after transaction if 50% milestone reached
     try {
-      final snap = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
       final data = snap.data();
       if (data != null) {
         final userId = data['userId'] as String?;
         final progressNow = (data['progress'] ?? 0) as int;
-        final milestones = Map<String, dynamic>.from(data['milestones'] ?? const {});
-        if (userId != null && userId.isNotEmpty && progressNow >= 50 && milestones['p50'] == true) {
+        final milestones = Map<String, dynamic>.from(
+          data['milestones'] ?? const {},
+        );
+        if (userId != null &&
+            userId.isNotEmpty &&
+            progressNow >= 50 &&
+            milestones['p50'] == true) {
           await AlertService.createPointsAlert(
             userId: userId,
             pointsEarned: 20,
@@ -217,7 +248,8 @@ class DatabaseService {
           );
           await AlertService.createMotivationalAlert(
             userId: userId,
-            message: 'Great momentum! You\'re halfway there. Keep pushing to the finish!',
+            message:
+                'Great momentum! You\'re halfway there. Keep pushing to the finish!',
             goalId: goalId,
           );
         }
@@ -227,23 +259,20 @@ class DatabaseService {
 
   static Future<void> startGoal(String goalId, String userId) async {
     final batch = FirebaseFirestore.instance.batch();
-    
+
     // Update goal status
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    batch.update(goalRef, {
-      'status': GoalStatus.inProgress.name,
-    });
-    
+    batch.update(goalRef, {'status': GoalStatus.inProgress.name});
+
     // Award points for starting goal
     final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    batch.update(userRef, {
-      'totalPoints': FieldValue.increment(20),
-    });
-    
+    batch.update(userRef, {'totalPoints': FieldValue.increment(20)});
+
     await batch.commit();
-    
+
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_started');
+    await BadgeService.checkAndAwardBadges(userId);
   }
 
   static Future<void> completeGoal(String goalId, String userId) async {
@@ -266,48 +295,45 @@ class DatabaseService {
       }
 
       // Update goal status to completed
-      tx.update(goalRef, {
-        'status': GoalStatus.completed.name,
-      });
+      tx.update(goalRef, {'status': GoalStatus.completed.name});
 
       // Award points for completing goal
-      final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-      tx.update(userRef, {
-        'totalPoints': FieldValue.increment(100),
-      });
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId);
+      tx.update(userRef, {'totalPoints': FieldValue.increment(100)});
     });
-    
+
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
+    await BadgeService.checkAndAwardBadges(userId);
   }
 
-  static Future<void> updateUserPoints(String userId, int points, String reason) async {
+  static Future<void> updateUserPoints(
+    String userId,
+    int points,
+    String reason,
+  ) async {
     final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    
+
     // Get current user data to check for level up
     final userDoc = await userRef.get();
     final currentPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
     final currentLevel = (userDoc.data()?['level'] ?? 1) as int;
-    
+
     final newPoints = currentPoints + points;
     final newLevel = _calculateLevel(newPoints);
-    
+
     final batch = FirebaseFirestore.instance.batch();
-    
+
     // Update points
-    batch.update(userRef, {
-      'totalPoints': newPoints,
-      'level': newLevel,
-    });
-    
+    batch.update(userRef, {'totalPoints': newPoints, 'level': newLevel});
+
     await batch.commit();
-    
+
     // Check if user leveled up
     if (newLevel > currentLevel) {
-      await AlertService.createLevelUpAlert(
-        userId: userId,
-        newLevel: newLevel,
-      );
+      await AlertService.createLevelUpAlert(userId: userId, newLevel: newLevel);
     }
   }
 
@@ -316,8 +342,16 @@ class DatabaseService {
     return (points ~/ 500) + 1;
   }
 
-  static Future<void> initializeSubcollections(DocumentReference userDocRef) async {
-    final subcollections = ['goals', 'streaks', 'badges', 'alerts', 'development_activities'];
+  static Future<void> initializeSubcollections(
+    DocumentReference userDocRef,
+  ) async {
+    final subcollections = [
+      'goals',
+      'streaks',
+      'badges',
+      'alerts',
+      'development_activities',
+    ];
 
     for (String sub in subcollections) {
       final subRef = userDocRef.collection(sub).doc('init');
@@ -331,13 +365,20 @@ class DatabaseService {
     }
   }
 
-  static Future<void> initializeUserData(String uid, String? displayName, String? email, {String role = 'employee'}) async {
+  static Future<void> initializeUserData(
+    String uid,
+    String? displayName,
+    String? email, {
+    String role = 'employee',
+  }) async {
     final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
     final docSnapshot = await userDocRef.get();
     if (!docSnapshot.exists) {
       await userDocRef.set({
-        'displayName': displayName ?? '', // Use displayName as full name, or an empty string
+        'displayName':
+            displayName ??
+            '', // Use displayName as full name, or an empty string
         'email': email ?? '',
         'createdAt': FieldValue.serverTimestamp(),
         'role': role, // default role, only set on creation
@@ -375,7 +416,9 @@ class DatabaseService {
   }
 
   static Future<void> updateUserProfile(UserProfile userProfile) async {
-    final userDocRef = FirebaseFirestore.instance.collection('users').doc(userProfile.uid);
+    final userDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(userProfile.uid);
     await userDocRef.update(userProfile.toFirestore());
   }
 
@@ -397,5 +440,3 @@ class DatabaseService {
     };
   }
 }
-
-

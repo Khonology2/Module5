@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'dart:async'; // Import for Timer
@@ -27,7 +28,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Removed unused _passwordStrength
   // Removed unused _passwordStrengthColor
 
-  double _passwordStrength = 0.0; // New: To store password strength (0.0 to 1.0)
+  double _passwordStrength =
+      0.0; // New: To store password strength (0.0 to 1.0)
   Color _passwordStrengthColor =
       Colors.grey; // New: To store the color of the strength meter
   String _passwordHint =
@@ -103,7 +105,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       bool hasUppercase = password.contains(RegExp(r'[A-Z]'));
       bool hasLowercase = password.contains(RegExp(r'[a-z]'));
       bool hasDigit = password.contains(RegExp(r'[0-9]'));
-      bool hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?\":{}|<>] '));
+      bool hasSpecialChar = password.contains(
+        RegExp(r'[!@#$%^&*(),.?\":{}|<>] '),
+      );
 
       int strengthScore = 0;
       if (hasMinLength) strengthScore++;
@@ -124,7 +128,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else if (strengthScore == 2) {
         _passwordStrength = 0.4;
         _passwordStrengthColor = Colors.orange;
-        _passwordHint = 'Moderate: Try to include uppercase and special characters';
+        _passwordHint =
+            'Moderate: Try to include uppercase and special characters';
       } else if (strengthScore == 3) {
         _passwordStrength = 0.6;
         _passwordStrengthColor = Colors.yellow;
@@ -265,7 +270,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           hintText: _passwordHints[_currentHintIndex],
                           onChanged: _updatePasswordStrength,
                         ),
-                        const SizedBox(height: 5), // Added space for strength meter
+                        const SizedBox(
+                          height: 5,
+                        ), // Added space for strength meter
                         LinearProgressIndicator(
                           value: _passwordStrength,
                           backgroundColor: Colors.grey[300],
@@ -275,7 +282,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 5),
                         Text(
                           _passwordHint,
-                          style: TextStyle(color: _passwordStrengthColor, fontSize: 12),
+                          style: TextStyle(
+                            color: _passwordStrengthColor,
+                            fontSize: 12,
+                          ),
                         ),
                         const SizedBox(height: 20),
                         // Confirm Password
@@ -406,6 +416,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _fullNameController.text,
                                   _emailController.text,
                                   role: _selectedRole!, // Use the selected role
+                                );
+
+                                // Initialize default badges and run initial check
+                                await BadgeService.initializeUserBadges(
+                                  userCredential.user!.uid,
+                                );
+                                await BadgeService.checkAndAwardBadges(
+                                  userCredential.user!.uid,
                                 );
 
                                 if (!context.mounted) {
