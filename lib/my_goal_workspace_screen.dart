@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
@@ -115,17 +116,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           );
         }
       },
-      content: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.8),
-            ],
-          ),
-        ),
+      content: AppComponents.backgroundWithImage(
+        imagePath:
+            'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
         child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           child: Column(
