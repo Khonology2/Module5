@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:pdh/services/storage_service.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -66,13 +68,60 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         return AlertDialog(
           backgroundColor: const Color(0xFF1F2840),
           title: const Text('Add Evidence', style: TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Paste link or short note',
-              hintStyle: TextStyle(color: Colors.white70),
-            ),
-            style: const TextStyle(color: Colors.white),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: 'Paste link or short note',
+                  hintStyle: TextStyle(color: Colors.white70),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final picked = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg'],
+                          withData: true,
+                        );
+                        if (picked != null && picked.files.isNotEmpty) {
+                          final file = picked.files.first;
+                          final bytes = file.bytes;
+                          if (bytes != null) {
+                            final ext = (file.extension ?? '').toLowerCase();
+                            String contentType = 'application/octet-stream';
+                            if (ext == 'pdf') contentType = 'application/pdf';
+                            if (ext == 'doc') contentType = 'application/msword';
+                            if (ext == 'docx') contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                            if (ext == 'png') contentType = 'image/png';
+                            if (ext == 'jpg' || ext == 'jpeg') contentType = 'image/jpeg';
+
+                            final url = await StorageService.uploadEvidence(
+                              goalId: goal.id,
+                              fileName: file.name,
+                              bytes: bytes,
+                              contentType: contentType,
+                            );
+                            if (ctx.mounted) {
+                              await DatabaseService.attachGoalEvidence(goalId: goal.id, evidence: [url]);
+                              Navigator.of(ctx).pop('uploaded');
+                            }
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('Upload file (PDF/Word/Image)'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -81,14 +130,16 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-              child: const Text('Save'),
+              child: const Text('Save note/link'),
             ),
           ],
         );
       },
     );
     if (result != null && result.isNotEmpty) {
-      await DatabaseService.attachGoalEvidence(goalId: goal.id, evidence: [result]);
+      if (result != 'uploaded') {
+        await DatabaseService.attachGoalEvidence(goalId: goal.id, evidence: [result]);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Evidence added')),

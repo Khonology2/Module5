@@ -27,6 +27,7 @@ dependencies:
   shared_preferences: ^2.2.3 # Updated to latest version for state persistence
   image_picker: ^1.2.0
   firebase_storage: ^13.0.2
+  file_picker: ^8.0.3
   flutter_tts: ^4.2.3
   speech_to_text: ^7.3.0
   js: ^0.6.7 # Added for Dart-JavaScript interop
