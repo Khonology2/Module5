@@ -533,9 +533,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Widget _buildQuickStats() {
     // Calculate real stats from user data
     final activeGoals = userGoals.where((goal) => 
-        goal.status == GoalStatus.inProgress || goal.status == GoalStatus.notStarted).length;
+        (goal.status != GoalStatus.completed) && (goal.progress < 100)).length;
     final completedGoals = userGoals.where((goal) => 
-        goal.status == GoalStatus.completed).length;
+        goal.status == GoalStatus.completed || goal.progress >= 100).length;
     final totalPoints = userProfile?.totalPoints ?? 0;
 
     return Column(

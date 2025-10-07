@@ -204,14 +204,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
     try {
       await DatabaseService.updateGoalProgress(currentGoal.id, newProgress);
-      // Record activity: goal progress update
-      await ActivityService.recordGoalActivity(
-        goalId: currentGoal.id,
-        goalTitle: currentGoal.title,
-        activityType: 'goal_progress',
-        description: 'Updated progress to $newProgress%',
-        metadata: {'progress': newProgress},
-      );
+      // Record activity: goal progress update (non-blocking for UX)
+      try {
+        await ActivityService.recordGoalActivity(
+          goalId: currentGoal.id,
+          goalTitle: currentGoal.title,
+          activityType: 'goal_progress',
+          description: 'Updated progress to $newProgress%',
+          metadata: {'progress': newProgress},
+        );
+      } catch (_) {
+        // Swallow activity write errors so progress UX isn't interrupted
+      }
       
       if (mounted) {
         setState(() {

@@ -49,6 +49,14 @@ class StreakService {
           });
         }
       }
+
+      // Also refresh lastLoginAt on any activity so streak counts without a fresh sign-in
+      try {
+        await _firestore.collection('users').doc(userId).set(
+          {'lastLoginAt': FieldValue.serverTimestamp()},
+          SetOptions(merge: true),
+        );
+      } catch (_) {}
     } catch (e) {
       developer.log('Error recording daily activity: $e');
     }
