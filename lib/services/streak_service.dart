@@ -23,6 +23,14 @@ class StreakService {
         }, SetOptions(merge: true));
       } catch (_) {}
 
+      // Record in the activities collection for manager visibility
+      await _firestore.collection('activities').add({
+        'userId': userId,
+        'type': activityType,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'User performed $activityType',
+      });
+
       // Check if activity already recorded today
       final existingActivity = await _firestore
           .collection('users')

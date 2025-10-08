@@ -510,7 +510,7 @@ class ManagerRealtimeService {
       List<EmployeeActivity> recentActivities = const [];
 
       try {
-        // Pull lastLoginAt from user profile
+        // Pull lastLoginAt and lastActivityAt from user profile
         try {
           final userDoc = await _firestore
               .collection('users')
@@ -534,9 +534,20 @@ class ManagerRealtimeService {
           if (storedMotivation is String && storedMotivation.isNotEmpty) {
             motivationLevel = storedMotivation;
           }
+
+          // Check for lastActivityAt timestamp (from goal updates)
+          final lastActivityTs = data?['lastActivityAt'] as Timestamp?;
+          if (lastActivityTs != null) {
+            lastActivity = lastActivityTs.toDate();
+          }
+          
+          // If lastLoginAt is more recent, use that instead
           final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
           if (lastLoginTs != null) {
             final lastLogin = lastLoginTs.toDate();
+            if (lastLogin.isAfter(lastActivity)) {
+              lastActivity = lastLogin;
+            }
             // If no login today, enforce streak = 0 later by passing empty docs
             final now = DateTime.now();
             final todayOnly = DateTime(now.year, now.month, now.day);

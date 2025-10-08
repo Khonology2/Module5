@@ -1129,20 +1129,31 @@ class _ManagerProgressVisualsContentState
 
   String _formatLastActivity(DateTime? lastActivity) {
     if (lastActivity == null) return 'Never';
+    
+    try {
+      final now = DateTime.now();
+      
+      // Check if the date is valid (not in the future or too far in the past)
+      if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
+        return 'Unknown';
+      }
+      
+      final difference = now.difference(lastActivity);
 
-    final now = DateTime.now();
-    final difference = now.difference(lastActivity);
-
-    if (difference.inDays > 7) {
-      return '${difference.inDays} days ago';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
-    } else {
-      return 'Just now';
+      if (difference.inDays > 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      // Handle any unexpected errors when formatting the date
+      return 'Unknown';
     }
   }
 
