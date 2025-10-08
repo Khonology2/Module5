@@ -68,6 +68,363 @@ class BadgeService {
     }
   }
 
+  // Retroactively award badges and update level based on existing accomplishments
+  static Future<void> retroactivelyAwardBadgesAndUpdateLevel(
+    String userId,
+  ) async {
+    try {
+      developer.log(
+        'Starting retroactive badge and level update for user: $userId',
+      );
+
+      // Get user profile and goals
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userData = userDoc.data() ?? {};
+      final currentPoints = (userData['totalPoints'] ?? 0) as int;
+      final currentLevel = (userData['level'] ?? 1) as int;
+
+      // Calculate correct level based on points (500 points per level)
+      final correctLevel = (currentPoints ~/ 500) + 1;
+
+      // Get user goals
+      final goalsSnapshot = await _firestore
+          .collection('goals')
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      List<Goal> goals = goalsSnapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
+
+      // Also check user subcollection
+      try {
+        final subSnap = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('goals')
+            .get();
+        final subGoals = subSnap.docs
+            .map((doc) => Goal.fromFirestore(doc))
+            .toList();
+        final seen = goals.map((g) => g.id).toSet();
+        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
+      } catch (_) {}
+
+      // Count completed goals
+      final completedGoals = goals
+          .where((g) => g.status == GoalStatus.completed)
+          .length;
+      final totalGoals = goals.length;
+
+      developer.log(
+        'User stats: $currentPoints points, $completedGoals completed goals, $totalGoals total goals',
+      );
+
+      // Update level if needed
+      if (correctLevel > currentLevel) {
+        await _firestore.collection('users').doc(userId).update({
+          'level': correctLevel,
+        });
+        developer.log('Updated user level from $currentLevel to $correctLevel');
+      }
+
+      // Award badges based on accomplishments
+      await _awardRetroactiveBadges(
+        userId,
+        currentPoints,
+        completedGoals,
+        totalGoals,
+        correctLevel,
+      );
+
+      developer.log('Completed retroactive badge and level update');
+    } catch (e) {
+      developer.log('Error in retroactive badge and level update: $e');
+    }
+  }
+
+  // Award badges based on existing accomplishments
+  static Future<void> _awardRetroactiveBadges(
+    String userId,
+    int points,
+    int completedGoals,
+    int totalGoals,
+    int level,
+  ) async {
+    try {
+      // Badge 1: Goal Starter (has any goals)
+      if (totalGoals > 0) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_starter',
+          'Goal Starter',
+          'Create your first goal',
+          'flag',
+          BadgeCategory.goals,
+          BadgeRarity.common,
+        );
+      }
+
+      // Badge 2: Goal Finisher (completed any goals)
+      if (completedGoals > 0) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_finisher',
+          'Goal Finisher',
+          'Complete your first goal',
+          'check_circle',
+          BadgeCategory.goals,
+          BadgeRarity.common,
+        );
+      }
+
+      // Badge 3: Goal Completer 5 (completed 5+ goals)
+      if (completedGoals >= 5) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_completer_5',
+          'Goal Completer',
+          'Complete 5 goals',
+          'emoji_events',
+          BadgeCategory.goals,
+          BadgeRarity.rare,
+        );
+      }
+
+      // Badge 5: Point Collector badges based on points
+      if (points >= 100) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_100',
+          'First 100 Points',
+          'Earn 100 points',
+          'stars',
+          BadgeCategory.achievement,
+          BadgeRarity.common,
+        );
+      }
+      if (points >= 250) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_250',
+          'First 250 Points',
+          'Earn 250 points',
+          'stars',
+          BadgeCategory.achievement,
+          BadgeRarity.common,
+        );
+      }
+      if (points >= 500) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_500',
+          'Point Collector',
+          'Earn 500 points',
+          'star',
+          BadgeCategory.achievement,
+          BadgeRarity.rare,
+        );
+      }
+      if (points >= 750) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_750',
+          'First 750 Points',
+          'Earn 750 points',
+          'star',
+          BadgeCategory.achievement,
+          BadgeRarity.rare,
+        );
+      }
+      if (points >= 1000) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_1000',
+          'Point Collector',
+          'Earn 1000 points',
+          'star',
+          BadgeCategory.achievement,
+          BadgeRarity.rare,
+        );
+      }
+      if (points >= 1500) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_1500',
+          'First 1500 Points',
+          'Earn 1500 points',
+          'star',
+          BadgeCategory.achievement,
+          BadgeRarity.rare,
+        );
+      }
+      if (points >= 2000) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_2000',
+          'Point Master',
+          'Earn 2000 points',
+          'workspace_premium',
+          BadgeCategory.achievement,
+          BadgeRarity.epic,
+        );
+      }
+      if (points >= 3000) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_3000',
+          'First 3000 Points',
+          'Earn 3000 points',
+          'workspace_premium',
+          BadgeCategory.achievement,
+          BadgeRarity.epic,
+        );
+      }
+      if (points >= 5000) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_5000',
+          'Point Legend',
+          'Earn 5000 points',
+          'workspace_premium',
+          BadgeCategory.achievement,
+          BadgeRarity.legendary,
+        );
+      }
+      if (points >= 10000) {
+        await _awardRetroactiveBadge(
+          userId,
+          'point_collector_10000',
+          'Point Legend',
+          'Earn 10000 points',
+          'workspace_premium',
+          BadgeCategory.achievement,
+          BadgeRarity.legendary,
+        );
+      }
+
+      // Level-based badges
+      if (level >= 5) {
+        await _awardRetroactiveBadge(
+          userId,
+          'level_up_5',
+          'Level 5 Achiever',
+          'Reach level 5',
+          'military_tech',
+          BadgeCategory.achievement,
+          BadgeRarity.common,
+        );
+      }
+      if (level >= 10) {
+        await _awardRetroactiveBadge(
+          userId,
+          'level_up_10',
+          'Level 10 Achiever',
+          'Reach level 10',
+          'military_tech',
+          BadgeCategory.achievement,
+          BadgeRarity.epic,
+        );
+      }
+      if (level >= 20) {
+        await _awardRetroactiveBadge(
+          userId,
+          'level_up_20',
+          'Level 20 Achiever',
+          'Reach level 20',
+          'military_tech',
+          BadgeCategory.achievement,
+          BadgeRarity.legendary,
+        );
+      }
+      if (level >= 30) {
+        await _awardRetroactiveBadge(
+          userId,
+          'level_up_30',
+          'Level 30 Achiever',
+          'Reach level 30',
+          'military_tech',
+          BadgeCategory.achievement,
+          BadgeRarity.legendary,
+        );
+      }
+      if (level >= 50) {
+        await _awardRetroactiveBadge(
+          userId,
+          'level_up_50',
+          'Level 50 Achiever',
+          'Reach level 50',
+          'military_tech',
+          BadgeCategory.achievement,
+          BadgeRarity.legendary,
+        );
+      }
+
+      // Goal Legend badge (25+ completed goals)
+      if (completedGoals >= 25) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_legend_25',
+          'Goal Legend',
+          'Complete 25 goals',
+          'emoji_events',
+          BadgeCategory.goals,
+          BadgeRarity.legendary,
+        );
+      }
+    } catch (e) {
+      developer.log('Error awarding retroactive badges: $e');
+    }
+  }
+
+  // Helper method to award a retroactive badge
+  static Future<void> _awardRetroactiveBadge(
+    String userId,
+    String badgeId,
+    String name,
+    String description,
+    String iconName,
+    BadgeCategory category,
+    BadgeRarity rarity,
+  ) async {
+    try {
+      final badgeDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .doc(badgeId)
+          .get();
+
+      if (!badgeDoc.exists) {
+        final badge = Badge(
+          id: badgeId,
+          name: name,
+          description: description,
+          iconName: iconName,
+          category: category,
+          rarity: rarity,
+          pointsRequired: 0,
+          criteria: {},
+          maxProgress: 1,
+          isEarned: true,
+          earnedAt: DateTime.now(),
+          progress: 1,
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(badgeId)
+            .set(badge.toFirestore());
+
+        developer.log('Awarded retroactive badge: $name');
+      }
+    } catch (e) {
+      developer.log('Error awarding retroactive badge $badgeId: $e');
+    }
+  }
+
   // Check and award badges based on user activity
   static Future<void> checkAndAwardBadges(String userId) async {
     try {
@@ -124,13 +481,21 @@ class BadgeService {
 
             // Create alert if badge was earned
             if (updatedBadge.isEarned && !badge.isEarned) {
-              // For now, we'll skip the badge alert since the method doesn't exist yet
-              // This can be implemented later when AlertService is expanded
+              await _createBadgeEarnedAlert(userId, updatedBadge);
               developer.log('Badge earned: ${updatedBadge.name}');
             }
           }
         }
       }
+
+      // Check for level-based badges
+      await _checkLevelBasedBadges(userId, userProfile);
+
+      // Check for streak-based badges
+      await _checkStreakBasedBadges(userId);
+
+      // Check for points milestone badges
+      await _checkPointsMilestoneBadges(userId, userProfile);
     } catch (e) {
       developer.log('Error checking badges: $e');
     }
@@ -593,6 +958,316 @@ class BadgeService {
     } catch (e) {
       developer.log('Error getting user rank: $e');
       return 0;
+    }
+  }
+
+  // Create badge earned alert
+  static Future<void> _createBadgeEarnedAlert(
+    String userId,
+    Badge badge,
+  ) async {
+    try {
+      await _firestore.collection('alerts').add({
+        'userId': userId,
+        'type': 'badge_earned',
+        'priority': 'high',
+        'title': 'Badge Earned! 🏆',
+        'message': 'Congratulations! You earned the "${badge.name}" badge.',
+        'actionText': 'View Badge',
+        'actionRoute': '/badges_points',
+        'createdAt': FieldValue.serverTimestamp(),
+        'badgeId': badge.id,
+        'badgeRarity': badge.rarity.name,
+        'isRead': false,
+        'isDismissed': false,
+        'expiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)),
+        ),
+      });
+    } catch (e) {
+      developer.log('Error creating badge alert: $e');
+    }
+  }
+
+  // Check for level-based badges
+  static Future<void> _checkLevelBasedBadges(
+    String userId,
+    UserProfile userProfile,
+  ) async {
+    final level = userProfile.level;
+
+    // Check if user has level-based badges that should be earned
+    final levelBadges = [
+      {'level': 5, 'badgeId': 'level_up_5'},
+      {'level': 10, 'badgeId': 'level_up_10'},
+      {'level': 20, 'badgeId': 'level_up_20'},
+      {'level': 30, 'badgeId': 'level_up_30'},
+      {'level': 50, 'badgeId': 'level_up_50'},
+    ];
+
+    for (final levelBadge in levelBadges) {
+      final requiredLevel = levelBadge['level'] as int;
+      final badgeId = levelBadge['badgeId'] as String;
+      if (level >= requiredLevel) {
+        await _awardLevelBadge(userId, badgeId, requiredLevel);
+      }
+    }
+  }
+
+  // Award level badge
+  static Future<void> _awardLevelBadge(
+    String userId,
+    String badgeId,
+    int requiredLevel,
+  ) async {
+    try {
+      final badgeDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .doc(badgeId)
+          .get();
+
+      if (!badgeDoc.exists) {
+        // Create the badge if it doesn't exist
+        final badge = Badge(
+          id: badgeId,
+          name: 'Level $requiredLevel Achiever',
+          description: 'Reach level $requiredLevel',
+          iconName: 'military_tech',
+          category: BadgeCategory.achievement,
+          rarity: requiredLevel >= 20
+              ? BadgeRarity.legendary
+              : requiredLevel >= 10
+              ? BadgeRarity.epic
+              : BadgeRarity.common,
+          pointsRequired: 0,
+          criteria: {'level': requiredLevel},
+          maxProgress: 1,
+          isEarned: true,
+          earnedAt: DateTime.now(),
+          progress: 1,
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(badgeId)
+            .set(badge.toFirestore());
+
+        await _createBadgeEarnedAlert(userId, badge);
+      }
+    } catch (e) {
+      developer.log('Error awarding level badge: $e');
+    }
+  }
+
+  // Check for streak-based badges
+  static Future<void> _checkStreakBasedBadges(String userId) async {
+    try {
+      final currentStreak = await StreakService.getCurrentStreak(userId);
+      final longestStreak = await StreakService.getLongestStreak(userId);
+
+      // Check streak milestones
+      final streakMilestones = [7, 14, 30, 60, 100, 365];
+
+      for (final milestone in streakMilestones) {
+        if (currentStreak >= milestone || longestStreak >= milestone) {
+          await _awardStreakBadge(userId, milestone);
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking streak badges: $e');
+    }
+  }
+
+  // Award streak badge
+  static Future<void> _awardStreakBadge(String userId, int streakDays) async {
+    try {
+      final badgeId = 'streak_master_$streakDays';
+      final badgeDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .doc(badgeId)
+          .get();
+
+      if (!badgeDoc.exists) {
+        final badge = Badge(
+          id: badgeId,
+          name: streakDays >= 100
+              ? 'Consistency King'
+              : streakDays >= 30
+              ? 'Month Master'
+              : streakDays >= 7
+              ? 'Week Warrior'
+              : 'Streak Starter',
+          description: 'Maintain a $streakDays-day streak',
+          iconName: 'local_fire_department',
+          category: BadgeCategory.streak,
+          rarity: streakDays >= 100
+              ? BadgeRarity.legendary
+              : streakDays >= 30
+              ? BadgeRarity.epic
+              : streakDays >= 7
+              ? BadgeRarity.rare
+              : BadgeRarity.common,
+          pointsRequired: 0,
+          criteria: {'streak_days': streakDays},
+          maxProgress: 1,
+          isEarned: true,
+          earnedAt: DateTime.now(),
+          progress: 1,
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(badgeId)
+            .set(badge.toFirestore());
+
+        await _createBadgeEarnedAlert(userId, badge);
+      }
+    } catch (e) {
+      developer.log('Error awarding streak badge: $e');
+    }
+  }
+
+  // Check for points milestone badges
+  static Future<void> _checkPointsMilestoneBadges(
+    String userId,
+    UserProfile userProfile,
+  ) async {
+    final points = userProfile.totalPoints;
+
+    // Check points milestones
+    final pointsMilestones = [
+      100,
+      250,
+      500,
+      750,
+      1000,
+      1500,
+      2000,
+      3000,
+      5000,
+      10000,
+    ];
+
+    for (final milestone in pointsMilestones) {
+      if (points >= milestone) {
+        await _awardPointsBadge(userId, milestone);
+      }
+    }
+  }
+
+  // Award points badge
+  static Future<void> _awardPointsBadge(String userId, int points) async {
+    try {
+      final badgeId = 'point_collector_$points';
+      final badgeDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .doc(badgeId)
+          .get();
+
+      if (!badgeDoc.exists) {
+        final badge = Badge(
+          id: badgeId,
+          name: points >= 5000
+              ? 'Point Legend'
+              : points >= 2000
+              ? 'Point Master'
+              : points >= 1000
+              ? 'Point Collector'
+              : 'First $points Points',
+          description: 'Earn $points points',
+          iconName: points >= 2000
+              ? 'workspace_premium'
+              : points >= 1000
+              ? 'star'
+              : 'stars',
+          category: BadgeCategory.achievement,
+          rarity: points >= 5000
+              ? BadgeRarity.legendary
+              : points >= 2000
+              ? BadgeRarity.epic
+              : points >= 1000
+              ? BadgeRarity.rare
+              : BadgeRarity.common,
+          pointsRequired: points,
+          criteria: {'total_points': points},
+          maxProgress: 1,
+          isEarned: true,
+          earnedAt: DateTime.now(),
+          progress: 1,
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(badgeId)
+            .set(badge.toFirestore());
+
+        await _createBadgeEarnedAlert(userId, badge);
+      }
+    } catch (e) {
+      developer.log('Error awarding points badge: $e');
+    }
+  }
+
+  // Get achievement summary for user
+  static Future<Map<String, dynamic>> getAchievementSummary(
+    String userId,
+  ) async {
+    try {
+      final badgesSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .get();
+
+      final badges = badgesSnapshot.docs
+          .map((doc) => Badge.fromFirestore(doc))
+          .toList();
+
+      final earnedBadges = badges.where((b) => b.isEarned).toList();
+      final totalBadges = badges.length;
+      final earnedByRarity = <String, int>{};
+
+      for (final badge in earnedBadges) {
+        final rarity = badge.rarity.name;
+        earnedByRarity[rarity] = (earnedByRarity[rarity] ?? 0) + 1;
+      }
+
+      return {
+        'totalBadges': totalBadges,
+        'earnedBadges': earnedBadges.length,
+        'completionPercentage': totalBadges > 0
+            ? (earnedBadges.length / totalBadges) * 100
+            : 0,
+        'earnedByRarity': earnedByRarity,
+        'recentBadges': earnedBadges
+            .where(
+              (b) =>
+                  b.earnedAt != null &&
+                  DateTime.now().difference(b.earnedAt!).inDays <= 7,
+            )
+            .toList(),
+      };
+    } catch (e) {
+      developer.log('Error getting achievement summary: $e');
+      return {
+        'totalBadges': 0,
+        'earnedBadges': 0,
+        'completionPercentage': 0,
+        'earnedByRarity': <String, int>{},
+        'recentBadges': <Badge>[],
+      };
     }
   }
 }
