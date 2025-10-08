@@ -661,7 +661,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ..._generateInsights().map((insight) => bullet(insight)).toList(),
+          ..._generateInsights().map((insight) => bullet(insight)),
           bullet(
             'High morale signals this week. Share Emily’s win-back workflow as best practice.',
           ),

@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,6 +24,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
   UserProfile? _currentUser;
   bool _isLoading = true;
+  String? _currentRole; // Add this to store the current role
 
   @override
   void initState() {
@@ -85,35 +87,25 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     }
   }
 
-  Query<Map<String, dynamic>> _buildQuery() {
+  Query<Map<String, dynamic>> _buildQuery({String? userRole}) {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('users')
-        // Only users who opted in should be included in leaderboard
-        .where('leaderboardOptin', isEqualTo: true);
-
+        .collection('users');
+        
+    // For non-managers, we'll filter in the processing step instead of in the query
+    // This avoids issues with missing fields in the database
+    final isManager = userRole == 'manager';
+    
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) && _currentUser != null && _currentUser!.department.isNotEmpty) {
       query = query.where('department', isEqualTo: _currentUser!.department);
     }
 
-    // Default to ordering by totalPoints and add safety for missing fields
-    String orderField = 'totalPoints';
-    try {
-      orderField = _getOrderByField();
-    } catch (e) {
-      developer.log('Error getting order field, defaulting to totalPoints: $e');
-    }
-
-    // Only order by fields that are guaranteed to exist
-    if (orderField == 'badges') {
-      // For badges, we'll handle this in processing instead of ordering
-      orderField = 'totalPoints';
-    }
-
-    return query.orderBy(orderField, descending: true).limit(100);
+    // Use a simple query without ordering to avoid field existence issues
+    // We'll handle sorting in the processing step
+    return query.limit(100);
   }
 
-  List<Map<String, dynamic>> _processLeaderboardData(List<QueryDocumentSnapshot> docs) {
+  List<Map<String, dynamic>> _processLeaderboardData(List<QueryDocumentSnapshot> docs, {String? userRole}) {
     try {
       developer.log('Processing ${docs.length} documents for leaderboard');
       
@@ -123,39 +115,46 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         return [];
       }
 
-      // First filter for users who have opted into the leaderboard
-      final filteredDocs = docs.where((doc) {
-        try {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data != null) {
-            // Check both field names for compatibility
-            final opted = data['leaderboardParticipation'] == true || data['leaderboardOptin'] == true;
-            developer.log('User ${doc.id}: leaderboardParticipation = ${data['leaderboardParticipation']}, leaderboardOptin = ${data['leaderboardOptin']}, opted = $opted');
-            return opted;
-          }
-          return false;
-        } catch (e) {
-          developer.log('Error processing doc ${doc.id}: $e');
-          return false;
-        }
-      }).toList();
+      // Use the role parameter instead of checking filters
+      final isManager = userRole == 'manager';
+      List<QueryDocumentSnapshot> filteredDocs;
       
-      developer.log('${filteredDocs.length} users opted into leaderboard');
+      // For managers, show all users regardless of opt-in status
+      if (isManager) {
+        filteredDocs = docs;
+      } else {
+        // For regular users, filter for users who have opted into the leaderboard
+        filteredDocs = docs.where((doc) {
+          try {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data != null) {
+              // Check both field names for compatibility and default to false if field doesn't exist
+              final opted = (data['leaderboardParticipation'] == true) || (data['leaderboardOptin'] == true);
+              return opted;
+            }
+            return false;
+          } catch (e) {
+            developer.log('Error processing doc ${doc.id}: $e');
+            return false;
+          }
+        }).toList();
+      }
+      
+      developer.log('${filteredDocs.length} users to display on leaderboard');
 
-      // If no users opted in, return empty list but show a helpful message
+      // If no users to display, return empty list
       if (filteredDocs.isEmpty) {
-        developer.log('No users have opted into leaderboard');
-        // For testing purposes, if no users have opted in, we can show all users with low priority
-        // In production, this would require user consent
-        developer.log('No opted-in users found. Users need to enable leaderboard participation in their settings.');
+        if (!isManager) {
+          developer.log('No users have opted into leaderboard');
+        }
         return [];
       }
 
-      // Process and sort data
+      // Process and sort data with better error handling
       List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         
-        // Safely extract badge count
+        // Safely extract values with defaults
         int badgeCount = 0;
         try {
           final badges = data['badges'];
@@ -166,27 +165,59 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           developer.log('Error processing badges for user ${doc.id}: $e');
         }
         
+        // Ensure numeric fields have valid defaults
+        num points = 0;
+        num level = 1;
+        
+        try {
+          if (data['totalPoints'] is num) {
+            points = data['totalPoints'] as num;
+          }
+        } catch (e) {
+          developer.log('Error processing points for user ${doc.id}: $e');
+        }
+        
+        try {
+          if (data['level'] is num) {
+            level = data['level'] as num;
+          }
+        } catch (e) {
+          developer.log('Error processing level for user ${doc.id}: $e');
+        }
+        
         return {
           'userId': doc.id,
           'name': data['displayName']?.toString() ?? 'Anonymous',
-          'points': (data['totalPoints'] is num) ? data['totalPoints'] : 0,
-          'level': (data['level'] is num) ? data['level'] : 1,
+          'points': points,
+          'level': level,
           'badges': badgeCount,
           'department': data['department']?.toString() ?? 'Unknown',
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
         };
       }).toList();
 
-      // Sort by the selected metric
+      // Sort by the selected metric with safe comparisons
       switch (_currentMetric) {
         case LeaderboardMetric.points:
-          processedData.sort((a, b) => (b['points'] as num).compareTo(a['points'] as num));
+          processedData.sort((a, b) {
+            final aPoints = (a['points'] as num?) ?? 0;
+            final bPoints = (b['points'] as num?) ?? 0;
+            return bPoints.compareTo(aPoints);
+          });
           break;
         case LeaderboardMetric.level:
-          processedData.sort((a, b) => (b['level'] as num).compareTo(a['level'] as num));
+          processedData.sort((a, b) {
+            final aLevel = (a['level'] as num?) ?? 1;
+            final bLevel = (b['level'] as num?) ?? 1;
+            return bLevel.compareTo(aLevel);
+          });
           break;
         case LeaderboardMetric.badges:
-          processedData.sort((a, b) => (b['badges'] as int).compareTo(a['badges'] as int));
+          processedData.sort((a, b) {
+            final aBadges = (a['badges'] as int?) ?? 0;
+            final bBadges = (b['badges'] as int?) ?? 0;
+            return bBadges.compareTo(aBadges);
+          });
           break;
       }
 
@@ -220,9 +251,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             }
             
             final isManager = role == 'manager';
+            _currentRole = role; // Store the role
           
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _buildQuery().snapshots(),
+              stream: _buildQuery(userRole: role).snapshots(),
               builder: (context, leaderboardSnapshot) {
                 if (leaderboardSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -244,7 +276,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 List<Map<String, dynamic>> leaderboardData;
                 try {
                   leaderboardData = leaderboardSnapshot.hasData 
-                      ? _processLeaderboardData(leaderboardSnapshot.data!.docs)
+                      ? _processLeaderboardData(leaderboardSnapshot.data!.docs, userRole: role)
                       : <Map<String, dynamic>>[];
                 } catch (e) {
                   developer.log('Error processing leaderboard data: $e');
@@ -435,106 +467,203 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       return const SizedBox.shrink();
     }
     
-    Widget podiumPlace(Map<String, dynamic> user, int position, double height) {
-      final colors = [
-        const Color(0xFFFFD700), // Gold
-        const Color(0xFFC0C0C0), // Silver  
-        const Color(0xFFCD7F32), // Bronze
-      ];
-      
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
+    // Colors for the podium positions
+    final colors = [
+      const Color(0xFFFFD700), // Gold
+      const Color(0xFFC0C0C0), // Silver  
+      const Color(0xFFCD7F32), // Bronze
+    ];
+
+    // Create the floating animation for the top employee
+    return SizedBox(
+      height: 300, // Increased height for the rectangular podium
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Container(
-            constraints: const BoxConstraints(maxWidth: 90),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colors[position], width: 2),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: colors[position],
-                  child: Text(
-                    (user['name']?.toString().isNotEmpty == true) 
-                        ? user['name'][0].toString().toUpperCase() 
-                        : '?',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+          // Rectangular podium background
+          Positioned(
+            bottom: 0,
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: 200,
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 1,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user['name'],
-                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 10),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  '${user['points']} pts',
-                  style: TextStyle(color: colors[position], fontSize: 9, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Lvl ${user['level']}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 8),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: 50,
-            height: height,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colors[position].withValues(alpha: 0.8),
-                  colors[position].withValues(alpha: 0.4),
                 ],
               ),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
             ),
-            child: Center(
-              child: Text(
-                '${position + 1}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+          ),
+          
+          // 2nd place (left)
+          if (topThree.length > 1)
+            Positioned(
+              bottom: 20,
+              left: MediaQuery.of(context).size.width * 0.2,
+              child: _buildPodiumCard(topThree[1], 1, colors[1], 100),
+            ),
+            
+          // 3rd place (right)
+          if (topThree.length > 2)
+            Positioned(
+              bottom: 20,
+              right: MediaQuery.of(context).size.width * 0.2,
+              child: _buildPodiumCard(topThree[2], 2, colors[2], 80),
+            ),
+            
+          // 1st place (top center) with floating animation
+          if (topThree.isNotEmpty)
+            Positioned(
+              top: 0,
+              child: TweenAnimationBuilder(
+                tween: Tween<double>(begin: 0, end: 10),
+                duration: const Duration(seconds: 2),
+                curve: Curves.easeInOut,
+                builder: (context, double value, child) {
+                  return Transform.translate(
+                    offset: Offset(0, sin(DateTime.now().millisecondsSinceEpoch / 500) * value),
+                    child: child,
+                  );
+                },
+                child: _buildPodiumCard(topThree[0], 0, colors[0], 120),
+              ),
+            ),
+            
+          // Position numbers
+          Positioned(
+            bottom: 0,
+            left: MediaQuery.of(context).size.width * 0.2,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors[1],
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Text(
+                  '2',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          Positioned(
+            bottom: 0,
+            right: MediaQuery.of(context).size.width * 0.2,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors[2],
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: Text(
+                  '3',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          
+          Positioned(
+            top: 100,
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: colors[0],
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: colors[0].withOpacity(0.5),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Text(
+                  '1',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
           ),
         ],
-      );
-    }
-
-    return SizedBox(
-      height: 240, // Increased height to prevent overflow
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      ),
+    );
+  }
+  
+  Widget _buildPodiumCard(Map<String, dynamic> user, int position, Color color, double width) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 2nd place
-          if (topThree.length > 1)
-            Flexible(child: podiumPlace(topThree[1], 1, 60)),
-          // 1st place
-          if (topThree.isNotEmpty)
-            Flexible(child: podiumPlace(topThree[0], 0, 80)),
-          // 3rd place
-          if (topThree.length > 2)
-            Flexible(child: podiumPlace(topThree[2], 2, 40)),
+          CircleAvatar(
+            radius: 25,
+            backgroundColor: color,
+            child: Text(
+              (user['name']?.toString().isNotEmpty == true) 
+                  ? user['name'][0].toString().toUpperCase() 
+                  : '?',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            user['name'],
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            '${user['points']} pts',
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            'Lvl ${user['level']}',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+          ),
         ],
       ),
     );

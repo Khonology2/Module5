@@ -175,12 +175,14 @@ class DatabaseService {
 
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
+    String? userId;
+    
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(goalRef);
       if (!snap.exists) return;
       final data = snap.data() as Map<String, dynamic>;
       final currentStatus = (data['status'] ?? 'notStarted').toString();
-      final userId = data['userId'] as String?;
+      userId = data['userId'] as String?;
       final previousProgress = (data['progress'] ?? 0) as int;
       final milestones = Map<String, dynamic>.from(
         data['milestones'] ?? const {},
@@ -194,7 +196,7 @@ class DatabaseService {
           currentStatus != GoalStatus.inProgress.name &&
           currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-        if (userId != null && userId.isNotEmpty) {
+        if (userId != null && userId!.isNotEmpty) {
           final userRef = FirebaseFirestore.instance
               .collection('users')
               .doc(userId);
@@ -206,7 +208,7 @@ class DatabaseService {
       final crossed50 = previousProgress < 50 && snapped >= 50;
       if (crossed50 &&
           userId != null &&
-          userId.isNotEmpty &&
+          userId!.isNotEmpty &&
           milestones['p50'] != true) {
         final userRef = FirebaseFirestore.instance
             .collection('users')
@@ -222,6 +224,13 @@ class DatabaseService {
     if (user != null) {
       await StreakService.recordDailyActivity(user.uid, 'goal_progress');
       await BadgeService.checkAndAwardBadges(user.uid);
+    }
+    
+    // Also update the user's lastActivity timestamp directly
+    if (userId != null && userId!.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'lastActivityAt': FieldValue.serverTimestamp(),
+      });
     }
 
     // Create alerts after transaction if 50% milestone reached
