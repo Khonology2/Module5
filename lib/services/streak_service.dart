@@ -16,6 +16,13 @@ class StreakService {
       final todayString =
           '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
+      // Refresh lastLoginAt FIRST so streak calculation considers today as an active day
+      try {
+        await _firestore.collection('users').doc(userId).set({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+
       // Check if activity already recorded today
       final existingActivity = await _firestore
           .collection('users')
@@ -54,13 +61,6 @@ class StreakService {
               .update({'activities': activities});
         }
       }
-
-      // Also refresh lastLoginAt on any activity so streak counts without a fresh sign-in
-      try {
-        await _firestore.collection('users').doc(userId).set({
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (_) {}
     } catch (e) {
       developer.log('Error recording daily activity: $e');
     }
@@ -82,32 +82,17 @@ class StreakService {
       int currentStreak = 0;
       DateTime? lastDate;
 
-      // Enforce: streak only counts if user logged in today (lastLoginAt)
+      // Require activity recorded today to maintain a streak (timezone-safe)
       final now = DateTime.now();
       final todayOnly = DateTime(now.year, now.month, now.day);
-      try {
-        final userDoc = await _firestore.collection('users').doc(userId).get();
-        final lastLoginTs = userDoc.data()?['lastLoginAt'] as Timestamp?;
-        if (lastLoginTs != null) {
-          final lastLogin = lastLoginTs.toDate();
-          final lastLoginOnly = DateTime(
-            lastLogin.year,
-            lastLogin.month,
-            lastLogin.day,
-          );
-          if (!lastLoginOnly.isAtSameMomentAs(todayOnly)) {
-            await _firestore.collection('users').doc(userId).update({
-              'currentStreak': 0,
-            });
-            return;
-          }
-        } else {
-          await _firestore.collection('users').doc(userId).update({
-            'currentStreak': 0,
-          });
-          return;
-        }
-      } catch (_) {
+      final mostRecent =
+          (activitiesSnapshot.docs.first.data()['date'] as Timestamp).toDate();
+      final mostRecentOnly = DateTime(
+        mostRecent.year,
+        mostRecent.month,
+        mostRecent.day,
+      );
+      if (!mostRecentOnly.isAtSameMomentAs(todayOnly)) {
         await _firestore.collection('users').doc(userId).update({
           'currentStreak': 0,
         });
