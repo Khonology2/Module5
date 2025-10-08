@@ -7,17 +7,13 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
-import 'package:pdh/services/sample_data_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
-  
-  const ProgressVisualsScreen({
-    super.key,
-    this.embedded = false,
-  });
+
+  const ProgressVisualsScreen({super.key, this.embedded = false});
 
   @override
   State<ProgressVisualsScreen> createState() => _ProgressVisualsScreenState();
@@ -44,7 +40,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final profile = await DatabaseService.getUserProfile(user.uid);
-        
+
         setState(() {
           userProfile = profile;
           isLoading = false;
@@ -63,15 +59,15 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    
+
     return FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return null;
-      return UserProfile.fromFirestore(doc);
-    });
+          if (!doc.exists) return null;
+          return UserProfile.fromFirestore(doc);
+        });
   }
 
   @override
@@ -98,10 +94,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                   color: AppColors.dangerColor,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  'Error loading user data',
-                  style: AppTypography.heading4,
-                ),
+                Text('Error loading user data', style: AppTypography.heading4),
                 const SizedBox(height: 8),
                 Text(
                   profileSnapshot.error.toString(),
@@ -113,7 +106,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    setState(() {}); 
+                    setState(() {});
                   },
                   child: const Text('Retry'),
                 ),
@@ -123,7 +116,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         }
 
         userProfile = profileSnapshot.data;
-        
+
         if (userProfile == null) {
           return const Center(
             child: CircularProgressIndicator(
@@ -131,12 +124,12 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
             ),
           );
         }
-        
+
         return RefreshIndicator(
           onRefresh: () async {
-            setState(() {}); 
+            setState(() {});
           },
-          child: isManager 
+          child: isManager
               ? ManagerProgressVisualsContent(userProfile: userProfile!)
               : EmployeeProgressVisualsContent(userProfile: userProfile!),
         );
@@ -148,16 +141,15 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 class ManagerProgressVisualsContent extends StatefulWidget {
   final UserProfile userProfile;
 
-  const ManagerProgressVisualsContent({
-    super.key,
-    required this.userProfile,
-  });
+  const ManagerProgressVisualsContent({super.key, required this.userProfile});
 
   @override
-  State<ManagerProgressVisualsContent> createState() => _ManagerProgressVisualsContentState();
+  State<ManagerProgressVisualsContent> createState() =>
+      _ManagerProgressVisualsContentState();
 }
 
-class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsContent> {
+class _ManagerProgressVisualsContentState
+    extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
 
@@ -174,22 +166,14 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               Expanded(
                 child: Text(
                   'Team Progress Overview',
-                  style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                  style: AppTypography.heading2.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               _buildFilterDropdown(),
               const SizedBox(width: AppSpacing.md),
               _buildDepartmentDropdown(),
-              const SizedBox(width: AppSpacing.md),
-              OutlinedButton.icon(
-                onPressed: _populateSampleData,
-                icon: const Icon(Icons.data_usage, size: 16),
-                label: const Text('Load Sample Data'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.activeColor,
-                  side: BorderSide(color: AppColors.activeColor),
-                ),
-              ),
               const SizedBox(width: AppSpacing.md),
               OutlinedButton.icon(
                 onPressed: _showDebugInfo,
@@ -203,7 +187,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-          
+
           StreamBuilder<TeamMetrics>(
             stream: ManagerRealtimeService.getTeamMetricsStream(
               department: selectedDepartment,
@@ -213,7 +197,9 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               if (metricsSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
                   ),
                 );
               }
@@ -231,28 +217,35 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                 children: [
                   _buildTeamMetricsCards(metrics),
                   const SizedBox(height: AppSpacing.xxl),
-                  
+
                   StreamBuilder<List<TeamInsight>>(
                     stream: ManagerRealtimeService.getTeamInsightsStream(
                       department: selectedDepartment,
                       timeFilter: currentTimeFilter,
                     ),
                     builder: (context, insightsSnapshot) {
-                      if (insightsSnapshot.hasData && insightsSnapshot.data!.isNotEmpty) {
+                      if (insightsSnapshot.hasData &&
+                          insightsSnapshot.data!.isNotEmpty) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Team Insights',
-                              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            ...insightsSnapshot.data!.take(5).map((insight) => 
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                                child: _buildInsightCard(insight),
+                              style: AppTypography.heading3.copyWith(
+                                color: AppColors.textPrimary,
                               ),
                             ),
+                            const SizedBox(height: AppSpacing.md),
+                            ...insightsSnapshot.data!
+                                .take(5)
+                                .map(
+                                  (insight) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppSpacing.sm,
+                                    ),
+                                    child: _buildInsightCard(insight),
+                                  ),
+                                ),
                             const SizedBox(height: AppSpacing.xxl),
                           ],
                         );
@@ -260,23 +253,28 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                       return const SizedBox.shrink();
                     },
                   ),
-                  
+
                   Text(
                     'Team Member Progress',
-                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                    style: AppTypography.heading3.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  
+
                   StreamBuilder<List<EmployeeData>>(
                     stream: ManagerRealtimeService.getTeamDataStream(
                       department: selectedDepartment,
                       timeFilter: currentTimeFilter,
                     ),
                     builder: (context, teamSnapshot) {
-                      if (teamSnapshot.connectionState == ConnectionState.waiting) {
+                      if (teamSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
                           ),
                         );
                       }
@@ -291,12 +289,16 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                       }
 
                       return Column(
-                        children: employees.map((employee) => 
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                            child: _buildEmployeeCard(employee),
-                          ),
-                        ).toList(),
+                        children: employees
+                            .map(
+                              (employee) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.md,
+                                ),
+                                child: _buildEmployeeCard(employee),
+                              ),
+                            )
+                            .toList(),
                       );
                     },
                   ),
@@ -350,7 +352,12 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
         value: selectedDepartment,
         underline: const SizedBox(),
         style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-        hint: Text('All Departments', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+        hint: Text(
+          'All Departments',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
         onChanged: (String? department) {
           setState(() {
             selectedDepartment = department;
@@ -363,7 +370,11 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
           ),
           DropdownMenuItem<String?>(
             value: widget.userProfile.department,
-            child: Text(widget.userProfile.department.isEmpty ? 'Department' : widget.userProfile.department),
+            child: Text(
+              widget.userProfile.department.isEmpty
+                  ? 'Department'
+                  : widget.userProfile.department,
+            ),
           ),
         ],
       ),
@@ -390,8 +401,11 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                 title: 'Average Progress',
                 value: '${metrics.avgTeamProgress.toStringAsFixed(1)}%',
                 icon: Icons.trending_up,
-                color: metrics.avgTeamProgress >= 70 ? AppColors.successColor : 
-                       metrics.avgTeamProgress >= 40 ? AppColors.warningColor : AppColors.dangerColor,
+                color: metrics.avgTeamProgress >= 70
+                    ? AppColors.successColor
+                    : metrics.avgTeamProgress >= 40
+                    ? AppColors.warningColor
+                    : AppColors.dangerColor,
                 subtitle: 'Team average',
               ),
             ),
@@ -426,8 +440,11 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
           title: 'Team Engagement',
           value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
           icon: Icons.groups,
-          color: metrics.teamEngagement >= 70 ? AppColors.successColor : 
-                 metrics.teamEngagement >= 40 ? AppColors.warningColor : AppColors.dangerColor,
+          color: metrics.teamEngagement >= 70
+              ? AppColors.successColor
+              : metrics.teamEngagement >= 40
+              ? AppColors.warningColor
+              : AppColors.dangerColor,
           subtitle: 'Active in last 7 days',
           fullWidth: true,
         ),
@@ -494,7 +511,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
   Widget _buildInsightCard(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
-    
+
     switch (insight.priority) {
       case InsightPriority.urgent:
         priorityColor = AppColors.dangerColor;
@@ -563,11 +580,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: priorityColor,
-                  size: 16,
-                ),
+                Icon(Icons.lightbulb_outline, color: priorityColor, size: 16),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -581,7 +594,8 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               ],
             ),
           ),
-          if (insight.priority == InsightPriority.urgent || insight.priority == InsightPriority.high) ...[
+          if (insight.priority == InsightPriority.urgent ||
+              insight.priority == InsightPriority.high) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -660,7 +674,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                 radius: 20,
                 backgroundColor: statusColor.withValues(alpha: 0.1),
                 child: Text(
-                  employee.profile.displayName.isNotEmpty 
+                  employee.profile.displayName.isNotEmpty
                       ? employee.profile.displayName[0].toUpperCase()
                       : '?',
                   style: AppTypography.bodyMedium.copyWith(
@@ -682,7 +696,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                       ),
                     ),
                     Text(
-                      employee.profile.jobTitle.isNotEmpty 
+                      employee.profile.jobTitle.isNotEmpty
                           ? employee.profile.jobTitle
                           : employee.profile.department,
                       style: AppTypography.bodySmall.copyWith(
@@ -717,14 +731,17 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
             ],
           ),
           const SizedBox(height: 16),
-          
+
           Row(
             children: [
               Expanded(
                 child: _buildEmployeeMetricChip(
                   icon: Icons.track_changes,
                   label: 'Active Goals',
-                  value: employee.goals.where((g) => g.status != GoalStatus.completed).length.toString(),
+                  value: employee.goals
+                      .where((g) => g.status != GoalStatus.completed)
+                      .length
+                      .toString(),
                   color: AppColors.activeColor,
                 ),
               ),
@@ -743,14 +760,46 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
                   icon: Icons.access_time,
                   label: 'Progress',
                   value: '${employee.avgProgress.toStringAsFixed(1)}%',
-                  color: employee.avgProgress >= 70 ? AppColors.successColor : 
-                         employee.avgProgress >= 40 ? AppColors.warningColor : AppColors.dangerColor,
+                  color: employee.avgProgress >= 70
+                      ? AppColors.successColor
+                      : employee.avgProgress >= 40
+                      ? AppColors.warningColor
+                      : AppColors.dangerColor,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+
+          // Show last activity information
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.schedule, color: AppColors.textSecondary, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'Last active: ${_formatLastActivity(employee.lastActivity)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${employee.weeklyActivityCount} activities this week',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
-          
+
           if (employee.goals.isNotEmpty) ...[
             Text(
               'Goals',
@@ -760,10 +809,14 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               ),
             ),
             const SizedBox(height: 8),
-            ...employee.goals.take(3).map((goal) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: _buildGoalRow(goal),
-            )),
+            ...employee.goals
+                .take(3)
+                .map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: _buildGoalRow(goal),
+                  ),
+                ),
             if (employee.goals.length > 3)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -800,9 +853,9 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               ),
             ),
           ],
-          
+
           const SizedBox(height: 16),
-          
+
           Row(
             children: [
               Expanded(
@@ -819,7 +872,8 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _sendNudgeToEmployee(employee.profile.displayName),
+                  onPressed: () =>
+                      _sendNudgeToEmployee(employee.profile.displayName),
                   icon: const Icon(Icons.send, size: 16),
                   label: const Text('Send Nudge'),
                   style: ElevatedButton.styleFrom(
@@ -874,7 +928,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
 
   Widget _buildGoalRow(Goal goal) {
     Color priorityColor = _getPriorityColor(goal.priority);
-    
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -945,11 +999,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppColors.dangerColor,
-          ),
+          Icon(Icons.error_outline, size: 48, color: AppColors.dangerColor),
           const SizedBox(height: 16),
           Text(
             'Error loading team data',
@@ -980,11 +1030,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.people_outline, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No team data available',
@@ -1015,11 +1061,7 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.groups_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.groups_outlined, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No team members found',
@@ -1079,68 +1121,28 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
 
   void _viewEmployeeDetails(EmployeeData employee) {
     Navigator.pushNamed(
-      context, 
-      '/employee_profile_detail', 
-      arguments: employee.profile.uid
+      context,
+      '/employee_profile_detail',
+      arguments: employee.profile.uid,
     );
   }
 
-  Future<void> _populateSampleData() async {
-    try {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
-          title: const Text('Populate Sample Data'),
-          content: const Text(
-            'This will create sample activities and goals for all employees in your department. '
-            'This will help populate the manager dashboard with realistic data for testing.'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop(); // Use dialogContext
-                
-                // Show loading
-                if (!mounted) return; // Re-added
-                final scaffoldMessenger = ScaffoldMessenger.of(dialogContext); // Capture ScaffoldMessenger
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('Creating sample data...')),
-                );
+  String _formatLastActivity(DateTime? lastActivity) {
+    if (lastActivity == null) return 'Never';
 
-                try {
-                  await SampleDataService.populateManagerDashboardWithSampleData();
-                  
-                  if (!mounted) return; // Re-added
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Sample data created successfully! Refresh to see real data.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  if (!mounted) return; // Re-added
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Error creating sample data: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Create Sample Data'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return; 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+    final now = DateTime.now();
+    final difference = now.difference(lastActivity);
+
+    if (difference.inDays > 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+    } else {
+      return 'Just now';
     }
   }
 
@@ -1148,55 +1150,119 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
     try {
       final FirebaseFirestore firestore = FirebaseFirestore.instance;
       final FirebaseAuth auth = FirebaseAuth.instance;
-      
+
       // Get manager info
-      final managerDoc = await firestore.collection('users').doc(auth.currentUser!.uid).get();
+      final managerDoc = await firestore
+          .collection('users')
+          .doc(auth.currentUser!.uid)
+          .get();
       final managerData = managerDoc.data();
-      
+
       // Get all employees the manager is allowed to view
       // Prefer same department if set; otherwise fallback to all employees
       Query<Map<String, dynamic>> employeesQueryRef = firestore
           .collection('users')
           .where('role', isEqualTo: 'employee');
       if ((managerData?['department'] as String?)?.isNotEmpty == true) {
-        employeesQueryRef = employeesQueryRef.where('department', isEqualTo: managerData!['department']);
+        employeesQueryRef = employeesQueryRef.where(
+          'department',
+          isEqualTo: managerData!['department'],
+        );
       }
       final employeesQuery = await employeesQueryRef.get();
-      
+
       // Get Angel specifically if she exists
       final angelQuery = await firestore
           .collection('users')
           .where('displayName', isEqualTo: 'Angel')
           .get();
-      
+
       // Get activities only for these employees (avoid cross-user reads)
       final employeeIds = employeesQuery.docs.map((d) => d.id).toList();
       // Avoid composite index by not combining whereIn with orderBy. Sort in-memory.
       final activitiesBaseRef = firestore.collection('activities');
       final activitiesSnapshot = employeeIds.isEmpty
-          ? await activitiesBaseRef.orderBy('timestamp', descending: true).limit(10).get()
-          : await activitiesBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
+          ? await activitiesBaseRef
+                .orderBy('timestamp', descending: true)
+                .limit(10)
+                .get()
+          : await activitiesBaseRef
+                .where('userId', whereIn: employeeIds.take(10).toList())
+                .limit(25)
+                .get();
       // Sort and trim after fetch
       final activitiesDocs = activitiesSnapshot.docs
         ..sort((a, b) {
-          final at = (a.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bt = (b.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bt.compareTo(at);
-        });
-          
-      // Get goals only for these employees
-      final goalsBaseRef = firestore.collection('goals');
-      final goalsSnapshot = employeeIds.isEmpty
-          ? await goalsBaseRef.orderBy('createdAt', descending: true).limit(10).get()
-          : await goalsBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
-      final goalsDocs = goalsSnapshot.docs
-        ..sort((a, b) {
-          final at = (a.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bt = (b.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final at =
+              (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final bt =
+              (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
           return bt.compareTo(at);
         });
 
-      String debugInfo = '''
+      // Get goals only for these employees
+      final goalsBaseRef = firestore.collection('goals');
+      final goalsSnapshot = employeeIds.isEmpty
+          ? await goalsBaseRef
+                .orderBy('createdAt', descending: true)
+                .limit(10)
+                .get()
+          : await goalsBaseRef
+                .where('userId', whereIn: employeeIds.take(10).toList())
+                .limit(25)
+                .get();
+      final goalsDocs = goalsSnapshot.docs
+        ..sort((a, b) {
+          final at =
+              (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final bt =
+              (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return bt.compareTo(at);
+        });
+
+      // Get employee activity summary
+      final employeeActivitySummary = <String, Map<String, dynamic>>{};
+      for (final empDoc in employeesQuery.docs) {
+        final empData = empDoc.data();
+        final empId = empDoc.id;
+        final empName = empData['displayName'] ?? 'Unknown';
+
+        // Count activities for this employee
+        final empActivities = activitiesDocs
+            .where((act) => act.data()['userId'] == empId)
+            .length;
+
+        // Count goals for this employee
+        final empGoals = goalsDocs
+            .where((goal) => goal.data()['userId'] == empId)
+            .length;
+
+        // Get last activity time
+        final lastActivity = activitiesDocs
+            .where((act) => act.data()['userId'] == empId)
+            .map((act) => (act.data()['timestamp'] as Timestamp?)?.toDate())
+            .where((date) => date != null)
+            .cast<DateTime>()
+            .fold<DateTime?>(
+              null,
+              (latest, current) =>
+                  latest == null || current.isAfter(latest) ? current : latest,
+            );
+
+        employeeActivitySummary[empName] = {
+          'activities': empActivities,
+          'goals': empGoals,
+          'lastActivity': lastActivity?.toString() ?? 'Never',
+          'department': empData['department'] ?? 'No Department',
+        };
+      }
+
+      String debugInfo =
+          '''
 DEBUG INFORMATION:
 
 MANAGER:
@@ -1206,30 +1272,38 @@ MANAGER:
 
 ALL EMPLOYEES (${employeesQuery.docs.length}):
 ${employeesQuery.docs.map((doc) {
-  final data = doc.data();
-  return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
-}).join('\n')}
+            final data = doc.data();
+            return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
+          }).join('\n')}
+
+EMPLOYEE ACTIVITY SUMMARY:
+${employeeActivitySummary.entries.map((entry) {
+            final empName = entry.key;
+            final summary = entry.value;
+            return '- $empName: ${summary['activities']} activities, ${summary['goals']} goals, Last active: ${summary['lastActivity']}, Dept: ${summary['department']}';
+          }).join('\n')}
 
 ANGEL SPECIFICALLY:
 ${angelQuery.docs.isNotEmpty ? 'FOUND Angel: ${angelQuery.docs.first.data()}' : 'Angel NOT FOUND in employees collection!'}
 
 RECENT ACTIVITIES (${activitiesDocs.length}):
 ${activitiesDocs.map((doc) {
-  final data = doc.data();
-  return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
-}).join('\n')}
+            final data = doc.data();
+            return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
+          }).join('\n')}
 
 RECENT GOALS (${goalsDocs.length}):
 ${goalsDocs.map((doc) {
-  final data = doc.data();
-  return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
-}).join('\n')}
+            final data = doc.data();
+            return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
+          }).join('\n')}
       ''';
 
       if (!mounted) return; // Add this line here
       showDialog(
         context: context,
-        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
+        builder: (dialogContext) => AlertDialog(
+          // Capture dialogContext here
           title: const Text('Debug Information'),
           content: SingleChildScrollView(
             child: Column(
@@ -1244,7 +1318,8 @@ ${goalsDocs.map((doc) {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(), // Use dialogContext
               child: const Text('Close'),
             ),
           ],
@@ -1252,9 +1327,9 @@ ${goalsDocs.map((doc) {
       );
     } catch (e) {
       if (!mounted) return; // Re-added
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Debug Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Debug Error: $e')));
     }
   }
 }
@@ -1262,10 +1337,7 @@ ${goalsDocs.map((doc) {
 class EmployeeProgressVisualsContent extends StatelessWidget {
   final UserProfile userProfile;
 
-  const EmployeeProgressVisualsContent({
-    super.key,
-    required this.userProfile,
-  });
+  const EmployeeProgressVisualsContent({super.key, required this.userProfile});
 
   @override
   Widget build(BuildContext context) {
@@ -1277,17 +1349,21 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         children: [
           Text(
             'Your Progress Overview',
-            style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.heading2.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: AppSpacing.xl),
-          
+
           StreamBuilder<List<Goal>>(
             stream: _getUserGoalsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
                   ),
                 );
               }
@@ -1297,7 +1373,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
               }
 
               final goals = snapshot.data ?? [];
-              
+
               return Column(
                 children: [
                   _buildPersonalOverview(goals),
@@ -1315,49 +1391,62 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-    
+
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-              (e) => e.name == (data['category'] ?? 'personal'),
-              orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-              (e) => e.name == (data['priority'] ?? 'medium'),
-              orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-              (e) => e.name == (data['status'] ?? 'notStarted'),
-              orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-      }).toList();
-      
-      goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return goals;
-    });
+          final goals = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Goal(
+              id: doc.id,
+              userId: data['userId'] ?? user.uid,
+              title: data['title'] ?? '',
+              description: data['description'] ?? '',
+              category: GoalCategory.values.firstWhere(
+                (e) => e.name == (data['category'] ?? 'personal'),
+                orElse: () => GoalCategory.personal,
+              ),
+              priority: GoalPriority.values.firstWhere(
+                (e) => e.name == (data['priority'] ?? 'medium'),
+                orElse: () => GoalPriority.medium,
+              ),
+              status: GoalStatus.values.firstWhere(
+                (e) => e.name == (data['status'] ?? 'notStarted'),
+                orElse: () => GoalStatus.notStarted,
+              ),
+              progress: (data['progress'] ?? 0) as int,
+              createdAt:
+                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              targetDate:
+                  (data['targetDate'] as Timestamp?)?.toDate() ??
+                  DateTime.now(),
+              points: (data['points'] ?? 0) as int,
+            );
+          }).toList();
+
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return goals;
+        });
   }
 
   Widget _buildPersonalOverview(List<Goal> goals) {
     final totalGoals = goals.length;
-    final completedGoals = goals.where((goal) => goal.status == GoalStatus.completed || goal.progress >= 100).length;
-    final activeGoals = goals.where((goal) => goal.status != GoalStatus.completed && goal.progress < 100).length;
-    final overallProgress = totalGoals > 0 ? (completedGoals / totalGoals) : 0.0;
-    
+    final completedGoals = goals
+        .where(
+          (goal) => goal.status == GoalStatus.completed || goal.progress >= 100,
+        )
+        .length;
+    final activeGoals = goals
+        .where(
+          (goal) => goal.status != GoalStatus.completed && goal.progress < 100,
+        )
+        .length;
+    final overallProgress = totalGoals > 0
+        ? (completedGoals / totalGoals)
+        : 0.0;
+
     return Row(
       children: [
         Expanded(
@@ -1434,10 +1523,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
   }
 
   Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
-    final activeGoals = goals
-        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
-        .toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+    final activeGoals =
+        goals
+            .where(
+              (goal) =>
+                  goal.status != GoalStatus.completed && goal.progress < 100,
+            )
+            .toList()
+          ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1447,7 +1540,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
           children: [
             Text(
               'Your Goals Progress',
-              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
             if (activeGoals.isNotEmpty)
               TextButton.icon(
@@ -1468,10 +1563,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         if (activeGoals.isEmpty)
           _buildEmptyGoalsState(context)
         else
-          ...activeGoals.take(5).map((goal) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: _buildGoalProgressCard(context, goal: goal),
-          )),
+          ...activeGoals
+              .take(5)
+              .map(
+                (goal) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: _buildGoalProgressCard(context, goal: goal),
+                ),
+              ),
       ],
     );
   }
@@ -1486,11 +1585,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.flag_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.flag_outlined, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No Active Goals',
@@ -1527,18 +1622,20 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     final now = DateTime.now();
     final daysUntilDeadline = goal.targetDate.difference(now).inDays;
     final progress = goal.progress / 100.0;
-    
+
     String deadlineText;
     Color deadlineColor;
-    
+
     if (daysUntilDeadline < 0) {
-      deadlineText = 'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
+      deadlineText =
+          'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
       deadlineColor = AppColors.dangerColor;
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
       deadlineColor = AppColors.warningColor;
     } else if (daysUntilDeadline <= 7) {
-      deadlineText = 'Due in $daysUntilDeadline day${daysUntilDeadline == 1 ? '' : 's'}';
+      deadlineText =
+          'Due in $daysUntilDeadline day${daysUntilDeadline == 1 ? '' : 's'}';
       deadlineColor = AppColors.warningColor;
     } else {
       deadlineText = 'Due in $daysUntilDeadline days';
@@ -1588,7 +1685,10 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: progressColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -1610,9 +1710,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   deadlineText,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: deadlineColor,
-                  ),
+                  style: AppTypography.bodySmall.copyWith(color: deadlineColor),
                 ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -1650,11 +1748,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppColors.dangerColor,
-          ),
+          Icon(Icons.error_outline, size: 48, color: AppColors.dangerColor),
           const SizedBox(height: 16),
           Text(
             'Error loading progress data',

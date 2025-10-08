@@ -202,20 +202,16 @@ class ManagerRealtimeService {
           targetDepartment = managerDoc.data()?['department'] as String?;
         }
 
+        // For now, get all employees regardless of department
+        // This allows managers to see all employees in the system
+        // The Firestore rules will handle security
         Query query = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
 
-        if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          query = query.where('department', isEqualTo: targetDepartment);
-        } else if (targetDepartment != null && targetDepartment.isEmpty) {
-          // If targetDepartment is an empty string, specifically query for employees with empty department
-          query = query.where('department', isEqualTo: '');
-        }
-
         developer.log('Manager Realtime Service: Setting up stream');
         developer.log('Manager UID: $currentUser.uid');
-        developer.log('Target Department: $targetDepartment');
+        developer.log('Getting all employees (department filtering disabled)');
 
         final subscription = query.snapshots().listen(
           (snapshot) async {
@@ -619,6 +615,15 @@ class ManagerRealtimeService {
 
       // Determine status
       final status = _determineEmployeeStatus(allGoals, lastActivity);
+
+      developer.log(
+        'Manager Realtime Service: Built employee data for ${profile.displayName}',
+      );
+      developer.log(
+        '  - Goals: ${goals.length} (completed: $completedGoals, overdue: $overdueGoals)',
+      );
+      developer.log('  - Status: $status');
+      developer.log('  - Last activity: $lastActivity');
 
       return EmployeeData(
         profile: profile,
