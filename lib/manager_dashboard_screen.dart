@@ -56,7 +56,10 @@ class ManagerDashboardScreen extends StatelessWidget {
                             children: [
                               _buildGreetingCard(),
                               const SizedBox(height: 16),
-                              _buildKpis(metricsSnapshot.data),
+                              _buildKpis(
+                                metricsSnapshot.data,
+                                employeesSnapshot.data ?? const [],
+                              ),
                               const SizedBox(height: 16),
                               _buildTeamHealth(
                                 metricsSnapshot.data,
@@ -99,7 +102,26 @@ class ManagerDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildKpis(TeamMetrics? m) {
+  Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
+    // Fallbacks when TeamMetrics hasn't populated yet
+    final totalEmployees = m?.totalEmployees ?? employees.length;
+    final activeEmployees =
+        m?.activeEmployees ??
+        employees.where((e) {
+          final now = DateTime.now();
+          final sevenDaysAgo = now.subtract(const Duration(days: 7));
+          return e.lastActivity.isAfter(sevenDaysAgo);
+        }).length;
+    final avgProgress =
+        m?.avgTeamProgress ??
+        (employees.isNotEmpty
+            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
+                  employees.length
+            : 0.0);
+    final engagement =
+        m?.teamEngagement ??
+        (totalEmployees > 0 ? (activeEmployees / totalEmployees) * 100 : 0.0);
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,19 +135,13 @@ class ManagerDashboardScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('Employees', (m?.totalEmployees ?? 0).toString()),
+              _kpi('Employees', totalEmployees.toString()),
               const SizedBox(width: 8),
-              _kpi('Active', (m?.activeEmployees ?? 0).toString()),
+              _kpi('Active', activeEmployees.toString()),
               const SizedBox(width: 8),
-              _kpi(
-                'Avg Progress',
-                '${(m?.avgTeamProgress ?? 0).toStringAsFixed(0)}%',
-              ),
+              _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
               const SizedBox(width: 8),
-              _kpi(
-                'Engagement',
-                '${(m?.teamEngagement ?? 0).toStringAsFixed(0)}%',
-              ),
+              _kpi('Engagement', '${engagement.toStringAsFixed(0)}%'),
             ],
           ),
         ],
