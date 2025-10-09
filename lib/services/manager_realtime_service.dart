@@ -213,43 +213,59 @@ class ManagerRealtimeService {
         developer.log('Manager UID: $currentUser.uid');
         developer.log('Getting all employees (department filtering disabled)');
 
-        final subscription = query.snapshots().listen(
-          (snapshot) async {
-            developer.log(
-              'Manager Realtime Service: Received snapshot with ${snapshot.docs.length} employees',
+        Query activitiesQuery = _firestore
+            .collection('activities')
+            .where(
+              'timestamp',
+              isGreaterThan: Timestamp.fromDate(
+                DateTime.now().subtract(const Duration(days: 1)),
+              ),
             );
-            final List<EmployeeData> employeeDataList = [];
 
-            for (final userDoc in snapshot.docs) {
-              try {
-                developer.log('Processing employee: ${userDoc.id}');
-                final userProfile = UserProfile.fromFirestore(userDoc);
-                final employeeData = await _buildEmployeeData(
-                  userProfile,
-                  timeFilter,
-                );
-                employeeDataList.add(employeeData);
-                developer.log(
-                  'Successfully processed employee: ${userProfile.displayName}',
-                );
-              } catch (e) {
-                developer.log('Error processing employee ${userDoc.id}: $e');
-              }
+        QuerySnapshot? lastUsersSnapshot;
+
+        Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
+          developer.log(
+            'Manager Realtime Service: Received snapshot with ${usersSnapshot.docs.length} employees',
+          );
+          final List<EmployeeData> employeeDataList = [];
+
+          for (final userDoc in usersSnapshot.docs) {
+            try {
+              developer.log('Processing employee: ${userDoc.id}');
+              final userProfile = UserProfile.fromFirestore(userDoc);
+              final employeeData = await _buildEmployeeData(
+                userProfile,
+                timeFilter,
+              );
+              employeeDataList.add(employeeData);
+              developer.log(
+                'Successfully processed employee: ${userProfile.displayName}',
+              );
+            } catch (e) {
+              developer.log('Error processing employee ${userDoc.id}: $e');
             }
+          }
 
-            developer.log(
-              'Manager Realtime Service: Built ${employeeDataList.length} employee data objects',
-            );
+          developer.log(
+            'Manager Realtime Service: Built ${employeeDataList.length} employee data objects',
+          );
 
-            // Sort by risk level (at risk and overdue first)
-            employeeDataList.sort((a, b) {
-              final aRisk = _getRiskScore(a);
-              final bRisk = _getRiskScore(b);
-              if (aRisk != bRisk) return bRisk.compareTo(aRisk);
-              return b.totalPoints.compareTo(a.totalPoints);
-            });
+          // Sort by risk level (at risk and overdue first)
+          employeeDataList.sort((a, b) {
+            final aRisk = _getRiskScore(a);
+            final bRisk = _getRiskScore(b);
+            if (aRisk != bRisk) return bRisk.compareTo(aRisk);
+            return b.totalPoints.compareTo(a.totalPoints);
+          });
 
-            controller.add(employeeDataList);
+          controller.add(employeeDataList);
+        }
+
+        final usersSub = query.snapshots().listen(
+          (snapshot) async {
+            lastUsersSnapshot = snapshot;
+            await rebuildAndEmit(snapshot);
           },
           onError: (error) {
             developer.log('Error in team data stream: $error');
@@ -257,8 +273,20 @@ class ManagerRealtimeService {
           },
         );
 
+        final activitiesSub = activitiesQuery.snapshots().listen(
+          (_) async {
+            if (lastUsersSnapshot != null) {
+              await rebuildAndEmit(lastUsersSnapshot!);
+            }
+          },
+          onError: (error) {
+            developer.log('Error in activities stream: $error');
+          },
+        );
+
         controller.onCancel = () {
-          subscription.cancel();
+          usersSub.cancel();
+          activitiesSub.cancel();
         };
       } catch (e) {
         developer.log('Error setting up team data stream: $e');
@@ -540,7 +568,7 @@ class ManagerRealtimeService {
           if (lastActivityTs != null) {
             lastActivity = lastActivityTs.toDate();
           }
-          
+
           // If lastLoginAt is more recent, use that instead
           final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
           if (lastLoginTs != null) {
