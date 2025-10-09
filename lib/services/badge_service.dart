@@ -165,6 +165,19 @@ class BadgeService {
         );
       }
 
+      // Goal Enthusiast: Create 5 goals
+      if (totalGoals >= 5) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_enthusiast_5',
+          'Goal Enthusiast',
+          'Create 5 goals',
+          'track_changes',
+          BadgeCategory.goals,
+          BadgeRarity.common,
+        );
+      }
+
       // Badge 2: Goal Finisher (completed any goals)
       if (completedGoals > 0) {
         await _awardRetroactiveBadge(
@@ -419,6 +432,30 @@ class BadgeService {
             .set(badge.toFirestore());
 
         developer.log('Awarded retroactive badge: $name');
+      } else {
+        // If badge exists but is not earned, mark it as earned
+        final data = badgeDoc.data() ?? {};
+        final isEarned = (data['isEarned'] ?? false) as bool;
+        final progress = (data['progress'] ?? 0) as int;
+        final maxProgress = (data['maxProgress'] ?? 1) as int;
+        if (!isEarned || progress < maxProgress) {
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('badges')
+              .doc(badgeId)
+              .update({
+                'isEarned': true,
+                'progress': maxProgress,
+                'earnedAt': FieldValue.serverTimestamp(),
+                'name': name,
+                'description': description,
+                'iconName': iconName,
+                'category': category.name,
+                'rarity': rarity.name,
+              });
+          developer.log('Updated existing badge to earned: $name');
+        }
       }
     } catch (e) {
       developer.log('Error awarding retroactive badge $badgeId: $e');
