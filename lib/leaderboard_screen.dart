@@ -332,7 +332,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       else ...[
                         _buildPodium(leaderboardData),
                         const SizedBox(height: 20),
-                        _buildLeaderList(leaderboardData),
+                        _buildLeaderList(leaderboardData, isManager: isManager),
                       ],
                     ],
                   ),
@@ -708,7 +708,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
-  Widget _buildLeaderList(List<Map<String, dynamic>> leaderboardData) {
+  Widget _buildLeaderList(
+    List<Map<String, dynamic>> leaderboardData, {
+    bool isManager = false,
+  }) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final topPerformers = leaderboardData.take(5).toList();
     final remainingUsers = leaderboardData.skip(3).toList();
@@ -717,8 +720,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Current user's position (if not in top 3)
-        if (currentUserId != null && _currentUser != null) ...[
+        // Current user's position (hidden for managers)
+        if (!isManager && currentUserId != null && _currentUser != null) ...[
           const Text(
             'Your Position',
             style: TextStyle(

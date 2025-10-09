@@ -6,7 +6,8 @@ import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScre
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
 // Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
-import 'package:pdh/manager_leaderboard_screen.dart'; // Manager-specific leaderboard
+// Removed in favor of employee leaderboard UI for uniformity
+import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
 import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
 import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
@@ -96,7 +97,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
-        return const ManagerLeaderboardScreen();
+        return const LeaderboardScreen();
       case '/repository_audit':
         return const RepositoryAuditScreen();
       case '/settings':
