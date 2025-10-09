@@ -386,10 +386,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   }
 
   String _getLevelRewardText(int level) {
-    if (level >= 20)
+    if (level >= 20) {
       return 'You\'re a true legend! Unlock exclusive features and rewards.';
-    if (level >= 15)
+    }
+    if (level >= 15) {
       return 'Master level achieved! You\'ve unlocked advanced badges.';
+    }
     if (level >= 10) return 'Expert level! New challenges and rewards await.';
     if (level >= 5) return 'Rising star! You\'re making great progress.';
     return 'Keep going! You\'re on the right track.';
@@ -1254,7 +1256,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            'Earned ${_formatDate(badge.earnedAt!)}',
+                                            badge.earnedAt != null
+                                                ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                                : 'Earned just now',
                                             style: AppTypography.bodySmall
                                                 .copyWith(
                                                   color: AppColors.successColor,
@@ -1448,7 +1452,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Earned ${_formatDate(badge.earnedAt!)}',
+                              badge.earnedAt != null
+                                  ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                  : 'Earned just now',
                               style: AppTypography.bodySmall.copyWith(
                                 color: AppColors.successColor,
                                 fontWeight: FontWeight.w600,
@@ -1986,7 +1992,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Earned ${_formatDate(badge.earnedAt!)}',
+                    badge.earnedAt != null
+                        ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                        : 'Earned just now',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.successColor,
                       fontWeight: FontWeight.w600,
