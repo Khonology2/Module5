@@ -48,9 +48,11 @@ class AppComponents {
     Color? iconColor,
     Color? valueColor,
     String? subtitle,
+    VoidCallback? onTap,
   }) {
     return card(
       padding: const EdgeInsets.all(14),
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
@@ -7,6 +8,60 @@ import 'package:pdh/services/streak_service.dart';
 
 class BadgeService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // ===== Real-time tracking =====
+  static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
+  static final Map<String, DateTime> _lastCheckAtByUser = {};
+  static const Duration _throttleDuration = Duration(seconds: 2);
+
+  /// Start real-time tracking for a user's activity to automatically
+  /// evaluate and award badges as they meet criteria.
+  static void startRealtimeTracking(String userId) {
+    if (userId.isEmpty) return;
+    if (_trackingSubsByUser.containsKey(userId)) return; // already tracking
+
+    void maybeCheck() async {
+      final now = DateTime.now();
+      final last = _lastCheckAtByUser[userId];
+      if (last != null && now.difference(last) < _throttleDuration) return;
+      _lastCheckAtByUser[userId] = now;
+      try {
+        await checkAndAwardBadges(userId);
+      } catch (e) {
+        developer.log('Realtime badge check failed: $e');
+      }
+    }
+
+    final goalsSub = _firestore
+        .collection('goals')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .listen((_) => maybeCheck(), onError: (_) {});
+
+    final userDocSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .listen((_) => maybeCheck(), onError: (_) {});
+
+    _trackingSubsByUser[userId] = [goalsSub, userDocSub];
+
+    // Kick off an initial check on start
+    maybeCheck();
+  }
+
+  /// Stop real-time tracking for a user.
+  static void stopRealtimeTracking(String userId) {
+    final subs = _trackingSubsByUser.remove(userId);
+    if (subs != null) {
+      for (final s in subs) {
+        try {
+          s.cancel();
+        } catch (_) {}
+      }
+    }
+    _lastCheckAtByUser.remove(userId);
+  }
 
   // Get all badges for a user with their progress
   static Stream<List<Badge>> getUserBadgesStream(String userId) {

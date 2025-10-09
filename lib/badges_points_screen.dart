@@ -47,6 +47,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   int _previousLevel = 1;
   int _previousPoints = 0;
   List<badge_model.Badge> _newlyEarnedBadges = [];
+  bool _didInitialProfileLoad = false;
 
   @override
   void initState() {
@@ -126,18 +127,24 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         final streak = await StreakService.getCurrentStreak(user.uid);
         final activityToday = await StreakService.hasActivityToday(user.uid);
 
-        // Check for level up
-        if (profile.level > _previousLevel) {
-          _showLevelUpAnimation();
-        }
+        // On first profile load during this screen session, initialize baselines
+        if (!_didInitialProfileLoad) {
+          _previousLevel = profile.level;
+          _previousPoints = profile.totalPoints;
+          _didInitialProfileLoad = true;
+        } else {
+          // Check for level up only after initial baseline
+          if (profile.level > _previousLevel) {
+            _showLevelUpAnimation();
+          }
 
-        // Check for points increase
-        if (profile.totalPoints > _previousPoints) {
-          try {
-            _pointsAnimationController.forward();
-          } catch (e) {
-            // Controller not ready yet, ignore
-            developer.log('Points animation error: $e');
+          // Check for points increase only after initial baseline
+          if (profile.totalPoints > _previousPoints) {
+            try {
+              _pointsAnimationController.forward();
+            } catch (e) {
+              developer.log('Points animation error: $e');
+            }
           }
         }
 
@@ -599,38 +606,36 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         ),
         child: RefreshIndicator(
           onRefresh: _loadData,
-          child: SingleChildScrollView(
+          child: ListView(
             padding: AppSpacing.screenPadding,
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Badges & Points',
-                    style: AppTypography.heading2.copyWith(
-                      color: AppColors.textPrimary,
+            children: [
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Badges & Points',
+                      style: AppTypography.heading2.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildPointsAndLevelCard(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildUserRankCard(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Your Badges'),
-                  _buildBadgesSection(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Leaderboard'),
-                  _buildLeaderboard(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Progress Stats'),
-                  _buildProgressStats(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildRetroactiveUpdateButton(),
-                ],
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildPointsAndLevelCard(),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildUserRankCard(),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildSectionHeader('Your Badges'),
+                    _buildBadgesSection(),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildSectionHeader('Progress Stats'),
+                    _buildProgressStats(),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildRetroactiveUpdateButton(),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -1700,153 +1705,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
-  Widget _buildLeaderboard() {
-    if (leaderboard.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        child: Text(
-          'Loading leaderboard...',
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
-    }
+  // Leaderboard removed
 
-    return Column(
-      children: leaderboard.asMap().entries.map((entry) {
-        final user = entry.value;
-        final currentUser = FirebaseAuth.instance.currentUser;
-        final isYou = currentUser != null && user['userId'] == currentUser.uid;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: _buildLeaderboardEntry(
-            rank: user['rank'],
-            name: isYou ? 'You' : user['name'],
-            points: user['points'],
-            level: user['level'],
-            badges: user['badges'],
-            isYou: isYou,
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildLeaderboardEntry({
-    required int rank,
-    required String name,
-    required int points,
-    required int level,
-    required int badges,
-    required bool isYou,
-  }) {
-    Color rankColor = AppColors.textSecondary;
-    if (rank == 1) rankColor = Color(0xFFFFD700); // Gold
-    if (rank == 2) rankColor = Color(0xFFC0C0C0); // Silver
-    if (rank == 3) rankColor = Color(0xFFCD7F32); // Bronze
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isYou
-            ? AppColors.activeColor.withValues(alpha: 0.1)
-            : AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isYou ? AppColors.activeColor : AppColors.borderColor,
-          width: isYou ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: rankColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: rankColor, width: 2),
-            ),
-            child: Center(
-              child: Text(
-                '$rank',
-                style: AppTypography.bodyLarge.copyWith(
-                  color: rankColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.military_tech,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Level $level',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.workspace_premium,
-                      size: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$badges badges',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatNumber(points),
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                'points',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  // Leaderboard entry removed
 
   // Helper methods
   String _formatNumber(int number) {

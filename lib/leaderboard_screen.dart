@@ -8,7 +8,15 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 
-enum LeaderboardFilter { thisMonth, allTime, points, streaks, myTeam, organization }
+enum LeaderboardFilter {
+  thisMonth,
+  allTime,
+  points,
+  streaks,
+  myTeam,
+  organization,
+}
+
 enum LeaderboardMetric { points, level, badges }
 
 class LeaderboardScreen extends StatefulWidget {
@@ -18,18 +26,35 @@ class LeaderboardScreen extends StatefulWidget {
   State<LeaderboardScreen> createState() => _LeaderboardScreenState();
 }
 
-class _LeaderboardScreenState extends State<LeaderboardScreen> {
+class _LeaderboardScreenState extends State<LeaderboardScreen>
+    with SingleTickerProviderStateMixin {
   // Initialize with concrete values to prevent initialization errors
-  final Set<LeaderboardFilter> _selectedFilters = <LeaderboardFilter>{LeaderboardFilter.thisMonth, LeaderboardFilter.points};
+  final Set<LeaderboardFilter> _selectedFilters = <LeaderboardFilter>{
+    LeaderboardFilter.thisMonth,
+    LeaderboardFilter.points,
+  };
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
   UserProfile? _currentUser;
   bool _isLoading = true;
-  String? _currentRole; // Add this to store the current role
+  late final AnimationController _topHoverController;
+  bool _isTopHovered = false;
 
   @override
   void initState() {
     super.initState();
+    _topHoverController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    // Always float; we'll only boost amplitude on hover
+    _topHoverController.repeat(reverse: true);
     _loadCurrentUser();
+  }
+
+  @override
+  void dispose() {
+    _topHoverController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -76,27 +101,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     });
   }
 
-  String _getOrderByField() {
-    switch (_currentMetric) {
-      case LeaderboardMetric.points:
-        return 'totalPoints';
-      case LeaderboardMetric.level:
-        return 'level';
-      case LeaderboardMetric.badges:
-        return 'badges';
-    }
-  }
+  // Removed unused _getOrderByField to satisfy linter
 
   Query<Map<String, dynamic>> _buildQuery({String? userRole}) {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-        .collection('users');
-        
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
+      'users',
+    );
+
     // For non-managers, we'll filter in the processing step instead of in the query
     // This avoids issues with missing fields in the database
-    final isManager = userRole == 'manager';
-    
+    // Note: role-specific filtering is handled later; no need to store here
+
     // Apply team filter if selected
-    if (_selectedFilters.contains(LeaderboardFilter.myTeam) && _currentUser != null && _currentUser!.department.isNotEmpty) {
+    if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
+        _currentUser != null &&
+        _currentUser!.department.isNotEmpty) {
       query = query.where('department', isEqualTo: _currentUser!.department);
     }
 
@@ -105,10 +124,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return query.limit(100);
   }
 
-  List<Map<String, dynamic>> _processLeaderboardData(List<QueryDocumentSnapshot> docs, {String? userRole}) {
+  List<Map<String, dynamic>> _processLeaderboardData(
+    List<QueryDocumentSnapshot> docs, {
+    String? userRole,
+  }) {
     try {
       developer.log('Processing ${docs.length} documents for leaderboard');
-      
+
       // If no docs, return empty list but don't treat as error
       if (docs.isEmpty) {
         developer.log('No documents to process');
@@ -118,7 +140,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       // Use the role parameter instead of checking filters
       final isManager = userRole == 'manager';
       List<QueryDocumentSnapshot> filteredDocs;
-      
+
       // For managers, show all users regardless of opt-in status
       if (isManager) {
         filteredDocs = docs;
@@ -129,7 +151,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             final data = doc.data() as Map<String, dynamic>?;
             if (data != null) {
               // Check both field names for compatibility and default to false if field doesn't exist
-              final opted = (data['leaderboardParticipation'] == true) || (data['leaderboardOptin'] == true);
+              final opted =
+                  (data['leaderboardParticipation'] == true) ||
+                  (data['leaderboardOptin'] == true);
               return opted;
             }
             return false;
@@ -139,7 +163,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           }
         }).toList();
       }
-      
+
       developer.log('${filteredDocs.length} users to display on leaderboard');
 
       // If no users to display, return empty list
@@ -153,7 +177,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       // Process and sort data with better error handling
       List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        
+
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
@@ -164,11 +188,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         } catch (e) {
           developer.log('Error processing badges for user ${doc.id}: $e');
         }
-        
+
         // Ensure numeric fields have valid defaults
         num points = 0;
         num level = 1;
-        
+
         try {
           if (data['totalPoints'] is num) {
             points = data['totalPoints'] as num;
@@ -176,7 +200,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         } catch (e) {
           developer.log('Error processing points for user ${doc.id}: $e');
         }
-        
+
         try {
           if (data['level'] is num) {
             level = data['level'] as num;
@@ -184,7 +208,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         } catch (e) {
           developer.log('Error processing level for user ${doc.id}: $e');
         }
-        
+
         return {
           'userId': doc.id,
           'name': data['displayName']?.toString() ?? 'Anonymous',
@@ -228,7 +252,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         user['rank'] = index + 1;
         return user;
       }).toList();
-
     } catch (e) {
       developer.log('Error processing leaderboard data: $e');
       return <Map<String, dynamic>>[];
@@ -249,60 +272,69 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 child: CircularProgressIndicator(color: AppColors.activeColor),
               );
             }
-            
+
             final isManager = role == 'manager';
-            _currentRole = role; // Store the role
-          
+
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _buildQuery(userRole: role).snapshots(),
               builder: (context, leaderboardSnapshot) {
-                if (leaderboardSnapshot.connectionState == ConnectionState.waiting) {
+                if (leaderboardSnapshot.connectionState ==
+                    ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: AppColors.activeColor),
+                    child: CircularProgressIndicator(
+                      color: AppColors.activeColor,
+                    ),
                   );
                 }
 
                 if (leaderboardSnapshot.hasError) {
-                  developer.log('Leaderboard error: ${leaderboardSnapshot.error}');
-                  developer.log('Error details: ${leaderboardSnapshot.error.toString()}');
+                  developer.log(
+                    'Leaderboard error: ${leaderboardSnapshot.error}',
+                  );
+                  developer.log(
+                    'Error details: ${leaderboardSnapshot.error.toString()}',
+                  );
                   return _buildErrorState();
                 }
 
                 // Add debugging info
                 if (leaderboardSnapshot.hasData) {
-                  developer.log('Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore');
+                  developer.log(
+                    'Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore',
+                  );
                 }
 
                 List<Map<String, dynamic>> leaderboardData;
                 try {
-                  leaderboardData = leaderboardSnapshot.hasData 
-                      ? _processLeaderboardData(leaderboardSnapshot.data!.docs, userRole: role)
+                  leaderboardData = leaderboardSnapshot.hasData
+                      ? _processLeaderboardData(
+                          leaderboardSnapshot.data!.docs,
+                          userRole: role,
+                        )
                       : <Map<String, dynamic>>[];
                 } catch (e) {
                   developer.log('Error processing leaderboard data: $e');
                   return _buildErrorState();
                 }
 
-                return FocusTraversalGroup(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildHeader(),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 20),
+                      _buildFiltersBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      if (leaderboardData.isEmpty)
+                        _buildEmptyState()
+                      else ...[
+                        _buildPodium(leaderboardData),
                         const SizedBox(height: 20),
-                        _buildFiltersBar(isManager: isManager),
-                        const SizedBox(height: 16),
-                        if (leaderboardData.isEmpty)
-                          _buildEmptyState()
-                        else ...[
-                          _buildPodium(leaderboardData),
-                          const SizedBox(height: 20),
-                          _buildLeaderList(leaderboardData),
-                        ],
+                        _buildLeaderList(leaderboardData),
                       ],
-                    ),
+                    ],
                   ),
                 );
               },
@@ -333,11 +365,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           ),
           Row(
             children: [
-              Icon(
-                Icons.live_tv,
-                color: AppColors.successColor,
-                size: 16,
-              ),
+              Icon(Icons.live_tv, color: AppColors.successColor, size: 16),
               const SizedBox(width: 8),
               Text(
                 'Live',
@@ -362,7 +390,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.activeColor : AppColors.elevatedBackground,
+            color: isSelected
+                ? AppColors.activeColor
+                : AppColors.elevatedBackground,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected ? AppColors.activeColor : AppColors.borderColor,
@@ -371,7 +401,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+              color: isSelected
+                  ? AppColors.textPrimary
+                  : AppColors.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             ),
@@ -402,7 +434,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     chip('Points', LeaderboardFilter.points),
                     chip('Streaks', LeaderboardFilter.streaks),
                     if (isManager) chip('My team', LeaderboardFilter.myTeam),
-                    if (isManager) chip('Organization', LeaderboardFilter.organization),
+                    if (isManager)
+                      chip('Organization', LeaderboardFilter.organization),
                   ],
                 ),
               ),
@@ -416,8 +449,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: Text(
                       'Sort by Points',
                       style: TextStyle(
-                        color: _currentMetric == LeaderboardMetric.points 
-                            ? AppColors.activeColor 
+                        color: _currentMetric == LeaderboardMetric.points
+                            ? AppColors.activeColor
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -427,8 +460,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: Text(
                       'Sort by Level',
                       style: TextStyle(
-                        color: _currentMetric == LeaderboardMetric.level 
-                            ? AppColors.activeColor 
+                        color: _currentMetric == LeaderboardMetric.level
+                            ? AppColors.activeColor
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -438,8 +471,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     child: Text(
                       'Sort by Badges',
                       style: TextStyle(
-                        color: _currentMetric == LeaderboardMetric.badges 
-                            ? AppColors.activeColor 
+                        color: _currentMetric == LeaderboardMetric.badges
+                            ? AppColors.activeColor
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -462,15 +495,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   Widget _buildPodium(List<Map<String, dynamic>> leaderboardData) {
     final topThree = leaderboardData.take(3).toList();
-    
+
     if (topThree.isEmpty) {
       return const SizedBox.shrink();
     }
-    
+
     // Colors for the podium positions
     final colors = [
       const Color(0xFFFFD700), // Gold
-      const Color(0xFFC0C0C0), // Silver  
+      const Color(0xFFC0C0C0), // Silver
       const Color(0xFFCD7F32), // Bronze
     ];
 
@@ -500,122 +533,76 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
           ),
-          
+
           // 2nd place (left)
           if (topThree.length > 1)
             Positioned(
               bottom: 20,
               left: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCard(topThree[1], 1, colors[1], 100),
+              child: _buildPodiumCardWithNumber(
+                user: topThree[1],
+                position: 1,
+                color: colors[1],
+                width: 120,
+                numberText: '2',
+              ),
             ),
-            
+
           // 3rd place (right)
           if (topThree.length > 2)
             Positioned(
               bottom: 20,
               right: MediaQuery.of(context).size.width * 0.2,
-              child: _buildPodiumCard(topThree[2], 2, colors[2], 80),
+              child: _buildPodiumCardWithNumber(
+                user: topThree[2],
+                position: 2,
+                color: colors[2],
+                width: 120,
+                numberText: '3',
+              ),
             ),
-            
-          // 1st place (top center) with floating animation
+
+          // 1st place (top center) with hover-activated continuous floating animation
           if (topThree.isNotEmpty)
             Positioned(
               top: 0,
-              child: TweenAnimationBuilder(
-                tween: Tween<double>(begin: 0, end: 10),
-                duration: const Duration(seconds: 2),
-                curve: Curves.easeInOut,
-                builder: (context, double value, child) {
-                  return Transform.translate(
-                    offset: Offset(0, sin(DateTime.now().millisecondsSinceEpoch / 500) * value),
-                    child: child,
-                  );
-                },
-                child: _buildPodiumCard(topThree[0], 0, colors[0], 120),
-              ),
-            ),
-            
-          // Position numbers
-          Positioned(
-            bottom: 0,
-            left: MediaQuery.of(context).size.width * 0.2,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors[1],
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Text(
-                  '2',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isTopHovered = true),
+                onExit: (_) => setState(() => _isTopHovered = false),
+                child: AnimatedBuilder(
+                  animation: _topHoverController,
+                  builder: (context, child) {
+                    // Always float; boost amplitude when hovered
+                    final double amplitude = _isTopHovered ? 10.0 : 4.0;
+                    final double dy =
+                        sin(_topHoverController.value * pi) * amplitude;
+                    return Transform.translate(
+                      offset: Offset(0, dy),
+                      child: child,
+                    );
+                  },
+                  child: _buildPodiumCardWithNumber(
+                    user: topThree[0],
+                    position: 0,
+                    color: colors[0],
+                    width: 120,
+                    numberText: '1',
                   ),
                 ),
               ),
             ),
-          ),
-          
-          Positioned(
-            bottom: 0,
-            right: MediaQuery.of(context).size.width * 0.2,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors[2],
-                shape: BoxShape.circle,
-              ),
-              child: const Center(
-                child: Text(
-                  '3',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          
-          Positioned(
-            top: 100,
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: colors[0],
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: colors[0].withOpacity(0.5),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Text(
-                  '1',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // Numbers are now rendered under each card, so explicit Positioned badges are removed
         ],
       ),
     );
   }
-  
-  Widget _buildPodiumCard(Map<String, dynamic> user, int position, Color color, double width) {
+
+  Widget _buildPodiumCard(
+    Map<String, dynamic> user,
+    int position,
+    Color color,
+    double width,
+  ) {
     return Container(
       width: width,
       padding: const EdgeInsets.all(12),
@@ -638,8 +625,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             radius: 25,
             backgroundColor: color,
             child: Text(
-              (user['name']?.toString().isNotEmpty == true) 
-                  ? user['name'][0].toString().toUpperCase() 
+              (user['name']?.toString().isNotEmpty == true)
+                  ? user['name'][0].toString().toUpperCase()
                   : '?',
               style: const TextStyle(
                 fontSize: 18,
@@ -658,13 +645,65 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           ),
           Text(
             '${user['points']} pts',
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           Text(
             'Lvl ${user['level']}',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPodiumCardWithNumber({
+    required Map<String, dynamic> user,
+    required int position,
+    required Color color,
+    required double width,
+    required String numberText,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPodiumCard(user, position, color, width),
+        const SizedBox(height: 8),
+        _buildPositionBadge(color: color, text: numberText),
+      ],
+    );
+  }
+
+  Widget _buildPositionBadge({required Color color, required String text}) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 8,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -689,7 +728,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          _buildLeaderboardItem(_getCurrentUserRank(leaderboardData), isCurrentUser: true),
+          _buildLeaderboardItem(
+            _getCurrentUserRank(leaderboardData),
+            isCurrentUser: true,
+          ),
           const SizedBox(height: 20),
         ],
 
@@ -703,7 +745,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         ),
         const SizedBox(height: 10),
         ...topPerformers.map((user) => _buildLeaderboardItem(user)),
-        
+
         if (remainingUsers.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(
@@ -721,7 +763,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     );
   }
 
-  Map<String, dynamic> _getCurrentUserRank(List<Map<String, dynamic>> leaderboardData) {
+  Map<String, dynamic> _getCurrentUserRank(
+    List<Map<String, dynamic>> leaderboardData,
+  ) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null || _currentUser == null) {
       return {};
@@ -744,7 +788,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     return userInLeaderboard;
   }
 
-  Widget _buildLeaderboardItem(Map<String, dynamic> user, {bool isCurrentUser = false}) {
+  Widget _buildLeaderboardItem(
+    Map<String, dynamic> user, {
+    bool isCurrentUser = false,
+  }) {
     if (user.isEmpty) return const SizedBox.shrink();
 
     final rank = user['rank'] ?? 0;
@@ -772,11 +819,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isCurrentUser 
+        color: isCurrentUser
             ? AppColors.activeColor.withValues(alpha: 0.2)
             : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(10),
-        border: isCurrentUser 
+        border: isCurrentUser
             ? Border.all(color: AppColors.activeColor, width: 2)
             : Border.all(color: AppColors.borderColor),
       ),
@@ -802,9 +849,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // Avatar
           CircleAvatar(
             radius: 20,
@@ -818,9 +865,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(width: 12),
-          
+
           // User info
           Expanded(
             child: Column(
@@ -832,7 +879,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       child: Text(
                         name,
                         style: TextStyle(
-                          color: isCurrentUser ? AppColors.activeColor : AppColors.textPrimary,
+                          color: isCurrentUser
+                              ? AppColors.activeColor
+                              : AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
@@ -841,7 +890,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                     if (isCurrentUser)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.activeColor,
                           borderRadius: BorderRadius.circular(8),
@@ -863,10 +915,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   runSpacing: 2,
                   children: [
                     _buildStatChip(Icons.stars, '$points pts', Colors.amber),
-                    _buildStatChip(Icons.military_tech, 'Lvl $level', Colors.blue),
-                    _buildStatChip(Icons.emoji_events, '$badges', Colors.orange),
-                    if (user['department'] != null && user['department'] != 'Unknown')
-                      _buildStatChip(Icons.business, user['department'], AppColors.successColor),
+                    _buildStatChip(
+                      Icons.military_tech,
+                      'Lvl $level',
+                      Colors.blue,
+                    ),
+                    _buildStatChip(
+                      Icons.emoji_events,
+                      '$badges',
+                      Colors.orange,
+                    ),
+                    if (user['department'] != null &&
+                        user['department'] != 'Unknown')
+                      _buildStatChip(
+                        Icons.business,
+                        user['department'],
+                        AppColors.successColor,
+                      ),
                   ],
                 ),
               ],
@@ -914,7 +979,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.trending_up_outlined, color: AppColors.textMuted, size: 48),
+            Icon(
+              Icons.trending_up_outlined,
+              color: AppColors.textMuted,
+              size: 48,
+            ),
             SizedBox(height: 12),
             Text(
               'Leaderboard Coming Soon',
@@ -933,18 +1002,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               decoration: BoxDecoration(
                 color: AppColors.activeColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.activeColor.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.settings, color: AppColors.activeColor, size: 16),
+                      Icon(
+                        Icons.settings,
+                        color: AppColors.activeColor,
+                        size: 16,
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'To Enable:',
-                        style: TextStyle(color: AppColors.activeColor, fontSize: 12, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: AppColors.activeColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
