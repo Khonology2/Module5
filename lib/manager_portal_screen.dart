@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/widgets/sidebar.dart'; // Import ResponsiveSidebar
-import 'package:pdh/dashboard_screen.dart'; // Import DashboardScreen
 import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import ManagerReviewTeamDashboardScreen
+import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
@@ -18,7 +18,6 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 
-
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
 
@@ -27,29 +26,69 @@ class ManagerPortalScreen extends StatefulWidget {
 }
 
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
-  String _currentRoute = '/dashboard'; // Default route for manager
+  String _currentRoute = '/dashboard'; // Default to Dashboard
 
   final List<SidebarItem> _managerSidebarItems = [
-    const SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-           const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
-           const SidebarItem(icon: Icons.work, label: 'Team Workspace', route: '/manager_team_workspace'), // Manager-specific team workspace
-    const SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-    const SidebarItem(icon: Icons.message_outlined, label: 'Team Alerts & Nudges', route: '/manager_alerts_nudges'),
-    const SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points', route: '/badges_points'),
-    const SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/manager_leaderboard'),
-    const SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
-    const SidebarItem(icon: Icons.settings, label: 'Settings & Privacy', route: '/settings'),
-    const SidebarItem(icon: Icons.groups, label: 'Review Team', route: '/manager_review_team_dashboard'),
+    const SidebarItem(
+      icon: Icons.dashboard,
+      label: 'Dashboard',
+      route: '/dashboard',
+    ),
+    const SidebarItem(
+      icon: Icons.person,
+      label: 'Profile & PDP',
+      route: '/my_pdp',
+    ), // Re-using MyPdpScreen for manager profile view
+    const SidebarItem(
+      icon: Icons.work,
+      label: 'Team Workspace',
+      route: '/manager_team_workspace',
+    ), // Manager-specific team workspace
+    const SidebarItem(
+      icon: Icons.bar_chart,
+      label: 'Progress Visuals',
+      route: '/progress_visuals',
+    ),
+    const SidebarItem(
+      icon: Icons.message_outlined,
+      label: 'Team Alerts & Nudges',
+      route: '/manager_alerts_nudges',
+    ),
+    const SidebarItem(
+      icon: Icons.workspace_premium,
+      label: 'Badges & Points',
+      route: '/badges_points',
+    ),
+    const SidebarItem(
+      icon: Icons.leaderboard,
+      label: 'Leaderboard',
+      route: '/manager_leaderboard',
+    ),
+    const SidebarItem(
+      icon: Icons.folder_open,
+      label: 'Repository & Audit',
+      route: '/repository_audit',
+    ),
+    const SidebarItem(
+      icon: Icons.settings,
+      label: 'Settings & Privacy',
+      route: '/settings',
+    ),
+    const SidebarItem(
+      icon: Icons.groups,
+      label: 'Review Team',
+      route: '/manager_review_team_dashboard',
+    ),
   ];
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
-        return const DashboardScreen();
+        return const ManagerDashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
-             case '/manager_team_workspace':
-               return const ManagerTeamWorkspaceScreen(embedded: true);
+      case '/manager_team_workspace':
+        return const ManagerTeamWorkspaceScreen(embedded: true);
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
@@ -65,7 +104,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_review_team_dashboard':
         return const ManagerReviewTeamDashboardScreen();
       default:
-        return const DashboardScreen();
+        return const ManagerDashboardScreen();
     }
   }
 
@@ -80,7 +119,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()), // Use LoginScreen as SignInScreen is deprecated
+      MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+      ), // Use LoginScreen as SignInScreen is deprecated
       (Route<dynamic> route) => false,
     );
   }
@@ -128,19 +169,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                     currentRouteName: _currentRoute,
                     onLogout: _onLogout,
                   ),
-                  Expanded(
-                    child: _getBodyWidget(),
-                  ),
+                  Expanded(child: _getBodyWidget()),
                 ],
               ),
             ),
           ),
           // Profile button positioned in top-right corner
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _buildProfileButton(context),
-          ),
+          Positioned(top: 16, right: 16, child: _buildProfileButton(context)),
         ],
       ),
     );
@@ -158,9 +193,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const ManagerProfileScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
         );
       },
       borderRadius: BorderRadius.circular(20),
@@ -185,6 +218,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       ),
     );
   }
-
 }
-
