@@ -4,21 +4,35 @@ import 'package:pdh/widgets/sidebar.dart';
 /// Standard sidebar configuration for the Personal Development Hub app
 /// Provides consistent navigation items for different user roles
 class SidebarConfig {
-  // Private constructor to prevent instantiation
+  // Private constructor
   SidebarConfig._();
+
+  /// Ensures all icons (image or icon) have consistent size and alignment
+  static Widget sidebarIcon(String assetPath) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: Image.asset(
+          assetPath,
+          width: 54, // Changed from 20 to 24
+          height: 54, // Changed from 20 to 24
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
 
   // ===== EMPLOYEE SIDEBAR ITEMS =====
   static List<SidebarItem> employeeItems = [
     SidebarItem(
-      iconWidget: Image.asset('assets/rokects.png', width: 24.0, height: 24.0),
+      iconWidget: SidebarConfig.sidebarIcon('assets/rokects.png'),
       label: 'Dashboard',
       route: '/employee_dashboard',
     ),
     SidebarItem(
-      iconWidget: Image.asset(
+      iconWidget: SidebarConfig.sidebarIcon(
         'assets/Account_User_Profile/Profile.png',
-        width: 24.0,
-        height: 24.0,
       ),
       label: 'Profile & PDP.',
       route: '/my_pdp',
@@ -68,7 +82,7 @@ class SidebarConfig {
   // ===== MANAGER SIDEBAR ITEMS =====
   static List<SidebarItem> managerItems = [
     SidebarItem(
-      iconWidget: Image.asset('assets/rokects.png', width: 24.0, height: 24.0),
+      iconWidget: SidebarConfig.sidebarIcon('assets/rokects.png'),
       label: 'Dashboard',
       route: '/dashboard',
     ),
@@ -141,7 +155,6 @@ class SidebarConfig {
   ];
 
   // ===== UTILITY METHODS =====
-  /// Get sidebar items based on user role
   static List<SidebarItem> getItemsForRole(String role) {
     switch (role.toLowerCase()) {
       case 'employee':
@@ -151,13 +164,11 @@ class SidebarConfig {
       case 'admin':
         return adminItems;
       default:
-        return employeeItems; // Default to employee items
+        return employeeItems;
     }
   }
 
-  /// Get sidebar items for a specific route
   static List<SidebarItem> getItemsForRoute(String route) {
-    // Determine role based on route
     if (route.startsWith('/manager') || route.startsWith('/dashboard')) {
       return managerItems;
     } else if (route.startsWith('/admin')) {
@@ -167,13 +178,11 @@ class SidebarConfig {
     }
   }
 
-  /// Check if a route is valid for a specific role
   static bool isRouteValidForRole(String route, String role) {
     final items = getItemsForRole(role);
     return items.any((item) => item.route == route);
   }
 
-  /// Get the default route for a specific role
   static String getDefaultRouteForRole(String role) {
     switch (role.toLowerCase()) {
       case 'employee':
@@ -187,9 +196,7 @@ class SidebarConfig {
     }
   }
 
-  /// Get the icon for a specific route
   static Widget? getIconForRoute(String route) {
-    // Check all sidebar configurations
     final allItems = [...employeeItems, ...managerItems, ...adminItems];
     final item = allItems.firstWhere(
       (item) => item.route == route,
@@ -199,13 +206,10 @@ class SidebarConfig {
         route: '/unknown',
       ),
     );
-    return item.iconWidget ??
-        Icon(item.icon!); // Return iconWidget if available, else Icon(icon)
+    return item.iconWidget ?? Icon(item.icon!);
   }
 
-  /// Get the label for a specific route
   static String getLabelForRoute(String route) {
-    // Check all sidebar configurations
     final allItems = [...employeeItems, ...managerItems, ...adminItems];
     final item = allItems.firstWhere(
       (item) => item.route == route,
