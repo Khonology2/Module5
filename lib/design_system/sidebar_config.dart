@@ -8,14 +8,18 @@ class SidebarConfig {
   SidebarConfig._();
 
   // ===== EMPLOYEE SIDEBAR ITEMS =====
-  static const List<SidebarItem> employeeItems = [
+  static List<SidebarItem> employeeItems = [
     SidebarItem(
-      icon: Icons.dashboard,
+      iconWidget: Image.asset('assets/rokects.png', width: 24.0, height: 24.0),
       label: 'Dashboard',
       route: '/employee_dashboard',
     ),
     SidebarItem(
-      icon: Icons.person_outline,
+      iconWidget: Image.asset(
+        'assets/Account_User_Profile/Profile.png',
+        width: 24.0,
+        height: 24.0,
+      ),
       label: 'Profile & PDP.',
       route: '/my_pdp',
     ),
@@ -62,8 +66,12 @@ class SidebarConfig {
   ];
 
   // ===== MANAGER SIDEBAR ITEMS =====
-  static const List<SidebarItem> managerItems = [
-    SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
+  static List<SidebarItem> managerItems = [
+    SidebarItem(
+      iconWidget: Image.asset('assets/rokects.png', width: 24.0, height: 24.0),
+      label: 'Dashboard',
+      route: '/dashboard',
+    ),
     SidebarItem(
       icon: Icons.people_outline,
       label: 'Team Management',
@@ -107,7 +115,7 @@ class SidebarConfig {
   ];
 
   // ===== ADMIN SIDEBAR ITEMS =====
-  static const List<SidebarItem> adminItems = [
+  static List<SidebarItem> adminItems = [
     SidebarItem(
       icon: Icons.admin_panel_settings,
       label: 'Admin Dashboard',
@@ -180,7 +188,7 @@ class SidebarConfig {
   }
 
   /// Get the icon for a specific route
-  static IconData? getIconForRoute(String route) {
+  static Widget? getIconForRoute(String route) {
     // Check all sidebar configurations
     final allItems = [...employeeItems, ...managerItems, ...adminItems];
     final item = allItems.firstWhere(
@@ -191,7 +199,8 @@ class SidebarConfig {
         route: '/unknown',
       ),
     );
-    return item.icon;
+    return item.iconWidget ??
+        Icon(item.icon!); // Return iconWidget if available, else Icon(icon)
   }
 
   /// Get the label for a specific route

@@ -42,7 +42,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    - assets/Account_User Profile/
+    - assets/Account_User_Profile/
     - assets/Approved_Tick/
     - assets/Brand/
     - assets/fonts/poppins/
