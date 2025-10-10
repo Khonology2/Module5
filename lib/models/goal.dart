@@ -99,6 +99,8 @@ class Goal {
       kpa: kpa ?? this.kpa,
     );
   }
+
+  static fromMap(param0) {}
 }
 
 

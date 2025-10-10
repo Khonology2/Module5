@@ -3,8 +3,15 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 
-class ManagerDashboardScreen extends StatelessWidget {
+class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({super.key});
+
+  @override
+  State<ManagerDashboardScreen> createState() => _ManagerDashboardScreenState();
+}
+
+class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
+  final ManagerRealtimeService _realtime = ManagerRealtimeService();
 
   @override
   Widget build(BuildContext context) {
@@ -16,76 +23,54 @@ class ManagerDashboardScreen extends StatelessWidget {
         elevation: 0,
         title: const Text('Manager Dashboard'),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: [Color(0x880A0F1F), Color(0x88040610)],
-                ),
-              ),
-            ),
-          ),
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                kToolbarHeight + 24,
-                16,
-                16,
-              ),
-              child: StreamBuilder<TeamMetrics>(
-                stream: ManagerRealtimeService.getTeamMetricsStream(
-                  timeFilter: TimeFilter.month,
-                ),
-                builder: (context, metricsSnapshot) {
-                  return StreamBuilder<List<EmployeeData>>(
-                    stream: ManagerRealtimeService.getTeamDataStream(
-                      timeFilter: TimeFilter.month,
+      body: StreamBuilder<List<EmployeeData>>(
+        stream: _realtime.employeesStream(),
+        builder: (context, employeesSnap) {
+          if (employeesSnap.hasError) {
+            return Center(
+              child: Text('Error loading employees: ${employeesSnap.error}'),
+            );
+          }
+          if (!employeesSnap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final employees = employeesSnap.data!;
+
+          return StreamBuilder<TeamMetrics?>(
+            stream: _realtime.teamMetricsStream(),
+            builder: (context, metricsSnap) {
+              final metrics = metricsSnap.data;
+
+              return StreamBuilder<List<TeamInsight>>(
+                stream: _realtime.teamInsightsStream(),
+                builder: (context, insightsSnap) {
+                  final insights = insightsSnap.data ?? [];
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildGreetingCard(employees),
+                        const SizedBox(height: 12),
+                        _buildKpis(metrics, employees),
+                        const SizedBox(height: 12),
+                        _buildTeamHealth(metrics, employees),
+                        const SizedBox(height: 12),
+                        _buildActivitySummary(employees),
+                        const SizedBox(height: 12),
+                        _buildTopTwoPerformers(employees),
+                        const SizedBox(height: 12),
+                        _buildInsights(insights),
+                        const SizedBox(height: 24),
+                      ],
                     ),
-                    builder: (context, employeesSnapshot) {
-                      return StreamBuilder<List<TeamInsight>>(
-                        stream: ManagerRealtimeService.getTeamInsightsStream(
-                          timeFilter: TimeFilter.month,
-                        ),
-                        builder: (context, insightsSnapshot) {
-                          return ListView(
-                            children: [
-                              _buildGreetingCard(),
-                              const SizedBox(height: 16),
-                              _buildKpis(
-                                metricsSnapshot.data,
-                                employeesSnapshot.data ?? const [],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildTeamHealth(
-                                metricsSnapshot.data,
-                                employeesSnapshot.data ?? const [],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildActivitySummary(
-                                employeesSnapshot.data ?? const [],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildTopTwoPerformers(
-                                employeesSnapshot.data ?? const [],
-                              ),
-                              const SizedBox(height: 16),
-                              _buildInsights(insightsSnapshot.data ?? const []),
-                            ],
-                          );
-                        },
-                      );
-                    },
                   );
                 },
-              ),
-            ),
-          ),
-        ],
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -94,30 +79,22 @@ class ManagerDashboardScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        // Transparent black background to show background image
+        color: Colors.black.withOpacity(0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: child,
     );
   }
 
   Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
-    // Fallbacks when TeamMetrics hasn't populated yet
+    final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
     final totalEmployees = m?.totalEmployees ?? employees.length;
     final activeEmployees =
         m?.activeEmployees ??
-        employees.where((e) {
-          final now = DateTime.now();
-          final sevenDaysAgo = now.subtract(const Duration(days: 7));
-          return e.lastActivity.isAfter(sevenDaysAgo);
-        }).length;
-    final avgProgress =
-        m?.avgTeamProgress ??
-        (employees.isNotEmpty
-            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
-                  employees.length
-            : 0.0);
+        employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
+    final avgProgress = m?.avgTeamProgress ?? 0.0;
     final engagement =
         m?.teamEngagement ??
         (totalEmployees > 0 ? (activeEmployees / totalEmployees) * 100 : 0.0);
@@ -126,23 +103,21 @@ class ManagerDashboardScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Team KPIs',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text('Team KPIs', style: AppTypography.heading2),
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('Employees', totalEmployees.toString()),
+              _kpi('Total', totalEmployees.toString()),
               const SizedBox(width: 8),
-              _kpi('Active', activeEmployees.toString()),
+              _kpi('Active (7d)', activeEmployees.toString()),
               const SizedBox(width: 8),
               _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
-              const SizedBox(width: 8),
-              _kpi('Engagement', '${engagement.toStringAsFixed(0)}%'),
             ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Engagement: ${engagement.toStringAsFixed(0)}%',
+            style: AppTypography.muted,
           ),
         ],
       ),
@@ -150,37 +125,23 @@ class ManagerDashboardScreen extends StatelessWidget {
   }
 
   Widget _buildTeamHealth(TeamMetrics? m, List<EmployeeData> employees) {
-    // Derive stats if metrics null
-    int onTrack = m?.onTrackGoals ?? 0;
-    int atRisk = m?.atRiskGoals ?? 0;
-    int overdue = m?.overdueGoals ?? 0;
-    double avgProgress =
-        m?.avgTeamProgress ??
-        (employees.isNotEmpty
-            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
-                  employees.length
-            : 0.0);
+    final onTrack = m?.onTrackGoals ?? 0;
+    final atRisk = m?.atRiskGoals ?? 0;
+    final overdue = m?.overdueGoals ?? 0;
 
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Team Health',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text('Team Health', style: AppTypography.heading2),
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('On Track', '$onTrack'),
+              _kpi('On Track', onTrack.toString()),
               const SizedBox(width: 8),
-              _kpi('At Risk', '$atRisk'),
+              _kpi('At Risk', atRisk.toString()),
               const SizedBox(width: 8),
-              _kpi('Overdue', '$overdue'),
-              const SizedBox(width: 8),
-              _kpi('Avg Progress', '${avgProgress.toStringAsFixed(0)}%'),
+              _kpi('Overdue', overdue.toString()),
             ],
           ),
         ],
@@ -193,9 +154,10 @@ class ManagerDashboardScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
+          // Transparent black for KPI tiles to match card styling
+          color: Colors.black.withOpacity(0.3),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.borderColor),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
         ),
         child: Column(
           children: [
@@ -230,20 +192,15 @@ class ManagerDashboardScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Activity Summary',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text('Activity Summary', style: AppTypography.heading2),
           const SizedBox(height: 12),
           Row(
             children: [
-              _kpi('Active Today', '$activeToday'),
+              _kpi('Active Today', activeToday.toString()),
               const SizedBox(width: 8),
-              _kpi('Overdue', '$overdue'),
+              _kpi('Overdue', overdue.toString()),
               const SizedBox(width: 8),
-              _kpi('At Risk', '$atRisk'),
+              _kpi('At Risk', atRisk.toString()),
             ],
           ),
         ],
@@ -256,61 +213,40 @@ class ManagerDashboardScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'AI Team Insights',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text('AI Team Insights', style: AppTypography.heading2),
           const SizedBox(height: 12),
           if (insights.isEmpty)
-            Text('No insights at the moment', style: AppTypography.muted)
+            Text('No insights available', style: AppTypography.muted)
           else
-            ...insights
-                .take(5)
-                .map(
-                  (i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.lightbulb_outline,
-                          color: AppColors.activeColor,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            i.description,
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            ...insights.map(
+              (i) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('• ${i.title}', style: AppTypography.bodyText),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildGreetingCard() {
+  Widget _buildGreetingCard(List<EmployeeData> employees) {
     final greeting = _timeGreeting();
+    final teamSize = employees.length;
     return _card(
       child: Row(
         children: [
-          const Icon(Icons.waving_hand, color: AppColors.activeColor, size: 20),
-          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              greeting,
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(greeting, style: AppTypography.heading1),
+                const SizedBox(height: 4),
+                Text('Team size: $teamSize', style: AppTypography.muted),
+              ],
             ),
           ),
+          // simple avatar or placeholder
+          const CircleAvatar(child: Icon(Icons.person)),
         ],
       ),
     );
@@ -327,79 +263,36 @@ class ManagerDashboardScreen extends StatelessWidget {
     final top = [...employees]
       ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
     final top2 = top.take(2).toList();
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Top 2 Performers',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
+          Text('Top Performers', style: AppTypography.heading2),
           const SizedBox(height: 12),
           if (top2.isEmpty)
-            Text('No performers to show yet', style: AppTypography.muted)
+            Text('No performers yet', style: AppTypography.muted)
           else
-            Column(
-              children: top2
-                  .map(
-                    (e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: AppColors.activeColor,
-                            child: Text(
-                              e.profile.displayName.isNotEmpty
-                                  ? e.profile.displayName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  e.profile.displayName,
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.stars,
-                                      size: 14,
-                                      color: Colors.amber,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${e.totalPoints} pts',
-                                      style: AppTypography.bodySmall.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+            ...top2.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        e.profile.displayName,
+                        style: AppTypography.bodyText,
                       ),
                     ),
-                  )
-                  .toList(),
+                    Text('${e.totalPoints}', style: AppTypography.heading4),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
     );
   }
-
-  // Removed: superseded by _buildTopTwoPerformers
 }

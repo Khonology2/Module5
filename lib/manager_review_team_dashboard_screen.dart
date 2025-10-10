@@ -211,7 +211,7 @@ class _ManagerReviewTeamDashboardScreenState
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1F2840),
+            color: const Color(0x80000000), // transparent black window (50%)
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
@@ -314,14 +314,14 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFC10D00)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<TimeFilter>(
           value: _selectedTimeFilter,
-          dropdownColor: const Color(0xFF1F2840),
+          dropdownColor: const Color(0x80000000),
           icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
           style: const TextStyle(color: Colors.white, fontSize: 12),
           onChanged: (TimeFilter? newValue) {
@@ -363,7 +363,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -511,7 +511,7 @@ class _ManagerReviewTeamDashboardScreenState
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2840),
+          color: const Color(0x80000000),
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Center(
@@ -588,7 +588,7 @@ class _ManagerReviewTeamDashboardScreenState
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2840),
+          color: const Color(0x80000000),
           borderRadius: BorderRadius.circular(10),
           border: employee.status == EmployeeStatus.overdue
               ? Border.all(color: Colors.red.withValues(alpha: 0.5), width: 2)
@@ -786,7 +786,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C3E50),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -813,7 +813,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Center(
@@ -835,7 +835,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Column(
@@ -873,7 +873,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: const Color(0x80000000),
         title: Text(
           'Send Nudge to ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -928,8 +928,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        // Capture dialogContext here
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: const Color(0x80000000),
         title: Text(
           'Schedule 1:1 with ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -1010,8 +1009,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        // Capture dialogContext here
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: const Color(0x80000000),
         title: Text(
           'Give Recognition to ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -1098,7 +1096,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: const Color(0x80000000),
         title: const Text(
           'Full Team Insights',
           style: TextStyle(color: Colors.white),
@@ -1133,7 +1131,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C3E50),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
       ),
@@ -1199,7 +1197,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1239,7 +1237,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
       ),
@@ -1274,7 +1272,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
       ),
@@ -1338,9 +1336,9 @@ class _EmployeeActivityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1931),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2840),
+        backgroundColor: const Color(0x80000000),
         title: Text(
           '${employee.profile.displayName} - Activity',
           style: const TextStyle(color: Colors.white),
@@ -1404,7 +1402,7 @@ class _EmployeeActivityScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -1460,7 +1458,7 @@ class _EmployeeActivityScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(

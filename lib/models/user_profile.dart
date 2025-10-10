@@ -170,6 +170,8 @@ class UserProfile {
       celebrationConsent: celebrationConsent ?? this.celebrationConsent,
     );
   }
+
+  static fromMap(param0, {required id}) {}
 }
 
 
