@@ -525,7 +525,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 border: Border.all(color: AppColors.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(
+                      alpha: (0.1 * 255).toDouble(),
+                    ),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -612,7 +614,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         border: Border.all(color: color, width: 2),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: color.withValues(alpha: (0.3 * 255).toDouble()),
             blurRadius: 8,
             spreadRadius: 1,
           ),
@@ -689,7 +691,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.4),
+            color: color.withValues(alpha: (0.4 * 255).toDouble()),
             blurRadius: 8,
             spreadRadius: 1,
           ),
