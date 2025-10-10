@@ -1,6 +1,8 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
@@ -26,14 +28,32 @@ class EmployeeActivity {
   });
 
   factory EmployeeActivity.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>?;
     return EmployeeActivity(
       activityId: doc.id,
-      userId: data['userId'] ?? '',
-      activityType: data['activityType'] ?? 'unknown',
-      description: data['description'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      metadata: Map<String, dynamic>.from(data['metadata'] ?? {}),
+      userId: (data != null ? data['userId'] : '') ?? '',
+      activityType: (data != null ? data['activityType'] : 'unknown') ?? 'unknown',
+      description: (data != null ? data['description'] : '') ?? '',
+      timestamp: (data != null && data['timestamp'] is Timestamp)
+          ? (data['timestamp'] as Timestamp).toDate()
+          : DateTime.now(),
+      metadata: Map<String, dynamic>.from((data != null ? data['metadata'] : {}) ?? {}),
+    );
+  }
+
+  static EmployeeActivity fromMap(Map<String, dynamic> map) {
+    return EmployeeActivity(
+      activityId: map['activityId'] ?? '',
+      userId: map['userId'] ?? '',
+      activityType: map['activityType'] ?? 'unknown',
+      description: map['description'] ?? '',
+      timestamp: map['timestamp'] is DateTime
+          ? map['timestamp']
+          : (map['timestamp'] is Timestamp
+                ? (map['timestamp'] as Timestamp).toDate()
+                : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
+                      DateTime.now()),
+      metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
     );
   }
 }
@@ -70,6 +90,56 @@ class EmployeeData {
     required this.engagementScore,
     required this.motivationLevel,
   });
+
+  static EmployeeData fromMap(Map<String, dynamic> map, {String? id}) {
+    return EmployeeData(
+      profile: map['profile'] is UserProfile
+          ? map['profile']
+          : UserProfile.fromMap(
+              map['profile'] ?? {},
+              id: map['profile']?['uid'] ?? id,
+            ),
+      goals:
+          ((map['goals'] as List<dynamic>? ?? [])
+                  .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
+                  .toList()
+              as List<Goal>),
+      recentActivities: (map['recentActivities'] as List<dynamic>? ?? [])
+          .map(
+            (a) =>
+                a is EmployeeActivity ? a : EmployeeActivity.fromMap(a ?? {}),
+          )
+          .toList(),
+      recentAlerts: (map['recentAlerts'] as List<dynamic>? ?? [])
+          .map((a) => a is Alert ? a : Alert.fromMap(a ?? {}))
+          .toList()
+          .cast<Alert>(),
+      completedGoalsCount: map['completedGoalsCount'] ?? 0,
+      overdueGoalsCount: map['overdueGoalsCount'] ?? 0,
+      totalPoints: map['totalPoints'] ?? 0,
+      lastActivity: map['lastActivity'] is DateTime
+          ? map['lastActivity']
+          : (map['lastActivity'] is Timestamp
+                ? (map['lastActivity'] as Timestamp).toDate()
+                : DateTime.tryParse(map['lastActivity']?.toString() ?? '') ??
+                      DateTime.now()),
+      avgProgress: (map['avgProgress'] is num)
+          ? (map['avgProgress'] as num).toDouble()
+          : 0.0,
+      streakDays: map['streakDays'] ?? 0,
+      status: map['status'] is EmployeeStatus
+          ? map['status']
+          : EmployeeStatus.values.firstWhere(
+              (e) => e.name == (map['status']?.toString() ?? ''),
+              orElse: () => EmployeeStatus.onTrack,
+            ),
+      weeklyActivityCount: map['weeklyActivityCount'] ?? 0,
+      engagementScore: (map['engagementScore'] is num)
+          ? (map['engagementScore'] as num).toDouble()
+          : 0.0,
+      motivationLevel: map['motivationLevel'] ?? 'Unknown',
+    );
+  }
 }
 
 enum EmployeeStatus { onTrack, atRisk, overdue, inactive }
@@ -90,6 +160,25 @@ class TeamInsight {
     required this.priority,
     required this.createdAt,
   });
+
+  static TeamInsight fromMap(Map<String, dynamic> map, {String? id}) {
+    return TeamInsight(
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      employeeName: map['employeeName'] ?? '',
+      actionRequired: map['actionRequired'] ?? '',
+      priority: InsightPriority.values.firstWhere(
+        (e) => e.name == (map['priority']?.toString()?.toLowerCase() ?? ''),
+        orElse: () => InsightPriority.medium,
+      ),
+      createdAt: map['createdAt'] is DateTime
+          ? map['createdAt']
+          : (map['createdAt'] is Timestamp
+                ? (map['createdAt'] as Timestamp).toDate()
+                : DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+                      DateTime.now()),
+    );
+  }
 }
 
 enum InsightPriority { low, medium, high, urgent }
@@ -177,7 +266,168 @@ class TeamMetrics {
 }
 
 class ManagerRealtimeService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Ensure the app has an authenticated user. Will attempt anonymous sign-in
+  /// if no user exists. Make sure Anonymous Auth is enabled in the Firebase console
+  /// if you want this to work.
+  Future<void> _ensureSignedIn() async {
+    if (_auth.currentUser != null) return;
+    try {
+      await _auth.signInAnonymously();
+      if (kDebugMode)
+        debugPrint('Signed in anonymously: ${_auth.currentUser?.uid}');
+    } on FirebaseAuthException catch (e, st) {
+      if (kDebugMode) debugPrint('Anonymous sign-in failed: $e\n$st');
+      // Let callers handle lack of auth; do not rethrow here to allow UI to show helpful message.
+    }
+  }
+
+  Stream<List<EmployeeData>> employeesStream() async* {
+    await _ensureSignedIn();
+    try {
+      yield* _db.collection('employees').snapshots().map((snap) {
+        return snap.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return EmployeeData.fromMap(
+            data,
+            id: doc.id,
+          ); // adjust factory if needed
+        }).toList();
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode) debugPrint('employeesStream FirebaseException: $e\n$st');
+      // Propagate a clearer error so the UI can show actionable text
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Firestore error (${e.code}). Verify Firestore rules and authentication. ${e.message ?? ''}',
+      );
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('employeesStream unknown error: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Stream<TeamMetrics?> teamMetricsStream() async* {
+    // reuse employeesStream to compute aggregated metrics
+    await _ensureSignedIn();
+    try {
+      yield* employeesStream().map((employees) {
+        if (employees.isEmpty) return null;
+        final now = DateTime.now();
+        final sevenDaysAgo = now.subtract(const Duration(days: 7));
+        final totalEmployees = employees.length;
+        final activeEmployees = employees
+            .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+            .length;
+        final avgProgress = totalEmployees > 0
+            ? employees
+                      .map((e) => (e.avgProgress ?? 0.0))
+                      .fold(0.0, (a, b) => a + b) /
+                  totalEmployees
+            : 0.0;
+        final engagement = totalEmployees > 0
+            ? (activeEmployees / totalEmployees) * 100.0
+            : 0.0;
+        return TeamMetrics(
+          totalEmployees: totalEmployees,
+          activeEmployees: activeEmployees,
+          avgTeamProgress: avgProgress,
+          teamEngagement: engagement,
+          onTrackGoals: employees.fold<int>(
+            0,
+            (acc, e) {
+              // Count goals that are on track for each employee
+              final onTrack = e.goals
+                  .where((g) =>
+                      g.status != GoalStatus.completed &&
+                      g.targetDate.isAfter(DateTime.now()) &&
+                      g.progress >= 30)
+                  .length;
+              return acc + onTrack;
+            },
+          ),
+          atRiskGoals: employees.fold<int>(
+            0,
+            (acc, e) {
+              // Count goals that are at risk for each employee
+              final atRisk = e.goals
+                  .where((g) =>
+                      g.status != GoalStatus.completed &&
+                      g.targetDate.isAfter(DateTime.now()) &&
+                      g.progress < 30)
+                  .length;
+              return acc + atRisk;
+            },
+          ),
+          overdueGoals: employees.fold<int>(
+            0,
+            (acc, e) => acc + (e.overdueGoalsCount),
+          ),
+          totalPointsEarned: employees.fold<int>(
+            0,
+            (acc, e) => acc + (e.totalPoints ?? 0),
+          ),
+          goalsCompleted: employees.fold<int>(
+            0,
+            (acc, e) => acc + (e.completedGoalsCount ?? 0),
+          ),
+          lastUpdated: DateTime.now(),
+        );
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('teamMetricsStream FirebaseException: $e\n$st');
+      }
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Firestore error (${e.code}). Check rules/auth: ${e.message ?? ''}',
+      );
+    }
+  }
+
+  Stream<List<TeamInsight>> teamInsightsStream() async* {
+    await _ensureSignedIn();
+    try {
+      yield* _db.collection('team_insights').snapshots().map((snap) {
+        return snap.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return TeamInsight.fromMap(
+            data,
+            id: doc.id,
+          ); // adjust factory if needed
+        }).toList();
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode)
+        debugPrint('teamInsightsStream FirebaseException: $e\n$st');
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message: 'Firestore error (${e.code}). Ensure rules/auth are correct.',
+      );
+    }
+  }
+
+  /// Convenience single-read for an employee (optional).
+  Future<EmployeeData?> getEmployeeById(String id) async {
+    try {
+      final doc = await _db.collection('employees').doc(id).get();
+      if (!doc.exists) return null;
+      final data = doc.data() as Map<String, dynamic>;
+      return EmployeeData.fromMap(data, id: doc.id);
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('getEmployeeById error: $e\n$st');
+      return null;
+    }
+  }
 
   // Stream real-time team data based on current manager
   static Stream<List<EmployeeData>> getTeamDataStream({

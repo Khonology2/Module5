@@ -150,4 +150,6 @@ class Alert {
       fromUserName: fromUserName ?? this.fromUserName,
     );
   }
+
+  static fromMap(param0) {}
 }
