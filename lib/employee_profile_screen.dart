@@ -1,0 +1,781 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
+import 'package:flutter/material.dart';
+// For ImageFilter
+import 'package:pdh/design_system/app_components.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:image_picker/image_picker.dart'; // Import image_picker
+import 'package:firebase_storage/firebase_storage.dart'; // Import firebase_storage
+// import 'package:pdh/models/user_profile.dart'; // Removed unused import
+
+class EmployeeProfileScreen extends StatefulWidget {
+  const EmployeeProfileScreen({super.key});
+
+  @override
+  State<EmployeeProfileScreen> createState() => _EmployeeProfileScreenState();
+}
+
+class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
+  // Text editing controllers for input fields
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _jobTitleController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
+  final TextEditingController _employeeIdController = TextEditingController(text: 'P-123456'); // Read-only
+  final TextEditingController _workEmailController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
+  final TextEditingController _skillsInputController = TextEditingController();
+  final TextEditingController _developmentInputController = TextEditingController();
+  final TextEditingController _careerAspirationsController = TextEditingController();
+  final TextEditingController _currentProjectsController = TextEditingController();
+  final TextEditingController _shortGoalsController = TextEditingController();
+  final TextEditingController _longGoalsController = TextEditingController();
+  final TextEditingController _badgeNameController = TextEditingController();
+
+  String? _learningStyle;
+  String? _notificationFrequency = 'daily';
+  String? _goalVisibility = 'private';
+  String? _leaderboardOptin = 'no';
+  String? _celebrationConsent = 'private';
+  String? _profilePhotoUrl; // State variable for profile photo URL
+  
+  final List<String> _skills = [];
+  final List<String> _developmentAreas = [];
+  final List<String> _preferredDevActivities = []; // State for checkboxes
+
+  @override
+  void initState() {
+    super.initState();
+    _employeeIdController.text = 'P-123456'; // Set initial read-only value
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // User not logged in
+
+    try {
+      final userProfile = await DatabaseService.getUserProfile(user.uid);
+      setState(() {
+        _fullNameController.text = userProfile.displayName;
+        _jobTitleController.text = userProfile.jobTitle;
+        _departmentController.text = userProfile.department;
+        _workEmailController.text = userProfile.email;
+        _phoneNumberController.text = userProfile.phoneNumber;
+        _skills.addAll(userProfile.skills);
+        _developmentAreas.addAll(userProfile.developmentAreas);
+        _careerAspirationsController.text = userProfile.careerAspirations;
+        _currentProjectsController.text = userProfile.currentProjects;
+        _learningStyle = userProfile.learningStyle.isNotEmpty ? userProfile.learningStyle : null;
+        _preferredDevActivities.addAll(userProfile.preferredDevActivities);
+        _shortGoalsController.text = userProfile.shortGoals;
+        _longGoalsController.text = userProfile.longGoals;
+        _notificationFrequency = userProfile.notificationFrequency;
+        _goalVisibility = userProfile.goalVisibility;
+        _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
+        _badgeNameController.text = userProfile.badgeName;
+        _celebrationConsent = userProfile.celebrationConsent;
+        _profilePhotoUrl = userProfile.profilePhotoUrl; // Load existing photo URL
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load profile: ${e.toString()}')),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _jobTitleController.dispose();
+    _departmentController.dispose();
+    _employeeIdController.dispose();
+    _workEmailController.dispose();
+    _phoneNumberController.dispose();
+    _skillsInputController.dispose();
+    _developmentInputController.dispose();
+    _careerAspirationsController.dispose();
+    _currentProjectsController.dispose();
+    _shortGoalsController.dispose();
+    _longGoalsController.dispose();
+    _badgeNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image == null) return; // User cancelled picking
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to upload a photo.')),
+      );
+      return;
+    }
+
+    try {
+      final String fileName = 'profile_photos/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
+      final UploadTask uploadTask = storageRef.putData(await image.readAsBytes());
+      final TaskSnapshot snapshot = await uploadTask.whenComplete(() {});
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      setState(() {
+        _profilePhotoUrl = downloadUrl;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile photo uploaded successfully!')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload photo: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _showProfileSavedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2C3E50), // Matches dark-card-2
+          title: const Text('Profile Saved', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: const Text('Your profile has been saved successfully!', style: TextStyle(color: Colors.white70)),
+          actions: <Widget>[
+            TextButton(
+              style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)), // Matches primary-red
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _saveProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to save your profile.')),
+      );
+      return;
+    }
+
+    // Fetch the existing user profile to get non-editable fields like totalPoints, level, and badges
+    final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
+
+    try {
+      // ignore: avoid_print
+      print('Saving profile...');
+      await DatabaseService.updateUserProfile(existingUserProfile.copyWith(
+        displayName: _fullNameController.text.trim(),
+        jobTitle: _jobTitleController.text.trim(),
+        department: _departmentController.text.trim(),
+        phoneNumber: _phoneNumberController.text.trim(),
+        profilePhotoUrl: _profilePhotoUrl, // Pass the profile photo URL
+        skills: _skills.toList(),
+        developmentAreas: _developmentAreas.toList(),
+        careerAspirations: _careerAspirationsController.text.trim(),
+        currentProjects: _currentProjectsController.text.trim(),
+        learningStyle: _learningStyle ?? '',
+        preferredDevActivities: _preferredDevActivities.toList(),
+        shortGoals: _shortGoalsController.text.trim(),
+        longGoals: _longGoalsController.text.trim(),
+        notificationFrequency: _notificationFrequency ?? 'daily',
+        goalVisibility: _goalVisibility ?? 'private',
+        leaderboardOptin: _leaderboardOptin == 'yes',
+        badgeName: _badgeNameController.text.trim(),
+        celebrationConsent: _celebrationConsent ?? 'private',
+      ));
+      _showProfileSavedDialog();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save profile: ${e.toString()}')),
+      );
+    }
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(24.0), // Equivalent to 2.5rem padding
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C3E50), // Matches dark-card-2
+        borderRadius: BorderRadius.circular(24.0), // Equivalent to 1.5rem border-radius
+        boxShadow: [
+          BoxShadow(
+            color: Color.fromARGB(51, 0, 0, 0),
+            spreadRadius: 0,
+            blurRadius: 15,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Color.fromARGB(25, 0, 0, 0),
+            spreadRadius: 0,
+            blurRadius: 6,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    );
+  }
+
+  Widget _buildInputLabel(String label) {
+    return Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)); // Equivalent to label class
+  }
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    String? hintText,
+    TextInputType? keyboardType,
+    bool readOnly = false,
+    int maxLines = 1,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Color.fromARGB(13, 255, 255, 255), // bg-white/5
+        borderRadius: BorderRadius.circular(8.0), // rounded-lg
+        border: Border.all(color: Colors.transparent), // border-transparent
+      ),
+      child: TextFormField(
+        controller: controller,
+        readOnly: readOnly,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        style: TextStyle(color: readOnly ? Colors.white54 : Colors.white), // text-white / text-white/50
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(color: Colors.white30), // Adjust hint color
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // px-4 py-2
+          enabledBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(8.0)),
+          focusedBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0), // focus:border-red-600
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  // Custom widget for tags input
+  Widget _buildTagInput({
+    required TextEditingController controller,
+    required List<String> tagsList,
+    required String hintText,
+    required Function(String) onTagAdded,
+    required Function(String) onTagRemoved,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInputField(
+          controller: controller,
+          hintText: hintText,
+          keyboardType: TextInputType.text,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // py-2 px-3
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white12), // border border-gray-700
+            borderRadius: BorderRadius.circular(8), // rounded-lg
+            color: Color.fromARGB(13, 255, 255, 255), // bg-white/5
+          ),
+          constraints: const BoxConstraints(minHeight: 44), // min-h-[44px]
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: tagsList.map((tag) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // px-2 py-1
+                decoration: BoxDecoration(
+                  color: Color.fromARGB(25, 255, 255, 255), // bg-gray-700 equivalent
+                  borderRadius: BorderRadius.circular(9999), // rounded-full
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tag,
+                      style: const TextStyle(color: Color(0xFFC10D00), fontSize: 12), // text-red-600 text-xs
+                    ),
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: () => onTagRemoved(tag),
+                      child: const Icon(
+                        Icons.close,
+                        color: Color(0xFFC10D00), // text-red-400
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+        child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, 16, 16),
+                  child: Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto
+                      constraints: const BoxConstraints(maxWidth: 900), // max-width-900px
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Profile',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30, // 3xl
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8), // mb-2
+                          Text(
+                            'These fields allow you to set up your identity, preferences, and development context.',
+                            style: const TextStyle(color: Colors.white70, fontSize: 16), // text-white/70
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 32), // mb-8 (extra space added for form separation)
+
+                          // Basic Information Section
+                          _buildSectionCard(
+                            children: [
+                              _buildSectionTitle('Basic Information'),
+                              const SizedBox(height: 24), // space-y-6 equivalent
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInputLabel('Full Name'),
+                                  _buildInputField(
+                                    controller: _fullNameController,
+                                    hintText: 'Enter your full name',
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Job Title / Role'),
+                                  _buildInputField(
+                                    controller: _jobTitleController,
+                                    hintText: 'e.g., Software Engineer',
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Department / Team'),
+                                  _buildInputField(
+                                    controller: _departmentController,
+                                    hintText: 'e.g., Engineering - Platform Team',
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Employee ID'),
+                                  _buildInputField(
+                                    controller: _employeeIdController,
+                                    readOnly: true,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Work Email'),
+                                  _buildInputField(
+                                    controller: _workEmailController,
+                                    hintText: 'you@company.com',
+                                    keyboardType: TextInputType.emailAddress,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Phone Number (optional)'),
+                                  _buildInputField(
+                                    controller: _phoneNumberController,
+                                    hintText: 'e.g., +1 (555) 123-4567',
+                                    keyboardType: TextInputType.phone,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 80,
+                                        height: 80,
+                                        decoration: BoxDecoration(
+                                          color: Color.fromARGB(25, 255, 255, 255),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: ClipOval(
+                                          child: _profilePhotoUrl != null
+                                              ? Image.network(
+                                                  _profilePhotoUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white70, size: 40),
+                                                )
+                                              : Image.network(
+                                                  'https://placehold.co/80x80/2C3E50/C10D00?text=P', // Placeholder image
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white70, size: 40), // Fallback icon
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          _buildInputLabel('Profile Photo'),
+                                          const SizedBox(height: 8),
+                                          ElevatedButton(
+                                            onPressed: _pickAndUploadImage,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Color.fromARGB(25, 255, 255, 255), // hover:bg-white/10
+                                              foregroundColor: Colors.white, // text-white/90
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)), // border border-white/20
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // px-4 py-2
+                                            ),
+                                            child: const Text('Upload Photo', style: TextStyle(fontSize: 14)), // text-sm
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 40), // space-y-10 between sections
+
+                          // Development & Skills Context Section
+                          _buildSectionCard(
+                            children: [
+                              _buildSectionTitle('Development & Skills Context'),
+                              const SizedBox(height: 24),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInputLabel('Current Skills / Strengths'),
+                                  _buildTagInput(
+                                    controller: _skillsInputController,
+                                    tagsList: _skills,
+                                    hintText: 'e.g., Python, Project Management',
+                                    onTagAdded: (tag) {
+                                      setState(() {
+                                        _skills.add(tag);
+                                        _skillsInputController.clear();
+                                      });
+                                    },
+                                    onTagRemoved: (tag) {
+                                      setState(() {
+                                        _skills.remove(tag);
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Areas for Development'),
+                                  _buildTagInput(
+                                    controller: _developmentInputController,
+                                    tagsList: _developmentAreas,
+                                    hintText: 'e.g., Machine Learning, Leadership',
+                                    onTagAdded: (tag) {
+                                      setState(() {
+                                        _developmentAreas.add(tag);
+                                        _developmentInputController.clear();
+                                      });
+                                    },
+                                    onTagRemoved: (tag) {
+                                      setState(() {
+                                        _developmentAreas.remove(tag);
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Career Aspirations / Future Role'),
+                                  _buildInputField(
+                                    controller: _careerAspirationsController,
+                                    hintText: 'Describe where you see yourself...',
+                                    maxLines: 3,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Current Projects / Focus Areas (optional)'),
+                                  _buildInputField(
+                                    controller: _currentProjectsController,
+                                    hintText: 'List your current projects...',
+                                    maxLines: 3,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 40),
+
+                          // Goal & Learning Preferences Section
+                          _buildSectionCard(
+                            children: [
+                              _buildSectionTitle('Goal & Learning Preferences'),
+                              const SizedBox(height: 24),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInputLabel('Learning Style'),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Color.fromARGB(13, 255, 255, 255),
+                                      borderRadius: BorderRadius.circular(8.0),
+                                      border: Border.all(color: Colors.transparent),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0), // Match input field padding
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        isExpanded: true,
+                                        value: _learningStyle,
+                                        hint: const Text('Select a style', style: TextStyle(color: Colors.white30)),
+                                        dropdownColor: const Color(0xFF1F2840), // Darker dropdown background
+                                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                                        onChanged: (String? newValue) {
+                                          setState(() {
+                                            _learningStyle = newValue;
+                                          });
+                                        },
+                                        items: <String>['Visual', 'Hands-on', 'Reading', 'Collaborative']
+                                            .map<DropdownMenuItem<String>>((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value.toLowerCase(),
+                                            child: Text(value),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Preferred Development Activities'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildCheckbox('Courses', 'courses'),
+                                      _buildCheckbox('Mentorship', 'mentorship'),
+                                      _buildCheckbox('Projects', 'projects'),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Short-Term Goals (next 3–6 months)'),
+                                  _buildInputField(
+                                    controller: _shortGoalsController,
+                                    hintText: 'Describe your short-term goals...',
+                                    maxLines: 2,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Long-Term Goals (1–3 years)'),
+                                  _buildInputField(
+                                    controller: _longGoalsController,
+                                    hintText: 'Describe your long-term goals...',
+                                    maxLines: 2,
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Notification Preferences'),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Color.fromARGB(13, 255, 255, 255),
+                                      borderRadius: BorderRadius.circular(8.0),
+                                      border: Border.all(color: Colors.transparent),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        isExpanded: true,
+                                        value: _notificationFrequency,
+                                        hint: const Text('Select frequency', style: TextStyle(color: Colors.white30)),
+                                        dropdownColor: const Color(0xFF1F2840),
+                                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                                        onChanged: (String? newValue) {
+                                          setState(() {
+                                            _notificationFrequency = newValue;
+                                          });
+                                        },
+                                        items: <String>['Daily', 'Weekly', 'Monthly', 'None']
+                                            .map<DropdownMenuItem<String>>((String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value.toLowerCase(),
+                                            child: Text(value),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Goal Visibility'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildRadio('Private', 'private', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
+                                      _buildRadio('Manager Only', 'manager', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
+                                      _buildRadio('Team Share', 'team', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 40),
+
+                          // Gamification & Motivation Section
+                          _buildSectionCard(
+                            children: [
+                              _buildSectionTitle('Gamification & Motivation'),
+                              const SizedBox(height: 24),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInputLabel('Opt-in to Leaderboards'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildRadio('Yes', 'yes', _leaderboardOptin, (value) => setState(() => _leaderboardOptin = value)),
+                                      _buildRadio('No', 'no', _leaderboardOptin, (value) => setState(() => _leaderboardOptin = value)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Preferred Badge Display Name'),
+                                  _buildInputField(
+                                    controller: _badgeNameController,
+                                    hintText: 'e.g., Super Coder',
+                                  ),
+                                  const SizedBox(height: 24),
+                                  _buildInputLabel('Celebration Feed Consent'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 16,
+                                    runSpacing: 8,
+                                    children: [
+                                      _buildRadio('Share wins publicly', 'public', _celebrationConsent, (value) => setState(() => _celebrationConsent = value)),
+                                      _buildRadio('Private only', 'private', _celebrationConsent, (value) => setState(() => _celebrationConsent = value)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 40),
+
+                          // Action Buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop(); // Assuming this cancels and goes back
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Color.fromARGB(25, 255, 255, 255),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                                child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed: () {
+                                  _saveProfile();
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFC10D00), // primary-red
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                                child: const Text('Save Profile', style: TextStyle(fontSize: 14)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCheckbox(String title, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Checkbox(
+          value: _preferredDevActivities.contains(value),
+          onChanged: (bool? newValue) {
+            setState(() {
+              if (newValue == true) {
+                _preferredDevActivities.add(value);
+              } else {
+                _preferredDevActivities.remove(value);
+              }
+            });
+          },
+          activeColor: const Color(0xFFC10D00), // text-red-600
+          checkColor: Colors.white,
+        ),
+        Text(title, style: const TextStyle(color: Colors.white70)),
+      ],
+    );
+  }
+
+  Widget _buildRadio(String title, String value, String? groupValue, ValueChanged<String?> onChanged) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Radio<String>(
+          value: value,
+          groupValue: groupValue,
+          onChanged: onChanged,
+          activeColor: const Color(0xFFC10D00), // text-red-600
+        ),
+        Text(title, style: const TextStyle(color: Colors.white70)),
+      ],
+    );
+  }
+}
