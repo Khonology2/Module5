@@ -80,9 +80,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         // Transparent black background to show background image
-        color: Colors.black.withOpacity(0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: child,
     );
@@ -155,9 +155,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           // Transparent black for KPI tiles to match card styling
-          color: Colors.black.withOpacity(0.3),
+          color: Colors.black.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.15)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Column(
           children: [
@@ -178,8 +178,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   Widget _buildActivitySummary(List<EmployeeData> employees) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
     final activeToday = employees
         .where((e) => e.lastActivity.isAfter(today))
+        .length;
+    final activeThisWeek = employees
+        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+        .length;
+    final inactive = employees
+        .where((e) => e.status == EmployeeStatus.inactive)
         .length;
     final overdue = employees
         .where((e) => e.status == EmployeeStatus.overdue)
@@ -198,9 +205,25 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             children: [
               _kpi('Active Today', activeToday.toString()),
               const SizedBox(width: 8),
+              _kpi('Active (7d)', activeThisWeek.toString()),
+              const SizedBox(width: 8),
+              _kpi('Inactive', inactive.toString()),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
               _kpi('Overdue', overdue.toString()),
               const SizedBox(width: 8),
               _kpi('At Risk', atRisk.toString()),
+              const SizedBox(width: 8),
+              _kpi(
+                'On Track',
+                employees
+                    .where((e) => e.status == EmployeeStatus.onTrack)
+                    .length
+                    .toString(),
+              ),
             ],
           ),
         ],
@@ -286,6 +309,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         style: AppTypography.bodyText,
                       ),
                     ),
+                    // Active status indicator
+                    _buildActiveStatusIndicator(e),
+                    const SizedBox(width: 8),
                     Text('${e.totalPoints}', style: AppTypography.heading4),
                   ],
                 ),
@@ -293,6 +319,38 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActiveStatusIndicator(EmployeeData employee) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    bool isActiveToday = employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+
+    Color statusColor;
+    IconData statusIcon;
+    String tooltip;
+
+    if (isActiveToday) {
+      statusColor = Colors.green;
+      statusIcon = Icons.circle;
+      tooltip = 'Active today';
+    } else if (isActiveThisWeek) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.circle;
+      tooltip = 'Active this week';
+    } else {
+      statusColor = Colors.grey;
+      statusIcon = Icons.circle_outlined;
+      tooltip = 'Inactive';
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: Icon(statusIcon, color: statusColor, size: 12),
     );
   }
 }
