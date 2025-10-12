@@ -392,7 +392,7 @@ class _ManagerProgressVisualsContentState
                 value: metrics.totalEmployees.toString(),
                 icon: Icons.people_outline,
                 color: AppColors.activeColor,
-                subtitle: '${metrics.activeEmployees} active',
+                subtitle: '${metrics.activeEmployees} active (7d)',
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -436,17 +436,36 @@ class _ManagerProgressVisualsContentState
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        _buildMetricCard(
-          title: 'Team Engagement',
-          value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
-          icon: Icons.groups,
-          color: metrics.teamEngagement >= 70
-              ? AppColors.successColor
-              : metrics.teamEngagement >= 40
-              ? AppColors.warningColor
-              : AppColors.dangerColor,
-          subtitle: 'Active in last 7 days',
-          fullWidth: true,
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Team Engagement',
+                value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
+                icon: Icons.groups,
+                color: metrics.teamEngagement >= 70
+                    ? AppColors.successColor
+                    : metrics.teamEngagement >= 40
+                    ? AppColors.warningColor
+                    : AppColors.dangerColor,
+                subtitle: 'Active in last 7 days',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Active Status',
+                value: '${metrics.activeEmployees}/${metrics.totalEmployees}',
+                icon: Icons.online_prediction,
+                color: (metrics.activeEmployees / metrics.totalEmployees) >= 0.8
+                    ? AppColors.successColor
+                    : (metrics.activeEmployees / metrics.totalEmployees) >= 0.5
+                    ? AppColors.warningColor
+                    : AppColors.dangerColor,
+                subtitle: 'Currently active',
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -658,6 +677,32 @@ class _ManagerProgressVisualsContentState
         break;
     }
 
+    // Determine active status
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    bool isActiveToday = employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+
+    Color activeStatusColor;
+    IconData activeStatusIcon;
+    String activeStatusText;
+
+    if (isActiveToday) {
+      activeStatusColor = AppColors.successColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active Today';
+    } else if (isActiveThisWeek) {
+      activeStatusColor = AppColors.warningColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active This Week';
+    } else {
+      activeStatusColor = AppColors.textSecondary;
+      activeStatusIcon = Icons.circle_outlined;
+      activeStatusText = 'Inactive';
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -706,27 +751,70 @@ class _ManagerProgressVisualsContentState
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3),
                       ),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: activeStatusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: activeStatusColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          activeStatusIcon,
+                          color: activeStatusColor,
+                          size: 12,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          activeStatusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: activeStatusColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1129,15 +1217,15 @@ class _ManagerProgressVisualsContentState
 
   String _formatLastActivity(DateTime? lastActivity) {
     if (lastActivity == null) return 'Never';
-    
+
     try {
       final now = DateTime.now();
-      
+
       // Check if the date is valid (not in the future or too far in the past)
       if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
         return 'Unknown';
       }
-      
+
       final difference = now.difference(lastActivity);
 
       if (difference.inDays > 7) {

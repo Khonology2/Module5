@@ -16,6 +16,7 @@ import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
+import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 
@@ -45,6 +46,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       label: 'Team Workspace',
       route: '/manager_team_workspace',
     ), // Manager-specific team workspace
+    const SidebarItem(
+      icon: Icons.emoji_events,
+      label: 'Team Challenges & Seasons',
+      route: '/team_challenges_seasons',
+    ), // Team Challenges & Growth Seasons
     const SidebarItem(
       icon: Icons.bar_chart,
       label: 'Progress Visuals',
@@ -90,6 +96,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const MyPdpScreen();
       case '/manager_team_workspace':
         return const ManagerTeamWorkspaceScreen(embedded: true);
+      case '/team_challenges_seasons':
+        return const TeamChallengesSeasonsScreen();
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':

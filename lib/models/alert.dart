@@ -151,5 +151,5 @@ class Alert {
     );
   }
 
-  static fromMap(param0) {}
+  static void fromMap(param0) {}
 }

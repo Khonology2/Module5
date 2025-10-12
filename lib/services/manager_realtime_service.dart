@@ -32,12 +32,15 @@ class EmployeeActivity {
     return EmployeeActivity(
       activityId: doc.id,
       userId: (data != null ? data['userId'] : '') ?? '',
-      activityType: (data != null ? data['activityType'] : 'unknown') ?? 'unknown',
+      activityType:
+          (data != null ? data['activityType'] : 'unknown') ?? 'unknown',
       description: (data != null ? data['description'] : '') ?? '',
       timestamp: (data != null && data['timestamp'] is Timestamp)
           ? (data['timestamp'] as Timestamp).toDate()
           : DateTime.now(),
-      metadata: Map<String, dynamic>.from((data != null ? data['metadata'] : {}) ?? {}),
+      metadata: Map<String, dynamic>.from(
+        (data != null ? data['metadata'] : {}) ?? {},
+      ),
     );
   }
 
@@ -168,7 +171,7 @@ class TeamInsight {
       employeeName: map['employeeName'] ?? '',
       actionRequired: map['actionRequired'] ?? '',
       priority: InsightPriority.values.firstWhere(
-        (e) => e.name == (map['priority']?.toString()?.toLowerCase() ?? ''),
+        (e) => e.name == (map['priority']?.toString().toLowerCase() ?? ''),
         orElse: () => InsightPriority.medium,
       ),
       createdAt: map['createdAt'] is DateTime
@@ -278,8 +281,9 @@ class ManagerRealtimeService {
     if (_auth.currentUser != null) return;
     try {
       await _auth.signInAnonymously();
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('Signed in anonymously: ${_auth.currentUser?.uid}');
+      }
     } on FirebaseAuthException catch (e, st) {
       if (kDebugMode) debugPrint('Anonymous sign-in failed: $e\n$st');
       // Let callers handle lack of auth; do not rethrow here to allow UI to show helpful message.
@@ -291,7 +295,7 @@ class ManagerRealtimeService {
     try {
       yield* _db.collection('employees').snapshots().map((snap) {
         return snap.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
+          final data = doc.data();
           return EmployeeData.fromMap(
             data,
             id: doc.id,
@@ -326,9 +330,7 @@ class ManagerRealtimeService {
             .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
             .length;
         final avgProgress = totalEmployees > 0
-            ? employees
-                      .map((e) => (e.avgProgress ?? 0.0))
-                      .fold(0.0, (a, b) => a + b) /
+            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
                   totalEmployees
             : 0.0;
         final engagement = totalEmployees > 0
@@ -339,43 +341,41 @@ class ManagerRealtimeService {
           activeEmployees: activeEmployees,
           avgTeamProgress: avgProgress,
           teamEngagement: engagement,
-          onTrackGoals: employees.fold<int>(
-            0,
-            (acc, e) {
-              // Count goals that are on track for each employee
-              final onTrack = e.goals
-                  .where((g) =>
+          onTrackGoals: employees.fold<int>(0, (acc, e) {
+            // Count goals that are on track for each employee
+            final onTrack = e.goals
+                .where(
+                  (g) =>
                       g.status != GoalStatus.completed &&
                       g.targetDate.isAfter(DateTime.now()) &&
-                      g.progress >= 30)
-                  .length;
-              return acc + onTrack;
-            },
-          ),
-          atRiskGoals: employees.fold<int>(
-            0,
-            (acc, e) {
-              // Count goals that are at risk for each employee
-              final atRisk = e.goals
-                  .where((g) =>
+                      g.progress >= 30,
+                )
+                .length;
+            return acc + onTrack;
+          }),
+          atRiskGoals: employees.fold<int>(0, (acc, e) {
+            // Count goals that are at risk for each employee
+            final atRisk = e.goals
+                .where(
+                  (g) =>
                       g.status != GoalStatus.completed &&
                       g.targetDate.isAfter(DateTime.now()) &&
-                      g.progress < 30)
-                  .length;
-              return acc + atRisk;
-            },
-          ),
+                      g.progress < 30,
+                )
+                .length;
+            return acc + atRisk;
+          }),
           overdueGoals: employees.fold<int>(
             0,
             (acc, e) => acc + (e.overdueGoalsCount),
           ),
           totalPointsEarned: employees.fold<int>(
             0,
-            (acc, e) => acc + (e.totalPoints ?? 0),
+            (acc, e) => acc + e.totalPoints,
           ),
           goalsCompleted: employees.fold<int>(
             0,
-            (acc, e) => acc + (e.completedGoalsCount ?? 0),
+            (acc, e) => acc + e.completedGoalsCount,
           ),
           lastUpdated: DateTime.now(),
         );
@@ -398,7 +398,7 @@ class ManagerRealtimeService {
     try {
       yield* _db.collection('team_insights').snapshots().map((snap) {
         return snap.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
+          final data = doc.data();
           return TeamInsight.fromMap(
             data,
             id: doc.id,
@@ -406,8 +406,9 @@ class ManagerRealtimeService {
         }).toList();
       });
     } on FirebaseException catch (e, st) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('teamInsightsStream FirebaseException: $e\n$st');
+      }
       throw FirebaseException(
         plugin: e.plugin,
         code: e.code,
@@ -463,14 +464,8 @@ class ManagerRealtimeService {
         developer.log('Manager UID: $currentUser.uid');
         developer.log('Getting all employees (department filtering disabled)');
 
-        Query activitiesQuery = _firestore
-            .collection('activities')
-            .where(
-              'timestamp',
-              isGreaterThan: Timestamp.fromDate(
-                DateTime.now().subtract(const Duration(days: 1)),
-              ),
-            );
+        // Get all activities and filter in memory to avoid composite index
+        Query activitiesQuery = _firestore.collection('activities');
 
         QuerySnapshot? lastUsersSnapshot;
 
@@ -716,14 +711,11 @@ class ManagerRealtimeService {
       final goalsTopLevel = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: profile.uid)
-          .where(
-            'createdAt',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-          )
           .get();
 
       List<Goal> goals = goalsTopLevel.docs
           .map((doc) => Goal.fromFirestore(doc))
+          .where((goal) => goal.createdAt.isAfter(startDate))
           .toList();
 
       if (goals.isEmpty) {
@@ -731,12 +723,11 @@ class ManagerRealtimeService {
             .collection('users')
             .doc(profile.uid)
             .collection('goals')
-            .where(
-              'createdAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-            )
             .get();
-        goals = goalsNested.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+        goals = goalsNested.docs
+            .map((doc) => Goal.fromFirestore(doc))
+            .where((goal) => goal.createdAt.isAfter(startDate))
+            .toList();
       }
 
       // Get all goals for status calculation (top-level first, fallback to nested)
@@ -845,13 +836,23 @@ class ManagerRealtimeService {
         final activityQuery = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
-            .orderBy('timestamp', descending: true)
-            .limit(1)
             .get();
 
         if (activityQuery.docs.isNotEmpty) {
+          // Sort activities by timestamp to get the most recent
+          final sortedActivities = activityQuery.docs.toList()
+            ..sort((a, b) {
+              final aTime =
+                  (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              final bTime =
+                  (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              return bTime.compareTo(aTime);
+            });
+
           lastActivity =
-              (activityQuery.docs.first.data()['timestamp'] as Timestamp?)
+              (sortedActivities.first.data()['timestamp'] as Timestamp?)
                   ?.toDate() ??
               DateTime.now().subtract(const Duration(days: 30));
         }
@@ -860,20 +861,37 @@ class ManagerRealtimeService {
         final streakQuerySnapshot = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
-            .orderBy('timestamp', descending: true)
-            .limit(30) // Check last 30 days
             .get();
+
+        // Sort activities by timestamp and limit to last 30 days
+        final sortedStreakDocs = streakQuerySnapshot.docs.toList()
+          ..sort((a, b) {
+            final aTime =
+                (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime =
+                (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
+
+        // Filter to last 30 days
+        final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+        final recentDocs = sortedStreakDocs.where((doc) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp?)?.toDate();
+          return timestamp != null && timestamp.isAfter(thirtyDaysAgo);
+        }).toList();
 
         // If we have stored streak (>0), keep it; otherwise compute based on activity
         if (streakDays > 0) {
           // keep stored value
         } else {
-          streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
+          streakDays = _calculateStreakDays(recentDocs);
         }
-        activityDocs = streakQuerySnapshot.docs;
+        activityDocs = recentDocs;
 
         // Build recent activities list (limit 10)
-        recentActivities = streakQuerySnapshot.docs
+        recentActivities = recentDocs
             .take(10)
             .map((doc) => EmployeeActivity.fromFirestore(doc))
             .toList();
@@ -1087,6 +1105,30 @@ class ManagerRealtimeService {
     }
   }
 
+  // Helper method to determine if employee is currently active
+  static bool isEmployeeActive(EmployeeData employee, {Duration? threshold}) {
+    final now = DateTime.now();
+    final activeThreshold = threshold ?? const Duration(days: 7);
+    final cutoffTime = now.subtract(activeThreshold);
+
+    return employee.lastActivity.isAfter(cutoffTime);
+  }
+
+  // Helper method to get active status text
+  static String getActiveStatusText(EmployeeData employee) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    if (employee.lastActivity.isAfter(today)) {
+      return 'Active Today';
+    } else if (employee.lastActivity.isAfter(sevenDaysAgo)) {
+      return 'Active This Week';
+    } else {
+      return 'Inactive';
+    }
+  }
+
   // Get start date based on time filter
   static DateTime _getStartDateForFilter(TimeFilter filter) {
     final now = DateTime.now();
@@ -1113,13 +1155,26 @@ class ManagerRealtimeService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      await _firestore.collection('activities').add({
+      final batch = _firestore.batch();
+
+      // Add activity record
+      final activityRef = _firestore.collection('activities').doc();
+      batch.set(activityRef, {
         'userId': employeeId,
         'activityType': activityType,
         'description': description,
         'metadata': metadata ?? {},
         'timestamp': FieldValue.serverTimestamp(),
       });
+
+      // Update user's last activity timestamp
+      final userRef = _firestore.collection('users').doc(employeeId);
+      batch.update(userRef, {
+        'lastActivityAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(), // Also update login time
+      });
+
+      await batch.commit();
 
       developer.log(
         'Recorded activity for employee $employeeId: $activityType',
@@ -1421,18 +1476,19 @@ class ManagerRealtimeService {
 
       Query query = _firestore
           .collection('manager_actions')
-          .where('managerId', isEqualTo: currentUser.uid)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+          .where('managerId', isEqualTo: currentUser.uid);
 
       if (employeeId != null) {
         query = query.where('employeeId', isEqualTo: employeeId);
       }
 
       return query.snapshots().map((snapshot) {
-        return snapshot.docs
+        final actions = snapshot.docs
             .map((doc) => ManagerAction.fromFirestore(doc))
             .toList();
+        // Sort in memory to avoid composite index requirement
+        actions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return actions.take(limit).toList();
       });
     } catch (e) {
       developer.log('Error getting manager actions: $e');
