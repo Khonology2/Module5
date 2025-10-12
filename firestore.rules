@@ -10,15 +10,20 @@ service cloud.firestore {
     }
 
     function isManager() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
     }
 
     function userRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+      return exists(/databases/$(database)/documents/users/$(userId)) ? 
+        get(/databases/$(database)/documents/users/$(userId)).data.role : null;
     }
 
     function sameDepartment(userId) {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department == 
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             exists(/databases/$(database)/documents/users/$(userId)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.department == 
              get(/databases/$(database)/documents/users/$(userId)).data.department;
    }
 
@@ -91,19 +96,6 @@ service cloud.firestore {
       );
     }
 
-    // Repositories: owner access to their completed goals (used by exports and repository views)
-    match /repositories/{userId}/completedGoals/{goalId} {
-      // Owner can read their own repository items
-      allow read: if isSignedIn() && request.auth.uid == userId;
-      // Dev mode: allow owner to write their own repository items (tighten in prod)
-      allow write: if isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Optional: if you store export metadata in Firestore under /exports/{userId}/...
-    match /exports/{userId}/{docId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
-    }
-
     // Activities tracking for managers
     match /activities/{activityId} {
       // Reads allowed to owner, managers, admins
@@ -169,7 +161,47 @@ service cloud.firestore {
         isAdmin()
       );
     }
+
+    // Seasons/Challenges - managers can create and manage seasons
+    match /seasons/{seasonId} {
+      // Allow managers to read seasons they created or are participating in
+      allow read: if isSignedIn() && (
+        resource.data.createdBy == request.auth.uid ||
+        request.auth.uid in resource.data.participantIds ||
+        isAdmin()
+      );
+      
+      // Allow managers to create seasons
+      allow create: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      // Allow managers to update seasons they created
+      allow update: if isSignedIn() && (
+        (isManager() && resource.data.createdBy == request.auth.uid) ||
+        isAdmin()
+      );
+      
+      // Allow managers to delete seasons they created
+      allow delete: if isSignedIn() && (
+        (isManager() && resource.data.createdBy == request.auth.uid) ||
+        isAdmin()
+      );
+    }
+
+    // Badges - users can read their own badges, managers can read employee badges
+    match /badges/{badgeId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
+        isAdmin()
+      );
+    }
   }
 }
-
-
