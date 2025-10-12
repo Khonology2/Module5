@@ -774,7 +774,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${completedMilestones}/$totalMilestones milestones',
+                  '$completedMilestones/$totalMilestones milestones',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
