@@ -78,6 +78,13 @@ class EmployeeDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
+            icon: Icons.emoji_events,
+            text: 'Season Challenges',
+            route: '/season_challenges',
+            isSelected: currentRoute == '/season_challenges',
+          ),
+          _buildDrawerItem(
+            context: context,
             icon: Icons.leaderboard,
             text: 'LeaderBoard.',
             route: '/leaderboard',

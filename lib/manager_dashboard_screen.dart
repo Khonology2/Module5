@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/season_service.dart';
+import 'package:pdh/models/season.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({super.key});
@@ -58,6 +60,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         _buildTeamHealth(metrics, employees),
                         const SizedBox(height: 12),
                         _buildActivitySummary(employees),
+                        const SizedBox(height: 12),
+                        _buildSeasonProgressAlerts(),
                         const SizedBox(height: 12),
                         _buildTopTwoPerformers(employees),
                         const SizedBox(height: 12),
@@ -351,6 +355,210 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return Tooltip(
       message: tooltip,
       child: Icon(statusIcon, color: statusColor, size: 12),
+    );
+  }
+
+  Widget _buildSeasonProgressAlerts() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.emoji_events, color: AppColors.activeColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Season Progress Alerts',
+                style: AppTypography.bodyLarge.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<List<Season>>(
+            stream: SeasonService.getManagerSeasonsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snapshot.hasError || !snapshot.hasData) {
+                return Text(
+                  'No season data available',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                );
+              }
+
+              final seasons = snapshot.data!;
+              final activeSeasons = seasons
+                  .where((s) => s.status == SeasonStatus.active)
+                  .toList();
+
+              if (activeSeasons.isEmpty) {
+                return Text(
+                  'No active seasons',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                );
+              }
+
+              return Column(
+                children: activeSeasons.map((season) {
+                  return _buildSeasonProgressCard(season);
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonProgressCard(Season season) {
+    final completedParticipants = season.participantIds.where((participantId) {
+      final participation = season.participations[participantId];
+      if (participation == null) return false;
+
+      // Check if all milestones are completed
+      int totalMilestones = 0;
+      int completedMilestones = 0;
+
+      for (final challenge in season.challenges) {
+        totalMilestones += challenge.milestones.length;
+        for (final milestone in challenge.milestones) {
+          final milestoneStatus = participation
+              .milestoneProgress['${challenge.id}.${milestone.id}'];
+          if (milestoneStatus == MilestoneStatus.completed) {
+            completedMilestones++;
+          }
+        }
+      }
+
+      return totalMilestones > 0 && completedMilestones == totalMilestones;
+    }).length;
+
+    final totalParticipants = season.participantIds.length;
+    final allCompleted =
+        completedParticipants == totalParticipants && totalParticipants > 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: allCompleted
+            ? AppColors.successColor.withValues(alpha: 0.1)
+            : AppColors.warningColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: allCompleted
+              ? AppColors.successColor.withValues(alpha: 0.3)
+              : AppColors.warningColor.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                allCompleted ? Icons.check_circle : Icons.schedule,
+                color: allCompleted
+                    ? AppColors.successColor
+                    : AppColors.warningColor,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  season.title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (allCompleted)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.successColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'READY',
+                    style: AppTypography.caption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Progress: ',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                '$completedParticipants/$totalParticipants employees completed',
+                style: AppTypography.bodySmall.copyWith(
+                  color: allCompleted
+                      ? AppColors.successColor
+                      : AppColors.warningColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: totalParticipants > 0
+                ? completedParticipants / totalParticipants
+                : 0.0,
+            backgroundColor: AppColors.borderColor,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              allCompleted ? AppColors.successColor : AppColors.warningColor,
+            ),
+            minHeight: 4,
+          ),
+          if (allCompleted) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _completeSeason(season),
+                icon: const Icon(Icons.flag, size: 16),
+                label: const Text('Complete Season'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.successColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _completeSeason(Season season) {
+    Navigator.pushNamed(
+      context,
+      '/season_management',
+      arguments: {'seasonId': season.id},
     );
   }
 }

@@ -587,6 +587,101 @@ class _TeamChallengesSeasonsScreenState
           ),
           const SizedBox(height: AppSpacing.md),
 
+          // Employee Progress Section
+          if (season.participantIds.isNotEmpty) ...[
+            Text(
+              'Employee Progress',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: season.participantIds.length,
+                itemBuilder: (context, index) {
+                  final participantId = season.participantIds[index];
+                  final participation = season.participations[participantId];
+                  if (participation == null) return const SizedBox.shrink();
+
+                  final participantProgress = _calculateParticipantProgress(
+                    participation,
+                    season,
+                  );
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: AppColors.elevatedBackground,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: AppColors.activeColor,
+                          child: Text(
+                            participation.userName.isNotEmpty
+                                ? participation.userName[0].toUpperCase()
+                                : 'E',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                participation.userName,
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              LinearProgressIndicator(
+                                value: participantProgress,
+                                backgroundColor: AppColors.borderColor,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  participantProgress >= 1.0
+                                      ? AppColors.successColor
+                                      : AppColors.activeColor,
+                                ),
+                                minHeight: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          '${(participantProgress * 100).toInt()}%',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: participantProgress >= 1.0
+                                ? AppColors.successColor
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
           // Action buttons
           Row(
             children: [
@@ -795,6 +890,29 @@ class _TeamChallengesSeasonsScreenState
       default:
         return Icons.emoji_events;
     }
+  }
+
+  double _calculateParticipantProgress(
+    SeasonParticipation participation,
+    Season season,
+  ) {
+    if (season.challenges.isEmpty) return 0.0;
+
+    int totalMilestones = 0;
+    int completedMilestones = 0;
+
+    for (final challenge in season.challenges) {
+      totalMilestones += challenge.milestones.length;
+      for (final milestone in challenge.milestones) {
+        final milestoneStatus =
+            participation.milestoneProgress['${challenge.id}.${milestone.id}'];
+        if (milestoneStatus == MilestoneStatus.completed) {
+          completedMilestones++;
+        }
+      }
+    }
+
+    return totalMilestones > 0 ? completedMilestones / totalMilestones : 0.0;
   }
 
   void _viewSeasonDetails(Season season) {
