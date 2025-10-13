@@ -1,10 +1,19 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
+<<<<<<< HEAD
+=======
+import 'dart:async';
+>>>>>>> origin/lihle-manager
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
 
 class StreakService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+<<<<<<< HEAD
+=======
+  static final Map<String, List<StreamSubscription>> _subsByUser = {};
+  static final Map<String, Timer> _midnightTimerByUser = {};
+>>>>>>> origin/lihle-manager
 
   // Record daily activity (goal progress, completion, etc.)
   static Future<void> recordDailyActivity(
@@ -23,6 +32,17 @@ class StreakService {
         }, SetOptions(merge: true));
       } catch (_) {}
 
+<<<<<<< HEAD
+=======
+      // Record in the activities collection for manager visibility
+      await _firestore.collection('activities').add({
+        'userId': userId,
+        'type': activityType,
+        'timestamp': FieldValue.serverTimestamp(),
+        'description': 'User performed $activityType',
+      });
+
+>>>>>>> origin/lihle-manager
       // Check if activity already recorded today
       final existingActivity = await _firestore
           .collection('users')
@@ -147,6 +167,69 @@ class StreakService {
     }
   }
 
+<<<<<<< HEAD
+=======
+  /// Start real-time streak tracking: reacts to activity changes and day rollover
+  static void startRealtimeTracking(String userId) {
+    if (userId.isEmpty) return;
+    if (_subsByUser.containsKey(userId)) return;
+
+    // Listen to most recent daily activity to recompute streak
+    final activitiesSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('daily_activities')
+        .orderBy('date', descending: true)
+        .limit(1)
+        .snapshots()
+        .listen((_) => _updateStreak(userId), onError: (_) {});
+
+    // Also listen to user doc changes that might affect streak display
+    final userDocSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .listen((_) {}, onError: (_) {});
+
+    _subsByUser[userId] = [activitiesSub, userDocSub];
+
+    // Schedule a timer at next midnight to recompute streak across day boundary
+    void scheduleMidnightTimer() {
+      final now = DateTime.now();
+      final nextMidnight = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(const Duration(days: 1));
+      final duration = nextMidnight.difference(now);
+      _midnightTimerByUser[userId]?.cancel();
+      _midnightTimerByUser[userId] = Timer(duration, () async {
+        await _updateStreak(userId);
+        scheduleMidnightTimer();
+      });
+    }
+
+    scheduleMidnightTimer();
+
+    // Kick initial computation
+    _updateStreak(userId);
+  }
+
+  /// Stop real-time streak tracking for a user
+  static void stopRealtimeTracking(String userId) {
+    final subs = _subsByUser.remove(userId);
+    if (subs != null) {
+      for (final s in subs) {
+        try {
+          s.cancel();
+        } catch (_) {}
+      }
+    }
+    _midnightTimerByUser[userId]?.cancel();
+    _midnightTimerByUser.remove(userId);
+  }
+
+>>>>>>> origin/lihle-manager
   static Future<void> _checkStreakMilestones(String userId, int streak) async {
     // Award alerts for streak milestones
     final milestones = [3, 7, 14, 30, 60, 100, 365];

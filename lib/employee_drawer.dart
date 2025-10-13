@@ -78,6 +78,13 @@ class EmployeeDrawer extends StatelessWidget {
           ),
           _buildDrawerItem(
             context: context,
+            icon: Icons.emoji_events,
+            text: 'Season Challenges',
+            route: '/season_challenges',
+            isSelected: currentRoute == '/season_challenges',
+          ),
+          _buildDrawerItem(
+            context: context,
             icon: Icons.leaderboard,
             text: 'LeaderBoard.',
             route: '/leaderboard',
@@ -89,13 +96,6 @@ class EmployeeDrawer extends StatelessWidget {
             text: 'Repository & Audit.',
             route: '/repository_audit',
             isSelected: currentRoute == '/repository_audit',
-          ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.cloud_done_outlined,
-            text: 'Evidence Repository',
-            route: '/evidence_repository',
-            isSelected: currentRoute == '/evidence_repository',
           ),
           _buildDrawerItem(
             context: context,

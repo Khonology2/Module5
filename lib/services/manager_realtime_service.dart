@@ -1,6 +1,11 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+<<<<<<< HEAD
+=======
+import 'package:flutter/foundation.dart';
+
+>>>>>>> origin/lihle-manager
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
@@ -26,6 +31,7 @@ class EmployeeActivity {
   });
 
   factory EmployeeActivity.fromFirestore(DocumentSnapshot doc) {
+<<<<<<< HEAD
     final data = doc.data() as Map<String, dynamic>;
     return EmployeeActivity(
       activityId: doc.id,
@@ -34,6 +40,37 @@ class EmployeeActivity {
       description: data['description'] ?? '',
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       metadata: Map<String, dynamic>.from(data['metadata'] ?? {}),
+=======
+    final data = doc.data() as Map<String, dynamic>?;
+    return EmployeeActivity(
+      activityId: doc.id,
+      userId: (data != null ? data['userId'] : '') ?? '',
+      activityType:
+          (data != null ? data['activityType'] : 'unknown') ?? 'unknown',
+      description: (data != null ? data['description'] : '') ?? '',
+      timestamp: (data != null && data['timestamp'] is Timestamp)
+          ? (data['timestamp'] as Timestamp).toDate()
+          : DateTime.now(),
+      metadata: Map<String, dynamic>.from(
+        (data != null ? data['metadata'] : {}) ?? {},
+      ),
+    );
+  }
+
+  static EmployeeActivity fromMap(Map<String, dynamic> map) {
+    return EmployeeActivity(
+      activityId: map['activityId'] ?? '',
+      userId: map['userId'] ?? '',
+      activityType: map['activityType'] ?? 'unknown',
+      description: map['description'] ?? '',
+      timestamp: map['timestamp'] is DateTime
+          ? map['timestamp']
+          : (map['timestamp'] is Timestamp
+                ? (map['timestamp'] as Timestamp).toDate()
+                : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
+                      DateTime.now()),
+      metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
+>>>>>>> origin/lihle-manager
     );
   }
 }
@@ -70,6 +107,59 @@ class EmployeeData {
     required this.engagementScore,
     required this.motivationLevel,
   });
+<<<<<<< HEAD
+=======
+
+  static EmployeeData fromMap(Map<String, dynamic> map, {String? id}) {
+    return EmployeeData(
+      profile: map['profile'] is UserProfile
+          ? map['profile']
+          : UserProfile.fromMap(
+              map['profile'] ?? {},
+              id: map['profile']?['uid'] ?? id,
+            ),
+      goals:
+          ((map['goals'] as List<dynamic>? ?? [])
+                  .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
+                  .toList()
+              as List<Goal>),
+      recentActivities: (map['recentActivities'] as List<dynamic>? ?? [])
+          .map(
+            (a) =>
+                a is EmployeeActivity ? a : EmployeeActivity.fromMap(a ?? {}),
+          )
+          .toList(),
+      recentAlerts: (map['recentAlerts'] as List<dynamic>? ?? [])
+          .map((a) => a is Alert ? a : Alert.fromMap(a ?? {}))
+          .toList()
+          .cast<Alert>(),
+      completedGoalsCount: map['completedGoalsCount'] ?? 0,
+      overdueGoalsCount: map['overdueGoalsCount'] ?? 0,
+      totalPoints: map['totalPoints'] ?? 0,
+      lastActivity: map['lastActivity'] is DateTime
+          ? map['lastActivity']
+          : (map['lastActivity'] is Timestamp
+                ? (map['lastActivity'] as Timestamp).toDate()
+                : DateTime.tryParse(map['lastActivity']?.toString() ?? '') ??
+                      DateTime.now()),
+      avgProgress: (map['avgProgress'] is num)
+          ? (map['avgProgress'] as num).toDouble()
+          : 0.0,
+      streakDays: map['streakDays'] ?? 0,
+      status: map['status'] is EmployeeStatus
+          ? map['status']
+          : EmployeeStatus.values.firstWhere(
+              (e) => e.name == (map['status']?.toString() ?? ''),
+              orElse: () => EmployeeStatus.onTrack,
+            ),
+      weeklyActivityCount: map['weeklyActivityCount'] ?? 0,
+      engagementScore: (map['engagementScore'] is num)
+          ? (map['engagementScore'] as num).toDouble()
+          : 0.0,
+      motivationLevel: map['motivationLevel'] ?? 'Unknown',
+    );
+  }
+>>>>>>> origin/lihle-manager
 }
 
 enum EmployeeStatus { onTrack, atRisk, overdue, inactive }
@@ -90,6 +180,28 @@ class TeamInsight {
     required this.priority,
     required this.createdAt,
   });
+<<<<<<< HEAD
+=======
+
+  static TeamInsight fromMap(Map<String, dynamic> map, {String? id}) {
+    return TeamInsight(
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      employeeName: map['employeeName'] ?? '',
+      actionRequired: map['actionRequired'] ?? '',
+      priority: InsightPriority.values.firstWhere(
+        (e) => e.name == (map['priority']?.toString().toLowerCase() ?? ''),
+        orElse: () => InsightPriority.medium,
+      ),
+      createdAt: map['createdAt'] is DateTime
+          ? map['createdAt']
+          : (map['createdAt'] is Timestamp
+                ? (map['createdAt'] as Timestamp).toDate()
+                : DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+                      DateTime.now()),
+    );
+  }
+>>>>>>> origin/lihle-manager
 }
 
 enum InsightPriority { low, medium, high, urgent }
@@ -177,8 +289,172 @@ class TeamMetrics {
 }
 
 class ManagerRealtimeService {
+<<<<<<< HEAD
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+=======
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Ensure the app has an authenticated user. Will attempt anonymous sign-in
+  /// if no user exists. Make sure Anonymous Auth is enabled in the Firebase console
+  /// if you want this to work.
+  Future<void> _ensureSignedIn() async {
+    if (_auth.currentUser != null) return;
+    try {
+      await _auth.signInAnonymously();
+      if (kDebugMode) {
+        debugPrint('Signed in anonymously: ${_auth.currentUser?.uid}');
+      }
+    } on FirebaseAuthException catch (e, st) {
+      if (kDebugMode) debugPrint('Anonymous sign-in failed: $e\n$st');
+      // Let callers handle lack of auth; do not rethrow here to allow UI to show helpful message.
+    }
+  }
+
+  Stream<List<EmployeeData>> employeesStream() async* {
+    await _ensureSignedIn();
+    try {
+      yield* _db.collection('employees').snapshots().map((snap) {
+        return snap.docs.map((doc) {
+          final data = doc.data();
+          return EmployeeData.fromMap(
+            data,
+            id: doc.id,
+          ); // adjust factory if needed
+        }).toList();
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode) debugPrint('employeesStream FirebaseException: $e\n$st');
+      // Propagate a clearer error so the UI can show actionable text
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Firestore error (${e.code}). Verify Firestore rules and authentication. ${e.message ?? ''}',
+      );
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('employeesStream unknown error: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Stream<TeamMetrics?> teamMetricsStream() async* {
+    // reuse employeesStream to compute aggregated metrics
+    await _ensureSignedIn();
+    try {
+      yield* employeesStream().map((employees) {
+        if (employees.isEmpty) return null;
+        final now = DateTime.now();
+        final sevenDaysAgo = now.subtract(const Duration(days: 7));
+        final totalEmployees = employees.length;
+        final activeEmployees = employees
+            .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+            .length;
+        final avgProgress = totalEmployees > 0
+            ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
+                  totalEmployees
+            : 0.0;
+        final engagement = totalEmployees > 0
+            ? (activeEmployees / totalEmployees) * 100.0
+            : 0.0;
+        return TeamMetrics(
+          totalEmployees: totalEmployees,
+          activeEmployees: activeEmployees,
+          avgTeamProgress: avgProgress,
+          teamEngagement: engagement,
+          onTrackGoals: employees.fold<int>(0, (acc, e) {
+            // Count goals that are on track for each employee
+            final onTrack = e.goals
+                .where(
+                  (g) =>
+                      g.status != GoalStatus.completed &&
+                      g.targetDate.isAfter(DateTime.now()) &&
+                      g.progress >= 30,
+                )
+                .length;
+            return acc + onTrack;
+          }),
+          atRiskGoals: employees.fold<int>(0, (acc, e) {
+            // Count goals that are at risk for each employee
+            final atRisk = e.goals
+                .where(
+                  (g) =>
+                      g.status != GoalStatus.completed &&
+                      g.targetDate.isAfter(DateTime.now()) &&
+                      g.progress < 30,
+                )
+                .length;
+            return acc + atRisk;
+          }),
+          overdueGoals: employees.fold<int>(
+            0,
+            (acc, e) => acc + (e.overdueGoalsCount),
+          ),
+          totalPointsEarned: employees.fold<int>(
+            0,
+            (acc, e) => acc + e.totalPoints,
+          ),
+          goalsCompleted: employees.fold<int>(
+            0,
+            (acc, e) => acc + e.completedGoalsCount,
+          ),
+          lastUpdated: DateTime.now(),
+        );
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('teamMetricsStream FirebaseException: $e\n$st');
+      }
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Firestore error (${e.code}). Check rules/auth: ${e.message ?? ''}',
+      );
+    }
+  }
+
+  Stream<List<TeamInsight>> teamInsightsStream() async* {
+    await _ensureSignedIn();
+    try {
+      yield* _db.collection('team_insights').snapshots().map((snap) {
+        return snap.docs.map((doc) {
+          final data = doc.data();
+          return TeamInsight.fromMap(
+            data,
+            id: doc.id,
+          ); // adjust factory if needed
+        }).toList();
+      });
+    } on FirebaseException catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('teamInsightsStream FirebaseException: $e\n$st');
+      }
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message: 'Firestore error (${e.code}). Ensure rules/auth are correct.',
+      );
+    }
+  }
+
+  /// Convenience single-read for an employee (optional).
+  Future<EmployeeData?> getEmployeeById(String id) async {
+    try {
+      final doc = await _db.collection('employees').doc(id).get();
+      if (!doc.exists) return null;
+      final data = doc.data() as Map<String, dynamic>;
+      return EmployeeData.fromMap(data, id: doc.id);
+    } catch (e, st) {
+      if (kDebugMode) debugPrint('getEmployeeById error: $e\n$st');
+      return null;
+    }
+  }
+
+>>>>>>> origin/lihle-manager
   // Stream real-time team data based on current manager
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -202,10 +478,17 @@ class ManagerRealtimeService {
           targetDepartment = managerDoc.data()?['department'] as String?;
         }
 
+<<<<<<< HEAD
+=======
+        // For now, get all employees regardless of department
+        // This allows managers to see all employees in the system
+        // The Firestore rules will handle security
+>>>>>>> origin/lihle-manager
         Query query = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
 
+<<<<<<< HEAD
         if (targetDepartment != null && targetDepartment.isNotEmpty) {
           query = query.where('department', isEqualTo: targetDepartment);
         } else if (targetDepartment != null && targetDepartment.isEmpty) {
@@ -254,6 +537,59 @@ class ManagerRealtimeService {
             });
 
             controller.add(employeeDataList);
+=======
+        developer.log('Manager Realtime Service: Setting up stream');
+        developer.log('Manager UID: $currentUser.uid');
+        developer.log('Getting all employees (department filtering disabled)');
+
+        // Get all activities and filter in memory to avoid composite index
+        Query activitiesQuery = _firestore.collection('activities');
+
+        QuerySnapshot? lastUsersSnapshot;
+
+        Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
+          developer.log(
+            'Manager Realtime Service: Received snapshot with ${usersSnapshot.docs.length} employees',
+          );
+          final List<EmployeeData> employeeDataList = [];
+
+          for (final userDoc in usersSnapshot.docs) {
+            try {
+              developer.log('Processing employee: ${userDoc.id}');
+              final userProfile = UserProfile.fromFirestore(userDoc);
+              final employeeData = await _buildEmployeeData(
+                userProfile,
+                timeFilter,
+              );
+              employeeDataList.add(employeeData);
+              developer.log(
+                'Successfully processed employee: ${userProfile.displayName}',
+              );
+            } catch (e) {
+              developer.log('Error processing employee ${userDoc.id}: $e');
+            }
+          }
+
+          developer.log(
+            'Manager Realtime Service: Built ${employeeDataList.length} employee data objects',
+          );
+
+          // Sort by risk level (at risk and overdue first)
+          employeeDataList.sort((a, b) {
+            final aRisk = _getRiskScore(a);
+            final bRisk = _getRiskScore(b);
+            if (aRisk != bRisk) return bRisk.compareTo(aRisk);
+            return b.totalPoints.compareTo(a.totalPoints);
+          });
+
+          controller.add(employeeDataList);
+        }
+
+        final usersSub = query.snapshots().listen(
+          (snapshot) async {
+            lastUsersSnapshot = snapshot;
+            await rebuildAndEmit(snapshot);
+>>>>>>> origin/lihle-manager
           },
           onError: (error) {
             developer.log('Error in team data stream: $error');
@@ -261,8 +597,25 @@ class ManagerRealtimeService {
           },
         );
 
+<<<<<<< HEAD
         controller.onCancel = () {
           subscription.cancel();
+=======
+        final activitiesSub = activitiesQuery.snapshots().listen(
+          (_) async {
+            if (lastUsersSnapshot != null) {
+              await rebuildAndEmit(lastUsersSnapshot!);
+            }
+          },
+          onError: (error) {
+            developer.log('Error in activities stream: $error');
+          },
+        );
+
+        controller.onCancel = () {
+          usersSub.cancel();
+          activitiesSub.cancel();
+>>>>>>> origin/lihle-manager
         };
       } catch (e) {
         developer.log('Error setting up team data stream: $e');
@@ -442,14 +795,21 @@ class ManagerRealtimeService {
       final goalsTopLevel = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: profile.uid)
+<<<<<<< HEAD
           .where(
             'createdAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
           )
+=======
+>>>>>>> origin/lihle-manager
           .get();
 
       List<Goal> goals = goalsTopLevel.docs
           .map((doc) => Goal.fromFirestore(doc))
+<<<<<<< HEAD
+=======
+          .where((goal) => goal.createdAt.isAfter(startDate))
+>>>>>>> origin/lihle-manager
           .toList();
 
       if (goals.isEmpty) {
@@ -457,12 +817,20 @@ class ManagerRealtimeService {
             .collection('users')
             .doc(profile.uid)
             .collection('goals')
+<<<<<<< HEAD
             .where(
               'createdAt',
               isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
             )
             .get();
         goals = goalsNested.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+=======
+            .get();
+        goals = goalsNested.docs
+            .map((doc) => Goal.fromFirestore(doc))
+            .where((goal) => goal.createdAt.isAfter(startDate))
+            .toList();
+>>>>>>> origin/lihle-manager
       }
 
       // Get all goals for status calculation (top-level first, fallback to nested)
@@ -514,7 +882,11 @@ class ManagerRealtimeService {
       List<EmployeeActivity> recentActivities = const [];
 
       try {
+<<<<<<< HEAD
         // Pull lastLoginAt from user profile
+=======
+        // Pull lastLoginAt and lastActivityAt from user profile
+>>>>>>> origin/lihle-manager
         try {
           final userDoc = await _firestore
               .collection('users')
@@ -538,9 +910,26 @@ class ManagerRealtimeService {
           if (storedMotivation is String && storedMotivation.isNotEmpty) {
             motivationLevel = storedMotivation;
           }
+<<<<<<< HEAD
           final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
           if (lastLoginTs != null) {
             final lastLogin = lastLoginTs.toDate();
+=======
+
+          // Check for lastActivityAt timestamp (from goal updates)
+          final lastActivityTs = data?['lastActivityAt'] as Timestamp?;
+          if (lastActivityTs != null) {
+            lastActivity = lastActivityTs.toDate();
+          }
+
+          // If lastLoginAt is more recent, use that instead
+          final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
+          if (lastLoginTs != null) {
+            final lastLogin = lastLoginTs.toDate();
+            if (lastLogin.isAfter(lastActivity)) {
+              lastActivity = lastLogin;
+            }
+>>>>>>> origin/lihle-manager
             // If no login today, enforce streak = 0 later by passing empty docs
             final now = DateTime.now();
             final todayOnly = DateTime(now.year, now.month, now.day);
@@ -560,6 +949,7 @@ class ManagerRealtimeService {
         final activityQuery = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
+<<<<<<< HEAD
             .orderBy('timestamp', descending: true)
             .limit(1)
             .get();
@@ -567,6 +957,25 @@ class ManagerRealtimeService {
         if (activityQuery.docs.isNotEmpty) {
           lastActivity =
               (activityQuery.docs.first.data()['timestamp'] as Timestamp?)
+=======
+            .get();
+
+        if (activityQuery.docs.isNotEmpty) {
+          // Sort activities by timestamp to get the most recent
+          final sortedActivities = activityQuery.docs.toList()
+            ..sort((a, b) {
+              final aTime =
+                  (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              final bTime =
+                  (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+                  DateTime.fromMillisecondsSinceEpoch(0);
+              return bTime.compareTo(aTime);
+            });
+
+          lastActivity =
+              (sortedActivities.first.data()['timestamp'] as Timestamp?)
+>>>>>>> origin/lihle-manager
                   ?.toDate() ??
               DateTime.now().subtract(const Duration(days: 30));
         }
@@ -575,20 +984,53 @@ class ManagerRealtimeService {
         final streakQuerySnapshot = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
+<<<<<<< HEAD
             .orderBy('timestamp', descending: true)
             .limit(30) // Check last 30 days
             .get();
 
+=======
+            .get();
+
+        // Sort activities by timestamp and limit to last 30 days
+        final sortedStreakDocs = streakQuerySnapshot.docs.toList()
+          ..sort((a, b) {
+            final aTime =
+                (a.data()['timestamp'] as Timestamp?)?.toDate() ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime =
+                (b.data()['timestamp'] as Timestamp?)?.toDate() ??
+                DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          });
+
+        // Filter to last 30 days
+        final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+        final recentDocs = sortedStreakDocs.where((doc) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp?)?.toDate();
+          return timestamp != null && timestamp.isAfter(thirtyDaysAgo);
+        }).toList();
+
+>>>>>>> origin/lihle-manager
         // If we have stored streak (>0), keep it; otherwise compute based on activity
         if (streakDays > 0) {
           // keep stored value
         } else {
+<<<<<<< HEAD
           streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
         }
         activityDocs = streakQuerySnapshot.docs;
 
         // Build recent activities list (limit 10)
         recentActivities = streakQuerySnapshot.docs
+=======
+          streakDays = _calculateStreakDays(recentDocs);
+        }
+        activityDocs = recentDocs;
+
+        // Build recent activities list (limit 10)
+        recentActivities = recentDocs
+>>>>>>> origin/lihle-manager
             .take(10)
             .map((doc) => EmployeeActivity.fromFirestore(doc))
             .toList();
@@ -620,6 +1062,18 @@ class ManagerRealtimeService {
       // Determine status
       final status = _determineEmployeeStatus(allGoals, lastActivity);
 
+<<<<<<< HEAD
+=======
+      developer.log(
+        'Manager Realtime Service: Built employee data for ${profile.displayName}',
+      );
+      developer.log(
+        '  - Goals: ${goals.length} (completed: $completedGoals, overdue: $overdueGoals)',
+      );
+      developer.log('  - Status: $status');
+      developer.log('  - Last activity: $lastActivity');
+
+>>>>>>> origin/lihle-manager
       return EmployeeData(
         profile: profile,
         goals: goals,
@@ -793,6 +1247,33 @@ class ManagerRealtimeService {
     }
   }
 
+<<<<<<< HEAD
+=======
+  // Helper method to determine if employee is currently active
+  static bool isEmployeeActive(EmployeeData employee, {Duration? threshold}) {
+    final now = DateTime.now();
+    final activeThreshold = threshold ?? const Duration(days: 7);
+    final cutoffTime = now.subtract(activeThreshold);
+
+    return employee.lastActivity.isAfter(cutoffTime);
+  }
+
+  // Helper method to get active status text
+  static String getActiveStatusText(EmployeeData employee) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    if (employee.lastActivity.isAfter(today)) {
+      return 'Active Today';
+    } else if (employee.lastActivity.isAfter(sevenDaysAgo)) {
+      return 'Active This Week';
+    } else {
+      return 'Inactive';
+    }
+  }
+
+>>>>>>> origin/lihle-manager
   // Get start date based on time filter
   static DateTime _getStartDateForFilter(TimeFilter filter) {
     final now = DateTime.now();
@@ -819,7 +1300,15 @@ class ManagerRealtimeService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
+<<<<<<< HEAD
       await _firestore.collection('activities').add({
+=======
+      final batch = _firestore.batch();
+
+      // Add activity record
+      final activityRef = _firestore.collection('activities').doc();
+      batch.set(activityRef, {
+>>>>>>> origin/lihle-manager
         'userId': employeeId,
         'activityType': activityType,
         'description': description,
@@ -827,6 +1316,18 @@ class ManagerRealtimeService {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+<<<<<<< HEAD
+=======
+      // Update user's last activity timestamp
+      final userRef = _firestore.collection('users').doc(employeeId);
+      batch.update(userRef, {
+        'lastActivityAt': FieldValue.serverTimestamp(),
+        'lastLoginAt': FieldValue.serverTimestamp(), // Also update login time
+      });
+
+      await batch.commit();
+
+>>>>>>> origin/lihle-manager
       developer.log(
         'Recorded activity for employee $employeeId: $activityType',
       );
@@ -1127,18 +1628,31 @@ class ManagerRealtimeService {
 
       Query query = _firestore
           .collection('manager_actions')
+<<<<<<< HEAD
           .where('managerId', isEqualTo: currentUser.uid)
           .orderBy('createdAt', descending: true)
           .limit(limit);
+=======
+          .where('managerId', isEqualTo: currentUser.uid);
+>>>>>>> origin/lihle-manager
 
       if (employeeId != null) {
         query = query.where('employeeId', isEqualTo: employeeId);
       }
 
       return query.snapshots().map((snapshot) {
+<<<<<<< HEAD
         return snapshot.docs
             .map((doc) => ManagerAction.fromFirestore(doc))
             .toList();
+=======
+        final actions = snapshot.docs
+            .map((doc) => ManagerAction.fromFirestore(doc))
+            .toList();
+        // Sort in memory to avoid composite index requirement
+        actions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return actions.take(limit).toList();
+>>>>>>> origin/lihle-manager
       });
     } catch (e) {
       developer.log('Error getting manager actions: $e');
