@@ -4,7 +4,6 @@ import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import Manage
 import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
-import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
 // Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
 // Removed in favor of employee leaderboard UI for uniformity
 import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
@@ -41,11 +40,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       label: 'Profile & PDP',
       route: '/my_pdp',
     ), // Re-using MyPdpScreen for manager profile view
-    const SidebarItem(
-      icon: Icons.work,
-      label: 'Team Workspace',
-      route: '/manager_team_workspace',
-    ), // Manager-specific team workspace
+    
     const SidebarItem(
       icon: Icons.emoji_events,
       label: 'Team Challenges & Seasons',
@@ -94,8 +89,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerDashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
-      case '/manager_team_workspace':
-        return const ManagerTeamWorkspaceScreen(embedded: true);
       case '/team_challenges_seasons':
         return const TeamChallengesSeasonsScreen();
       case '/progress_visuals':

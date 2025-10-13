@@ -4,7 +4,7 @@ enum GoalCategory { personal, work, health, learning }
 
 enum GoalPriority { low, medium, high }
 
-enum GoalStatus { notStarted, inProgress, completed }
+enum GoalStatus { notStarted, inProgress, completed, paused, burnout }
 
 class Goal {
   final String id;
@@ -60,7 +60,11 @@ class Goal {
                 // tolerate common alternative spellings/cases
                 (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
                 (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
-        orElse: () => GoalStatus.notStarted,
+        orElse: () => rawStatus == 'paused'
+            ? GoalStatus.paused
+            : rawStatus == 'burnout'
+                ? GoalStatus.burnout
+                : GoalStatus.notStarted,
       ),
       progress: (data?['progress'] ?? 0) as int,
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),

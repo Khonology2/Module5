@@ -213,8 +213,8 @@ class AlertService {
       priority: AlertPriority.medium,
       title: 'Employee Joined Team Goal! 👥',
       message: '$employeeName joined your team goal "$teamGoalTitle". The team is growing stronger!',
-      actionText: 'View Team',
-      actionRoute: '/manager_team_workspace',
+      actionText: 'Review Team',
+      actionRoute: '/manager_review_team_dashboard',
       createdAt: DateTime.now(),
       expiresAt: DateTime.now().add(const Duration(days: 7)),
     );
@@ -452,6 +452,24 @@ class AlertService {
           points: (data['points'] ?? 0) as int,
         );
 
+        // Upsert today's daily progress snapshot for burndown/burnup
+        try {
+          final today = DateTime.now();
+          final dayKey = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+          final progressDocId = '${doc.id}__$dayKey';
+          await _firestore.collection('goal_daily_progress').doc(progressDocId).set({
+            'id': progressDocId,
+            'goalId': doc.id,
+            'userId': user.uid,
+            'date': dayKey,
+            'progress': goal.progress,
+            'remaining': (100 - goal.progress).clamp(0, 100),
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (e) {
+          // Non-critical, ignore failures
+        }
+
         // Due Soon: within typical effort window; using 7 days as illustrative
         final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
         if (daysUntilDue <= 7 && daysUntilDue > 0 && goal.status != GoalStatus.completed) {
@@ -473,7 +491,7 @@ class AlertService {
           }
         }
 
-        // Overdue alerts
+        // Overdue alerts (employee) and notify manager when 1 day overdue
         if (daysUntilDue < 0 && goal.status != GoalStatus.completed) {
           final existingAlert = await _firestore
               .collection('alerts')
@@ -489,6 +507,37 @@ class AlertService {
               goal: goal,
               type: AlertType.goalOverdue,
             );
+          }
+
+          // If exactly 1 day overdue, notify manager(s)
+          if (daysUntilDue == -1) {
+            try {
+              final userDoc = await _firestore.collection('users').doc(user.uid).get();
+              final dept = userDoc.data()?['department'] as String?;
+              Query mgrQuery = _firestore.collection('users').where('role', isEqualTo: 'manager');
+              if (dept != null && dept.isNotEmpty) {
+                mgrQuery = mgrQuery.where('department', isEqualTo: dept);
+              }
+              final mgrs = await mgrQuery.get();
+              for (final mgr in mgrs.docs) {
+                await _firestore.collection('alerts').add({
+                  'userId': mgr.id,
+                  'type': AlertType.goalOverdue.name,
+                  'priority': AlertPriority.high.name,
+                  'title': 'Employee Goal Overdue',
+                  'message': '${userDoc.data()?['displayName'] ?? 'An employee'}\'s goal "${goal.title}" is 1 day overdue. Review and decide next step.',
+                  'actionText': 'Review Goal',
+                  'actionRoute': '/manager_alerts_nudges',
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'relatedGoalId': goal.id,
+                  'isRead': false,
+                  'isDismissed': false,
+                  'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+                });
+              }
+            } catch (_) {
+              // Soft-fail on manager notification
+            }
           }
         }
 
