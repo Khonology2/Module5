@@ -40,11 +40,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final profile = await DatabaseService.getUserProfile(user.uid);
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> origin/lihle-manager
         setState(() {
           userProfile = profile;
           isLoading = false;
@@ -63,25 +59,15 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/lihle-manager
     return FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .snapshots()
         .map((doc) {
-<<<<<<< HEAD
-      if (!doc.exists) return null;
-      return UserProfile.fromFirestore(doc);
-    });
-=======
           if (!doc.exists) return null;
           return UserProfile.fromFirestore(doc);
         });
->>>>>>> origin/lihle-manager
   }
 
   @override
@@ -108,14 +94,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                   color: AppColors.dangerColor,
                 ),
                 const SizedBox(height: 16),
-<<<<<<< HEAD
-                Text(
-                  'Error loading user data',
-                  style: AppTypography.heading4,
-                ),
-=======
                 Text('Error loading user data', style: AppTypography.heading4),
->>>>>>> origin/lihle-manager
                 const SizedBox(height: 8),
                 Text(
                   profileSnapshot.error.toString(),
@@ -127,11 +106,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-<<<<<<< HEAD
-                    setState(() {}); 
-=======
                     setState(() {});
->>>>>>> origin/lihle-manager
                   },
                   child: const Text('Retry'),
                 ),
@@ -141,11 +116,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         }
 
         userProfile = profileSnapshot.data;
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> origin/lihle-manager
         if (userProfile == null) {
           return const Center(
             child: CircularProgressIndicator(
@@ -153,21 +124,12 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
             ),
           );
         }
-<<<<<<< HEAD
-        
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {}); 
-          },
-          child: isManager 
-=======
 
         return RefreshIndicator(
           onRefresh: () async {
             setState(() {});
           },
           child: isManager
->>>>>>> origin/lihle-manager
               ? ManagerProgressVisualsContent(userProfile: userProfile!)
               : EmployeeProgressVisualsContent(userProfile: userProfile!),
         );
@@ -179,18 +141,6 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 class ManagerProgressVisualsContent extends StatefulWidget {
   final UserProfile userProfile;
 
-<<<<<<< HEAD
-  const ManagerProgressVisualsContent({
-    super.key,
-    required this.userProfile,
-  });
-
-  @override
-  State<ManagerProgressVisualsContent> createState() => _ManagerProgressVisualsContentState();
-}
-
-class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsContent> {
-=======
   const ManagerProgressVisualsContent({super.key, required this.userProfile});
 
   @override
@@ -200,7 +150,6 @@ class _ManagerProgressVisualsContentState extends State<ManagerProgressVisualsCo
 
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
->>>>>>> origin/lihle-manager
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
 
@@ -217,13 +166,9 @@ class _ManagerProgressVisualsContentState
               Expanded(
                 child: Text(
                   'Team Progress Overview',
-<<<<<<< HEAD
-                  style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-=======
                   style: AppTypography.heading2.copyWith(
                     color: AppColors.textPrimary,
                   ),
->>>>>>> origin/lihle-manager
                 ),
               ),
               _buildFilterDropdown(),
@@ -231,19 +176,6 @@ class _ManagerProgressVisualsContentState
               _buildDepartmentDropdown(),
               const SizedBox(width: AppSpacing.md),
               OutlinedButton.icon(
-<<<<<<< HEAD
-                onPressed: _populateSampleData,
-                icon: const Icon(Icons.data_usage, size: 16),
-                label: const Text('Load Sample Data'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.activeColor,
-                  side: BorderSide(color: AppColors.activeColor),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              OutlinedButton.icon(
-=======
->>>>>>> origin/lihle-manager
                 onPressed: _showDebugInfo,
                 icon: const Icon(Icons.bug_report, size: 16),
                 label: const Text('Debug Data'),
@@ -255,11 +187,7 @@ class _ManagerProgressVisualsContentState
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-<<<<<<< HEAD
-          
-=======
 
->>>>>>> origin/lihle-manager
           StreamBuilder<TeamMetrics>(
             stream: ManagerRealtimeService.getTeamMetricsStream(
               department: selectedDepartment,
@@ -269,13 +197,9 @@ class _ManagerProgressVisualsContentState
               if (metricsSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-<<<<<<< HEAD
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-=======
                     valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.activeColor,
                     ),
->>>>>>> origin/lihle-manager
                   ),
                 );
               }
@@ -293,39 +217,20 @@ class _ManagerProgressVisualsContentState
                 children: [
                   _buildTeamMetricsCards(metrics),
                   const SizedBox(height: AppSpacing.xxl),
-<<<<<<< HEAD
-                  
-=======
 
->>>>>>> origin/lihle-manager
                   StreamBuilder<List<TeamInsight>>(
                     stream: ManagerRealtimeService.getTeamInsightsStream(
                       department: selectedDepartment,
                       timeFilter: currentTimeFilter,
                     ),
                     builder: (context, insightsSnapshot) {
-<<<<<<< HEAD
-                      if (insightsSnapshot.hasData && insightsSnapshot.data!.isNotEmpty) {
-=======
                       if (insightsSnapshot.hasData &&
                           insightsSnapshot.data!.isNotEmpty) {
->>>>>>> origin/lihle-manager
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Team Insights',
-<<<<<<< HEAD
-                              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            ...insightsSnapshot.data!.take(5).map((insight) => 
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                                child: _buildInsightCard(insight),
-                              ),
-                            ),
-=======
                               style: AppTypography.heading3.copyWith(
                                 color: AppColors.textPrimary,
                               ),
@@ -341,7 +246,6 @@ class _ManagerProgressVisualsContentState
                                     child: _buildInsightCard(insight),
                                   ),
                                 ),
->>>>>>> origin/lihle-manager
                             const SizedBox(height: AppSpacing.xxl),
                           ],
                         );
@@ -349,15 +253,6 @@ class _ManagerProgressVisualsContentState
                       return const SizedBox.shrink();
                     },
                   ),
-<<<<<<< HEAD
-                  
-                  Text(
-                    'Team Member Progress',
-                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  
-=======
 
                   Text(
                     'Team Member Progress',
@@ -367,19 +262,12 @@ class _ManagerProgressVisualsContentState
                   ),
                   const SizedBox(height: AppSpacing.md),
 
->>>>>>> origin/lihle-manager
                   StreamBuilder<List<EmployeeData>>(
                     stream: ManagerRealtimeService.getTeamDataStream(
                       department: selectedDepartment,
                       timeFilter: currentTimeFilter,
                     ),
                     builder: (context, teamSnapshot) {
-<<<<<<< HEAD
-                      if (teamSnapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-=======
                       if (teamSnapshot.connectionState ==
                           ConnectionState.waiting) {
                         return const Center(
@@ -387,7 +275,6 @@ class _ManagerProgressVisualsContentState
                             valueColor: AlwaysStoppedAnimation<Color>(
                               AppColors.activeColor,
                             ),
->>>>>>> origin/lihle-manager
                           ),
                         );
                       }
@@ -402,14 +289,6 @@ class _ManagerProgressVisualsContentState
                       }
 
                       return Column(
-<<<<<<< HEAD
-                        children: employees.map((employee) => 
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                            child: _buildEmployeeCard(employee),
-                          ),
-                        ).toList(),
-=======
                         children: employees
                             .map(
                               (employee) => Padding(
@@ -420,7 +299,6 @@ class _ManagerProgressVisualsContentState
                               ),
                             )
                             .toList(),
->>>>>>> origin/lihle-manager
                       );
                     },
                   ),
@@ -474,16 +352,12 @@ class _ManagerProgressVisualsContentState
         value: selectedDepartment,
         underline: const SizedBox(),
         style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-<<<<<<< HEAD
-        hint: Text('All Departments', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-=======
         hint: Text(
           'All Departments',
           style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textSecondary,
           ),
         ),
->>>>>>> origin/lihle-manager
         onChanged: (String? department) {
           setState(() {
             selectedDepartment = department;
@@ -496,15 +370,11 @@ class _ManagerProgressVisualsContentState
           ),
           DropdownMenuItem<String?>(
             value: widget.userProfile.department,
-<<<<<<< HEAD
-            child: Text(widget.userProfile.department.isEmpty ? 'Department' : widget.userProfile.department),
-=======
             child: Text(
               widget.userProfile.department.isEmpty
                   ? 'Department'
                   : widget.userProfile.department,
             ),
->>>>>>> origin/lihle-manager
           ),
         ],
       ),
@@ -522,11 +392,7 @@ class _ManagerProgressVisualsContentState
                 value: metrics.totalEmployees.toString(),
                 icon: Icons.people_outline,
                 color: AppColors.activeColor,
-<<<<<<< HEAD
-                subtitle: '${metrics.activeEmployees} active',
-=======
                 subtitle: '${metrics.activeEmployees} active (7d)',
->>>>>>> origin/lihle-manager
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -535,16 +401,11 @@ class _ManagerProgressVisualsContentState
                 title: 'Average Progress',
                 value: '${metrics.avgTeamProgress.toStringAsFixed(1)}%',
                 icon: Icons.trending_up,
-<<<<<<< HEAD
-                color: metrics.avgTeamProgress >= 70 ? AppColors.successColor : 
-                       metrics.avgTeamProgress >= 40 ? AppColors.warningColor : AppColors.dangerColor,
-=======
                 color: metrics.avgTeamProgress >= 70
                     ? AppColors.successColor
                     : metrics.avgTeamProgress >= 40
                     ? AppColors.warningColor
                     : AppColors.dangerColor,
->>>>>>> origin/lihle-manager
                 subtitle: 'Team average',
               ),
             ),
@@ -575,16 +436,6 @@ class _ManagerProgressVisualsContentState
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-<<<<<<< HEAD
-        _buildMetricCard(
-          title: 'Team Engagement',
-          value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
-          icon: Icons.groups,
-          color: metrics.teamEngagement >= 70 ? AppColors.successColor : 
-                 metrics.teamEngagement >= 40 ? AppColors.warningColor : AppColors.dangerColor,
-          subtitle: 'Active in last 7 days',
-          fullWidth: true,
-=======
         Row(
           children: [
             Expanded(
@@ -615,7 +466,6 @@ class _ManagerProgressVisualsContentState
               ),
             ),
           ],
->>>>>>> origin/lihle-manager
         ),
       ],
     );
@@ -680,11 +530,7 @@ class _ManagerProgressVisualsContentState
   Widget _buildInsightCard(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/lihle-manager
     switch (insight.priority) {
       case InsightPriority.urgent:
         priorityColor = AppColors.dangerColor;
@@ -753,15 +599,7 @@ class _ManagerProgressVisualsContentState
             ),
             child: Row(
               children: [
-<<<<<<< HEAD
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: priorityColor,
-                  size: 16,
-                ),
-=======
                 Icon(Icons.lightbulb_outline, color: priorityColor, size: 16),
->>>>>>> origin/lihle-manager
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -775,12 +613,8 @@ class _ManagerProgressVisualsContentState
               ],
             ),
           ),
-<<<<<<< HEAD
-          if (insight.priority == InsightPriority.urgent || insight.priority == InsightPriority.high) ...[
-=======
           if (insight.priority == InsightPriority.urgent ||
               insight.priority == InsightPriority.high) ...[
->>>>>>> origin/lihle-manager
             const SizedBox(height: 12),
             Row(
               children: [
@@ -843,8 +677,6 @@ class _ManagerProgressVisualsContentState
         break;
     }
 
-<<<<<<< HEAD
-=======
     // Determine active status
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -871,7 +703,6 @@ class _ManagerProgressVisualsContentState
       activeStatusText = 'Inactive';
     }
 
->>>>>>> origin/lihle-manager
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -888,11 +719,7 @@ class _ManagerProgressVisualsContentState
                 radius: 20,
                 backgroundColor: statusColor.withValues(alpha: 0.1),
                 child: Text(
-<<<<<<< HEAD
-                  employee.profile.displayName.isNotEmpty 
-=======
                   employee.profile.displayName.isNotEmpty
->>>>>>> origin/lihle-manager
                       ? employee.profile.displayName[0].toUpperCase()
                       : '?',
                   style: AppTypography.bodyMedium.copyWith(
@@ -914,11 +741,7 @@ class _ManagerProgressVisualsContentState
                       ),
                     ),
                     Text(
-<<<<<<< HEAD
-                      employee.profile.jobTitle.isNotEmpty 
-=======
                       employee.profile.jobTitle.isNotEmpty
->>>>>>> origin/lihle-manager
                           ? employee.profile.jobTitle
                           : employee.profile.department,
                       style: AppTypography.bodySmall.copyWith(
@@ -928,29 +751,6 @@ class _ManagerProgressVisualsContentState
                   ],
                 ),
               ),
-<<<<<<< HEAD
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-=======
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -1015,30 +815,21 @@ class _ManagerProgressVisualsContentState
                     ),
                   ),
                 ],
->>>>>>> origin/lihle-manager
               ),
             ],
           ),
           const SizedBox(height: 16),
-<<<<<<< HEAD
-          
-=======
 
->>>>>>> origin/lihle-manager
           Row(
             children: [
               Expanded(
                 child: _buildEmployeeMetricChip(
                   icon: Icons.track_changes,
                   label: 'Active Goals',
-<<<<<<< HEAD
-                  value: employee.goals.where((g) => g.status != GoalStatus.completed).length.toString(),
-=======
                   value: employee.goals
                       .where((g) => g.status != GoalStatus.completed)
                       .length
                       .toString(),
->>>>>>> origin/lihle-manager
                   color: AppColors.activeColor,
                 ),
               ),
@@ -1057,24 +848,15 @@ class _ManagerProgressVisualsContentState
                   icon: Icons.access_time,
                   label: 'Progress',
                   value: '${employee.avgProgress.toStringAsFixed(1)}%',
-<<<<<<< HEAD
-                  color: employee.avgProgress >= 70 ? AppColors.successColor : 
-                         employee.avgProgress >= 40 ? AppColors.warningColor : AppColors.dangerColor,
-=======
                   color: employee.avgProgress >= 70
                       ? AppColors.successColor
                       : employee.avgProgress >= 40
                       ? AppColors.warningColor
                       : AppColors.dangerColor,
->>>>>>> origin/lihle-manager
                 ),
               ),
             ],
           ),
-<<<<<<< HEAD
-          const SizedBox(height: 12),
-          
-=======
           const SizedBox(height: 8),
 
           // Show last activity information
@@ -1106,7 +888,6 @@ class _ManagerProgressVisualsContentState
           ),
           const SizedBox(height: 12),
 
->>>>>>> origin/lihle-manager
           if (employee.goals.isNotEmpty) ...[
             Text(
               'Goals',
@@ -1116,12 +897,6 @@ class _ManagerProgressVisualsContentState
               ),
             ),
             const SizedBox(height: 8),
-<<<<<<< HEAD
-            ...employee.goals.take(3).map((goal) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: _buildGoalRow(goal),
-            )),
-=======
             ...employee.goals
                 .take(3)
                 .map(
@@ -1130,7 +905,6 @@ class _ManagerProgressVisualsContentState
                     child: _buildGoalRow(goal),
                   ),
                 ),
->>>>>>> origin/lihle-manager
             if (employee.goals.length > 3)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -1167,15 +941,9 @@ class _ManagerProgressVisualsContentState
               ),
             ),
           ],
-<<<<<<< HEAD
-          
-          const SizedBox(height: 16),
-          
-=======
 
           const SizedBox(height: 16),
 
->>>>>>> origin/lihle-manager
           Row(
             children: [
               Expanded(
@@ -1192,12 +960,8 @@ class _ManagerProgressVisualsContentState
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton.icon(
-<<<<<<< HEAD
-                  onPressed: () => _sendNudgeToEmployee(employee.profile.displayName),
-=======
                   onPressed: () =>
                       _sendNudgeToEmployee(employee.profile.displayName),
->>>>>>> origin/lihle-manager
                   icon: const Icon(Icons.send, size: 16),
                   label: const Text('Send Nudge'),
                   style: ElevatedButton.styleFrom(
@@ -1252,11 +1016,7 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildGoalRow(Goal goal) {
     Color priorityColor = _getPriorityColor(goal.priority);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/lihle-manager
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -1327,15 +1087,7 @@ class _ManagerProgressVisualsContentState
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppColors.dangerColor,
-          ),
-=======
           Icon(Icons.error_outline, size: 48, color: AppColors.dangerColor),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'Error loading team data',
@@ -1366,15 +1118,7 @@ class _ManagerProgressVisualsContentState
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.people_outline,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-=======
           Icon(Icons.people_outline, size: 48, color: AppColors.textSecondary),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'No team data available',
@@ -1405,15 +1149,7 @@ class _ManagerProgressVisualsContentState
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.groups_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-=======
           Icon(Icons.groups_outlined, size: 48, color: AppColors.textSecondary),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'No team members found',
@@ -1473,70 +1209,6 @@ class _ManagerProgressVisualsContentState
 
   void _viewEmployeeDetails(EmployeeData employee) {
     Navigator.pushNamed(
-<<<<<<< HEAD
-      context, 
-      '/employee_profile_detail', 
-      arguments: employee.profile.uid
-    );
-  }
-
-  Future<void> _populateSampleData() async {
-    try {
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
-          title: const Text('Populate Sample Data'),
-          content: const Text(
-            'This will create sample activities and goals for all employees in your department. '
-            'This will help populate the manager dashboard with realistic data for testing.'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop(); // Use dialogContext
-                
-                // Show loading
-                if (!mounted) return; // Re-added
-                final scaffoldMessenger = ScaffoldMessenger.of(dialogContext); // Capture ScaffoldMessenger
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('Creating sample data...')),
-                );
-
-                try {
-                  await SampleDataService.populateManagerDashboardWithSampleData();
-                  
-                  if (!mounted) return; // Re-added
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Sample data created successfully! Refresh to see real data.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } catch (e) {
-                  if (!mounted) return; // Re-added
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Error creating sample data: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Create Sample Data'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return; 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-=======
       context,
       '/employee_profile_detail',
       arguments: employee.profile.uid,
@@ -1570,7 +1242,6 @@ class _ManagerProgressVisualsContentState
     } catch (e) {
       // Handle any unexpected errors when formatting the date
       return 'Unknown';
->>>>>>> origin/lihle-manager
     }
   }
 
@@ -1578,13 +1249,6 @@ class _ManagerProgressVisualsContentState
     try {
       final FirebaseFirestore firestore = FirebaseFirestore.instance;
       final FirebaseAuth auth = FirebaseAuth.instance;
-<<<<<<< HEAD
-      
-      // Get manager info
-      final managerDoc = await firestore.collection('users').doc(auth.currentUser!.uid).get();
-      final managerData = managerDoc.data();
-      
-=======
 
       // Get manager info
       final managerDoc = await firestore
@@ -1593,19 +1257,12 @@ class _ManagerProgressVisualsContentState
           .get();
       final managerData = managerDoc.data();
 
->>>>>>> origin/lihle-manager
       // Get all employees the manager is allowed to view
       // Prefer same department if set; otherwise fallback to all employees
       Query<Map<String, dynamic>> employeesQueryRef = firestore
           .collection('users')
           .where('role', isEqualTo: 'employee');
       if ((managerData?['department'] as String?)?.isNotEmpty == true) {
-<<<<<<< HEAD
-        employeesQueryRef = employeesQueryRef.where('department', isEqualTo: managerData!['department']);
-      }
-      final employeesQuery = await employeesQueryRef.get();
-      
-=======
         employeesQueryRef = employeesQueryRef.where(
           'department',
           isEqualTo: managerData!['department'],
@@ -1613,47 +1270,17 @@ class _ManagerProgressVisualsContentState
       }
       final employeesQuery = await employeesQueryRef.get();
 
->>>>>>> origin/lihle-manager
       // Get Angel specifically if she exists
       final angelQuery = await firestore
           .collection('users')
           .where('displayName', isEqualTo: 'Angel')
           .get();
-<<<<<<< HEAD
-      
-=======
 
->>>>>>> origin/lihle-manager
       // Get activities only for these employees (avoid cross-user reads)
       final employeeIds = employeesQuery.docs.map((d) => d.id).toList();
       // Avoid composite index by not combining whereIn with orderBy. Sort in-memory.
       final activitiesBaseRef = firestore.collection('activities');
       final activitiesSnapshot = employeeIds.isEmpty
-<<<<<<< HEAD
-          ? await activitiesBaseRef.orderBy('timestamp', descending: true).limit(10).get()
-          : await activitiesBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
-      // Sort and trim after fetch
-      final activitiesDocs = activitiesSnapshot.docs
-        ..sort((a, b) {
-          final at = (a.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bt = (b.data()['timestamp'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bt.compareTo(at);
-        });
-          
-      // Get goals only for these employees
-      final goalsBaseRef = firestore.collection('goals');
-      final goalsSnapshot = employeeIds.isEmpty
-          ? await goalsBaseRef.orderBy('createdAt', descending: true).limit(10).get()
-          : await goalsBaseRef.where('userId', whereIn: employeeIds.take(10).toList()).limit(25).get();
-      final goalsDocs = goalsSnapshot.docs
-        ..sort((a, b) {
-          final at = (a.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final bt = (b.data()['createdAt'] as Timestamp? )?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
-          return bt.compareTo(at);
-        });
-
-      String debugInfo = '''
-=======
           ? await activitiesBaseRef
                 .orderBy('timestamp', descending: true)
                 .limit(10)
@@ -1735,7 +1362,6 @@ class _ManagerProgressVisualsContentState
 
       String debugInfo =
           '''
->>>>>>> origin/lihle-manager
 DEBUG INFORMATION:
 
 MANAGER:
@@ -1745,11 +1371,6 @@ MANAGER:
 
 ALL EMPLOYEES (${employeesQuery.docs.length}):
 ${employeesQuery.docs.map((doc) {
-<<<<<<< HEAD
-  final data = doc.data();
-  return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
-}).join('\n')}
-=======
             final data = doc.data();
             return '- ${data['displayName'] ?? 'Unknown'}: Department=${data['department'] ?? 'NULL'}, Role=${data['role'] ?? 'NULL'}';
           }).join('\n')}
@@ -1760,24 +1381,12 @@ ${employeeActivitySummary.entries.map((entry) {
             final summary = entry.value;
             return '- $empName: ${summary['activities']} activities, ${summary['goals']} goals, Last active: ${summary['lastActivity']}, Dept: ${summary['department']}';
           }).join('\n')}
->>>>>>> origin/lihle-manager
 
 ANGEL SPECIFICALLY:
 ${angelQuery.docs.isNotEmpty ? 'FOUND Angel: ${angelQuery.docs.first.data()}' : 'Angel NOT FOUND in employees collection!'}
 
 RECENT ACTIVITIES (${activitiesDocs.length}):
 ${activitiesDocs.map((doc) {
-<<<<<<< HEAD
-  final data = doc.data();
-  return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
-}).join('\n')}
-
-RECENT GOALS (${goalsDocs.length}):
-${goalsDocs.map((doc) {
-  final data = doc.data();
-  return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
-}).join('\n')}
-=======
             final data = doc.data();
             return '- User: ${data['userId']}, Type: ${data['activityType']}, Description: ${data['description']}';
           }).join('\n')}
@@ -1787,18 +1396,13 @@ ${goalsDocs.map((doc) {
             final data = doc.data();
             return '- User: ${data['userId']}, Title: ${data['title']}, Progress: ${data['progress']}%';
           }).join('\n')}
->>>>>>> origin/lihle-manager
       ''';
 
       if (!mounted) return; // Add this line here
       showDialog(
         context: context,
-<<<<<<< HEAD
-        builder: (dialogContext) => AlertDialog( // Capture dialogContext here
-=======
         builder: (dialogContext) => AlertDialog(
           // Capture dialogContext here
->>>>>>> origin/lihle-manager
           title: const Text('Debug Information'),
           content: SingleChildScrollView(
             child: Column(
@@ -1813,12 +1417,8 @@ ${goalsDocs.map((doc) {
           ),
           actions: [
             TextButton(
-<<<<<<< HEAD
-              onPressed: () => Navigator.of(dialogContext).pop(), // Use dialogContext
-=======
               onPressed: () =>
                   Navigator.of(dialogContext).pop(), // Use dialogContext
->>>>>>> origin/lihle-manager
               child: const Text('Close'),
             ),
           ],
@@ -1826,15 +1426,9 @@ ${goalsDocs.map((doc) {
       );
     } catch (e) {
       if (!mounted) return; // Re-added
-<<<<<<< HEAD
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Debug Error: $e')),
-      );
-=======
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Debug Error: $e')));
->>>>>>> origin/lihle-manager
     }
   }
 }
@@ -1842,14 +1436,7 @@ ${goalsDocs.map((doc) {
 class EmployeeProgressVisualsContent extends StatelessWidget {
   final UserProfile userProfile;
 
-<<<<<<< HEAD
-  const EmployeeProgressVisualsContent({
-    super.key,
-    required this.userProfile,
-  });
-=======
   const EmployeeProgressVisualsContent({super.key, required this.userProfile});
->>>>>>> origin/lihle-manager
 
   @override
   Widget build(BuildContext context) {
@@ -1861,32 +1448,21 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         children: [
           Text(
             'Your Progress Overview',
-<<<<<<< HEAD
-            style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          
-=======
             style: AppTypography.heading2.copyWith(
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: AppSpacing.xl),
 
->>>>>>> origin/lihle-manager
           StreamBuilder<List<Goal>>(
             stream: _getUserGoalsStream(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-<<<<<<< HEAD
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-=======
                     valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.activeColor,
                     ),
->>>>>>> origin/lihle-manager
                   ),
                 );
               }
@@ -1896,11 +1472,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
               }
 
               final goals = snapshot.data ?? [];
-<<<<<<< HEAD
-              
-=======
 
->>>>>>> origin/lihle-manager
               return Column(
                 children: [
                   _buildPersonalOverview(goals),
@@ -1918,47 +1490,12 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/lihle-manager
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-<<<<<<< HEAD
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-              (e) => e.name == (data['category'] ?? 'personal'),
-              orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-              (e) => e.name == (data['priority'] ?? 'medium'),
-              orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-              (e) => e.name == (data['status'] ?? 'notStarted'),
-              orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-      }).toList();
-      
-      goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return goals;
-    });
-=======
           final goals = snapshot.docs.map((doc) {
             final data = doc.data();
             return Goal(
@@ -1991,17 +1528,10 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
         });
->>>>>>> origin/lihle-manager
   }
 
   Widget _buildPersonalOverview(List<Goal> goals) {
     final totalGoals = goals.length;
-<<<<<<< HEAD
-    final completedGoals = goals.where((goal) => goal.status == GoalStatus.completed || goal.progress >= 100).length;
-    final activeGoals = goals.where((goal) => goal.status != GoalStatus.completed && goal.progress < 100).length;
-    final overallProgress = totalGoals > 0 ? (completedGoals / totalGoals) : 0.0;
-    
-=======
     final completedGoals = goals
         .where(
           (goal) => goal.status == GoalStatus.completed || goal.progress >= 100,
@@ -2016,7 +1546,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         ? (completedGoals / totalGoals)
         : 0.0;
 
->>>>>>> origin/lihle-manager
     return Row(
       children: [
         Expanded(
@@ -2093,12 +1622,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
   }
 
   Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
-<<<<<<< HEAD
-    final activeGoals = goals
-        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
-        .toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
-=======
     final activeGoals =
         goals
             .where(
@@ -2107,7 +1630,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
             )
             .toList()
           ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
->>>>>>> origin/lihle-manager
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2117,13 +1639,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
           children: [
             Text(
               'Your Goals Progress',
-<<<<<<< HEAD
-              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-=======
               style: AppTypography.heading3.copyWith(
                 color: AppColors.textPrimary,
               ),
->>>>>>> origin/lihle-manager
             ),
             if (activeGoals.isNotEmpty)
               TextButton.icon(
@@ -2144,12 +1662,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         if (activeGoals.isEmpty)
           _buildEmptyGoalsState(context)
         else
-<<<<<<< HEAD
-          ...activeGoals.take(5).map((goal) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: _buildGoalProgressCard(context, goal: goal),
-          )),
-=======
           ...activeGoals
               .take(5)
               .map(
@@ -2158,7 +1670,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                   child: _buildGoalProgressCard(context, goal: goal),
                 ),
               ),
->>>>>>> origin/lihle-manager
       ],
     );
   }
@@ -2173,15 +1684,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.flag_outlined,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-=======
           Icon(Icons.flag_outlined, size: 48, color: AppColors.textSecondary),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'No Active Goals',
@@ -2218,14 +1721,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     final now = DateTime.now();
     final daysUntilDeadline = goal.targetDate.difference(now).inDays;
     final progress = goal.progress / 100.0;
-<<<<<<< HEAD
-    
-    String deadlineText;
-    Color deadlineColor;
-    
-    if (daysUntilDeadline < 0) {
-      deadlineText = 'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
-=======
 
     String deadlineText;
     Color deadlineColor;
@@ -2233,18 +1728,13 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     if (daysUntilDeadline < 0) {
       deadlineText =
           'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
->>>>>>> origin/lihle-manager
       deadlineColor = AppColors.dangerColor;
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
       deadlineColor = AppColors.warningColor;
     } else if (daysUntilDeadline <= 7) {
-<<<<<<< HEAD
-      deadlineText = 'Due in $daysUntilDeadline day${daysUntilDeadline == 1 ? '' : 's'}';
-=======
       deadlineText =
           'Due in $daysUntilDeadline day${daysUntilDeadline == 1 ? '' : 's'}';
->>>>>>> origin/lihle-manager
       deadlineColor = AppColors.warningColor;
     } else {
       deadlineText = 'Due in $daysUntilDeadline days';
@@ -2294,14 +1784,10 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                       ),
                     ),
                     Container(
-<<<<<<< HEAD
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-=======
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
                       ),
->>>>>>> origin/lihle-manager
                       decoration: BoxDecoration(
                         color: progressColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -2323,13 +1809,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   deadlineText,
-<<<<<<< HEAD
-                  style: AppTypography.bodySmall.copyWith(
-                    color: deadlineColor,
-                  ),
-=======
                   style: AppTypography.bodySmall.copyWith(color: deadlineColor),
->>>>>>> origin/lihle-manager
                 ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
@@ -2367,15 +1847,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppColors.dangerColor,
-          ),
-=======
           Icon(Icons.error_outline, size: 48, color: AppColors.dangerColor),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'Error loading progress data',

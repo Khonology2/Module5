@@ -1,19 +1,13 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
-<<<<<<< HEAD
-=======
 import 'dart:async';
->>>>>>> origin/lihle-manager
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
 
 class StreakService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-<<<<<<< HEAD
-=======
   static final Map<String, List<StreamSubscription>> _subsByUser = {};
   static final Map<String, Timer> _midnightTimerByUser = {};
->>>>>>> origin/lihle-manager
 
   // Record daily activity (goal progress, completion, etc.)
   static Future<void> recordDailyActivity(
@@ -32,8 +26,6 @@ class StreakService {
         }, SetOptions(merge: true));
       } catch (_) {}
 
-<<<<<<< HEAD
-=======
       // Record in the activities collection for manager visibility
       await _firestore.collection('activities').add({
         'userId': userId,
@@ -42,7 +34,6 @@ class StreakService {
         'description': 'User performed $activityType',
       });
 
->>>>>>> origin/lihle-manager
       // Check if activity already recorded today
       final existingActivity = await _firestore
           .collection('users')
@@ -167,8 +158,6 @@ class StreakService {
     }
   }
 
-<<<<<<< HEAD
-=======
   /// Start real-time streak tracking: reacts to activity changes and day rollover
   static void startRealtimeTracking(String userId) {
     if (userId.isEmpty) return;
@@ -229,7 +218,6 @@ class StreakService {
     _midnightTimerByUser.remove(userId);
   }
 
->>>>>>> origin/lihle-manager
   static Future<void> _checkStreakMilestones(String userId, int streak) async {
     // Award alerts for streak milestones
     final milestones = [3, 7, 14, 30, 60, 100, 365];

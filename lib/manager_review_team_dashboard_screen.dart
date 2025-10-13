@@ -3,41 +3,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/manager_profile_screen.dart';
-<<<<<<< HEAD
-=======
 import 'package:pdh/manager_employee_detail_screen.dart';
->>>>>>> origin/lihle-manager
 import 'package:pdh/services/manager_realtime_service.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
 
   @override
-<<<<<<< HEAD
-  State<ManagerReviewTeamDashboardScreen> createState() => _ManagerReviewTeamDashboardScreenState();
-}
-
-class _ManagerReviewTeamDashboardScreenState extends State<ManagerReviewTeamDashboardScreen> {
-=======
   State<ManagerReviewTeamDashboardScreen> createState() =>
       _ManagerReviewTeamDashboardScreenState();
 }
 
 class _ManagerReviewTeamDashboardScreenState
     extends State<ManagerReviewTeamDashboardScreen> {
->>>>>>> origin/lihle-manager
   TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-<<<<<<< HEAD
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-=======
       backgroundColor:
           Colors.transparent, // Set Scaffold background to transparent
->>>>>>> origin/lihle-manager
       extendBodyBehindAppBar: true, // Extend the body behind the AppBar
       appBar: AppBar(
         backgroundColor: Colors.transparent, // Make AppBar transparent
@@ -56,13 +42,9 @@ class _ManagerReviewTeamDashboardScreenState
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-<<<<<<< HEAD
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
-=======
                   image: AssetImage(
                     'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
                   ),
->>>>>>> origin/lihle-manager
                   fit: BoxFit.cover,
                 ),
               ),
@@ -75,17 +57,12 @@ class _ManagerReviewTeamDashboardScreenState
                   center: Alignment.center,
                   radius: 1.2,
                   colors: [
-<<<<<<< HEAD
-                    Color(0x880A0F1F), // More opaque semi-transparent overlay (alpha 0x88)
-                    Color(0x88040610), // More opaque semi-transparent overlay (alpha 0x88)
-=======
                     Color(
                       0x880A0F1F,
                     ), // More opaque semi-transparent overlay (alpha 0x88)
                     Color(
                       0x88040610,
                     ), // More opaque semi-transparent overlay (alpha 0x88)
->>>>>>> origin/lihle-manager
                   ],
                   stops: [0.0, 1.0],
                 ),
@@ -95,12 +72,6 @@ class _ManagerReviewTeamDashboardScreenState
                   final horizontalPadding = constraints.maxWidth < 400
                       ? 12.0
                       : constraints.maxWidth < 700
-<<<<<<< HEAD
-                          ? 16.0
-                          : 24.0;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(horizontalPadding, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, horizontalPadding, 16.0),
-=======
                       ? 16.0
                       : 24.0;
                   return SingleChildScrollView(
@@ -112,7 +83,6 @@ class _ManagerReviewTeamDashboardScreenState
                       horizontalPadding,
                       16.0,
                     ),
->>>>>>> origin/lihle-manager
                     child: StreamBuilder<TeamMetrics>(
                       stream: ManagerRealtimeService.getTeamMetricsStream(
                         department: _selectedDepartment,
@@ -124,61 +94,6 @@ class _ManagerReviewTeamDashboardScreenState
                             department: _selectedDepartment,
                             timeFilter: _selectedTimeFilter,
                           ),
-<<<<<<< HEAD
-                              builder: (context, employeesSnapshot) {
-                                if (employeesSnapshot.hasError) {
-                                }
-                                if (employeesSnapshot.hasData) {
-                                }
-
-                                return StreamBuilder<List<TeamInsight>>(
-                                  stream: ManagerRealtimeService.getTeamInsightsStream(
-                                    department: _selectedDepartment,
-                                    timeFilter: _selectedTimeFilter,
-                                  ),
-                                  builder: (context, insightsSnapshot) {
-                                    if (insightsSnapshot.hasError) {
-                                    }
-                                    if (insightsSnapshot.hasData) {
-                                    }
-
-                                    return Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        _buildKpiRow(metricsSnapshot.data),
-                                        const SizedBox(height: 20),
-                                        _buildHeader(),
-                                        const SizedBox(height: 20),
-                                        
-                                        // Debug info display
-                                        _buildDebugInfo(employeesSnapshot, insightsSnapshot),
-                                        const SizedBox(height: 20),
-                                        
-                                        if (employeesSnapshot.hasData && employeesSnapshot.data!.isNotEmpty)
-                                          _buildRealTimeEmployeeList(employeesSnapshot.data!)
-                                        else if (employeesSnapshot.hasData && employeesSnapshot.data!.isEmpty)
-                                          _buildEmptyState()
-                                        else if (employeesSnapshot.hasError)
-                                          _buildErrorState(employeesSnapshot.error!)
-                                        else
-                                          _buildLoadingState(),
-                                        
-                                        const SizedBox(height: 20),
-                                        if (insightsSnapshot.hasData)
-                                          _buildAIManagerInsights(insightsSnapshot.data!)
-                                        else if (insightsSnapshot.hasError)
-                                          _buildErrorInsights(insightsSnapshot.error!)
-                                        else
-                                          _buildLoadingInsights(),
-                                        
-                                        const SizedBox(height: 24),
-                                        _buildQuickActions(),
-                                      ],
-                                    );
-                                  },
-                                );
-                              },
-=======
                           builder: (context, employeesSnapshot) {
                             if (employeesSnapshot.hasError) {}
                             if (employeesSnapshot.hasData) {}
@@ -240,7 +155,6 @@ class _ManagerReviewTeamDashboardScreenState
                               },
                             );
                           },
->>>>>>> origin/lihle-manager
                         );
                       },
                     ),
@@ -266,16 +180,12 @@ class _ManagerReviewTeamDashboardScreenState
       padding: const EdgeInsets.only(right: 16.0),
       child: InkWell(
         onTap: () {
-<<<<<<< HEAD
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const ManagerProfileScreen()));
-=======
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const ManagerProfileScreen(),
             ),
           );
->>>>>>> origin/lihle-manager
         },
         child: Row(
           children: [
@@ -283,15 +193,11 @@ class _ManagerReviewTeamDashboardScreenState
             const SizedBox(width: 8),
             Text(
               userName,
-<<<<<<< HEAD
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-=======
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
->>>>>>> origin/lihle-manager
             ),
           ],
         ),
@@ -305,23 +211,12 @@ class _ManagerReviewTeamDashboardScreenState
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-<<<<<<< HEAD
-            color: const Color(0xFF1F2840),
-=======
             color: const Color(0x80000000), // transparent black window (50%)
->>>>>>> origin/lihle-manager
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-<<<<<<< HEAD
-              Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold),
-=======
               Text(
                 label,
                 style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -334,7 +229,6 @@ class _ManagerReviewTeamDashboardScreenState
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
->>>>>>> origin/lihle-manager
               ),
             ],
           ),
@@ -365,12 +259,6 @@ class _ManagerReviewTeamDashboardScreenState
     );
   }
 
-<<<<<<< HEAD
-
-
-
-=======
->>>>>>> origin/lihle-manager
   Widget _buildQuickActions() {
     Widget action(IconData icon, String label, Color color) {
       return Expanded(
@@ -382,21 +270,14 @@ class _ManagerReviewTeamDashboardScreenState
             backgroundColor: color,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 12),
-<<<<<<< HEAD
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-=======
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
->>>>>>> origin/lihle-manager
           ),
         ),
       );
     }
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/lihle-manager
     return Row(
       children: [
         action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
@@ -433,22 +314,14 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFC10D00)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<TimeFilter>(
           value: _selectedTimeFilter,
-<<<<<<< HEAD
-          dropdownColor: const Color(0xFF1F2840),
-=======
           dropdownColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
           icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
           style: const TextStyle(color: Colors.white, fontSize: 12),
           onChanged: (TimeFilter? newValue) {
@@ -458,13 +331,9 @@ class _ManagerReviewTeamDashboardScreenState
               });
             }
           },
-<<<<<<< HEAD
-          items: TimeFilter.values.map<DropdownMenuItem<TimeFilter>>((TimeFilter value) {
-=======
           items: TimeFilter.values.map<DropdownMenuItem<TimeFilter>>((
             TimeFilter value,
           ) {
->>>>>>> origin/lihle-manager
             return DropdownMenuItem<TimeFilter>(
               value: value,
               child: Text(_getTimeFilterLabel(value)),
@@ -490,19 +359,11 @@ class _ManagerReviewTeamDashboardScreenState
     }
   }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/lihle-manager
   Widget _buildAIManagerInsights(List<TeamInsight> insights) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -524,16 +385,6 @@ class _ManagerReviewTeamDashboardScreenState
           ),
           const SizedBox(height: 15),
           if (insights.isEmpty)
-<<<<<<< HEAD
-            _buildInsightBullet('All team members are performing well. No immediate action needed.')
-          else
-            ...insights.take(3).map((insight) => Column(
-              children: [
-                _buildInsightItem(insight),
-                const SizedBox(height: 8),
-              ],
-            )),
-=======
             _buildInsightBullet(
               'All team members are performing well. No immediate action needed.',
             )
@@ -548,7 +399,6 @@ class _ManagerReviewTeamDashboardScreenState
                     ],
                   ),
                 ),
->>>>>>> origin/lihle-manager
           const SizedBox(height: 15),
           GestureDetector(
             onTap: () {
@@ -571,11 +421,7 @@ class _ManagerReviewTeamDashboardScreenState
   Widget _buildInsightItem(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> origin/lihle-manager
     switch (insight.priority) {
       case InsightPriority.urgent:
         priorityColor = Colors.redAccent;
@@ -665,11 +511,7 @@ class _ManagerReviewTeamDashboardScreenState
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-<<<<<<< HEAD
-          color: const Color(0xFF1F2840),
-=======
           color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Center(
@@ -693,14 +535,6 @@ class _ManagerReviewTeamDashboardScreenState
           ),
         ),
         const SizedBox(height: 10),
-<<<<<<< HEAD
-        ...employees.map((employee) => Column(
-          children: [
-            _buildEmployeeCard(employee),
-            const SizedBox(height: 15),
-          ],
-        )),
-=======
         ...employees.map(
           (employee) => Column(
             children: [
@@ -709,7 +543,6 @@ class _ManagerReviewTeamDashboardScreenState
             ],
           ),
         ),
->>>>>>> origin/lihle-manager
       ],
     );
   }
@@ -742,176 +575,6 @@ class _ManagerReviewTeamDashboardScreenState
         break;
     }
 
-<<<<<<< HEAD
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(10),
-        border: employee.status == EmployeeStatus.overdue 
-            ? Border.all(color: Colors.red.withValues(alpha: 0.5), width: 2)
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFFC10D00),
-                child: Text(
-                  employee.profile.displayName.isNotEmpty 
-                      ? employee.profile.displayName[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      employee.profile.displayName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      employee.profile.jobTitle.isNotEmpty 
-                          ? employee.profile.jobTitle 
-                          : 'Team Member',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 12),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: TextStyle(color: statusColor, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricTile('Goals', '${employee.goals.length}'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Completed', '${employee.completedGoalsCount}'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Progress', '${employee.avgProgress.toStringAsFixed(0)}%'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Points', '${employee.totalPoints}'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetricTile('Activities', '${employee.weeklyActivityCount}'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Engagement', '${employee.engagementScore.toStringAsFixed(0)}%'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Motivation', employee.motivationLevel),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMetricTile('Streak', '${employee.streakDays}d'),
-              ),
-            ],
-          ),
-          // Always show management actions for all employees
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _sendNudge(employee),
-                  icon: const Icon(Icons.notifications, size: 16),
-                  label: const Text('Nudge'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _scheduleOneOnOne(employee),
-                  icon: const Icon(Icons.event, size: 16),
-                  label: const Text('1:1'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white70),
-                    foregroundColor: Colors.white70,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _giveRecognition(employee),
-                  icon: const Icon(Icons.emoji_events, size: 16),
-                  label: const Text('Kudos'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.green),
-                    foregroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _viewActivities(employee),
-                  icon: const Icon(Icons.timeline, size: 16),
-                  label: const Text('Activity'),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.blue),
-                    foregroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-=======
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -1115,7 +778,6 @@ class _ManagerReviewTeamDashboardScreenState
             ),
           ],
         ),
->>>>>>> origin/lihle-manager
       ),
     );
   }
@@ -1124,11 +786,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF2C3E50),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -1155,11 +813,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Center(
@@ -1181,11 +835,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Column(
@@ -1206,13 +856,7 @@ class _ManagerReviewTeamDashboardScreenState
             ],
           ),
           SizedBox(height: 15),
-<<<<<<< HEAD
-          Center(
-            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-          ),
-=======
           Center(child: CircularProgressIndicator(color: Color(0xFFC10D00))),
->>>>>>> origin/lihle-manager
           SizedBox(height: 10),
           Center(
             child: Text(
@@ -1229,11 +873,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-<<<<<<< HEAD
-        backgroundColor: const Color(0xFF1F2840),
-=======
         backgroundColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         title: Text(
           'Send Nudge to ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -1257,38 +897,26 @@ class _ManagerReviewTeamDashboardScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-<<<<<<< HEAD
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-=======
             child: const Text(
               'Cancel',
               style: TextStyle(color: Colors.white70),
             ),
->>>>>>> origin/lihle-manager
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-<<<<<<< HEAD
-                  content: Text('Nudge sent to ${employee.profile.displayName}'),
-=======
                   content: Text(
                     'Nudge sent to ${employee.profile.displayName}',
                   ),
->>>>>>> origin/lihle-manager
                   backgroundColor: const Color(0xFFC10D00),
                 ),
               );
             },
-<<<<<<< HEAD
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
-=======
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFC10D00),
             ),
->>>>>>> origin/lihle-manager
             child: const Text('Send'),
           ),
         ],
@@ -1299,13 +927,8 @@ class _ManagerReviewTeamDashboardScreenState
   void _scheduleOneOnOne(EmployeeData employee) {
     showDialog(
       context: context,
-<<<<<<< HEAD
-      builder: (dialogContext) => AlertDialog( // Capture dialogContext here
-        backgroundColor: const Color(0xFF1F2840),
-=======
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         title: Text(
           'Schedule 1:1 with ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -1330,15 +953,10 @@ class _ManagerReviewTeamDashboardScreenState
                 try {
                   // In a real app, you would open a date picker here
                   // For now, we'll schedule for tomorrow
-<<<<<<< HEAD
-                  final scheduledTime = DateTime.now().add(const Duration(days: 1));
-                  
-=======
                   final scheduledTime = DateTime.now().add(
                     const Duration(days: 1),
                   );
 
->>>>>>> origin/lihle-manager
                   await ManagerRealtimeService.scheduleMeeting(
                     employeeId: employee.profile.uid,
                     scheduledTime: scheduledTime,
@@ -1351,13 +969,9 @@ class _ManagerReviewTeamDashboardScreenState
                   // ignore: use_build_context_synchronously
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
-<<<<<<< HEAD
-                      content: Text('1:1 scheduled with ${employee.profile.displayName}'),
-=======
                       content: Text(
                         '1:1 scheduled with ${employee.profile.displayName}',
                       ),
->>>>>>> origin/lihle-manager
                       backgroundColor: const Color(0xFFC10D00),
                     ),
                   );
@@ -1371,13 +985,9 @@ class _ManagerReviewTeamDashboardScreenState
                   );
                 }
               },
-<<<<<<< HEAD
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
-=======
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFC10D00),
               ),
->>>>>>> origin/lihle-manager
               child: const Text('Schedule'),
             ),
           ],
@@ -1385,14 +995,10 @@ class _ManagerReviewTeamDashboardScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
-<<<<<<< HEAD
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-=======
             child: const Text(
               'Cancel',
               style: TextStyle(color: Colors.white70),
             ),
->>>>>>> origin/lihle-manager
           ),
         ],
       ),
@@ -1402,13 +1008,8 @@ class _ManagerReviewTeamDashboardScreenState
   void _giveRecognition(EmployeeData employee) {
     showDialog(
       context: context,
-<<<<<<< HEAD
-      builder: (dialogContext) => AlertDialog( // Capture dialogContext here
-        backgroundColor: const Color(0xFF1F2840),
-=======
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         title: Text(
           'Give Recognition to ${employee.profile.displayName}',
           style: const TextStyle(color: Colors.white),
@@ -1443,13 +1044,9 @@ class _ManagerReviewTeamDashboardScreenState
                         Navigator.pop(dialogContext); // Use dialogContext
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(
-<<<<<<< HEAD
-                            content: Text('Recognition sent to ${employee.profile.displayName}'),
-=======
                             content: Text(
                               'Recognition sent to ${employee.profile.displayName}',
                             ),
->>>>>>> origin/lihle-manager
                             backgroundColor: Colors.green,
                           ),
                         );
@@ -1463,13 +1060,9 @@ class _ManagerReviewTeamDashboardScreenState
                         );
                       }
                     },
-<<<<<<< HEAD
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-=======
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                     ),
->>>>>>> origin/lihle-manager
                     child: const Text('Send Kudos'),
                   ),
                 ),
@@ -1480,14 +1073,10 @@ class _ManagerReviewTeamDashboardScreenState
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
-<<<<<<< HEAD
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-=======
             child: const Text(
               'Cancel',
               style: TextStyle(color: Colors.white70),
             ),
->>>>>>> origin/lihle-manager
           ),
         ],
       ),
@@ -1507,11 +1096,7 @@ class _ManagerReviewTeamDashboardScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-<<<<<<< HEAD
-        backgroundColor: const Color(0xFF1F2840),
-=======
         backgroundColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         title: const Text(
           'Full Team Insights',
           style: TextStyle(color: Colors.white),
@@ -1539,13 +1124,6 @@ class _ManagerReviewTeamDashboardScreenState
     );
   }
 
-<<<<<<< HEAD
-  Widget _buildDebugInfo(AsyncSnapshot<List<EmployeeData>> employeesSnapshot, AsyncSnapshot<List<TeamInsight>> insightsSnapshot) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2C3E50),
-=======
   Widget _buildDebugInfo(
     AsyncSnapshot<List<EmployeeData>> employeesSnapshot,
     AsyncSnapshot<List<TeamInsight>> insightsSnapshot,
@@ -1554,7 +1132,6 @@ class _ManagerReviewTeamDashboardScreenState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
       ),
@@ -1563,17 +1140,6 @@ class _ManagerReviewTeamDashboardScreenState
         children: [
           const Text(
             'Debug Information',
-<<<<<<< HEAD
-            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          _buildDebugRow('Employees Stream:', 'hasData: ${employeesSnapshot.hasData}, hasError: ${employeesSnapshot.hasError}'),
-          if (employeesSnapshot.hasData)
-            _buildDebugRow('Employee Count:', '${employeesSnapshot.data!.length}'),
-          if (employeesSnapshot.hasError)
-            _buildDebugRow('Employee Error:', '${employeesSnapshot.error}'),
-          _buildDebugRow('Insights Stream:', 'hasData: ${insightsSnapshot.hasData}, hasError: ${insightsSnapshot.hasError}'),
-=======
             style: TextStyle(
               color: Colors.orange,
               fontWeight: FontWeight.bold,
@@ -1596,7 +1162,6 @@ class _ManagerReviewTeamDashboardScreenState
             'Insights Stream:',
             'hasData: ${insightsSnapshot.hasData}, hasError: ${insightsSnapshot.hasError}',
           ),
->>>>>>> origin/lihle-manager
           if (insightsSnapshot.hasError)
             _buildDebugRow('Insights Error:', '${insightsSnapshot.error}'),
         ],
@@ -1616,15 +1181,11 @@ class _ManagerReviewTeamDashboardScreenState
             ),
             TextSpan(
               text: value,
-<<<<<<< HEAD
-              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-=======
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
->>>>>>> origin/lihle-manager
             ),
           ],
         ),
@@ -1636,11 +1197,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1649,15 +1206,11 @@ class _ManagerReviewTeamDashboardScreenState
           const SizedBox(height: 12),
           const Text(
             'No Team Members Found',
-<<<<<<< HEAD
-            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-=======
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
->>>>>>> origin/lihle-manager
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1670,13 +1223,9 @@ class _ManagerReviewTeamDashboardScreenState
             onPressed: () {
               Navigator.pushReplacementNamed(context, '/sign_in');
             },
-<<<<<<< HEAD
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
-=======
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFC10D00),
             ),
->>>>>>> origin/lihle-manager
             child: const Text('Check Authentication'),
           ),
         ],
@@ -1688,23 +1237,12 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(Icons.error_outline, color: Colors.red.withValues(alpha: 0.7), size: 48),
-          const SizedBox(height: 12),
-          const Text(
-            'Error Loading Team Data',
-            style: TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold),
-=======
           Icon(
             Icons.error_outline,
             color: Colors.red.withValues(alpha: 0.7),
@@ -1718,7 +1256,6 @@ class _ManagerReviewTeamDashboardScreenState
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
->>>>>>> origin/lihle-manager
           ),
           const SizedBox(height: 8),
           Text(
@@ -1735,11 +1272,7 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
       ),
@@ -1765,13 +1298,6 @@ class _ManagerReviewTeamDashboardScreenState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-<<<<<<< HEAD
-                Icon(Icons.error_outline, color: Colors.red.withValues(alpha: 0.7), size: 24),
-                const SizedBox(width: 8),
-                Text(
-                  'Error loading insights',
-                  style: TextStyle(color: Colors.red.withValues(alpha: 0.7), fontSize: 14),
-=======
                 Icon(
                   Icons.error_outline,
                   color: Colors.red.withValues(alpha: 0.7),
@@ -1784,7 +1310,6 @@ class _ManagerReviewTeamDashboardScreenState
                     color: Colors.red.withValues(alpha: 0.7),
                     fontSize: 14,
                   ),
->>>>>>> origin/lihle-manager
                 ),
               ],
             ),
@@ -1811,15 +1336,9 @@ class _EmployeeActivityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-<<<<<<< HEAD
-      backgroundColor: const Color(0xFF0A1931),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2840),
-=======
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         title: Text(
           '${employee.profile.displayName} - Activity',
           style: const TextStyle(color: Colors.white),
@@ -1883,27 +1402,12 @@ class _EmployeeActivityScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           Expanded(
-<<<<<<< HEAD
-            child: _buildSummaryTile('Weekly Activities', '${employee.weeklyActivityCount}'),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildSummaryTile('Engagement Score', '${employee.engagementScore.toStringAsFixed(0)}%'),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: _buildSummaryTile('Motivation Level', employee.motivationLevel),
-=======
             child: _buildSummaryTile(
               'Weekly Activities',
               '${employee.weeklyActivityCount}',
@@ -1922,7 +1426,6 @@ class _EmployeeActivityScreen extends StatelessWidget {
               'Motivation Level',
               employee.motivationLevel,
             ),
->>>>>>> origin/lihle-manager
           ),
         ],
       ),
@@ -1955,11 +1458,7 @@ class _EmployeeActivityScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: const Color(0xFF1F2840),
-=======
         color: const Color(0x80000000),
->>>>>>> origin/lihle-manager
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
