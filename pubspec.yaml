@@ -43,12 +43,34 @@ flutter:
   assets:
     - assets/
     - assets/Account_User_Profile/
+    - assets/Innovation_Brainstorm/
     - assets/Approved_Tick/
     - assets/Brand/
     - assets/fonts/poppins/
     - assets/Send_Paper Plane/
     - assets/videos/
-    - assets/1.Audio Sound.png
+    - assets/1.Audio_Sound.png 
+    - assets/Goal_Target/ 
+    - assets/Approved_Tick/Approved_White_Badge_Red.png
+    - assets/Process_Flows_Automation/
+    - assets/Business_Growth_Development/
+    - assets/Email_Notification/
+    - assets/Task_Management/
+    - assets/Calendar_Date_Picker/
+    - assets/Information_Detail/
+    - assets/Project_Direction_Acceleration/
+    - assets/Like_Thumbs_Up/
+    - assets/Office_Workplace/
+    - assets/Internet_Web_Browser/
+
+
+
+
+
+
+
+
+
   fonts:
     - family: Poppins
       fonts:
