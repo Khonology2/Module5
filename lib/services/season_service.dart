@@ -241,31 +241,39 @@ class SeasonService {
         if (seasonDoc.exists) {
           final season = Season.fromFirestore(seasonDoc);
 
-          // Find milestone and award points
-          for (final challenge in season.challenges) {
-            for (final milestone in challenge.milestones) {
+          // Find the milestone that was completed
+          SeasonMilestone? completedMilestone;
+          for (var challenge in season.challenges) {
+            for (var milestone in challenge.milestones) {
               if (milestone.id == milestoneId) {
-                batch.update(seasonRef, {
-                  'participations.$userId.totalPoints': FieldValue.increment(
-                    milestone.points,
-                  ),
-                });
-
-                // Update corresponding employee goal progress
-                await _updateEmployeeGoalProgress(
-                  userId: userId,
-                  seasonId: seasonId,
-                  challengeId: challenge.id,
-                  milestoneId: milestoneId,
-                  points: milestone.points,
-                );
+                completedMilestone = milestone;
                 break;
               }
             }
+            if (completedMilestone != null) break;
           }
 
-          // Check for badge eligibility
-          await _checkAndAwardBadges(season, userId, batch);
+          if (completedMilestone != null) {
+            // Update points for the user
+            batch.update(seasonRef, {
+              'participations.$userId.totalPoints': FieldValue.increment(completedMilestone.points),
+            });
+
+            // Update corresponding employee goal progress
+            await _updateEmployeeGoalProgress(
+              userId: userId,
+              seasonId: seasonId,
+              challengeId: completedMilestone.challengeId,
+              milestoneId: milestoneId,
+              points: completedMilestone.points,
+            );
+
+            // Check for badge eligibility for the employee
+            await _checkAndAwardBadges(season, userId, batch);
+
+            // Update team metrics and check for manager badges
+            await _updateTeamMetricsAndCheckManagerBadges(season, completedMilestone.points);
+          }
         }
       }
 
@@ -290,7 +298,7 @@ class SeasonService {
     }
   }
 
-  // Check and award badges
+  // Check and award badges for employees
   static Future<void> _checkAndAwardBadges(
     Season season,
     String userId,
@@ -837,7 +845,7 @@ class SeasonService {
       }
 
       // Sync badge with employee's main badge system
-      await _syncBadgeWithEmployeeSystem(userId, badge, season);
+      await _syncBadgeWithEmployeeSystem(userId, badge, season, isManager: role == 'manager');
 
       // Create celebration alert
       await AlertService.createMotivationalAlert(
@@ -853,10 +861,1244 @@ class SeasonService {
   }
 
   // Sync season badge with employee's main badge system
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Update team metrics and check for manager badges
+  static Future<void> _updateTeamMetricsAndCheckManagerBadges(
+    Season season,
+    int pointsAwarded,
+  ) async {
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+
+      // Increment team points and challenges
+      await seasonRef.update({
+        'metrics.totalTeamPoints': FieldValue.increment(pointsAwarded),
+        'metrics.completedTeamChallenges': FieldValue.increment(1),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Refetch season data to get the latest metrics
+      final updatedSeasonDoc = await seasonRef.get();
+      if (!updatedSeasonDoc.exists) return;
+      final updatedSeason = Season.fromFirestore(updatedSeasonDoc);
+
+      await _checkAndAwardManagerBadges(updatedSeason);
+    } catch (e) {
+      developer.log('Error updating team metrics: $e');
+    }
+  }
+
+  // Check and award badges for managers
+  static Future<void> _checkAndAwardManagerBadges(Season season) async {
+    try {
+      final managerId = season.createdBy;
+      final metrics = season.metrics;
+      final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
+
+      final managerBadges = [
+        SeasonBadge(
+          id: 'team_builder',
+          name: 'Team Builder',
+          description: 'Assembled a team of 5+ for a season',
+          icon: '👥',
+          color: '#3498DB',
+          points: 50,
+          criteria: {'participants': 5},
+        ),
+        SeasonBadge(
+          id: 'momentum_maker',
+          name: 'Momentum Maker',
+          description: 'Team earned over 500 points in a season',
+          icon: '🚀',
+          color: '#E67E22',
+          points: 100,
+          criteria: {'points': 500},
+        ),
+        SeasonBadge(
+          id: 'challenge_crusher',
+          name: 'Challenge Crusher',
+          description: 'Team completed 10+ challenges in a season',
+          icon: '💥',
+          color: '#E74C3C',
+          points: 150,
+          criteria: {'challenges': 10},
+        ),
+      ];
+
+      for (final badge in managerBadges) {
+        if (!earnedBadgeIds.contains(badge.id)) {
+          bool shouldAward = false;
+          if (badge.criteria.containsKey('participants')) {
+            shouldAward = metrics.totalParticipants >= badge.criteria['participants'];
+          } else if (badge.criteria.containsKey('points')) {
+            shouldAward = metrics.totalTeamPoints >= badge.criteria['points'];
+          } else if (badge.criteria.containsKey('challenges')) {
+            shouldAward = metrics.completedTeamChallenges >= badge.criteria['challenges'];
+          }
+
+          if (shouldAward) {
+            await _firestore.collection('seasons').doc(season.id).update({
+              'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
+            });
+
+            await _syncBadgeWithEmployeeSystem(managerId, badge, season, isManager: true);
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking manager badges: $e');
+    }
+  }
+
+  // Sync season badge with employee's main badge system
   static Future<void> _syncBadgeWithEmployeeSystem(
     String userId,
     SeasonBadge seasonBadge,
     Season season,
+    {bool isManager = false}
   ) async {
     try {
       // Create a badge in the employee's badge collection
@@ -885,6 +2127,7 @@ class SeasonService {
       await AlertService.createBadgeAlert(
         userId: userId,
         badgeName: seasonBadge.name,
+        isManager: isManager,
       );
 
       developer.log(

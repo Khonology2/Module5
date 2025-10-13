@@ -162,8 +162,9 @@ class SeasonChallenge {
   });
 
   factory SeasonChallenge.fromMap(Map<String, dynamic> map) {
+    final challengeId = map['id'] ?? '';
     return SeasonChallenge(
-      id: map['id'] ?? '',
+      id: challengeId,
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       type: ChallengeType.values.firstWhere(
@@ -172,7 +173,7 @@ class SeasonChallenge {
       ),
       points: map['points'] ?? 0,
       milestones: (map['milestones'] as List<dynamic>? ?? [])
-          .map((m) => SeasonMilestone.fromMap(m as Map<String, dynamic>))
+          .map((m) => SeasonMilestone.fromMap(m as Map<String, dynamic>, challengeId))
           .toList(),
       requirements: Map<String, dynamic>.from(map['requirements'] ?? {}),
       isOptional: map['isOptional'] ?? false,
@@ -200,6 +201,7 @@ class SeasonMilestone {
   final int points;
   final DateTime? targetDate;
   final Map<String, dynamic> criteria;
+  final String challengeId;
 
   const SeasonMilestone({
     required this.id,
@@ -208,9 +210,10 @@ class SeasonMilestone {
     required this.points,
     this.targetDate,
     required this.criteria,
+    required this.challengeId,
   });
 
-  factory SeasonMilestone.fromMap(Map<String, dynamic> map) {
+  factory SeasonMilestone.fromMap(Map<String, dynamic> map, String challengeId) {
     return SeasonMilestone(
       id: map['id'] ?? '',
       title: map['title'] ?? '',
@@ -218,6 +221,7 @@ class SeasonMilestone {
       points: map['points'] ?? 0,
       targetDate: (map['targetDate'] as Timestamp?)?.toDate(),
       criteria: Map<String, dynamic>.from(map['criteria'] ?? {}),
+      challengeId: challengeId,
     );
   }
 
@@ -304,6 +308,9 @@ class SeasonMetrics {
   final double averageProgress;
   final Map<ChallengeType, int> challengeCompletions;
   final DateTime lastUpdated;
+  final int totalTeamPoints;
+  final int completedTeamChallenges;
+  final List<String> managerBadgesEarned;
 
   const SeasonMetrics({
     required this.totalParticipants,
@@ -314,6 +321,9 @@ class SeasonMetrics {
     required this.averageProgress,
     required this.challengeCompletions,
     required this.lastUpdated,
+    this.totalTeamPoints = 0,
+    this.completedTeamChallenges = 0,
+    this.managerBadgesEarned = const [],
   });
 
   factory SeasonMetrics.fromMap(Map<String, dynamic> map) {
@@ -337,6 +347,9 @@ class SeasonMetrics {
       ),
       lastUpdated:
           (map['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      totalTeamPoints: map['totalTeamPoints'] ?? 0,
+      completedTeamChallenges: map['completedTeamChallenges'] ?? 0,
+      managerBadgesEarned: List<String>.from(map['managerBadgesEarned'] ?? []),
     );
   }
 
@@ -352,6 +365,9 @@ class SeasonMetrics {
         (key, value) => MapEntry(key.name, value),
       ),
       'lastUpdated': Timestamp.fromDate(lastUpdated),
+      'totalTeamPoints': totalTeamPoints,
+      'completedTeamChallenges': completedTeamChallenges,
+      'managerBadgesEarned': managerBadgesEarned,
     };
   }
 }

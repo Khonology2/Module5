@@ -63,142 +63,147 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           );
         }
       },
-      content: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.8),
-            ],
-          ),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: AppSpacing.screenPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      content: StreamBuilder<List<EmployeeData>>(
+        stream: ManagerRealtimeService.getTeamDataStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final employees = snapshot.data ?? [];
+
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.backgroundColor,
+                  AppColors.backgroundColor.withValues(alpha: 0.8),
+                ],
+              ),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: AppSpacing.screenPadding,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Team Alerts & Nudges',
-                          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Team Alerts & Nudges',
+                              style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => _showSendNudgeDialog(),
+                            icon: const Icon(Icons.add_circle_outline, size: 18),
+                            label: const Text('Send Nudge'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.activeColor,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => _showSendNudgeDialog(),
-                        icon: const Icon(Icons.add_circle_outline, size: 18),
-                        label: const Text('Send Nudge'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.activeColor,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildStatsRow(employees),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  _buildStatsRow(),
-                ],
-              ),
+                ),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: AppColors.elevatedBackground,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: AppColors.activeColor,
+                    labelColor: AppColors.textPrimary,
+                    unselectedLabelColor: AppColors.textSecondary,
+                    labelStyle: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                    tabs: const [
+                      Tab(text: 'Team Alerts', icon: Icon(Icons.notifications, size: 20)),
+                      Tab(text: 'Send Nudges', icon: Icon(Icons.message_outlined, size: 20)),
+                      Tab(text: 'Analytics', icon: Icon(Icons.analytics_outlined, size: 20)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildTeamAlertsTab(employees),
+                      _buildSendNudgesTab(employees),
+                      _buildAnalyticsTab(),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderColor),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: AppColors.activeColor,
-                labelColor: AppColors.textPrimary,
-                unselectedLabelColor: AppColors.textSecondary,
-                labelStyle: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-                tabs: const [
-                  Tab(text: 'Team Alerts', icon: Icon(Icons.notifications, size: 20)),
-                  Tab(text: 'Send Nudges', icon: Icon(Icons.message_outlined, size: 20)),
-                  Tab(text: 'Analytics', icon: Icon(Icons.analytics_outlined, size: 20)),
-                ],
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildTeamAlertsTab(),
-                  _buildSendNudgesTab(),
-                  _buildAnalyticsTab(),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildStatsRow() {
-    return StreamBuilder<List<EmployeeData>>(
-      stream: ManagerRealtimeService.getTeamDataStream(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
-        }
+  Widget _buildStatsRow(List<EmployeeData> employees) {
+    final totalAlerts = employees.fold<int>(0, (sum, emp) => sum + emp.recentAlerts.length);
+    final urgentAlerts = employees.fold<int>(0, (sum, emp) => 
+      sum + emp.recentAlerts.where((a) => a.priority == AlertPriority.urgent).length);
+    final overdueGoals = employees.fold<int>(0, (sum, emp) => sum + emp.overdueGoalsCount);
 
-        final employees = snapshot.data ?? [];
-        final totalAlerts = employees.fold<int>(0, (sum, emp) => sum + emp.recentAlerts.length);
-        final urgentAlerts = employees.fold<int>(0, (sum, emp) => 
-          sum + emp.recentAlerts.where((a) => a.priority == AlertPriority.urgent).length);
-        final overdueGoals = employees.fold<int>(0, (sum, emp) => sum + emp.overdueGoalsCount);
-
-        return Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Total Alerts',
-                totalAlerts.toString(),
-                AppColors.activeColor,
-                Icons.notifications,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _buildStatCard(
-                'Urgent',
-                urgentAlerts.toString(),
-                AppColors.dangerColor,
-                Icons.priority_high,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _buildStatCard(
-                'Overdue Goals',
-                overdueGoals.toString(),
-                AppColors.warningColor,
-                Icons.schedule,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _buildStatCard(
-                'Team Members',
-                employees.length.toString(),
-                AppColors.successColor,
-                Icons.people_outline,
-              ),
-            ),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            'Total Alerts',
+            totalAlerts.toString(),
+            AppColors.activeColor,
+            Icons.notifications,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildStatCard(
+            'Urgent',
+            urgentAlerts.toString(),
+            AppColors.dangerColor,
+            Icons.priority_high,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildStatCard(
+            'Overdue Goals',
+            overdueGoals.toString(),
+            AppColors.warningColor,
+            Icons.schedule,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _buildStatCard(
+            'Team Members',
+            employees.length.toString(),
+            AppColors.successColor,
+            Icons.people_outline,
+          ),
+        ),
+      ],
     );
   }
 
@@ -233,7 +238,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildTeamAlertsTab() {
+  Widget _buildTeamAlertsTab(List<EmployeeData> employees) {
+    final allAlerts = <Alert>[];
+    for (final employee in employees) {
+      allAlerts.addAll(employee.recentAlerts);
+    }
+    final filteredAlerts = _filterAlerts(allAlerts);
+
     return SingleChildScrollView(
       padding: AppSpacing.screenPadding,
       child: Column(
@@ -241,67 +252,40 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         children: [
           _buildFilterRow(),
           const SizedBox(height: AppSpacing.lg),
-          StreamBuilder<List<EmployeeData>>(
-            stream: ManagerRealtimeService.getTeamDataStream(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return _buildErrorState(snapshot.error.toString());
-              }
-
-              final employees = snapshot.data ?? [];
-              final allAlerts = <Alert>[];
-              
-              for (final employee in employees) {
-                allAlerts.addAll(employee.recentAlerts);
-              }
-
-              final filteredAlerts = _filterAlerts(allAlerts);
-
-              if (filteredAlerts.isEmpty) {
-                return _buildEmptyAlertsState();
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Team Alerts (${filteredAlerts.length})',
-                        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                      ),
-                      if (filteredAlerts.any((alert) => !alert.isRead))
-                        TextButton(
-                          onPressed: () => _markAllAlertsAsRead(filteredAlerts),
-                          child: Text(
-                            'Mark All Read',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.activeColor,
-                            ),
+          if (filteredAlerts.isEmpty)
+            _buildEmptyAlertsState()
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Team Alerts (${filteredAlerts.length})',
+                      style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                    ),
+                    if (filteredAlerts.any((alert) => !alert.isRead))
+                      TextButton(
+                        onPressed: () => _markAllAlertsAsRead(filteredAlerts),
+                        child: Text(
+                          'Mark All Read',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.activeColor,
                           ),
                         ),
-                    ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ...filteredAlerts.map((alert) => 
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: _buildTeamAlertCard(alert, employees),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  ...filteredAlerts.map((alert) => 
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildTeamAlertCard(alert, employees),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -536,7 +520,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildSendNudgesTab() {
+  Widget _buildSendNudgesTab(List<EmployeeData> employees) {
+    final filteredEmployees = _filterEmployees(employees);
+
     return SingleChildScrollView(
       padding: AppSpacing.screenPadding,
       child: Column(
@@ -547,76 +533,51 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
           ),
           const SizedBox(height: AppSpacing.md),
-          StreamBuilder<List<EmployeeData>>(
-            stream: ManagerRealtimeService.getTeamDataStream(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return _buildErrorState(snapshot.error.toString());
-              }
-
-              final employees = snapshot.data ?? [];
-              final filteredEmployees = _filterEmployees(employees);
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          onChanged: (value) => setState(() => _searchQuery = value),
-                          decoration: InputDecoration(
-                            hintText: 'Search team members...',
-                            prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.borderColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.borderColor),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.activeColor),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      ElevatedButton.icon(
-                        onPressed: () => _showBulkNudgeDialog(employees),
-                        icon: const Icon(Icons.group, size: 18),
-                        label: const Text('Bulk Nudge'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.warningColor,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  if (filteredEmployees.isEmpty)
-                    _buildNoEmployeesState()
-                  else
-                    ...filteredEmployees.map((employee) => 
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _buildEmployeeNudgeCard(employee),
-                      ),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                  decoration: InputDecoration(
+                    hintText: 'Search team members...',
+                    prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.borderColor),
                     ),
-                ],
-              );
-            },
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: AppColors.activeColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              ElevatedButton.icon(
+                onPressed: () => _showBulkNudgeDialog(employees),
+                icon: const Icon(Icons.group, size: 18),
+                label: const Text('Bulk Nudge'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.warningColor,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: AppSpacing.lg),
+          if (filteredEmployees.isEmpty)
+            _buildNoEmployeesState()
+          else
+            ...filteredEmployees.map((employee) => 
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: _buildEmployeeNudgeCard(employee),
+              ),
+            ),
         ],
       ),
     );
@@ -875,37 +836,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
            textAlign: TextAlign.center,
          ),
       ],
-     ),
-   );
- }
-
- Widget _buildErrorState(String error) {
-   return Container(
-     padding: const EdgeInsets.all(32),
-     decoration: BoxDecoration(
-       color: AppColors.elevatedBackground,
-       borderRadius: BorderRadius.circular(12),
-       border: Border.all(color: AppColors.borderColor),
-     ),
-     child: Column(
-       children: [
-         Icon(
-           Icons.error_outline,
-           size: 48,
-           color: AppColors.dangerColor,
-         ),
-         const SizedBox(height: 16),
-         Text(
-           'Error loading data',
-           style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-         ),
-         const SizedBox(height: 8),
-         Text(
-           error,
-           style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-           textAlign: TextAlign.center,
-         ),
-       ],
      ),
    );
  }

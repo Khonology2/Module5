@@ -290,31 +290,8 @@ class ManagerRealtimeService {
     }
   }
 
-  Stream<List<EmployeeData>> employeesStream() async* {
-    await _ensureSignedIn();
-    try {
-      yield* _db.collection('employees').snapshots().map((snap) {
-        return snap.docs.map((doc) {
-          final data = doc.data();
-          return EmployeeData.fromMap(
-            data,
-            id: doc.id,
-          ); // adjust factory if needed
-        }).toList();
-      });
-    } on FirebaseException catch (e, st) {
-      if (kDebugMode) debugPrint('employeesStream FirebaseException: $e\n$st');
-      // Propagate a clearer error so the UI can show actionable text
-      throw FirebaseException(
-        plugin: e.plugin,
-        code: e.code,
-        message:
-            'Firestore error (${e.code}). Verify Firestore rules and authentication. ${e.message ?? ''}',
-      );
-    } catch (e, st) {
-      if (kDebugMode) debugPrint('employeesStream unknown error: $e\n$st');
-      rethrow;
-    }
+  Stream<List<EmployeeData>> employeesStream() {
+    return getTeamDataStream();
   }
 
   Stream<TeamMetrics?> teamMetricsStream() async* {
@@ -460,43 +437,59 @@ class ManagerRealtimeService {
             .collection('users')
             .where('role', isEqualTo: 'employee');
 
-        developer.log('Manager Realtime Service: Setting up stream');
-        developer.log('Manager UID: $currentUser.uid');
-        developer.log('Getting all employees (department filtering disabled)');
-
-        // Get all activities and filter in memory to avoid composite index
-        Query activitiesQuery = _firestore.collection('activities');
-
-        QuerySnapshot? lastUsersSnapshot;
-
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
-          developer.log(
-            'Manager Realtime Service: Received snapshot with ${usersSnapshot.docs.length} employees',
-          );
-          final List<EmployeeData> employeeDataList = [];
-
-          for (final userDoc in usersSnapshot.docs) {
-            try {
-              developer.log('Processing employee: ${userDoc.id}');
-              final userProfile = UserProfile.fromFirestore(userDoc);
-              final employeeData = await _buildEmployeeData(
-                userProfile,
-                timeFilter,
-              );
-              employeeDataList.add(employeeData);
-              developer.log(
-                'Successfully processed employee: ${userProfile.displayName}',
-              );
-            } catch (e) {
-              developer.log('Error processing employee ${userDoc.id}: $e');
-            }
+          if (usersSnapshot.docs.isEmpty) {
+            controller.add([]);
+            return;
           }
 
-          developer.log(
-            'Manager Realtime Service: Built ${employeeDataList.length} employee data objects',
-          );
+          final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
 
-          // Sort by risk level (at risk and overdue first)
+          // Batch fetch goals, activities, and alerts
+          final goalsQuery = await _firestore
+              .collection('goals')
+              .where('userId', whereIn: employeeIds)
+              .get();
+          final activitiesQuery = await _firestore
+              .collection('activities')
+              .where('userId', whereIn: employeeIds)
+              .get();
+          final alertsQuery = await _firestore
+              .collection('alerts')
+              .where('userId', whereIn: employeeIds)
+              .get();
+
+          final goalsByEmployee = <String, List<Goal>>{};
+          for (var doc in goalsQuery.docs) {
+            final goal = Goal.fromFirestore(doc);
+            goalsByEmployee.putIfAbsent(goal.userId, () => []).add(goal);
+          }
+
+          final activitiesByEmployee = <String, List<EmployeeActivity>>{};
+          for (var doc in activitiesQuery.docs) {
+            final activity = EmployeeActivity.fromFirestore(doc);
+            activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
+          }
+
+          final alertsByEmployee = <String, List<Alert>>{};
+          for (var doc in alertsQuery.docs) {
+            final alert = Alert.fromFirestore(doc);
+            alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
+          }
+
+          final employeeDataList = <EmployeeData>[];
+          for (final userDoc in usersSnapshot.docs) {
+            final userProfile = UserProfile.fromFirestore(userDoc);
+            final employeeData = await _buildEmployeeData(
+              userProfile,
+              timeFilter,
+              goalsByEmployee[userDoc.id] ?? [],
+              activitiesByEmployee[userDoc.id] ?? [],
+              alertsByEmployee[userDoc.id] ?? [],
+            );
+            employeeDataList.add(employeeData);
+          }
+
           employeeDataList.sort((a, b) {
             final aRisk = _getRiskScore(a);
             final bRisk = _getRiskScore(b);
@@ -509,7 +502,6 @@ class ManagerRealtimeService {
 
         final usersSub = query.snapshots().listen(
           (snapshot) async {
-            lastUsersSnapshot = snapshot;
             await rebuildAndEmit(snapshot);
           },
           onError: (error) {
@@ -518,20 +510,8 @@ class ManagerRealtimeService {
           },
         );
 
-        final activitiesSub = activitiesQuery.snapshots().listen(
-          (_) async {
-            if (lastUsersSnapshot != null) {
-              await rebuildAndEmit(lastUsersSnapshot!);
-            }
-          },
-          onError: (error) {
-            developer.log('Error in activities stream: $error');
-          },
-        );
-
         controller.onCancel = () {
           usersSub.cancel();
-          activitiesSub.cancel();
         };
       } catch (e) {
         developer.log('Error setting up team data stream: $e');
@@ -703,240 +683,58 @@ class ManagerRealtimeService {
   static Future<EmployeeData> _buildEmployeeData(
     UserProfile profile,
     TimeFilter timeFilter,
+    List<Goal> allEmployeeGoals,
+    List<EmployeeActivity> allEmployeeActivities,
+    List<Alert> allEmployeeAlerts,
   ) async {
     try {
       final startDate = _getStartDateForFilter(timeFilter);
 
-      // Get employee's goals within time filter (supports top-level and nested under user)
-      final goalsTopLevel = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: profile.uid)
-          .get();
-
-      List<Goal> goals = goalsTopLevel.docs
-          .map((doc) => Goal.fromFirestore(doc))
-          .where((goal) => goal.createdAt.isAfter(startDate))
+      final goals = allEmployeeGoals
+          .where((g) => g.createdAt.isAfter(startDate))
           .toList();
 
-      if (goals.isEmpty) {
-        final goalsNested = await _firestore
-            .collection('users')
-            .doc(profile.uid)
-            .collection('goals')
-            .get();
-        goals = goalsNested.docs
-            .map((doc) => Goal.fromFirestore(doc))
-            .where((goal) => goal.createdAt.isAfter(startDate))
-            .toList();
-      }
-
-      // Get all goals for status calculation (top-level first, fallback to nested)
-      final allTopLevel = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: profile.uid)
-          .get();
-
-      List<Goal> allGoals = allTopLevel.docs
-          .map((doc) => Goal.fromFirestore(doc))
-          .toList();
-
-      if (allGoals.isEmpty) {
-        final allNested = await _firestore
-            .collection('users')
-            .doc(profile.uid)
-            .collection('goals')
-            .get();
-        allGoals = allNested.docs
-            .map((doc) => Goal.fromFirestore(doc))
-            .toList();
-      }
-
-      // Calculate metrics
-      final completedGoals = allGoals
-          .where((g) => g.status == GoalStatus.completed)
-          .length;
-      final overdueGoals = allGoals
-          .where(
-            (g) =>
-                g.status != GoalStatus.completed &&
-                g.targetDate.isBefore(DateTime.now()),
-          )
+      final completedGoals =
+          allEmployeeGoals.where((g) => g.status == GoalStatus.completed).length;
+      final overdueGoals = allEmployeeGoals
+          .where((g) =>
+              g.status != GoalStatus.completed &&
+              g.targetDate.isBefore(DateTime.now()))
           .length;
 
-      final avgProgress = allGoals.isNotEmpty
-          ? allGoals.map((g) => g.progress).reduce((a, b) => a + b) /
-                allGoals.length
+      final avgProgress = allEmployeeGoals.isNotEmpty
+          ? allEmployeeGoals.map((g) => g.progress).fold(0.0, (a, b) => a + b) /
+              allEmployeeGoals.length
           : 0.0;
 
-      // Get real recent activity from activities collection
-      DateTime lastActivity = DateTime.now().subtract(
-        const Duration(days: 30),
-      ); // Default to inactive
-      int streakDays = 0;
-      double engagementScore = 0.0;
-      String motivationLevel = 'Unknown';
-      List<QueryDocumentSnapshot> activityDocs = [];
-      List<EmployeeActivity> recentActivities = const [];
+      allEmployeeActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-      try {
-        // Pull lastLoginAt and lastActivityAt from user profile
-        try {
-          final userDoc = await _firestore
-              .collection('users')
-              .doc(profile.uid)
-              .get();
-          final data = userDoc.data();
-          // Prefer stored values when available
-          final storedStreak = data?['currentStreak'];
-          if (storedStreak != null) {
-            streakDays = (storedStreak is int)
-                ? storedStreak
-                : int.tryParse(storedStreak.toString()) ?? 0;
-          }
-          final storedEngagement = data?['engagementScore'];
-          if (storedEngagement != null) {
-            engagementScore = (storedEngagement is num)
-                ? storedEngagement.toDouble()
-                : double.tryParse(storedEngagement.toString()) ?? 0.0;
-          }
-          final storedMotivation = data?['motivationLevel'];
-          if (storedMotivation is String && storedMotivation.isNotEmpty) {
-            motivationLevel = storedMotivation;
-          }
+      final lastActivity = allEmployeeActivities.isNotEmpty
+          ? allEmployeeActivities.first.timestamp
+          : (profile.lastLoginAt ?? DateTime.now().subtract(const Duration(days: 30)));
 
-          // Check for lastActivityAt timestamp (from goal updates)
-          final lastActivityTs = data?['lastActivityAt'] as Timestamp?;
-          if (lastActivityTs != null) {
-            lastActivity = lastActivityTs.toDate();
-          }
+      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      final recentDocs = allEmployeeActivities
+          .where((act) => act.timestamp.isAfter(thirtyDaysAgo))
+          .toList();
 
-          // If lastLoginAt is more recent, use that instead
-          final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
-          if (lastLoginTs != null) {
-            final lastLogin = lastLoginTs.toDate();
-            if (lastLogin.isAfter(lastActivity)) {
-              lastActivity = lastLogin;
-            }
-            // If no login today, enforce streak = 0 later by passing empty docs
-            final now = DateTime.now();
-            final todayOnly = DateTime(now.year, now.month, now.day);
-            final lastLoginOnly = DateTime(
-              lastLogin.year,
-              lastLogin.month,
-              lastLogin.day,
-            );
-            final hasLoggedInToday = lastLoginOnly.isAtSameMomentAs(todayOnly);
-            if (!hasLoggedInToday) {
-              // Skip activity-based streak; ensure streakDays becomes 0
-              streakDays = 0;
-            }
-          }
-        } catch (_) {}
+      final streakDays = _calculateStreakDaysFromActivities(recentDocs);
+      final recentActivities = recentDocs.take(10).toList();
 
-        final activityQuery = await _firestore
-            .collection('activities')
-            .where('userId', isEqualTo: profile.uid)
-            .get();
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      final weeklyActivityCount = allEmployeeActivities
+          .where((act) => act.timestamp.isAfter(sevenDaysAgo))
+          .length;
 
-        if (activityQuery.docs.isNotEmpty) {
-          // Sort activities by timestamp to get the most recent
-          final sortedActivities = activityQuery.docs.toList()
-            ..sort((a, b) {
-              final aTime =
-                  (a.data()['timestamp'] as Timestamp?)?.toDate() ??
-                  DateTime.fromMillisecondsSinceEpoch(0);
-              final bTime =
-                  (b.data()['timestamp'] as Timestamp?)?.toDate() ??
-                  DateTime.fromMillisecondsSinceEpoch(0);
-              return bTime.compareTo(aTime);
-            });
+      final engagementScore = (weeklyActivityCount / 7) * 100.0;
 
-          lastActivity =
-              (sortedActivities.first.data()['timestamp'] as Timestamp?)
-                  ?.toDate() ??
-              DateTime.now().subtract(const Duration(days: 30));
-        }
-
-        // Calculate streak days from recent activities
-        final streakQuerySnapshot = await _firestore
-            .collection('activities')
-            .where('userId', isEqualTo: profile.uid)
-            .get();
-
-        // Sort activities by timestamp and limit to last 30 days
-        final sortedStreakDocs = streakQuerySnapshot.docs.toList()
-          ..sort((a, b) {
-            final aTime =
-                (a.data()['timestamp'] as Timestamp?)?.toDate() ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            final bTime =
-                (b.data()['timestamp'] as Timestamp?)?.toDate() ??
-                DateTime.fromMillisecondsSinceEpoch(0);
-            return bTime.compareTo(aTime);
-          });
-
-        // Filter to last 30 days
-        final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-        final recentDocs = sortedStreakDocs.where((doc) {
-          final timestamp = (doc.data()['timestamp'] as Timestamp?)?.toDate();
-          return timestamp != null && timestamp.isAfter(thirtyDaysAgo);
-        }).toList();
-
-        // If we have stored streak (>0), keep it; otherwise compute based on activity
-        if (streakDays > 0) {
-          // keep stored value
-        } else {
-          streakDays = _calculateStreakDays(recentDocs);
-        }
-        activityDocs = recentDocs;
-
-        // Build recent activities list (limit 10)
-        recentActivities = recentDocs
-            .take(10)
-            .map((doc) => EmployeeActivity.fromFirestore(doc))
-            .toList();
-
-        // If engagementScore not stored, compute simple engagement as active days in last 7 days
-        if (engagementScore == 0.0) {
-          final now = DateTime.now();
-          final sevenDaysAgo = now.subtract(const Duration(days: 7));
-          final activeDays = activityDocs
-              .map(
-                (doc) =>
-                    (doc.data() as Map<String, dynamic>?)?['timestamp']
-                        as Timestamp?,
-              )
-              .where((ts) => ts != null && ts.toDate().isAfter(sevenDaysAgo))
-              .map((ts) {
-                final d = ts!.toDate();
-                return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-              })
-              .toSet()
-              .length;
-          engagementScore = (activeDays / 7) * 100.0;
-        }
-      } catch (e) {
-        developer.log('Error getting activity data for ${profile.uid}: $e');
-        // Keep default values
-      }
-
-      // Determine status
-      final status = _determineEmployeeStatus(allGoals, lastActivity);
-
-      developer.log(
-        'Manager Realtime Service: Built employee data for ${profile.displayName}',
-      );
-      developer.log(
-        '  - Goals: ${goals.length} (completed: $completedGoals, overdue: $overdueGoals)',
-      );
-      developer.log('  - Status: $status');
-      developer.log('  - Last activity: $lastActivity');
+      final status = _determineEmployeeStatus(allEmployeeGoals, lastActivity);
 
       return EmployeeData(
         profile: profile,
         goals: goals,
         recentActivities: recentActivities,
-        recentAlerts: const [], // Not implemented yet
+        recentAlerts: allEmployeeAlerts,
         completedGoalsCount: completedGoals,
         overdueGoalsCount: overdueGoals,
         totalPoints: profile.totalPoints,
@@ -944,15 +742,9 @@ class ManagerRealtimeService {
         avgProgress: avgProgress,
         streakDays: streakDays,
         status: status,
-        weeklyActivityCount: _calculateWeeklyActivityCount(activityDocs),
-        engagementScore: engagementScore == 0.0 ? avgProgress : engagementScore,
-        motivationLevel: motivationLevel == 'Unknown'
-            ? (avgProgress > 70
-                  ? 'High'
-                  : avgProgress > 40
-                  ? 'Medium'
-                  : 'Low')
-            : motivationLevel,
+        weeklyActivityCount: weeklyActivityCount,
+        engagementScore: engagementScore,
+        motivationLevel: 'N/A', // This can be enhanced later
       );
     } catch (e) {
       developer.log('Error building employee data for ${profile.uid}: $e');
@@ -960,8 +752,8 @@ class ManagerRealtimeService {
       return EmployeeData(
         profile: profile,
         goals: [],
-        recentActivities: const [], // Keep empty for now
-        recentAlerts: const [], // Keep empty for now
+        recentActivities: const [],
+        recentAlerts: const [],
         completedGoalsCount: 0,
         overdueGoalsCount: 0,
         totalPoints: profile.totalPoints,
@@ -1017,42 +809,29 @@ class ManagerRealtimeService {
   }
 
   // Calculate streak days from activity documents
-  static int _calculateStreakDays(List<QueryDocumentSnapshot> activityDocs) {
-    if (activityDocs.isEmpty) return 0;
+  static int _calculateStreakDaysFromActivities(List<EmployeeActivity> activities) {
+    if (activities.isEmpty) return 0;
 
     final now = DateTime.now();
-    int streakDays = 0;
-    final activityDates = <String>[];
+    final activityDates = activities
+        .map((a) {
+          final ts = a.timestamp;
+          return '${ts.year}-${ts.month.toString().padLeft(2, '0')}-${ts.day.toString().padLeft(2, '0')}';
+        })
+        .toSet()
+        .toList();
 
-    // Extract unique dates from activities
-    for (final doc in activityDocs) {
-      final data = doc.data() as Map<String, dynamic>?;
-      final timestamp = (data?['timestamp'] as Timestamp?)?.toDate();
-      if (timestamp != null) {
-        final dateString =
-            '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
-        if (!activityDates.contains(dateString)) {
-          activityDates.add(dateString);
-        }
-      }
-    }
-
-    if (activityDates.isEmpty) return 0;
-
-    // Sort dates descending
     activityDates.sort((a, b) => b.compareTo(a));
 
-    // Count consecutive days starting strictly from today
     final today = DateTime(now.year, now.month, now.day);
     final todayString =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-    // Require activity today to maintain any streak
     if (!activityDates.contains(todayString)) {
       return 0;
     }
 
-    // Count consecutive days
+    int streakDays = 0;
     for (int i = 0; i < activityDates.length; i++) {
       final expectedDate = today.subtract(Duration(days: i));
       final expectedString =
@@ -1061,34 +840,11 @@ class ManagerRealtimeService {
       if (activityDates.contains(expectedString)) {
         streakDays++;
       } else {
-        break; // Gap found, end streak
+        break;
       }
     }
 
     return streakDays;
-  }
-
-  // Calculate weekly activity count within last 7 days
-  static int _calculateWeeklyActivityCount(
-    List<QueryDocumentSnapshot> activityDocs,
-  ) {
-    if (activityDocs.isEmpty) return 0;
-
-    final now = DateTime.now();
-    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-    final activityDates = <String>{};
-
-    for (final doc in activityDocs) {
-      final data = doc.data() as Map<String, dynamic>?;
-      final timestamp = (data?['timestamp'] as Timestamp?)?.toDate();
-      if (timestamp != null && timestamp.isAfter(sevenDaysAgo)) {
-        final dateString =
-            '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
-        activityDates.add(dateString);
-      }
-    }
-
-    return activityDates.length;
   }
 
   // Get risk score for sorting

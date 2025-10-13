@@ -27,6 +27,7 @@ class UserProfile {
   final bool leaderboardOptin;
   final String badgeName;
   final String celebrationConsent;
+  final DateTime? lastLoginAt;
 
   const UserProfile({
     required this.uid,
@@ -54,6 +55,7 @@ class UserProfile {
     this.leaderboardOptin = false,
     this.badgeName = '',
     this.celebrationConsent = 'private',
+    this.lastLoginAt,
   });
 
   // Factory constructor to create a UserProfile from a Firestore DocumentSnapshot
@@ -88,6 +90,9 @@ class UserProfile {
       leaderboardOptin: data?['leaderboardOptin'] ?? false,
       badgeName: data?['badgeName'] ?? '',
       celebrationConsent: data?['celebrationConsent'] ?? 'private',
+      lastLoginAt: data?['lastLoginAt'] is Timestamp
+          ? (data?['lastLoginAt'] as Timestamp).toDate()
+          : null,
     );
   }
 
@@ -117,6 +122,7 @@ class UserProfile {
       'leaderboardOptin': leaderboardOptin,
       'badgeName': badgeName,
       'celebrationConsent': celebrationConsent,
+      'lastLoginAt': lastLoginAt != null ? Timestamp.fromDate(lastLoginAt!) : null,
     };
   }
 
@@ -146,6 +152,7 @@ class UserProfile {
     bool? leaderboardOptin,
     String? badgeName,
     String? celebrationConsent,
+    DateTime? lastLoginAt,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -174,6 +181,7 @@ class UserProfile {
       leaderboardOptin: leaderboardOptin ?? this.leaderboardOptin,
       badgeName: badgeName ?? this.badgeName,
       celebrationConsent: celebrationConsent ?? this.celebrationConsent,
+      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );
   }
 
@@ -205,6 +213,9 @@ class UserProfile {
       leaderboardOptin: map['leaderboardOptin'] ?? false,
       badgeName: map['badgeName'] ?? '',
       celebrationConsent: map['celebrationConsent'] ?? 'private',
+      lastLoginAt: map['lastLoginAt'] is Timestamp
+          ? (map['lastLoginAt'] as Timestamp).toDate()
+          : null,
     );
   }
 }
