@@ -63,7 +63,6 @@ class BadgeService {
     _lastCheckAtByUser.remove(userId);
   }
 
->>>>>>> origin/lihle-manager
   // Get all badges for a user with their progress
   static Stream<List<Badge>> getUserBadgesStream(String userId) {
     return _firestore
@@ -124,8 +123,6 @@ class BadgeService {
     }
   }
 
-<<<<<<< HEAD
-=======
   // Retroactively award badges and update level based on existing accomplishments
   static Future<void> retroactivelyAwardBadgesAndUpdateLevel(
     String userId,
@@ -520,7 +517,6 @@ class BadgeService {
     }
   }
 
->>>>>>> origin/lihle-manager
   // Check and award badges based on user activity
   static Future<void> checkAndAwardBadges(String userId) async {
     try {
@@ -577,19 +573,12 @@ class BadgeService {
 
             // Create alert if badge was earned
             if (updatedBadge.isEarned && !badge.isEarned) {
-<<<<<<< HEAD
-              // For now, we'll skip the badge alert since the method doesn't exist yet
-              // This can be implemented later when AlertService is expanded
-=======
               await _createBadgeEarnedAlert(userId, updatedBadge);
->>>>>>> origin/lihle-manager
               developer.log('Badge earned: ${updatedBadge.name}');
             }
           }
         }
       }
-<<<<<<< HEAD
-=======
 
       // Check for level-based badges
       await _checkLevelBasedBadges(userId, userProfile);
@@ -599,7 +588,6 @@ class BadgeService {
 
       // Check for points milestone badges
       await _checkPointsMilestoneBadges(userId, userProfile);
->>>>>>> origin/lihle-manager
     } catch (e) {
       developer.log('Error checking badges: $e');
     }
@@ -1064,8 +1052,6 @@ class BadgeService {
       return 0;
     }
   }
-<<<<<<< HEAD
-=======
 
   // Create badge earned alert
   static Future<void> _createBadgeEarnedAlert(
@@ -1376,5 +1362,4 @@ class BadgeService {
       };
     }
   }
->>>>>>> origin/lihle-manager
 }

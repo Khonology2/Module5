@@ -5,6 +5,7 @@ import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_team_workspace_screen.dart'; // Import ManagerTeamWorkspaceScreen
+// Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
 // Removed in favor of employee leaderboard UI for uniformity
 import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
 import 'package:pdh/repository_audit_screen.dart'; // Import RepositoryAuditScreen
@@ -18,6 +19,7 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
 
@@ -26,21 +28,6 @@ class ManagerPortalScreen extends StatefulWidget {
 }
 
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
-<<<<<<< HEAD
-  String _currentRoute = '/dashboard'; // Default route for manager
-
-  final List<SidebarItem> _managerSidebarItems = [
-    const SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-           const SidebarItem(icon: Icons.person, label: 'Profile & PDP', route: '/my_pdp'), // Re-using MyPdpScreen for manager profile view
-           const SidebarItem(icon: Icons.work, label: 'Team Workspace', route: '/manager_team_workspace'), // Manager-specific team workspace
-    const SidebarItem(icon: Icons.bar_chart, label: 'Progress Visuals', route: '/progress_visuals'),
-    const SidebarItem(icon: Icons.message_outlined, label: 'Team Alerts & Nudges', route: '/manager_alerts_nudges'),
-    const SidebarItem(icon: Icons.workspace_premium, label: 'Badges & Points', route: '/badges_points'),
-    const SidebarItem(icon: Icons.leaderboard, label: 'Leaderboard', route: '/manager_leaderboard'),
-    const SidebarItem(icon: Icons.folder_open, label: 'Repository & Audit', route: '/repository_audit'),
-    const SidebarItem(icon: Icons.settings, label: 'Settings & Privacy', route: '/settings'),
-    const SidebarItem(icon: Icons.groups, label: 'Review Team', route: '/manager_review_team_dashboard'),
-=======
   String _currentRoute = '/dashboard'; // Default to Dashboard
 
   final List<SidebarItem> _managerSidebarItems = [
@@ -99,19 +86,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       label: 'Review Team',
       route: '/manager_review_team_dashboard',
     ),
->>>>>>> origin/lihle-manager
   ];
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
-<<<<<<< HEAD
-        return const DashboardScreen();
-      case '/my_pdp':
-        return const MyPdpScreen();
-             case '/manager_team_workspace':
-               return const ManagerTeamWorkspaceScreen(embedded: true);
-=======
         return const ManagerDashboardScreen();
       case '/my_pdp':
         return const MyPdpScreen();
@@ -119,7 +98,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerTeamWorkspaceScreen(embedded: true);
       case '/team_challenges_seasons':
         return const TeamChallengesSeasonsScreen();
->>>>>>> origin/lihle-manager
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
@@ -127,11 +105,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
-<<<<<<< HEAD
-        return const ManagerLeaderboardScreen();
-=======
         return const LeaderboardScreen();
->>>>>>> origin/lihle-manager
       case '/repository_audit':
         return const RepositoryAuditScreen();
       case '/settings':
@@ -139,11 +113,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/manager_review_team_dashboard':
         return const ManagerReviewTeamDashboardScreen();
       default:
-<<<<<<< HEAD
-        return const DashboardScreen();
-=======
         return const ManagerDashboardScreen();
->>>>>>> origin/lihle-manager
     }
   }
 
@@ -158,13 +128,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-<<<<<<< HEAD
-      MaterialPageRoute(builder: (context) => const LoginScreen()), // Use LoginScreen as SignInScreen is deprecated
-=======
       MaterialPageRoute(
         builder: (context) => const LoginScreen(),
       ), // Use LoginScreen as SignInScreen is deprecated
->>>>>>> origin/lihle-manager
       (Route<dynamic> route) => false,
     );
   }
@@ -212,27 +178,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                     currentRouteName: _currentRoute,
                     onLogout: _onLogout,
                   ),
-<<<<<<< HEAD
-                  Expanded(
-                    child: _getBodyWidget(),
-                  ),
-=======
                   Expanded(child: _getBodyWidget()),
->>>>>>> origin/lihle-manager
                 ],
               ),
             ),
           ),
           // Profile button positioned in top-right corner
-<<<<<<< HEAD
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _buildProfileButton(context),
-          ),
-=======
           Positioned(top: 16, right: 16, child: _buildProfileButton(context)),
->>>>>>> origin/lihle-manager
         ],
       ),
     );
@@ -250,13 +202,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       onTap: () {
         Navigator.push(
           context,
-<<<<<<< HEAD
-          MaterialPageRoute(
-            builder: (context) => const ManagerProfileScreen(),
-          ),
-=======
           MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
->>>>>>> origin/lihle-manager
         );
       },
       borderRadius: BorderRadius.circular(20),
@@ -281,10 +227,4 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       ),
     );
   }
-<<<<<<< HEAD
-
 }
-
-=======
-}
->>>>>>> origin/lihle-manager

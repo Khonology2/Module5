@@ -1,11 +1,8 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-<<<<<<< HEAD
-=======
 import 'package:flutter/foundation.dart';
 
->>>>>>> origin/lihle-manager
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
@@ -31,16 +28,6 @@ class EmployeeActivity {
   });
 
   factory EmployeeActivity.fromFirestore(DocumentSnapshot doc) {
-<<<<<<< HEAD
-    final data = doc.data() as Map<String, dynamic>;
-    return EmployeeActivity(
-      activityId: doc.id,
-      userId: data['userId'] ?? '',
-      activityType: data['activityType'] ?? 'unknown',
-      description: data['description'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      metadata: Map<String, dynamic>.from(data['metadata'] ?? {}),
-=======
     final data = doc.data() as Map<String, dynamic>?;
     return EmployeeActivity(
       activityId: doc.id,
@@ -70,7 +57,6 @@ class EmployeeActivity {
                 : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
                       DateTime.now()),
       metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
->>>>>>> origin/lihle-manager
     );
   }
 }
@@ -107,8 +93,6 @@ class EmployeeData {
     required this.engagementScore,
     required this.motivationLevel,
   });
-<<<<<<< HEAD
-=======
 
   static EmployeeData fromMap(Map<String, dynamic> map, {String? id}) {
     return EmployeeData(
@@ -159,7 +143,6 @@ class EmployeeData {
       motivationLevel: map['motivationLevel'] ?? 'Unknown',
     );
   }
->>>>>>> origin/lihle-manager
 }
 
 enum EmployeeStatus { onTrack, atRisk, overdue, inactive }
@@ -180,8 +163,6 @@ class TeamInsight {
     required this.priority,
     required this.createdAt,
   });
-<<<<<<< HEAD
-=======
 
   static TeamInsight fromMap(Map<String, dynamic> map, {String? id}) {
     return TeamInsight(
@@ -201,7 +182,6 @@ class TeamInsight {
                       DateTime.now()),
     );
   }
->>>>>>> origin/lihle-manager
 }
 
 enum InsightPriority { low, medium, high, urgent }
@@ -289,10 +269,6 @@ class TeamMetrics {
 }
 
 class ManagerRealtimeService {
-<<<<<<< HEAD
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-=======
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -454,7 +430,6 @@ class ManagerRealtimeService {
     }
   }
 
->>>>>>> origin/lihle-manager
   // Stream real-time team data based on current manager
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -478,66 +453,13 @@ class ManagerRealtimeService {
           targetDepartment = managerDoc.data()?['department'] as String?;
         }
 
-<<<<<<< HEAD
-=======
         // For now, get all employees regardless of department
         // This allows managers to see all employees in the system
         // The Firestore rules will handle security
->>>>>>> origin/lihle-manager
         Query query = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
 
-<<<<<<< HEAD
-        if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          query = query.where('department', isEqualTo: targetDepartment);
-        } else if (targetDepartment != null && targetDepartment.isEmpty) {
-          // If targetDepartment is an empty string, specifically query for employees with empty department
-          query = query.where('department', isEqualTo: '');
-        }
-
-        developer.log('Manager Realtime Service: Setting up stream');
-        developer.log('Manager UID: $currentUser.uid');
-        developer.log('Target Department: $targetDepartment');
-
-        final subscription = query.snapshots().listen(
-          (snapshot) async {
-            developer.log(
-              'Manager Realtime Service: Received snapshot with ${snapshot.docs.length} employees',
-            );
-            final List<EmployeeData> employeeDataList = [];
-
-            for (final userDoc in snapshot.docs) {
-              try {
-                developer.log('Processing employee: ${userDoc.id}');
-                final userProfile = UserProfile.fromFirestore(userDoc);
-                final employeeData = await _buildEmployeeData(
-                  userProfile,
-                  timeFilter,
-                );
-                employeeDataList.add(employeeData);
-                developer.log(
-                  'Successfully processed employee: ${userProfile.displayName}',
-                );
-              } catch (e) {
-                developer.log('Error processing employee ${userDoc.id}: $e');
-              }
-            }
-
-            developer.log(
-              'Manager Realtime Service: Built ${employeeDataList.length} employee data objects',
-            );
-
-            // Sort by risk level (at risk and overdue first)
-            employeeDataList.sort((a, b) {
-              final aRisk = _getRiskScore(a);
-              final bRisk = _getRiskScore(b);
-              if (aRisk != bRisk) return bRisk.compareTo(aRisk);
-              return b.totalPoints.compareTo(a.totalPoints);
-            });
-
-            controller.add(employeeDataList);
-=======
         developer.log('Manager Realtime Service: Setting up stream');
         developer.log('Manager UID: $currentUser.uid');
         developer.log('Getting all employees (department filtering disabled)');
@@ -589,7 +511,6 @@ class ManagerRealtimeService {
           (snapshot) async {
             lastUsersSnapshot = snapshot;
             await rebuildAndEmit(snapshot);
->>>>>>> origin/lihle-manager
           },
           onError: (error) {
             developer.log('Error in team data stream: $error');
@@ -597,10 +518,6 @@ class ManagerRealtimeService {
           },
         );
 
-<<<<<<< HEAD
-        controller.onCancel = () {
-          subscription.cancel();
-=======
         final activitiesSub = activitiesQuery.snapshots().listen(
           (_) async {
             if (lastUsersSnapshot != null) {
@@ -615,7 +532,6 @@ class ManagerRealtimeService {
         controller.onCancel = () {
           usersSub.cancel();
           activitiesSub.cancel();
->>>>>>> origin/lihle-manager
         };
       } catch (e) {
         developer.log('Error setting up team data stream: $e');
@@ -795,21 +711,11 @@ class ManagerRealtimeService {
       final goalsTopLevel = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: profile.uid)
-<<<<<<< HEAD
-          .where(
-            'createdAt',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-          )
-=======
->>>>>>> origin/lihle-manager
           .get();
 
       List<Goal> goals = goalsTopLevel.docs
           .map((doc) => Goal.fromFirestore(doc))
-<<<<<<< HEAD
-=======
           .where((goal) => goal.createdAt.isAfter(startDate))
->>>>>>> origin/lihle-manager
           .toList();
 
       if (goals.isEmpty) {
@@ -817,20 +723,11 @@ class ManagerRealtimeService {
             .collection('users')
             .doc(profile.uid)
             .collection('goals')
-<<<<<<< HEAD
-            .where(
-              'createdAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
-            )
-            .get();
-        goals = goalsNested.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-=======
             .get();
         goals = goalsNested.docs
             .map((doc) => Goal.fromFirestore(doc))
             .where((goal) => goal.createdAt.isAfter(startDate))
             .toList();
->>>>>>> origin/lihle-manager
       }
 
       // Get all goals for status calculation (top-level first, fallback to nested)
@@ -882,11 +779,7 @@ class ManagerRealtimeService {
       List<EmployeeActivity> recentActivities = const [];
 
       try {
-<<<<<<< HEAD
-        // Pull lastLoginAt from user profile
-=======
         // Pull lastLoginAt and lastActivityAt from user profile
->>>>>>> origin/lihle-manager
         try {
           final userDoc = await _firestore
               .collection('users')
@@ -910,11 +803,6 @@ class ManagerRealtimeService {
           if (storedMotivation is String && storedMotivation.isNotEmpty) {
             motivationLevel = storedMotivation;
           }
-<<<<<<< HEAD
-          final lastLoginTs = data?['lastLoginAt'] as Timestamp?;
-          if (lastLoginTs != null) {
-            final lastLogin = lastLoginTs.toDate();
-=======
 
           // Check for lastActivityAt timestamp (from goal updates)
           final lastActivityTs = data?['lastActivityAt'] as Timestamp?;
@@ -929,7 +817,6 @@ class ManagerRealtimeService {
             if (lastLogin.isAfter(lastActivity)) {
               lastActivity = lastLogin;
             }
->>>>>>> origin/lihle-manager
             // If no login today, enforce streak = 0 later by passing empty docs
             final now = DateTime.now();
             final todayOnly = DateTime(now.year, now.month, now.day);
@@ -949,15 +836,6 @@ class ManagerRealtimeService {
         final activityQuery = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
-<<<<<<< HEAD
-            .orderBy('timestamp', descending: true)
-            .limit(1)
-            .get();
-
-        if (activityQuery.docs.isNotEmpty) {
-          lastActivity =
-              (activityQuery.docs.first.data()['timestamp'] as Timestamp?)
-=======
             .get();
 
         if (activityQuery.docs.isNotEmpty) {
@@ -975,7 +853,6 @@ class ManagerRealtimeService {
 
           lastActivity =
               (sortedActivities.first.data()['timestamp'] as Timestamp?)
->>>>>>> origin/lihle-manager
                   ?.toDate() ??
               DateTime.now().subtract(const Duration(days: 30));
         }
@@ -984,12 +861,6 @@ class ManagerRealtimeService {
         final streakQuerySnapshot = await _firestore
             .collection('activities')
             .where('userId', isEqualTo: profile.uid)
-<<<<<<< HEAD
-            .orderBy('timestamp', descending: true)
-            .limit(30) // Check last 30 days
-            .get();
-
-=======
             .get();
 
         // Sort activities by timestamp and limit to last 30 days
@@ -1011,26 +882,16 @@ class ManagerRealtimeService {
           return timestamp != null && timestamp.isAfter(thirtyDaysAgo);
         }).toList();
 
->>>>>>> origin/lihle-manager
         // If we have stored streak (>0), keep it; otherwise compute based on activity
         if (streakDays > 0) {
           // keep stored value
         } else {
-<<<<<<< HEAD
-          streakDays = _calculateStreakDays(streakQuerySnapshot.docs);
-        }
-        activityDocs = streakQuerySnapshot.docs;
-
-        // Build recent activities list (limit 10)
-        recentActivities = streakQuerySnapshot.docs
-=======
           streakDays = _calculateStreakDays(recentDocs);
         }
         activityDocs = recentDocs;
 
         // Build recent activities list (limit 10)
         recentActivities = recentDocs
->>>>>>> origin/lihle-manager
             .take(10)
             .map((doc) => EmployeeActivity.fromFirestore(doc))
             .toList();
@@ -1062,8 +923,6 @@ class ManagerRealtimeService {
       // Determine status
       final status = _determineEmployeeStatus(allGoals, lastActivity);
 
-<<<<<<< HEAD
-=======
       developer.log(
         'Manager Realtime Service: Built employee data for ${profile.displayName}',
       );
@@ -1073,7 +932,6 @@ class ManagerRealtimeService {
       developer.log('  - Status: $status');
       developer.log('  - Last activity: $lastActivity');
 
->>>>>>> origin/lihle-manager
       return EmployeeData(
         profile: profile,
         goals: goals,
@@ -1247,8 +1105,6 @@ class ManagerRealtimeService {
     }
   }
 
-<<<<<<< HEAD
-=======
   // Helper method to determine if employee is currently active
   static bool isEmployeeActive(EmployeeData employee, {Duration? threshold}) {
     final now = DateTime.now();
@@ -1273,7 +1129,6 @@ class ManagerRealtimeService {
     }
   }
 
->>>>>>> origin/lihle-manager
   // Get start date based on time filter
   static DateTime _getStartDateForFilter(TimeFilter filter) {
     final now = DateTime.now();
@@ -1300,15 +1155,11 @@ class ManagerRealtimeService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-<<<<<<< HEAD
-      await _firestore.collection('activities').add({
-=======
       final batch = _firestore.batch();
 
       // Add activity record
       final activityRef = _firestore.collection('activities').doc();
       batch.set(activityRef, {
->>>>>>> origin/lihle-manager
         'userId': employeeId,
         'activityType': activityType,
         'description': description,
@@ -1316,8 +1167,6 @@ class ManagerRealtimeService {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-<<<<<<< HEAD
-=======
       // Update user's last activity timestamp
       final userRef = _firestore.collection('users').doc(employeeId);
       batch.update(userRef, {
@@ -1327,7 +1176,6 @@ class ManagerRealtimeService {
 
       await batch.commit();
 
->>>>>>> origin/lihle-manager
       developer.log(
         'Recorded activity for employee $employeeId: $activityType',
       );
@@ -1628,31 +1476,19 @@ class ManagerRealtimeService {
 
       Query query = _firestore
           .collection('manager_actions')
-<<<<<<< HEAD
-          .where('managerId', isEqualTo: currentUser.uid)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
-=======
           .where('managerId', isEqualTo: currentUser.uid);
->>>>>>> origin/lihle-manager
 
       if (employeeId != null) {
         query = query.where('employeeId', isEqualTo: employeeId);
       }
 
       return query.snapshots().map((snapshot) {
-<<<<<<< HEAD
-        return snapshot.docs
-            .map((doc) => ManagerAction.fromFirestore(doc))
-            .toList();
-=======
         final actions = snapshot.docs
             .map((doc) => ManagerAction.fromFirestore(doc))
             .toList();
         // Sort in memory to avoid composite index requirement
         actions.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return actions.take(limit).toList();
->>>>>>> origin/lihle-manager
       });
     } catch (e) {
       developer.log('Error getting manager actions: $e');

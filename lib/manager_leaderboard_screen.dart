@@ -71,7 +71,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-<<<<<<< HEAD
                       const Icon(
                         Icons.error_outline,
                         color: AppColors.dangerColor,
@@ -89,25 +88,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                           fontSize: 12,
                         ),
                       ),
-=======
-                      const Icon(
-                        Icons.error_outline,
-                        color: AppColors.dangerColor,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Failed to load leaderboard',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${snapshot.error}',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
->>>>>>> origin/lihle-manager
                     ],
                   ),
                 );
@@ -134,7 +114,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: const [
-<<<<<<< HEAD
                       Icon(
                         Icons.trending_up_outlined,
                         color: AppColors.textSecondary,
@@ -152,25 +131,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                           fontSize: 12,
                         ),
                       ),
-=======
-                      Icon(
-                        Icons.trending_up_outlined,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'No opted-in employees found',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Ask your team to enable Leaderboard Participation',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
->>>>>>> origin/lihle-manager
                     ],
                   ),
                 );
@@ -194,11 +154,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           );
 
     if (widget.embedded) {
-<<<<<<< HEAD
       return content;
-=======
-      return content;
->>>>>>> origin/lihle-manager
     }
 
     return Scaffold(
@@ -207,11 +163,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         backgroundColor: AppColors.backgroundColor,
         title: const Text('Manager Leaderboard'),
       ),
-<<<<<<< HEAD
       body: content,
-=======
-      body: content,
->>>>>>> origin/lihle-manager
     );
   }
 
@@ -224,7 +176,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-<<<<<<< HEAD
             color: selected
                 ? AppColors.activeColor
                 : AppColors.elevatedBackground,
@@ -232,15 +183,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             border: Border.all(
               color: selected ? AppColors.activeColor : AppColors.borderColor,
             ),
-=======
-            color: selected
-                ? AppColors.activeColor
-                : AppColors.elevatedBackground,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? AppColors.activeColor : AppColors.borderColor,
-            ),
->>>>>>> origin/lihle-manager
           ),
           child: Text(
             label,
@@ -257,7 +199,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     return Row(
       children: [
         const Expanded(
-<<<<<<< HEAD
           child: Text(
             'Top Team Performers',
             style: TextStyle(
@@ -266,16 +207,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-=======
-          child: Text(
-            'Top Team Performers',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
->>>>>>> origin/lihle-manager
         ),
         metricChip('Points', LeaderboardMetric.points),
         metricChip('Streaks', LeaderboardMetric.streaks),
@@ -300,7 +231,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             Container(
               height: height,
               decoration: BoxDecoration(
-<<<<<<< HEAD
                 gradient: LinearGradient(
                   colors: [
                     color.withValues(alpha: 0.8),
@@ -322,29 +252,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                     fontSize: 18,
                   ),
                 ),
-=======
-                gradient: LinearGradient(
-                  colors: [
-                    color.withValues(alpha: 0.8),
-                    color.withValues(alpha: 0.4),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(10),
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  '$rank',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
->>>>>>> origin/lihle-manager
               ),
             ),
             const SizedBox(height: 8),
@@ -362,7 +269,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: color,
-<<<<<<< HEAD
                       child: Text(
                         e.profile.displayName.isNotEmpty
                             ? e.profile.displayName[0].toUpperCase()
@@ -383,35 +289,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         fontSize: 12,
                       ),
                     ),
-=======
-                      child: Text(
-                        e.profile.displayName.isNotEmpty
-                            ? e.profile.displayName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      e.profile.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 12,
-                      ),
-                    ),
->>>>>>> origin/lihle-manager
                     const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.stars, color: Colors.amber, size: 14),
                         const SizedBox(width: 4),
-<<<<<<< HEAD
                         Text(
                           '${e.totalPoints} pts',
                           style: const TextStyle(
@@ -419,15 +302,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                             fontSize: 11,
                           ),
                         ),
-=======
-                        Text(
-                          '${e.totalPoints} pts',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
->>>>>>> origin/lihle-manager
                       ],
                     ),
                   ],
@@ -480,7 +354,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           CircleAvatar(
             radius: 18,
             backgroundColor: AppColors.activeColor,
-<<<<<<< HEAD
             child: Text(
               e.profile.displayName.isNotEmpty
                   ? e.profile.displayName[0].toUpperCase()
@@ -521,55 +394,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-=======
-            child: Text(
-              e.profile.displayName.isNotEmpty
-                  ? e.profile.displayName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.profile.displayName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  e.profile.department,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            rightText,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
->>>>>>> origin/lihle-manager
         ],
       ),
     );
   }
 }
-<<<<<<< HEAD
-
-
-=======
->>>>>>> origin/lihle-manager

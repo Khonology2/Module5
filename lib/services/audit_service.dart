@@ -2,26 +2,89 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/models/audit_entry.dart';
-import 'package:pdh/services/repository_service.dart';
-import 'package:pdh/services/timeline_service.dart';
-import 'package:pdh/services/audit_logger.dart';
 
-// AuditEntry model moved to lib/models/audit_entry.dart
+class AuditEntry {
+  final String id;
+  final String userId;
+  final String goalId;
+  final String goalTitle;
+  final DateTime completedDate;
+  final DateTime submittedDate;
+  final String status; // 'pending', 'verified', 'rejected'
+  final List<String> evidence;
+  final String? acknowledgedBy;
+  final String? acknowledgedById;
+  final double? score;
+  final String? comments;
+  final String? rejectionReason;
+  final String userDisplayName;
+  final String userDepartment;
+
+  AuditEntry({
+    required this.id,
+    required this.userId,
+    required this.goalId,
+    required this.goalTitle,
+    required this.completedDate,
+    required this.submittedDate,
+    required this.status,
+    required this.evidence,
+    this.acknowledgedBy,
+    this.acknowledgedById,
+    this.score,
+    this.comments,
+    this.rejectionReason,
+    required this.userDisplayName,
+    required this.userDepartment,
+  });
+
+  factory AuditEntry.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return AuditEntry(
+      id: doc.id,
+      userId: data['userId'] ?? '',
+      goalId: data['goalId'] ?? '',
+      goalTitle: data['goalTitle'] ?? '',
+      completedDate: (data['completedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      submittedDate: (data['submittedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      status: data['status'] ?? 'pending',
+      evidence: List<String>.from(data['evidence'] ?? []),
+      acknowledgedBy: data['acknowledgedBy'],
+      acknowledgedById: data['acknowledgedById'],
+      score: data['score']?.toDouble(),
+      comments: data['comments'],
+      rejectionReason: data['rejectionReason'],
+      userDisplayName: data['userDisplayName'] ?? 'Unknown User',
+      userDepartment: data['userDepartment'] ?? 'Unknown',
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'userId': userId,
+      'goalId': goalId,
+      'goalTitle': goalTitle,
+      'completedDate': Timestamp.fromDate(completedDate),
+      'submittedDate': Timestamp.fromDate(submittedDate),
+      'status': status,
+      'evidence': evidence,
+      'acknowledgedBy': acknowledgedBy,
+      'acknowledgedById': acknowledgedById,
+      'score': score,
+      'comments': comments,
+      'rejectionReason': rejectionReason,
+      'userDisplayName': userDisplayName,
+      'userDepartment': userDepartment,
+    };
+  }
+}
 
 class AuditService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Submit a completed goal for audit
-<<<<<<< HEAD
-  static Future<void> submitGoalForAudit(
-    Goal goal,
-    List<String> evidence,
-  ) async {
-=======
   static Future<void> submitGoalForAudit(Goal goal, List<String> evidence) async {
->>>>>>> origin/lihle-manager
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
@@ -39,31 +102,11 @@ class AuditService {
         submittedDate: DateTime.now(),
         status: 'pending',
         evidence: evidence,
-<<<<<<< HEAD
-        userDisplayName:
-            userData['displayName'] ?? user.displayName ?? 'Unknown User',
-        userDepartment: userData['department'] ?? 'Unknown',
-      );
-
-      final docRef = await _firestore
-          .collection('audit_entries')
-          .add(auditEntry.toFirestore());
-
-      // Timeline: Goal submitted for verification
-      await TimelineService.logEvent(
-        docRef.id,
-        TimelineService.buildEvent(
-          eventType: 'submission',
-          description: 'Goal submitted for verification.',
-        ),
-      );
-=======
         userDisplayName: userData['displayName'] ?? user.displayName ?? 'Unknown User',
         userDepartment: userData['department'] ?? 'Unknown',
       );
 
       await _firestore.collection('audit_entries').add(auditEntry.toFirestore());
->>>>>>> origin/lihle-manager
     } catch (e) {
       developer.log('Error submitting goal for audit: $e');
       rethrow;
@@ -82,11 +125,7 @@ class AuditService {
     if (department != null && department.isNotEmpty) {
       query = query.where('userDepartment', isEqualTo: department);
     }
-<<<<<<< HEAD
-
-=======
     
->>>>>>> origin/lihle-manager
     if (status != null && status.isNotEmpty) {
       query = query.where('status', isEqualTo: status);
     }
@@ -104,18 +143,10 @@ class AuditService {
         final lowercaseQuery = searchQuery.toLowerCase();
         entries = entries.where((entry) {
           return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-<<<<<<< HEAD
-              entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
-              entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
-              entry.evidence.any(
-                (evidence) => evidence.toLowerCase().contains(lowercaseQuery),
-              );
-=======
                  entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
                  entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
                  entry.evidence.any((evidence) => 
                      evidence.toLowerCase().contains(lowercaseQuery));
->>>>>>> origin/lihle-manager
         }).toList();
       }
 
@@ -151,14 +182,8 @@ class AuditService {
         final lowercaseQuery = searchQuery.toLowerCase();
         entries = entries.where((entry) {
           return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-<<<<<<< HEAD
-              entry.evidence.any(
-                (evidence) => evidence.toLowerCase().contains(lowercaseQuery),
-              );
-=======
                  entry.evidence.any((evidence) => 
                      evidence.toLowerCase().contains(lowercaseQuery));
->>>>>>> origin/lihle-manager
         }).toList();
       }
 
@@ -167,15 +192,7 @@ class AuditService {
   }
 
   // Verify an audit entry (manager action)
-<<<<<<< HEAD
-  static Future<void> verifyAuditEntry(
-    String entryId,
-    double score,
-    String? comments,
-  ) async {
-=======
   static Future<void> verifyAuditEntry(String entryId, double score, String? comments) async {
->>>>>>> origin/lihle-manager
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
@@ -188,41 +205,10 @@ class AuditService {
         'status': 'verified',
         'score': score,
         'comments': comments,
-<<<<<<< HEAD
-        'acknowledgedBy':
-            userData['displayName'] ?? user.displayName ?? 'Manager',
-        'acknowledgedById': user.uid,
-        'verifiedDate': Timestamp.now(),
-      });
-      // Sync to repository as completed goal
-      final updatedDoc = await _firestore
-          .collection('audit_entries')
-          .doc(entryId)
-          .get();
-      final updatedEntry = AuditEntry.fromFirestore(updatedDoc);
-      await RepositoryService.addVerifiedGoalToRepository(updatedEntry);
-
-      // Timeline: Goal verified by Manager
-      await TimelineService.logEvent(
-        entryId,
-        TimelineService.buildEvent(
-          eventType: 'verification',
-          description: 'Goal verified by Manager.',
-        ),
-      );
-
-      // Auto audit log: manager acknowledgment/verification
-      await AuditLogger.logAuditAction(
-        goalId: entryId,
-        actionType: 'manager_acknowledgment',
-        description: 'Manager verified goal with score $score',
-      );
-=======
         'acknowledgedBy': userData['displayName'] ?? user.displayName ?? 'Manager',
         'acknowledgedById': user.uid,
         'verifiedDate': Timestamp.now(),
       });
->>>>>>> origin/lihle-manager
     } catch (e) {
       developer.log('Error verifying audit entry: $e');
       rethrow;
@@ -242,27 +228,10 @@ class AuditService {
       await _firestore.collection('audit_entries').doc(entryId).update({
         'status': 'rejected',
         'rejectionReason': reason,
-<<<<<<< HEAD
-        'acknowledgedBy':
-            userData['displayName'] ?? user.displayName ?? 'Manager',
-        'acknowledgedById': user.uid,
-        'rejectedDate': Timestamp.now(),
-      });
-
-      // Timeline: Goal returned for changes
-      await TimelineService.logEvent(
-        entryId,
-        TimelineService.buildEvent(
-          eventType: 'rejection',
-          description: 'Goal returned for changes.',
-        ),
-      );
-=======
         'acknowledgedBy': userData['displayName'] ?? user.displayName ?? 'Manager',
         'acknowledgedById': user.uid,
         'rejectedDate': Timestamp.now(),
       });
->>>>>>> origin/lihle-manager
     } catch (e) {
       developer.log('Error requesting changes: $e');
       rethrow;
@@ -270,14 +239,7 @@ class AuditService {
   }
 
   // Get audit statistics
-<<<<<<< HEAD
-  static Future<Map<String, int>> getAuditStats({
-    String? userId,
-    String? department,
-  }) async {
-=======
   static Future<Map<String, int>> getAuditStats({String? userId, String? department}) async {
->>>>>>> origin/lihle-manager
     try {
       Query query = _firestore.collection('audit_entries');
 
@@ -288,13 +250,7 @@ class AuditService {
       }
 
       final snapshot = await query.get();
-<<<<<<< HEAD
-      final entries = snapshot.docs
-          .map((doc) => AuditEntry.fromFirestore(doc))
-          .toList();
-=======
       final entries = snapshot.docs.map((doc) => AuditEntry.fromFirestore(doc)).toList();
->>>>>>> origin/lihle-manager
 
       return {
         'total': entries.length,
@@ -304,16 +260,12 @@ class AuditService {
       };
     } catch (e) {
       developer.log('Error getting audit stats: $e');
-<<<<<<< HEAD
-      return {'total': 0, 'verified': 0, 'pending': 0, 'rejected': 0};
-=======
       return {
         'total': 0,
         'verified': 0,
         'pending': 0,
         'rejected': 0,
       };
->>>>>>> origin/lihle-manager
     }
   }
 
@@ -346,14 +298,10 @@ class AuditService {
         completedDate: DateTime(2024, 2, 28),
         submittedDate: DateTime(2024, 3, 1),
         status: 'pending',
-<<<<<<< HEAD
-        evidence: ['Feature Specification Document', 'GitHub Repository Link'],
-=======
         evidence: [
           'Feature Specification Document',
           'GitHub Repository Link',
         ],
->>>>>>> origin/lihle-manager
         userDisplayName: 'Jane Smith',
         userDepartment: 'Engineering',
       ),
