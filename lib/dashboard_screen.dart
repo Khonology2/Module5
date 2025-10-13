@@ -171,9 +171,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16.0, 16, 16), // Adjusted padding
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
               padding: EdgeInsets.fromLTRB(
                 16,
                 MediaQuery.of(context).padding.top + 16.0,
@@ -209,17 +206,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
-
-  Widget _filtersBar() {
-    Widget chip(String label) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A3652),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-        );
 
   Widget _greetingSection() {
     return Container(
@@ -340,90 +326,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _kpiTile('At Risk', atRiskCount.toString(), Colors.orangeAccent),
         const SizedBox(width: 12),
         _kpiTile('Overdue', overdueCount.toString(), Colors.redAccent),
-                const SizedBox(height: 8),
-                Text(value, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        );
-    return Row(
-      children: [
-        tile('Active Goals', '24', Color(0xFFC10D00)),
-        const SizedBox(width: 12),
-        tile('At Risk', '3', Colors.orangeAccent),
-    if (_isLoading) {
-      return Row(
-        children: [
-          _kpiTile('Active Goals', '...', const Color(0xFFC10D00)),
-          const SizedBox(width: 12),
-          _kpiTile('At Risk', '...', Colors.orangeAccent),
-          const SizedBox(width: 12),
-          _kpiTile('Overdue', '...', Colors.redAccent),
-        ],
-      );
-    }
-
-    // Debug logging
-    print('Dashboard KPI: Employee data count: ${_employeeData.length}');
-    for (final emp in _employeeData) {
-      print(
-        'Dashboard KPI: ${emp.profile.displayName} - Goals: ${emp.goals.length}, Status: ${emp.status}, Overdue: ${emp.overdueGoalsCount}',
-      );
-    }
-
-    final activeGoals = _employeeData.fold<int>(
-      0,
-      (sum, emp) =>
-          sum + emp.goals.where((g) => g.status != GoalStatus.completed).length,
-    );
-    final atRiskCount = _employeeData
-        .where((emp) => emp.status == EmployeeStatus.atRisk)
-        .length;
-    final overdueCount = _employeeData
-        .where((emp) => emp.status == EmployeeStatus.overdue)
-        .length;
-
-    print(
-      'Dashboard KPI: Active Goals: $activeGoals, At Risk: $atRiskCount, Overdue: $overdueCount',
-    );
-
-    return Row(
-      children: [
-        _kpiTile(
-          'Active Goals',
-          activeGoals.toString(),
-          const Color(0xFFC10D00),
-        ),
-        const SizedBox(width: 12),
-        _kpiTile('At Risk', atRiskCount.toString(), Colors.orangeAccent),
-        const SizedBox(width: 12),
-        _kpiTile('Overdue', overdueCount.toString(), Colors.redAccent),
       ],
     );
   }
 
-  Widget _quickActions(BuildContext context) {
-    Widget action(IconData icon, String label, Color color) => Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {},
-            icon: Icon(icon, color: Colors.white, size: 16),
-            label: Text(label),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        );
-    return Row(
-      children: [
-        action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
-        const SizedBox(width: 10),
-        action(Icons.campaign, 'Send Nudge', const Color(0xFF00C853)),
-        const SizedBox(width: 10),
-        action(Icons.event, 'Schedule 1:1', Color(0xFFC10D00)),
-      ],
   Widget _kpiTile(String label, String value, Color color) {
     return Expanded(
       child: Container(
@@ -497,9 +403,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(heading, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(sub, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                   Text(
                     heading,
                     style: const TextStyle(
@@ -521,46 +424,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    return Column(
-      children: [
-        section('At Risk', [
-          card(
-            stripe: Colors.orangeAccent,
-            heading: 'Launch new product campaign',
-            sub: 'Michael Chen • Overdue 2 days',
-            trailing: TextButton(
-              onPressed: () {},
-              style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)),
-              child: const Text('Nudge', style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 16),
-        section('Upcoming (7–14 days)', [
-          card(
-            stripe: Color(0xFFC10D00),
-            heading: 'Quarterly roadmap draft',
-            sub: 'Sarah Johnson • Due in 5 days',
-          ),
-          card(
-            stripe: Colors.tealAccent,
-            heading: 'Retention playbook v2',
-            sub: 'Emily Rodriguez • Due in 12 days',
-          ),
-        ]),
-        const SizedBox(height: 16),
-        section('Recently Completed', [
-          card(
-            stripe: Colors.greenAccent,
-            heading: 'Customer win-back workflow',
-            sub: 'Emily Rodriguez • 2d ago',
-            trailing: Row(children: [
-              _chip('share', Color(0xFFC10D00)),
-              const SizedBox(width: 6),
-              _chip('kudos', Colors.orangeAccent),
-            ]),
-          ),
-        ]),
     // Get at-risk employees
     final atRiskEmployees = _employeeData
         .where((emp) => emp.status == EmployeeStatus.atRisk)
@@ -685,28 +548,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _chip(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-        child: Text(label, style: TextStyle(color: color, fontSize: 11)),
-      );
-
-  Widget _aiInsights() {
-    Widget bullet(String text) => Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('• ', style: TextStyle(color: Colors.white70, fontSize: 16)),
-              Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 14))),
-            ],
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(6),
     ),
     child: Text(label, style: TextStyle(color: color, fontSize: 11)),
   );
@@ -805,12 +650,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: const [
               Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
               SizedBox(width: 8),
-              Text('AI Manager Insights', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          bullet('Forecasted risk: campaign slippage by 3 days. Consider reallocating resources.'),
-          bullet('High morale signals this week. Share Emily’s win-back workflow as best practice.'),
               Text(
                 'AI Manager Insights',
                 style: TextStyle(
@@ -824,7 +663,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 12),
           ..._generateInsights().map((insight) => bullet(insight)),
           bullet(
-            'High morale signals this week. Share Emily's win-back workflow as best practice.',
+            'High morale signals this week. Share Emily’s win-back workflow as best practice.',
           ),
         ],
       ),
@@ -837,15 +676,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       [0.1, 0.3, 0.2, 0.5, 0.7, 0.9, 0.4],
       [0.0, 0.2, 0.1, 0.6, 0.8, 0.5, 0.2],
     ];
-    Color cell(double v) => Color.lerp(const Color(0xFF22304A), Color(0xFFC10D00), v) ?? const Color(0xFF22304A);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Workload & Capacity', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(10)),
     Color cell(double v) =>
         Color.lerp(const Color(0xFF22304A), Color(0xFFC10D00), v) ??
         const Color(0xFF22304A);
@@ -872,13 +702,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: const [
-                  Text('Mon', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Tue', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Wed', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Thu', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Fri', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Sat', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  Text('Sun', style: TextStyle(color: Colors.white54, fontSize: 12)),
                   Text(
                     'Mon',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
@@ -912,17 +735,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 8),
               Column(
                 children: mock
-                    .map((row) => Row(
-                          children: row
-                              .map((v) => Expanded(
-                                    child: Container(
-                                      height: 16,
-                                      margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-                                      decoration: BoxDecoration(color: cell(v), borderRadius: BorderRadius.circular(4)),
-                                    ),
-                                  ))
-                              .toList(),
-                        ))
                     .map(
                       (row) => Row(
                         children: row
@@ -954,10 +766,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _engagementSummary() {
-    Widget tile(IconData icon, String label, String value, Color color) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(10)),
     Widget tile(IconData icon, String label, String value, Color color) =>
         Expanded(
           child: Container(
@@ -972,22 +780,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                )),
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -1018,11 +810,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Engagement & Check-ins', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            tile(Icons.rate_review, 'Check-ins this week', '9', Color(0xFFC10D00)),
         const Text(
           'Engagement & Check-ins',
           style: TextStyle(
