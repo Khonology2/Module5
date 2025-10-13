@@ -166,7 +166,7 @@ class _SubmissionScreenState extends State<SubmissionScreen> {
                 );
               },
             );
-            if (pickedDate != null && pickedDate != _selectedDate) {
+            if (pickedDate != _selectedDate) {
               setState(() {
                 _selectedDate = pickedDate;
               });

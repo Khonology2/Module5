@@ -347,11 +347,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _getBadgeIcon(_newlyEarnedBadges.first.iconName),
-                    size: 80,
-                    color: Colors.white,
-                  ),
+                  _getBadgeIcon(
+                    _newlyEarnedBadges.first.iconName,
+                  ), // Directly use the returned widget
                   const SizedBox(height: 16),
                   Text(
                     'BADGE EARNED!',
@@ -873,11 +871,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                         color: AppColors.textPrimary.withValues(alpha: 0.6),
                       ),
                     ),
-                    Icon(
-                      Icons.info_outline,
-                      color: AppColors.textPrimary.withValues(alpha: 0.6),
-                      size: 16,
-                    ),
+                    SizedBox(
+                      width: 35,
+                      height: 35,
+                      child: Image.asset(
+                        'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
+                        fit: BoxFit.contain,
+                      ),
+                    ), // Replaced Icon with Image.asset
                   ],
                 ),
               ],
@@ -917,7 +918,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -939,7 +940,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               ],
             ),
           ),
-          Icon(Icons.emoji_events, color: AppColors.warningColor, size: 32),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: Image.asset(
+              'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Replaced Icon with Image.asset
+              fit: BoxFit.contain,
+            ),
+          ), // Replaced Icon with Image.asset
         ],
       ),
     );
@@ -1132,13 +1140,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                         width: 2,
                                       ),
                                     ),
-                                    child: Icon(
-                                      _getBadgeIcon(badge.iconName),
-                                      color: badge.isEarned
-                                          ? _getBadgeRarityColor(badge.rarity)
-                                          : AppColors.textSecondary,
-                                      size: 28,
-                                    ),
+                                    child: _getBadgeIcon(
+                                      badge.iconName,
+                                    ), // Directly use the returned widget
                                   ),
                                   if (isNewlyEarned)
                                     Positioned(
@@ -1252,11 +1256,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                     ] else ...[
                                       Row(
                                         children: [
-                                          Icon(
-                                            Icons.check_circle,
-                                            color: AppColors.successColor,
-                                            size: 16,
-                                          ),
+                                          SizedBox(
+                                            width: 21,
+                                            height: 21,
+                                            child: Image.asset(
+                                              'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                              fit: BoxFit.contain,
+                                            ),
+                                          ), // Replaced Icon with Image.asset
                                           const SizedBox(width: 4),
                                           Text(
                                             badge.earnedAt != null
@@ -1365,13 +1372,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       width: 2,
                     ),
                   ),
-                  child: Icon(
-                    _getBadgeIcon(badge.iconName),
-                    color: badge.isEarned
-                        ? _getBadgeRarityColor(badge.rarity)
-                        : AppColors.textSecondary,
-                    size: 28,
-                  ),
+                  child: _getBadgeIcon(
+                    badge.iconName,
+                  ), // Directly use the returned widget
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -1448,11 +1451,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       ] else ...[
                         Row(
                           children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: AppColors.successColor,
-                              size: 16,
-                            ),
+                            SizedBox(
+                              width: 21,
+                              height: 21,
+                              child: Image.asset(
+                                'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                fit: BoxFit.contain,
+                              ),
+                            ), // Replaced Icon with Image.asset
                             const SizedBox(width: 4),
                             Text(
                               badge.earnedAt != null
@@ -1532,16 +1538,30 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Total Points',
                   _formatNumber(safeUserProfile?.totalPoints ?? 0),
-                  Icons.stars,
-                  AppColors.warningColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Process_Flows_Automation/Points.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.warningColor,
                 ),
               ),
               Expanded(
                 child: _buildStatItem(
                   'Current Level',
                   'Level ${(safeUserProfile?.level ?? 1).toString()}',
-                  Icons.military_tech,
-                  AppColors.activeColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Business_Growth_Development/Growth_Development_Red.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.activeColor,
                 ),
               ),
             ],
@@ -1553,10 +1573,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Current Streak',
                   '${safeCurrentStreak.toString()} days',
-                  safeHasActivityToday
-                      ? Icons.local_fire_department
-                      : Icons.local_fire_department_outlined,
-                  safeHasActivityToday
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Like_Thumbs_Up/Okay.png', // Replaced IconData with iconWidget
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: safeHasActivityToday
                       ? AppColors.warningColor
                       : AppColors.textSecondary,
                 ),
@@ -1565,8 +1590,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Global Rank',
                   '#${safeUserRank.toString()}',
-                  Icons.emoji_events,
-                  AppColors.warningColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Project_Direction_Acceleration/Global_Rank.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.warningColor,
                 ),
               ),
             ],
@@ -1578,14 +1610,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
   Widget _buildStatItem(
     String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+    String value, {
+    IconData? icon, // Make icon an optional named parameter
+    Widget? iconWidget, // Keep existing iconWidget parameter
+    Color color = AppColors.textPrimary,
+  }) {
     // Ensure all parameters are safe
     final safeLabel = label.isNotEmpty ? label : 'Unknown';
     final safeValue = value.isNotEmpty ? value : '0';
-    final safeIcon = icon;
     final safeColor = color;
 
     return Container(
@@ -1598,7 +1630,16 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
       child: Column(
         children: [
-          Icon(safeIcon, color: safeColor, size: 24),
+          if (iconWidget != null) // Prioritize iconWidget if provided
+            iconWidget
+          else if (icon != null) // Use IconData if provided as named parameter
+            Icon(icon, color: safeColor, size: 24)
+          else // Fallback if neither is provided
+            Icon(
+              Icons.help_outline,
+              color: safeColor,
+              size: 24,
+            ), // Default icon
           const SizedBox(height: 8),
           Text(
             safeValue,
@@ -1748,34 +1789,59 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
   }
 
-  IconData _getBadgeIcon(String iconName) {
+  Widget _getBadgeIcon(String iconName) {
+    developer.log(
+      'Fetching icon for badge with iconName: $iconName',
+      name: 'BadgesPointsScreen',
+    );
     switch (iconName) {
       case 'emoji_events':
-        return Icons.emoji_events;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'track_changes':
-        return Icons.track_changes;
+        return Icon(Icons.track_changes);
       case 'check_circle':
-        return Icons.check_circle;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Approved_Tick/approved_red_badge_white.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'local_fire_department':
-        return Icons.local_fire_department;
+        return Icon(Icons.local_fire_department);
       case 'stars':
-        return Icons.stars;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Process_Flows_Automation/Points.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'star':
-        return Icons.star;
+        return Icon(Icons.star);
       case 'workspace_premium':
-        return Icons.workspace_premium;
+        return Icon(Icons.workspace_premium);
       case 'military_tech':
-        return Icons.military_tech;
+        return Icon(Icons.military_tech);
       case 'shield':
-        return Icons.shield;
+        return Icon(Icons.shield);
       case 'explore':
-        return Icons.explore;
+        return Icon(Icons.explore);
       case 'priority_high':
-        return Icons.priority_high;
+        return Icon(Icons.priority_high);
       case 'trending_up':
-        return Icons.trending_up;
+        return Icon(Icons.trending_up);
       default:
-        return Icons.emoji_events;
+        return Icon(Icons.emoji_events);
     }
   }
 
@@ -1798,11 +1864,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(
-              _getBadgeIcon(badge.iconName),
-              color: _getBadgeRarityColor(badge.rarity),
-              size: 32,
-            ),
+            _getBadgeIcon(badge.iconName), // Directly use the returned widget
             const SizedBox(width: 12),
             Expanded(
               child: Text(

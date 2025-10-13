@@ -45,6 +45,7 @@ class AppComponents {
     required String label,
     required String value,
     IconData? icon,
+    Widget? iconWidget, // Added new parameter
     Color? iconColor,
     Color? valueColor,
     String? subtitle,
@@ -56,7 +57,10 @@ class AppComponents {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (icon != null) ...[
+          if (iconWidget != null) ...[
+            iconWidget, // Display custom icon widget if provided
+            const SizedBox(height: AppSpacing.sm),
+          ] else if (icon != null) ...[
             Icon(icon, color: iconColor ?? AppColors.activeColor, size: 24),
             const SizedBox(height: AppSpacing.sm),
           ],
@@ -278,7 +282,8 @@ class AppComponents {
 
   /// Activity item with icon and text
   static Widget activityItem({
-    required IconData icon,
+    IconData? icon,
+    Widget? iconWidget, // Added new parameter
     required String title,
     required String subtitle,
     required Color iconColor,
@@ -288,7 +293,15 @@ class AppComponents {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, color: iconColor, size: 20),
+          if (iconWidget != null) ...[
+            SizedBox(
+              width: 20, // Consistent size for activity item icons
+              height: 20,
+              child: iconWidget,
+            ),
+          ] else if (icon != null) ...[
+            Icon(icon, color: iconColor, size: 20),
+          ],
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
