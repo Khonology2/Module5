@@ -208,4 +208,3 @@ class UserProfile {
     );
   }
 }
->>>>>>> origin/lihle-manager

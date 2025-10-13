@@ -93,6 +93,42 @@ class Alert {
     );
   }
 
+  static Alert fromMap(Map<String, dynamic> map, {String? id}) {
+    DateTime parseDate(dynamic v) {
+      if (v is Timestamp) return v.toDate();
+      if (v is DateTime) return v;
+      final parsed = DateTime.tryParse(v?.toString() ?? '');
+      return parsed ?? DateTime.now();
+    }
+
+    return Alert(
+      id: id ?? (map['id']?.toString() ?? ''),
+      userId: map['userId']?.toString() ?? '',
+      type: AlertType.values.firstWhere(
+        (e) => e.name == (map['type'] ?? 'goalCreated'),
+        orElse: () => AlertType.goalCreated,
+      ),
+      priority: AlertPriority.values.firstWhere(
+        (e) => e.name == (map['priority'] ?? 'medium'),
+        orElse: () => AlertPriority.medium,
+      ),
+      title: map['title']?.toString() ?? '',
+      message: map['message']?.toString() ?? '',
+      actionText: map['actionText']?.toString(),
+      actionRoute: map['actionRoute']?.toString(),
+      actionData: map['actionData'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(map['actionData'])
+          : null,
+      createdAt: parseDate(map['createdAt']),
+      isRead: (map['isRead'] ?? false) == true,
+      isDismissed: (map['isDismissed'] ?? false) == true,
+      expiresAt: map['expiresAt'] != null ? parseDate(map['expiresAt']) : null,
+      relatedGoalId: map['relatedGoalId']?.toString(),
+      fromUserId: map['fromUserId']?.toString(),
+      fromUserName: map['fromUserName']?.toString(),
+    );
+  }
+
   Map<String, dynamic> toFirestore() {
     return {
       'userId': userId,
