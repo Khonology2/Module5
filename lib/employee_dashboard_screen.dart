@@ -448,18 +448,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Row(
         children: [
           CircleAvatar(
-            radius: 30,
+            radius: 30, // Keep radius 30 for the outer circle
             backgroundColor: AppColors.activeColor,
-            backgroundImage: userProfile?.profilePhotoUrl != null
-                ? NetworkImage(userProfile!.profilePhotoUrl!)
-                : null,
-            child: userProfile?.profilePhotoUrl == null
-                ? const Icon(
-                    Icons.person,
-                    size: 30,
-                    color: AppColors.textPrimary,
-                  )
-                : null,
+            // Always display the custom profile image
+            backgroundImage: const AssetImage(
+              'assets/Account_User_Profile/Profile.png',
+            ),
+            // Removed the conditional child icon to prevent double icons
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -538,13 +533,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.activeColor.withValues(alpha: 0.2),
+                color: Colors
+                    .transparent, // Changed background color to transparent
                 borderRadius: BorderRadius.circular(50),
               ),
-              child: Icon(
-                Icons.lightbulb_outline,
-                color: AppColors.warningColor,
-                size: 24,
+              child: Image.asset(
+                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
+                width: 78, // Increased from 24 to 48
+                height: 78, // Increased from 24 to 48
+                fit: BoxFit.contain,
               ),
             ),
             const SizedBox(width: 16),
@@ -599,7 +596,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Active Goals',
                 value: activeGoals.toString(),
-                icon: Icons.track_changes,
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Image.asset(
+                    'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Corrected path to use forward slashes
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.activeColor,
               ),
             ),
@@ -608,7 +612,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Completed',
                 value: completedGoals.toString(),
-                icon: Icons.check_circle,
+                iconWidget: SizedBox(
+                  width: 37,
+                  height: 37,
+                  child: Image.asset(
+                    'Approved_Tick/Approved_White_Badge_Red.png',
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.successColor,
               ),
             ),
@@ -617,7 +628,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Points',
                 value: _formatNumber(totalPoints),
-                icon: Icons.stars,
+                iconWidget: SizedBox(
+                  width: 37, // Adjust size as needed
+                  height: 37, // Adjust size as needed
+                  child: Image.asset(
+                    'process_flows_automation/Process_Flows_Automation_White_Badge_Red.png', // Corrected path and filename
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.warningColor,
               ),
             ),
@@ -643,7 +661,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Today\'s Activity',
                 value: hasActivityToday ? 'Active' : 'None',
-                icon: hasActivityToday ? Icons.check_circle : Icons.schedule,
+                iconWidget: SizedBox(
+                  width: 37,
+                  height: 37,
+                  child: Image.asset(
+                    'Approved_Tick/Approved_White_Badge_Red.png',
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: hasActivityToday
                     ? AppColors.successColor
                     : AppColors.textSecondary,
@@ -706,10 +731,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.timeline,
-                      size: 48,
-                      color: AppColors.textSecondary,
+                    SizedBox(
+                      width: 48, // Set a consistent size for the image
+                      height: 48,
+                      child: Image.asset(
+                        'Approved_Tick/approved_red_badge_white.png', // Updated to use the new asset
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -731,22 +759,18 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             )
           else
             ...recentGoals.take(3).map((goal) {
-              IconData icon;
               Color iconColor;
               String actionText;
               switch (goal.status) {
                 case GoalStatus.completed:
-                  icon = Icons.check_circle;
                   iconColor = AppColors.successColor;
                   actionText = 'Completed';
                   break;
                 case GoalStatus.inProgress:
-                  icon = Icons.play_circle;
                   iconColor = AppColors.activeColor;
                   actionText = 'Started working on';
                   break;
                 case GoalStatus.notStarted:
-                  icon = Icons.add_circle;
                   iconColor = AppColors.activeColor;
                   actionText = 'Created';
                   break;
@@ -754,10 +778,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: AppComponents.activityItem(
-                  icon: icon,
+                  iconWidget: Image.asset(
+                    'Approved_Tick/approved_red_badge_white.png',
+                    width: 60, // Match the size defined in activityItem
+                    height: 60, // Match the size defined in activityItem
+                    fit: BoxFit.contain,
+                  ),
                   title: '$actionText "${goal.title}"',
                   subtitle: _getTimeAgo(goal.createdAt),
-                  iconColor: iconColor,
+                  iconColor:
+                      iconColor, // iconColor is still used for text if not replaced
                 ),
               );
             }),
@@ -883,7 +913,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(Icons.flag, size: 48, color: AppColors.textSecondary),
+                    SizedBox(
+                      width: 78, // Set a consistent size for the image
+                      height: 78,
+                      child: Image.asset(
+                        'Business_Growth_Development/Growth_Development_Red.png', // Replaced flag icon with custom image
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'No active goals',

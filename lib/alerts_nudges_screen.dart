@@ -12,11 +12,8 @@ import 'package:pdh/models/alert.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
-  
-  const AlertsNudgesScreen({
-    super.key,
-    this.embedded = false,
-  });
+
+  const AlertsNudgesScreen({super.key, this.embedded = false});
 
   @override
   State<AlertsNudgesScreen> createState() => _AlertsNudgesScreenState();
@@ -48,10 +45,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
       content: Container(
@@ -71,15 +65,17 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           physics: const AlwaysScrollableScrollPhysics(),
-      child: StreamBuilder<String?>(
-        stream: RoleService.instance.roleStream(),
+          child: StreamBuilder<String?>(
+            stream: RoleService.instance.roleStream(),
             builder: (context, roleSnapshot) {
               final role = roleSnapshot.data;
-              
-          if (role == null) {
-            return const Center(
+
+              if (role == null) {
+                return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
                   ),
                 );
               }
@@ -96,12 +92,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 );
               }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Text(
                     'Alerts & Nudges',
-                    style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSmartAlertsCard(),
@@ -109,23 +107,28 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   StreamBuilder<List<Alert>>(
                     stream: AlertService.getUserAlertsStream(user.uid),
                     builder: (context, alertsSnapshot) {
-                      if (alertsSnapshot.connectionState == ConnectionState.waiting) {
+                      if (alertsSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
                           ),
                         );
                       }
 
                       if (alertsSnapshot.hasError) {
                         final errorMessage = alertsSnapshot.error.toString();
-                        
+
                         // Check if it's a permission error
-                        if (errorMessage.contains('permission-denied') || 
-                            errorMessage.contains('Missing or insufficient permissions')) {
+                        if (errorMessage.contains('permission-denied') ||
+                            errorMessage.contains(
+                              'Missing or insufficient permissions',
+                            )) {
                           return _buildPermissionErrorState();
                         }
-                        
+
                         return Center(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -135,7 +138,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                 size: 48,
                                 color: AppColors.dangerColor,
                               ),
-              const SizedBox(height: 16),
+                              const SizedBox(height: 16),
                               Text(
                                 'Error loading alerts',
                                 style: AppTypography.heading4.copyWith(
@@ -156,7 +159,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       }
 
                       final alerts = alertsSnapshot.data ?? [];
-                      
+
                       return Column(
                         children: [
                           _buildAlertSummary(alerts),
@@ -166,9 +169,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       );
                     },
                   ),
-            ],
-          );
-        },
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -205,14 +208,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       color: AppColors.activeColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      Icons.psychology,
-                      color: AppColors.activeColor,
-                      size: 20,
+                    child: Image.asset(
+                      'assets/AI_Red.png',
+                      width: 32, // Increased size to 32
+                      height: 32, // Increased size to 32
+                      fit: BoxFit.contain,
                     ),
                   ),
                   const SizedBox(width: 12),
-              Text(
+                  Text(
                     'Smart Alerts',
                     style: AppTypography.heading4.copyWith(
                       color: AppColors.textPrimary,
@@ -225,7 +229,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.activeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppColors.activeColor.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   'AI POWERED',
@@ -252,9 +258,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
   Widget _buildAlertSummary(List<Alert> alerts) {
     final unreadCount = alerts.where((alert) => !alert.isRead).length;
-    final urgentCount = alerts.where((alert) => alert.priority == AlertPriority.urgent).length;
-    final dueSoonCount = alerts.where((alert) => alert.type == AlertType.goalDueSoon).length;
-    final overdueCount = alerts.where((alert) => alert.type == AlertType.goalOverdue).length;
+    final urgentCount = alerts
+        .where((alert) => alert.priority == AlertPriority.urgent)
+        .length;
+    final dueSoonCount = alerts
+        .where((alert) => alert.type == AlertType.goalDueSoon)
+        .length;
+    final overdueCount = alerts
+        .where((alert) => alert.type == AlertType.goalOverdue)
+        .length;
 
     return Row(
       children: [
@@ -263,7 +275,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'Unread',
             unreadCount.toString(),
             AppColors.activeColor,
-            Icons.notifications,
+            icon: Icons.notifications,
+            iconWidget: SizedBox(
+              width: 45, // Match the size of other summary chip icons
+              height: 45,
+              child: Image.asset(
+                'Email_Notification/Notification_Red_White.png', // Corrected path and filename
+                fit: BoxFit.contain,
+              ),
+            ), // Replaced icon with iconWidget
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -272,7 +292,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'Urgent',
             urgentCount.toString(),
             AppColors.dangerColor,
-            Icons.priority_high,
+            iconWidget: SizedBox(
+              width: 45, // Match the size of other summary chip icons
+              height: 45,
+              child: Image.asset(
+                'Task_Management/Urgent.png',
+                fit: BoxFit.contain,
+              ),
+            ), // Replaced icon with iconWidget
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -281,7 +308,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'Due Soon',
             dueSoonCount.toString(),
             AppColors.warningColor,
-            Icons.schedule,
+            iconWidget: SizedBox(
+              width: 45, // Match the size of other summary chip icons
+              height: 45,
+              child: Image.asset(
+                'Calendar_Date_Picker/Date_Picker_Red_Badge_White.png', // Corrected path and filename
+                fit: BoxFit.contain,
+              ),
+            ), // Replaced icon with iconWidget
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -290,14 +324,27 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'Overdue',
             overdueCount.toString(),
             AppColors.dangerColor,
-            Icons.warning,
+            iconWidget: SizedBox(
+              width: 45, // Match the size of other summary chip icons
+              height: 45,
+              child: Image.asset(
+                'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
+                fit: BoxFit.contain,
+              ),
+            ), // Replaced icon with iconWidget
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSummaryChip(String label, String count, Color color, IconData icon) {
+  Widget _buildSummaryChip(
+    String label,
+    String count,
+    Color color, {
+    IconData? icon,
+    Widget? iconWidget,
+  }) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -307,13 +354,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 20),
+          iconWidget ?? Icon(icon, color: color, size: 20),
           const SizedBox(height: 4),
           Text(
             count,
             style: AppTypography.heading4.copyWith(
-          color: color,
-          fontWeight: FontWeight.bold,
+              color: color,
+              fontWeight: FontWeight.bold,
             ),
           ),
           Text(
@@ -340,7 +387,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           children: [
             Text(
               'Recent Alerts',
-              style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
             if (alerts.any((alert) => !alert.isRead))
               TextButton(
@@ -379,7 +428,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         border: Border.all(color: AppColors.borderColor),
       ),
       child: Column(
-      children: [
+        children: [
           Icon(
             Icons.notifications_none,
             size: 48,
@@ -420,15 +469,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   Widget _buildAlertCard(Alert alert) {
     final alertColor = _getAlertColor(alert.type, alert.priority);
     final alertIcon = _getAlertIcon(alert.type);
-    
+
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
-          color: alert.isRead 
-              ? AppColors.borderColor 
+          color: alert.isRead
+              ? AppColors.borderColor
               : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
@@ -444,7 +493,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   color: alertColor.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(alertIcon, color: alertColor, size: 20),
+                child: alertIcon, // Directly use the returned widget
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -483,7 +532,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                      Text(
+                        Text(
                           _getTimeAgo(alert.createdAt),
                           style: AppTypography.bodySmall.copyWith(
                             color: AppColors.textSecondary,
@@ -501,7 +550,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         ],
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: alertColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
@@ -513,9 +565,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               fontWeight: FontWeight.w600,
                               fontSize: 9,
                             ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
                     ),
                   ],
                 ),
@@ -524,47 +576,47 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           ),
           if (alert.actionText != null) ...[
             const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
                     onPressed: () async {
                       final navigator = Navigator.of(context);
                       final actionRoute = alert.actionRoute;
-                      
+
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
-                      
+
                       // Navigate to action route if provided
                       if (mounted && actionRoute != null) {
                         navigator.pushNamed(actionRoute);
                       }
                     },
-                  style: ElevatedButton.styleFrom(
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,
                       foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                  ),
                     child: Text(alert.actionText!),
                   ),
                 ),
                 const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton(
+                Expanded(
+                  child: OutlinedButton(
                     onPressed: () async {
                       await AlertService.dismissAlert(alert.id);
                     },
-                  style: OutlinedButton.styleFrom(
+                    style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       side: BorderSide(color: AppColors.borderColor),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                  ),
                     child: const Text('Dismiss'),
                   ),
                 ),
@@ -589,47 +641,54 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     }
   }
 
-  IconData _getAlertIcon(AlertType type) {
+  Widget _getAlertIcon(AlertType type) {
     switch (type) {
       case AlertType.goalCreated:
-        return Icons.flag;
+        return SizedBox(
+          width: 45, // Set a consistent size for the image
+          height: 45,
+          child: Image.asset(
+            'Business_Growth_Development/Growth_Development_Red.png',
+            fit: BoxFit.contain,
+          ),
+        );
       case AlertType.goalCompleted:
-        return Icons.check_circle;
+        return Icon(Icons.check_circle);
       case AlertType.goalDueSoon:
-        return Icons.schedule;
+        return Icon(Icons.schedule);
       case AlertType.goalOverdue:
-        return Icons.warning;
+        return Icon(Icons.warning);
       case AlertType.inactivity:
-        return Icons.notifications_active_outlined;
+        return Icon(Icons.notifications_active_outlined);
       case AlertType.milestoneRisk:
-        return Icons.warning_amber_outlined;
+        return Icon(Icons.warning_amber_outlined);
       case AlertType.pointsEarned:
-        return Icons.stars;
+        return Icon(Icons.stars);
       case AlertType.levelUp:
-        return Icons.trending_up;
+        return Icon(Icons.trending_up);
       case AlertType.badgeEarned:
-        return Icons.workspace_premium;
+        return Icon(Icons.workspace_premium);
       case AlertType.teamAssigned:
-        return Icons.group_add;
+        return Icon(Icons.group_add);
       case AlertType.managerNudge:
-        return Icons.notifications_active;
+        return Icon(Icons.notifications_active);
       case AlertType.achievementUnlocked:
-        return Icons.emoji_events;
+        return Icon(Icons.emoji_events);
       case AlertType.streakMilestone:
-        return Icons.local_fire_department;
+        return Icon(Icons.local_fire_department);
       case AlertType.deadlineReminder:
-        return Icons.access_time;
+        return Icon(Icons.access_time);
       case AlertType.teamGoalAvailable:
-        return Icons.group_work;
+        return Icon(Icons.group_work);
       case AlertType.employeeJoinedTeamGoal:
-        return Icons.group_add;
+        return Icon(Icons.group_add);
     }
   }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+
     if (difference.inDays > 0) {
       return '${difference.inDays}d ago';
     } else if (difference.inHours > 0) {
@@ -647,15 +706,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warningColor.withValues(alpha: 0.3)),
+        border: Border.all(
+          color: AppColors.warningColor.withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.security,
-            size: 48,
-            color: AppColors.warningColor,
-          ),
+          Icon(Icons.security, size: 48, color: AppColors.warningColor),
           const SizedBox(height: 16),
           Text(
             'Alerts Setup Required',
@@ -683,8 +740,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       ),
     );
   }
-
 }
 
 // Drawer removed; persistent sidebar via MainLayout
-
