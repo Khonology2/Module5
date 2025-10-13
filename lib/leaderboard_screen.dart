@@ -365,7 +365,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
           Row(
             children: [
-              Icon(Icons.live_tv, color: AppColors.successColor, size: 16),
+              SizedBox(
+                width: 35,
+                height: 35,
+                child: Image.asset(
+                  'Internet_Web_Browser/Live.png', // Replaced Icon with Image.asset
+                  fit: BoxFit.contain,
+                ),
+              ), // Replaced Icon with Image.asset
               const SizedBox(width: 8),
               Text(
                 'Live',
@@ -919,23 +926,59 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   spacing: 4,
                   runSpacing: 2,
                   children: [
-                    _buildStatChip(Icons.stars, '$points pts', Colors.amber),
                     _buildStatChip(
-                      Icons.military_tech,
-                      'Lvl $level',
-                      Colors.blue,
+                      null, // Set icon to null as we are using iconWidget
+                      '$points pts',
+                      Colors.amber,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Process_Flows_Automation/Points.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     _buildStatChip(
-                      Icons.emoji_events,
+                      null, // Set icon to null as we are using iconWidget
+                      'Lvl $level',
+                      Colors.blue,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Business_Growth_Development/Growth_Development_Red.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    _buildStatChip(
+                      null, // Set icon to null as we are using iconWidget
                       '$badges',
                       Colors.orange,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     if (user['department'] != null &&
                         user['department'] != 'Unknown')
                       _buildStatChip(
-                        Icons.business,
+                        null, // Set icon to null as we are using iconWidget
                         user['department'],
                         AppColors.successColor,
+                        iconWidget: SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: Image.asset(
+                            'Office_Workplace/Offices.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -947,7 +990,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
-  Widget _buildStatChip(IconData icon, String text, Color color) {
+  Widget _buildStatChip(
+    IconData? icon,
+    String text,
+    Color color, {
+    Widget? iconWidget,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -958,7 +1006,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 12),
+          if (iconWidget != null) ...[
+            SizedBox(width: 19, height: 19, child: iconWidget),
+          ] else if (icon != null) ...[
+            Icon(icon, color: color, size: 19),
+          ],
           const SizedBox(width: 3),
           Text(
             text,

@@ -15,8 +15,8 @@ class SidebarConfig {
       child: Center(
         child: Image.asset(
           assetPath,
-          width: 54, // Changed from 20 to 24
-          height: 54, // Changed from 20 to 24
+          width: 32, // Increased from 24 to 32
+          height: 32, // Increased from 24 to 32
           fit: BoxFit.contain,
         ),
       ),
@@ -34,7 +34,7 @@ class SidebarConfig {
       iconWidget: SidebarConfig.sidebarIcon(
         'assets/Account_User_Profile/Profile.png',
       ),
-      label: 'Profile & PDP.',
+      label: 'Profile & PDP',
       route: '/my_pdp',
     ),
     SidebarItem(
@@ -44,27 +44,27 @@ class SidebarConfig {
     ),
     SidebarItem(
       icon: Icons.bar_chart,
-      label: 'Progress Visuals.',
+      label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
     SidebarItem(
       icon: Icons.notifications_none,
-      label: 'Alerts & Visuals.',
+      label: 'Alerts & Visuals',
       route: '/alerts_nudges',
     ),
     SidebarItem(
       icon: Icons.workspace_premium,
-      label: 'Badges & Points.',
+      label: 'Badges & Points',
       route: '/badges_points',
     ),
     SidebarItem(
       icon: Icons.leaderboard,
-      label: 'LeaderBoard.',
+      label: 'LeaderBoard',
       route: '/leaderboard',
     ),
     SidebarItem(
       icon: Icons.folder_open,
-      label: 'Repository & Audit.',
+      label: 'Repository & Audit',
       route: '/repository_audit',
     ),
     SidebarItem(
@@ -74,7 +74,7 @@ class SidebarConfig {
     ),
     SidebarItem(
       icon: Icons.settings_outlined,
-      label: 'Settings & Privacy.',
+      label: 'Settings & Privacy',
       route: '/settings',
     ),
   ];
@@ -87,7 +87,9 @@ class SidebarConfig {
       route: '/dashboard',
     ),
     SidebarItem(
-      icon: Icons.people_outline,
+      iconWidget: SidebarConfig.sidebarIcon(
+        'assets/Account_User_Profile/Profile.png',
+      ), // Replaced icon with iconWidget
       label: 'Team Management',
       route: '/manager_portal',
     ),
@@ -123,7 +125,7 @@ class SidebarConfig {
     ),
     SidebarItem(
       icon: Icons.settings_outlined,
-      label: 'Settings & Privacy.',
+      label: 'Settings & Privacy',
       route: '/settings',
     ),
   ];

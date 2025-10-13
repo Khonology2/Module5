@@ -37,7 +37,9 @@ class ResponsiveSidebar extends StatelessWidget {
         final effectiveCollapsed = isSmall ? true : collapsed;
 
         return Container(
-          width: isSmall ? double.infinity : (effectiveCollapsed ? 72 : 240),
+          width: isSmall
+              ? double.infinity
+              : (effectiveCollapsed ? 72 : 280), // Increased from 240 to 280
           color: backgroundColor,
           child: Column(
             children: [

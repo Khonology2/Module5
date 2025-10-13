@@ -221,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(
             children: [
               CircleAvatar(
-                radius: 30, // Adjust size as needed
+                radius: 16, // Adjusted radius from 30 to 16 to match icon size
                 backgroundColor: Colors.transparent,
                 child: Image.asset(
                   'assets/Account_User_Profile/Profile.png',
