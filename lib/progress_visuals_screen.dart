@@ -188,13 +188,13 @@ class _ManagerProgressVisualsContentState
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          StreamBuilder<TeamMetrics>(
-            stream: ManagerRealtimeService.getTeamMetricsStream(
+          StreamBuilder<List<EmployeeData>>(
+            stream: ManagerRealtimeService.getTeamDataStream(
               department: selectedDepartment,
               timeFilter: currentTimeFilter,
             ),
-            builder: (context, metricsSnapshot) {
-              if (metricsSnapshot.connectionState == ConnectionState.waiting) {
+            builder: (context, teamSnapshot) {
+              if (teamSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation<Color>(
@@ -204,56 +204,44 @@ class _ManagerProgressVisualsContentState
                 );
               }
 
-              if (metricsSnapshot.hasError) {
-                return _buildErrorState(metricsSnapshot.error.toString());
+              if (teamSnapshot.hasError) {
+                return _buildErrorState(teamSnapshot.error.toString());
               }
 
-              final metrics = metricsSnapshot.data;
-              if (metrics == null) {
+              final employees = teamSnapshot.data ?? [];
+              if (employees.isEmpty) {
                 return _buildNoDataState();
               }
+
+              final metrics = _calculateTeamMetrics(employees);
+              final insights = _generateTeamInsights(employees).take(5).toList();
 
               return Column(
                 children: [
                   _buildTeamMetricsCards(metrics),
                   const SizedBox(height: AppSpacing.xxl),
-
-                  StreamBuilder<List<TeamInsight>>(
-                    stream: ManagerRealtimeService.getTeamInsightsStream(
-                      department: selectedDepartment,
-                      timeFilter: currentTimeFilter,
-                    ),
-                    builder: (context, insightsSnapshot) {
-                      if (insightsSnapshot.hasData &&
-                          insightsSnapshot.data!.isNotEmpty) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Team Insights',
-                              style: AppTypography.heading3.copyWith(
-                                color: AppColors.textPrimary,
-                              ),
+                  if (insights.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Team Insights',
+                          style: AppTypography.heading3.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        ...insights.map(
+                          (insight) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
                             ),
-                            const SizedBox(height: AppSpacing.md),
-                            ...insightsSnapshot.data!
-                                .take(5)
-                                .map(
-                                  (insight) => Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppSpacing.sm,
-                                    ),
-                                    child: _buildInsightCard(insight),
-                                  ),
-                                ),
-                            const SizedBox(height: AppSpacing.xxl),
-                          ],
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-
+                            child: _buildInsightCard(insight),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+                      ],
+                    ),
                   Text(
                     'Team Member Progress',
                     style: AppTypography.heading3.copyWith(
@@ -261,47 +249,21 @@ class _ManagerProgressVisualsContentState
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-
-                  StreamBuilder<List<EmployeeData>>(
-                    stream: ManagerRealtimeService.getTeamDataStream(
-                      department: selectedDepartment,
-                      timeFilter: currentTimeFilter,
-                    ),
-                    builder: (context, teamSnapshot) {
-                      if (teamSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
-                            ),
-                          ),
-                        );
-                      }
-
-                      if (teamSnapshot.hasError) {
-                        return _buildErrorState(teamSnapshot.error.toString());
-                      }
-
-                      final employees = teamSnapshot.data ?? [];
-                      if (employees.isEmpty) {
-                        return _buildNoEmployeesState();
-                      }
-
-                      return Column(
-                        children: employees
-                            .map(
-                              (employee) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.md,
-                                ),
-                                child: _buildEmployeeCard(employee),
+                  if (employees.isEmpty)
+                    _buildNoEmployeesState()
+                  else
+                    Column(
+                      children: employees
+                          .map(
+                            (employee) => Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.md,
                               ),
-                            )
-                            .toList(),
-                      );
-                    },
-                  ),
+                              child: _buildEmployeeCard(employee),
+                            ),
+                          )
+                          .toList(),
+                    ),
                 ],
               );
             },
@@ -309,6 +271,139 @@ class _ManagerProgressVisualsContentState
         ],
       ),
     );
+  }
+
+  TeamMetrics _calculateTeamMetrics(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final activeThreshold = now.subtract(const Duration(days: 7));
+
+    int activeCount = 0;
+    int onTrackCount = 0;
+    int atRiskCount = 0;
+    int overdueCount = 0;
+    int totalPoints = 0;
+    int totalGoalsCompleted = 0;
+    double totalProgress = 0;
+
+    for (final employee in employees) {
+      if (employee.lastActivity.isAfter(activeThreshold)) {
+        activeCount++;
+      }
+
+      switch (employee.status) {
+        case EmployeeStatus.onTrack:
+          onTrackCount++;
+          break;
+        case EmployeeStatus.atRisk:
+          atRiskCount++;
+          break;
+        case EmployeeStatus.overdue:
+          overdueCount++;
+          break;
+        case EmployeeStatus.inactive:
+          break;
+      }
+
+      totalPoints += employee.totalPoints;
+      totalGoalsCompleted += employee.completedGoalsCount;
+      totalProgress += employee.avgProgress;
+    }
+
+    final avgProgress =
+        employees.isNotEmpty ? totalProgress / employees.length : 0.0;
+    final engagement =
+        employees.isNotEmpty ? (activeCount / employees.length) * 100 : 0.0;
+
+    return TeamMetrics(
+      totalEmployees: employees.length,
+      activeEmployees: activeCount,
+      onTrackGoals: onTrackCount,
+      atRiskGoals: atRiskCount,
+      overdueGoals: overdueCount,
+      avgTeamProgress: avgProgress,
+      teamEngagement: engagement,
+      totalPointsEarned: totalPoints,
+      goalsCompleted: totalGoalsCompleted,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  List<TeamInsight> _generateTeamInsights(List<EmployeeData> employees) {
+    final insights = <TeamInsight>[];
+    final now = DateTime.now();
+
+    for (final employee in employees) {
+      if (employee.overdueGoalsCount > 0) {
+        insights.add(
+          TeamInsight(
+            title: 'Overdue Goals Detected',
+            description:
+                '${employee.profile.displayName} has ${employee.overdueGoalsCount} overdue goal${employee.overdueGoalsCount > 1 ? 's' : ''}.',
+            employeeName: employee.profile.displayName,
+            actionRequired:
+                'Schedule 1:1 meeting to discuss blockers and provide support',
+            priority: InsightPriority.urgent,
+            createdAt: now,
+          ),
+        );
+      }
+
+      if (employee.avgProgress < 30 && employee.goals.isNotEmpty) {
+        insights.add(
+          TeamInsight(
+            title: 'Low Progress Alert',
+            description:
+                '${employee.profile.displayName} has average goal progress of ${employee.avgProgress.toStringAsFixed(1)}%.',
+            employeeName: employee.profile.displayName,
+            actionRequired:
+                'Send motivational nudge or offer additional resources',
+            priority: InsightPriority.high,
+            createdAt: now,
+          ),
+        );
+      }
+
+      final daysSinceActivity = now.difference(employee.lastActivity).inDays;
+      if (daysSinceActivity > 7) {
+        insights.add(
+          TeamInsight(
+            title: 'Employee Inactive',
+            description:
+                '${employee.profile.displayName} has been inactive for $daysSinceActivity days.',
+            employeeName: employee.profile.displayName,
+            actionRequired: 'Reach out to check on engagement and well-being',
+            priority: InsightPriority.medium,
+            createdAt: now,
+          ),
+        );
+      }
+
+      if (employee.avgProgress > 80 && employee.completedGoalsCount > 2) {
+        insights.add(
+          TeamInsight(
+            title: 'High Performer',
+            description:
+                '${employee.profile.displayName} is excelling with ${employee.avgProgress.toStringAsFixed(1)}% average progress.',
+            employeeName: employee.profile.displayName,
+            actionRequired: 'Consider offering stretch goals or recognition',
+            priority: InsightPriority.low,
+            createdAt: now,
+          ),
+        );
+      }
+    }
+
+    insights.sort((a, b) {
+      final priorityOrder = {
+        InsightPriority.urgent: 0,
+        InsightPriority.high: 1,
+        InsightPriority.medium: 2,
+        InsightPriority.low: 3,
+      };
+      return priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+    });
+
+    return insights;
   }
 
   Widget _buildFilterDropdown() {

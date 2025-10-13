@@ -154,14 +154,20 @@ class AlertService {
   static Future<void> createBadgeAlert({
     required String userId,
     required String badgeName,
+    bool isManager = false,
   }) async {
+    final title = isManager ? 'Team Badge Earned! 🏅' : 'Badge Earned! 🏆';
+    final message = isManager
+        ? 'Your team\'s performance has earned you the "$badgeName" badge!'
+        : 'You\'ve earned the "$badgeName" badge! Keep up the great work!';
+
     final alert = Alert(
       id: '',
       userId: userId,
       type: AlertType.badgeEarned,
       priority: AlertPriority.high,
-      title: 'Badge Earned! 🏆',
-      message: 'You\'ve earned the "$badgeName" badge! Keep up the great work!',
+      title: title,
+      message: message,
       actionText: 'View Badges',
       actionRoute: '/badges_points',
       createdAt: DateTime.now(),

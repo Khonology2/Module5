@@ -27,9 +27,8 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(userId)).data.department;
    }
 
-   // Temporarily allow managers to see all employees for debugging Angel issue
    function canManagerSeeEmployee(userId) {
-     return userRole(userId) == 'employee'; // Remove department restriction temporarily
+     return userRole(userId) == 'employee' && sameDepartment(userId);
    }
 
     match /users/{userId} {
@@ -94,6 +93,9 @@ service cloud.firestore {
         (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
         isAdmin()
       );
+
+      // Allow managers to perform batch queries for their team
+      allow list: if isSignedIn() && isManager();
     }
 
     // Activities tracking for managers
@@ -118,6 +120,9 @@ service cloud.firestore {
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
+
+      // Allow managers to perform batch queries for their team
+      allow list: if isSignedIn() && isManager();
     }
 
     // Team Goals - managers can create team goals for their department
@@ -145,6 +150,9 @@ service cloud.firestore {
       );
       
       allow create: if isSignedIn();
+
+      // Allow managers to perform batch queries for their team
+      allow list: if isSignedIn() && isManager();
     }
 
     // Notifications - managers can read notifications sent to their employees
@@ -162,27 +170,33 @@ service cloud.firestore {
       );
     }
 
-    // Seasons/Challenges - managers can create and manage seasons
+    // Seasons/Challenges - managers create; employees can read and self-join
     match /seasons/{seasonId} {
-      // Allow managers to read seasons they created or are participating in
-      allow read: if isSignedIn() && (
-        resource.data.createdBy == request.auth.uid ||
-        request.auth.uid in resource.data.participantIds ||
-        isAdmin()
-      );
-      
+      // Allow any signed-in user to read seasons so employees can browse/join
+      allow read: if isSignedIn();
+
       // Allow managers to create seasons
-      allow create: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
-      // Allow managers to update seasons they created
+      allow create: if isSignedIn() && (isManager() || isAdmin());
+
+      // Allow updates:
+      //  - manager (creator) and admins can update/delete anything
+      //  - employee can update only if the new doc includes their own participation
       allow update: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
-        isAdmin()
+        isAdmin() ||
+        // employee self-join: their uid must be present in the UPDATED fields
+        (
+          (
+            ('participantIds' in request.resource.data) &&
+            (request.auth.uid in request.resource.data.participantIds)
+          ) ||
+          (
+            ('participations' in request.resource.data) &&
+            (request.resource.data.participations[request.auth.uid] != null)
+          )
+        )
       );
-      
-      // Allow managers to delete seasons they created
+
       allow delete: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin()
