@@ -23,7 +23,6 @@ import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
-import 'package:pdh/manager_team_workspace_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
@@ -219,10 +218,6 @@ class _MyAppState extends State<MyApp> {
                       (ModalRoute.of(context)?.settings.arguments
                           as Map<String, dynamic>?)?['goalId'],
                 ),
-              ),
-              '/manager_team_workspace': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerTeamWorkspaceScreen(),
               ),
               '/team_details': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,

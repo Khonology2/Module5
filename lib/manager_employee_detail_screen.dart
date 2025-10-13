@@ -203,6 +203,14 @@ class ManagerEmployeeDetailScreen extends StatelessWidget {
         c = AppColors.textSecondary;
         t = 'Not Started';
         break;
+      case GoalStatus.paused:
+        c = AppColors.textSecondary;
+        t = 'Paused';
+        break;
+      case GoalStatus.burnout:
+        c = AppColors.dangerColor;
+        t = 'Burnout';
+        break;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

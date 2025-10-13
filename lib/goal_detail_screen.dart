@@ -770,6 +770,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return AppColors.activeColor;
       case GoalStatus.completed:
         return AppColors.successColor;
+      case GoalStatus.paused:
+        return AppColors.textSecondary;
+      case GoalStatus.burnout:
+        return AppColors.dangerColor;
     }
   }
 
@@ -781,6 +785,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return 'IN PROGRESS';
       case GoalStatus.completed:
         return 'COMPLETED';
+      case GoalStatus.paused:
+        return 'PAUSED';
+      case GoalStatus.burnout:
+        return 'BURNOUT';
     }
   }
 }

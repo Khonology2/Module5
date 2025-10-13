@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
@@ -515,9 +517,111 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               ],
             ),
           ],
+          if (alert.type == AlertType.goalOverdue && alert.relatedGoalId != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _extendGoalDeadline(context, alert.relatedGoalId!, employee),
+                    icon: const Icon(Icons.schedule),
+                    label: const Text('Extend Deadline'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pauseGoal(alert.relatedGoalId!, employee),
+                    icon: const Icon(Icons.pause_circle_outline),
+                    label: const Text('Pause Goal'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _markGoalBurnout(alert.relatedGoalId!, employee),
+                    icon: const Icon(Icons.local_fire_department),
+                    label: const Text('Mark Burnout'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.dangerColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<void> _extendGoalDeadline(BuildContext context, String goalId, EmployeeData employee) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+        'targetDate': Timestamp.fromDate(picked),
+        'status': GoalStatus.inProgress.name,
+      });
+
+      await AlertService.createMotivationalAlert(
+        userId: employee.profile.uid,
+        message: 'Your goal deadline has been extended to ${picked.day}/${picked.month}/${picked.year}. You got this!',
+        goalId: goalId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Deadline extended successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to extend deadline: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pauseGoal(String goalId, EmployeeData employee) async {
+    try {
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+        'status': GoalStatus.paused.name,
+      });
+
+      await AlertService.createMotivationalAlert(
+        userId: employee.profile.uid,
+        message: 'Your goal has been paused by your manager. Take the time you need.',
+        goalId: goalId,
+      );
+    } catch (e) {
+      // Silent error; UI shows snackbars in calling context if needed
+    }
+  }
+
+  Future<void> _markGoalBurnout(String goalId, EmployeeData employee) async {
+    try {
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+        'status': GoalStatus.burnout.name,
+      });
+
+      await AlertService.createMotivationalAlert(
+        userId: employee.profile.uid,
+        message: 'We noticed signs of burnout on a goal. It has been marked accordingly. Let’s regroup and plan a healthier path.',
+        goalId: goalId,
+      );
+    } catch (e) {
+      // Silent error
+    }
   }
 
   Widget _buildSendNudgesTab(List<EmployeeData> employees) {

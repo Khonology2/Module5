@@ -1118,42 +1118,65 @@ class _ManagerProgressVisualsContentState
         color: AppColors.textSecondary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: priorityColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              goal.title,
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textPrimary,
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: priorityColor,
+                  shape: BoxShape.circle,
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: LinearProgressIndicator(
+                  value: goal.progress / 100.0,
+                  backgroundColor: AppColors.borderColor,
+                  valueColor: AlwaysStoppedAnimation<Color>(priorityColor),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${goal.progress}%',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: LinearProgressIndicator(
-              value: goal.progress / 100.0,
-              backgroundColor: AppColors.borderColor,
-              valueColor: AlwaysStoppedAnimation<Color>(priorityColor),
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${goal.progress}%',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => GoalTrendDialog(goalId: goal.id, goalTitle: goal.title),
+                );
+              },
+              icon: const Icon(Icons.show_chart, size: 14, color: AppColors.activeColor),
+              label: Text(
+                'View Trend',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor),
+              ),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
             ),
           ),
         ],
@@ -1913,6 +1936,23 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                   minHeight: 3,
                 ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => GoalTrendDialog(goalId: goal.id, goalTitle: goal.title),
+                      );
+                    },
+                    icon: const Icon(Icons.show_chart, size: 16, color: AppColors.activeColor),
+                    label: Text(
+                      'View Trend',
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1961,5 +2001,191 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class GoalTrendDialog extends StatelessWidget {
+  final String goalId;
+  final String goalTitle;
+  const GoalTrendDialog({super.key, required this.goalId, required this.goalTitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final since = now.subtract(const Duration(days: 30));
+    final sinceKey = '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+    return AlertDialog(
+      backgroundColor: AppColors.elevatedBackground,
+      contentPadding: const EdgeInsets.all(16),
+      title: Text('Trends • $goalTitle', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+      content: SizedBox(
+        width: 600,
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('goal_daily_progress')
+              .where('goalId', isEqualTo: goalId)
+              .where('date', isGreaterThanOrEqualTo: sinceKey)
+              .orderBy('date')
+              .limit(90)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(height: 260, child: Center(child: CircularProgressIndicator()));
+            }
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return SizedBox(
+                height: 260,
+                child: Center(
+                  child: Text(
+                    'No daily data yet. Come back tomorrow.',
+                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                  ),
+                ),
+              );
+            }
+            final progress = <double>[];
+            final remaining = <double>[];
+            for (final d in docs) {
+              final data = d.data() as Map<String, dynamic>;
+              progress.add(((data['progress'] ?? 0) as num).toDouble().clamp(0.0, 100.0));
+              remaining.add(((data['remaining'] ?? 0) as num).toDouble().clamp(0.0, 100.0));
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ChartCard(
+                  title: 'Burnup (Progress %)',
+                  color: AppColors.successColor,
+                  values: progress,
+                ),
+                const SizedBox(height: 12),
+                _ChartCard(
+                  title: 'Burndown (Remaining %)',
+                  color: AppColors.warningColor,
+                  values: remaining,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChartCard extends StatelessWidget {
+  final String title;
+  final Color color;
+  final List<double> values;
+  const _ChartCard({required this.title, required this.color, required this.values});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.backgroundColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 160,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _LineChartPainter(values: values, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineChartPainter extends CustomPainter {
+  final List<double> values; // 0..100
+  final Color color;
+  _LineChartPainter({required this.values, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bgPaint = Paint()
+      ..color = AppColors.elevatedBackground
+      ..style = PaintingStyle.fill;
+    final border = Paint()
+      ..color = AppColors.borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final gridPaint = Paint()
+      ..color = AppColors.borderColor.withValues(alpha: 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final linePaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    // Padding for axes
+    const leftPad = 28.0;
+    const bottomPad = 18.0;
+    final chartRect = Rect.fromLTWH(leftPad, 8, size.width - leftPad - 8, size.height - bottomPad - 8);
+
+    // Background & border
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+    canvas.drawRect(chartRect, border);
+
+    // Grid lines (5 horizontal)
+    final gridCount = 5;
+    for (int i = 0; i <= gridCount; i++) {
+      final y = chartRect.top + (chartRect.height / gridCount) * i;
+      canvas.drawLine(Offset(chartRect.left, y), Offset(chartRect.right, y), gridPaint);
+    }
+
+    if (values.isEmpty) return;
+
+    // Map values to points
+    final n = values.length;
+    final dx = n > 1 ? chartRect.width / (n - 1) : 0;
+    final path = Path();
+    for (int i = 0; i < n; i++) {
+      final v = values[i].clamp(0.0, 100.0);
+      final x = chartRect.left + dx * i;
+      final y = chartRect.bottom - (v / 100.0) * chartRect.height;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, linePaint);
+
+    // Axes tick labels (0, 25, 50, 75, 100)
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    for (final tick in [0, 25, 50, 75, 100]) {
+      final y = chartRect.bottom - (tick / 100.0) * chartRect.height;
+      textPainter.text = TextSpan(
+        text: '$tick',
+        style: const TextStyle(color: Color(0xFF9AA0AA), fontSize: 10),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
+    return oldDelegate.values != values || oldDelegate.color != color;
   }
 }

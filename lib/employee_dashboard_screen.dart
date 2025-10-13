@@ -755,6 +755,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   iconColor = AppColors.activeColor;
                   actionText = 'Created';
                   break;
+                case GoalStatus.paused:
+                  icon = Icons.pause_circle_filled;
+                  iconColor = AppColors.textSecondary;
+                  actionText = 'Paused';
+                  break;
+                case GoalStatus.burnout:
+                  icon = Icons.local_fire_department;
+                  iconColor = AppColors.dangerColor;
+                  actionText = 'Burnout flagged on';
+                  break;
               }
 
               return Padding(
