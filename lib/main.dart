@@ -32,11 +32,14 @@ import 'package:pdh/services/speech_recognition_service.dart'; // Import the spe
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
+import 'package:pdh/team_challenges_seasons_screen.dart';
+import 'package:pdh/season_management_screen.dart' as season_mgmt;
+import 'package:pdh/employee_season_challenges_screen.dart'; // Import Team Challenges & Seasons screen
+import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal Completion screen
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/goal_evidence_submission_screen.dart'; // Import the new GoalEvidenceSubmissionScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
-import 'package:pdh/evidence_repository_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -189,6 +192,34 @@ class _MyAppState extends State<MyApp> {
                 requiredRole: RequiredRole.employee,
                 child: const TeamGoalsScreen(),
               ),
+              '/team_challenges_seasons': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const TeamChallengesSeasonsScreen(),
+              ),
+              '/season_management': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: season_mgmt.SeasonManagementScreen(
+                  seasonId:
+                      (ModalRoute.of(context)?.settings.arguments
+                          as Map<String, dynamic>?)?['seasonId'],
+                ),
+              ),
+              '/season_challenges': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: const EmployeeSeasonChallengesScreen(),
+              ),
+              '/season_goal_completion': (context) => RoleGate(
+                requiredRole: RequiredRole.employee,
+                child: SeasonGoalCompletionScreen(
+                  seasonId:
+                      (ModalRoute.of(context)?.settings.arguments
+                          as Map<String, dynamic>?)?['seasonId'] ??
+                      '',
+                  goalId:
+                      (ModalRoute.of(context)?.settings.arguments
+                          as Map<String, dynamic>?)?['goalId'],
+                ),
+              ),
               '/manager_team_workspace': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: const ManagerTeamWorkspaceScreen(),
@@ -223,14 +254,6 @@ class _MyAppState extends State<MyApp> {
                   title: 'Goal Proof',
                   currentRouteName: '/goal_evidence_submission',
                   body: const SubmissionScreen(),
-                ),
-              ),
-              '/evidence_repository': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: MainLayout(
-                  title: 'Evidence Repository',
-                  currentRouteName: '/evidence_repository',
-                  body: const EvidenceRepositoryScreen(),
                 ),
               ),
             },

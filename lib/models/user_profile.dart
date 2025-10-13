@@ -72,11 +72,15 @@ class UserProfile {
       phoneNumber: data?['phoneNumber'] ?? '',
       profilePhotoUrl: data?['profilePhotoUrl'],
       skills: List<String>.from(data?['skills'] ?? const []),
-      developmentAreas: List<String>.from(data?['developmentAreas'] ?? const []),
+      developmentAreas: List<String>.from(
+        data?['developmentAreas'] ?? const [],
+      ),
       careerAspirations: data?['careerAspirations'] ?? '',
       currentProjects: data?['currentProjects'] ?? '',
       learningStyle: data?['learningStyle'] ?? '',
-      preferredDevActivities: List<String>.from(data?['preferredDevActivities'] ?? const []),
+      preferredDevActivities: List<String>.from(
+        data?['preferredDevActivities'] ?? const [],
+      ),
       shortGoals: data?['shortGoals'] ?? '',
       longGoals: data?['longGoals'] ?? '',
       notificationFrequency: data?['notificationFrequency'] ?? 'daily',
@@ -160,16 +164,48 @@ class UserProfile {
       careerAspirations: careerAspirations ?? this.careerAspirations,
       currentProjects: currentProjects ?? this.currentProjects,
       learningStyle: learningStyle ?? this.learningStyle,
-      preferredDevActivities: preferredDevActivities ?? this.preferredDevActivities,
+      preferredDevActivities:
+          preferredDevActivities ?? this.preferredDevActivities,
       shortGoals: shortGoals ?? this.shortGoals,
       longGoals: longGoals ?? this.longGoals,
-      notificationFrequency: notificationFrequency ?? this.notificationFrequency,
+      notificationFrequency:
+          notificationFrequency ?? this.notificationFrequency,
       goalVisibility: goalVisibility ?? this.goalVisibility,
       leaderboardOptin: leaderboardOptin ?? this.leaderboardOptin,
       badgeName: badgeName ?? this.badgeName,
       celebrationConsent: celebrationConsent ?? this.celebrationConsent,
     );
   }
+
+  static UserProfile fromMap(Map<String, dynamic> map, {String? id}) {
+    return UserProfile(
+      uid: id ?? map['uid'] ?? '',
+      email: map['email'] ?? '',
+      displayName: map['displayName'] ?? '',
+      totalPoints: (map['totalPoints'] ?? 0) as int,
+      level: (map['level'] ?? 1) as int,
+      badges: List<String>.from(map['badges'] ?? const []),
+      role: map['role'] ?? 'employee',
+      jobTitle: map['jobTitle'] ?? '',
+      department: map['department'] ?? '',
+      phoneNumber: map['phoneNumber'] ?? '',
+      profilePhotoUrl: map['profilePhotoUrl'],
+      skills: List<String>.from(map['skills'] ?? const []),
+      developmentAreas: List<String>.from(map['developmentAreas'] ?? const []),
+      careerAspirations: map['careerAspirations'] ?? '',
+      currentProjects: map['currentProjects'] ?? '',
+      learningStyle: map['learningStyle'] ?? '',
+      preferredDevActivities: List<String>.from(
+        map['preferredDevActivities'] ?? const [],
+      ),
+      shortGoals: map['shortGoals'] ?? '',
+      longGoals: map['longGoals'] ?? '',
+      notificationFrequency: map['notificationFrequency'] ?? 'daily',
+      goalVisibility: map['goalVisibility'] ?? 'private',
+      leaderboardOptin: map['leaderboardOptin'] ?? false,
+      badgeName: map['badgeName'] ?? '',
+      celebrationConsent: map['celebrationConsent'] ?? 'private',
+    );
+  }
 }
-
-
+>>>>>>> origin/lihle-manager

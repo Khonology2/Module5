@@ -2,11 +2,6 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
-import 'package:pdh/models/audit_entry.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/repository_service.dart';
-import 'package:pdh/models/repository_goal.dart';
-import 'package:pdh/services/repository_export_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
@@ -20,8 +15,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _statusFilter;
+<<<<<<< HEAD
   String? _monthFilter; // YYYY-MM
   double? _minScore;
+=======
+>>>>>>> origin/lihle-manager
 
   @override
   void dispose() {
@@ -29,6 +27,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
   Widget _buildRepositorySection() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
@@ -106,21 +105,35 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+=======
+>>>>>>> origin/lihle-manager
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: Container(
+<<<<<<< HEAD
         decoration: const BoxDecoration(color: AppColors.backgroundColor),
+=======
+        decoration: const BoxDecoration(
+          color: AppColors.backgroundColor,
+        ),
+>>>>>>> origin/lihle-manager
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+<<<<<<< HEAD
                 'Repository & Audit',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                   color: AppColors.textPrimary,
+=======
+                'Repository & Audit', 
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.textPrimary, 
+>>>>>>> origin/lihle-manager
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -137,8 +150,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildRoleSummaryBar(isManager: isManager),
                       const SizedBox(height: 16),
                       _buildAuditEntriesList(isManager: isManager),
+<<<<<<< HEAD
                       const SizedBox(height: 24),
                       _buildRepositorySection(),
+=======
+>>>>>>> origin/lihle-manager
                     ],
                   );
                 },
@@ -171,10 +187,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               borderSide: BorderSide.none,
             ),
             isDense: true,
+<<<<<<< HEAD
             contentPadding: const EdgeInsets.symmetric(
               vertical: 12,
               horizontal: 16,
             ),
+=======
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+>>>>>>> origin/lihle-manager
           ),
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -211,6 +231,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
             const SizedBox(width: 12),
+<<<<<<< HEAD
             Expanded(
               child: TextFormField(
                 decoration: InputDecoration(
@@ -250,14 +271,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
             const SizedBox(width: 12),
+=======
+>>>>>>> origin/lihle-manager
             IconButton(
               onPressed: () {
                 setState(() {
                   _searchController.clear();
                   _searchQuery = '';
                   _statusFilter = null;
+<<<<<<< HEAD
                   _monthFilter = null;
                   _minScore = null;
+=======
+>>>>>>> origin/lihle-manager
                 });
               },
               icon: Icon(Icons.clear, color: AppColors.textMuted),
@@ -285,6 +311,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             maxLines: 1,
           ),
         ),
+<<<<<<< HEAD
         Row(
           children: [
             IconButton(
@@ -306,11 +333,25 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
           ],
+=======
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.textPrimary.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            Icons.archive_outlined,
+            color: AppColors.textPrimary,
+            size: 24,
+          ),
+>>>>>>> origin/lihle-manager
         ),
       ],
     );
   }
 
+<<<<<<< HEAD
   void _showExportSheet() {
     // Capture the parent ScaffoldMessenger before opening the sheet
     final messenger = ScaffoldMessenger.of(context);
@@ -375,13 +416,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+=======
+>>>>>>> origin/lihle-manager
   Widget _buildRoleSummaryBar({required bool isManager}) {
     return StreamBuilder<Map<String, int>>(
       stream: Stream.fromFuture(AuditService.getAuditStats()),
       builder: (context, snapshot) {
+<<<<<<< HEAD
         final stats =
             snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
 
+=======
+        final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
+        
+>>>>>>> origin/lihle-manager
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -415,6 +463,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
+<<<<<<< HEAD
                   _buildStatusChip(
                     'Verified',
                     stats['verified'] ?? 0,
@@ -431,6 +480,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       stats['rejected'] ?? 0,
                       AppColors.dangerColor,
                     ),
+=======
+                  _buildStatusChip('Verified', stats['verified'] ?? 0, AppColors.successColor),
+                  _buildStatusChip('Pending', stats['pending'] ?? 0, AppColors.warningColor),
+                  if (isManager)
+                    _buildStatusChip('Rejected', stats['rejected'] ?? 0, AppColors.dangerColor),
+>>>>>>> origin/lihle-manager
                 ],
               ),
             ],
@@ -454,7 +509,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           Container(
             width: 8,
             height: 8,
+<<<<<<< HEAD
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+=======
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+>>>>>>> origin/lihle-manager
           ),
           const SizedBox(width: 6),
           Text(
@@ -472,7 +534,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   Widget _buildAuditEntriesList({required bool isManager}) {
     return StreamBuilder<List<AuditEntry>>(
+<<<<<<< HEAD
       stream: isManager
+=======
+      stream: isManager 
+>>>>>>> origin/lihle-manager
           ? AuditService.getManagerAuditEntriesStream(
               status: _statusFilter,
               searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
@@ -489,6 +555,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         }
 
         if (snapshot.hasError) {
+<<<<<<< HEAD
           developer.log(
             'Audit entries error: ${snapshot.error}',
             name: 'RepositoryAuditScreen',
@@ -499,6 +566,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             children: mockEntries
                 .map((entry) => _buildAuditEntryCard(entry, isManager))
                 .toList(),
+=======
+          developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
+          // Fallback to mock data
+          final mockEntries = AuditService.getMockAuditEntries();
+          return Column(
+            children: mockEntries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+>>>>>>> origin/lihle-manager
           );
         }
 
@@ -509,9 +583,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         }
 
         return Column(
+<<<<<<< HEAD
           children: entries
               .map((entry) => _buildAuditEntryCard(entry, isManager))
               .toList(),
+=======
+          children: entries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+>>>>>>> origin/lihle-manager
         );
       },
     );
@@ -527,7 +605,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ),
       child: Column(
         children: [
+<<<<<<< HEAD
           Icon(Icons.archive_outlined, color: AppColors.textMuted, size: 48),
+=======
+          Icon(
+            Icons.archive_outlined,
+            color: AppColors.textMuted,
+            size: 48,
+          ),
+>>>>>>> origin/lihle-manager
           const SizedBox(height: 16),
           Text(
             'No audit entries found',
@@ -540,7 +626,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 8),
           Text(
             'Complete some goals to see them here for audit',
+<<<<<<< HEAD
             style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+=======
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 14,
+            ),
+>>>>>>> origin/lihle-manager
           ),
         ],
       ),
@@ -587,10 +680,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ),
               ),
               Container(
+<<<<<<< HEAD
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
                 ),
+=======
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+>>>>>>> origin/lihle-manager
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -618,10 +715,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 const SizedBox(width: 16),
                 Text(
                   'By: ${entry.userDisplayName}',
+<<<<<<< HEAD
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,
                   ),
+=======
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+>>>>>>> origin/lihle-manager
                 ),
                 const SizedBox(width: 16),
                 Text(
@@ -642,7 +743,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           const SizedBox(height: 8),
           ...entry.evidence.map((evidence) => _buildEvidenceItem(evidence)),
+<<<<<<< HEAD
 
+=======
+          
+>>>>>>> origin/lihle-manager
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
             Row(
@@ -673,7 +778,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ],
             ),
           ],
+<<<<<<< HEAD
 
+=======
+          
+>>>>>>> origin/lihle-manager
           if (entry.acknowledgedBy != null) ...[
             const SizedBox(height: 16),
             Row(
@@ -682,10 +791,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Acknowledged by ${entry.acknowledgedBy}',
+<<<<<<< HEAD
                   style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 14,
                   ),
+=======
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+>>>>>>> origin/lihle-manager
                 ),
                 if (entry.score != null) ...[
                   const SizedBox(width: 8),
@@ -701,7 +814,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ],
             ),
           ],
+<<<<<<< HEAD
 
+=======
+          
+>>>>>>> origin/lihle-manager
           if (entry.comments != null && entry.comments!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
@@ -733,9 +850,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
           ],
+<<<<<<< HEAD
 
           if (entry.rejectionReason != null &&
               entry.rejectionReason!.isNotEmpty) ...[
+=======
+          
+          if (entry.rejectionReason != null && entry.rejectionReason!.isNotEmpty) ...[
+>>>>>>> origin/lihle-manager
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -839,9 +961,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   await AuditService.verifyAuditEntry(
                     entry.id,
                     score,
+<<<<<<< HEAD
                     commentsController.text.isEmpty
                         ? null
                         : commentsController.text,
+=======
+                    commentsController.text.isEmpty ? null : commentsController.text,
+>>>>>>> origin/lihle-manager
                   );
                   if (mounted) navigator.pop();
                 } catch (e) {
@@ -853,11 +979,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 }
               } else {
                 scaffoldMessenger.showSnackBar(
+<<<<<<< HEAD
                   const SnackBar(
                     content: Text(
                       'Please enter a valid score between 1.0 and 5.0',
                     ),
                   ),
+=======
+                  const SnackBar(content: Text('Please enter a valid score between 1.0 and 5.0')),
+>>>>>>> origin/lihle-manager
                 );
               }
             },
@@ -908,10 +1038,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               final navigator = Navigator.of(context);
               if (reasonController.text.isNotEmpty) {
                 try {
+<<<<<<< HEAD
                   await AuditService.requestChanges(
                     entry.id,
                     reasonController.text,
                   );
+=======
+                  await AuditService.requestChanges(entry.id, reasonController.text);
+>>>>>>> origin/lihle-manager
                   if (mounted) navigator.pop();
                 } catch (e) {
                   if (mounted) {
@@ -922,9 +1056,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 }
               } else {
                 scaffoldMessenger.showSnackBar(
+<<<<<<< HEAD
                   const SnackBar(
                     content: Text('Please provide a reason for the changes'),
                   ),
+=======
+                  const SnackBar(content: Text('Please provide a reason for the changes')),
+>>>>>>> origin/lihle-manager
                 );
               }
             },
@@ -938,6 +1076,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/lihle-manager
   // Helper widget to build individual evidence items.
   Widget _buildEvidenceItem(String text) {
     IconData icon;
@@ -961,7 +1103,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           Expanded(
             child: Text(
               text,
+<<<<<<< HEAD
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+=======
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+>>>>>>> origin/lihle-manager
             ),
           ),
         ],

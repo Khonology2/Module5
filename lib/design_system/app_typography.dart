@@ -234,6 +234,9 @@ class AppTypography {
     height: 1.2,
   );
 
+  static TextStyle? get bodyText => null;
+
+  static TextStyle? get body => null;
   // ===== UTILITY METHODS =====
   /// Create a text style with custom color
   static TextStyle withColor(TextStyle style, Color color) {

@@ -5,7 +5,6 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
-import 'package:pdh/services/audit_logger.dart';
 
 class DatabaseService {
   static Future<UserProfile> getUserProfile(String uid) async {
@@ -168,6 +167,7 @@ class DatabaseService {
       'evidence': FieldValue.arrayUnion(evidence),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+<<<<<<< HEAD
 
     // Auto audit log: evidence upload
     await AuditLogger.logAuditAction(
@@ -175,6 +175,8 @@ class DatabaseService {
       actionType: 'evidence_upload',
       description: 'Uploaded ${evidence.length} evidence item(s)',
     );
+=======
+>>>>>>> origin/lihle-manager
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
@@ -183,12 +185,21 @@ class DatabaseService {
 
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
+<<<<<<< HEAD
+=======
+    String? userId;
+    
+>>>>>>> origin/lihle-manager
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(goalRef);
       if (!snap.exists) return;
       final data = snap.data() as Map<String, dynamic>;
       final currentStatus = (data['status'] ?? 'notStarted').toString();
+<<<<<<< HEAD
       final userId = data['userId'] as String?;
+=======
+      userId = data['userId'] as String?;
+>>>>>>> origin/lihle-manager
       final previousProgress = (data['progress'] ?? 0) as int;
       final milestones = Map<String, dynamic>.from(
         data['milestones'] ?? const {},
@@ -202,7 +213,11 @@ class DatabaseService {
           currentStatus != GoalStatus.inProgress.name &&
           currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
+<<<<<<< HEAD
         if (userId != null && userId.isNotEmpty) {
+=======
+        if (userId != null && userId!.isNotEmpty) {
+>>>>>>> origin/lihle-manager
           final userRef = FirebaseFirestore.instance
               .collection('users')
               .doc(userId);
@@ -214,7 +229,11 @@ class DatabaseService {
       final crossed50 = previousProgress < 50 && snapped >= 50;
       if (crossed50 &&
           userId != null &&
+<<<<<<< HEAD
           userId.isNotEmpty &&
+=======
+          userId!.isNotEmpty &&
+>>>>>>> origin/lihle-manager
           milestones['p50'] != true) {
         final userRef = FirebaseFirestore.instance
             .collection('users')
@@ -231,6 +250,7 @@ class DatabaseService {
       await StreakService.recordDailyActivity(user.uid, 'goal_progress');
       await BadgeService.checkAndAwardBadges(user.uid);
     }
+<<<<<<< HEAD
 
     // Auto audit log: progress update
     await AuditLogger.logAuditAction(
@@ -238,6 +258,15 @@ class DatabaseService {
       actionType: 'progress_update',
       description: 'Progress updated to $snapped%',
     );
+=======
+    
+    // Also update the user's lastActivity timestamp directly
+    if (userId != null && userId!.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'lastActivityAt': FieldValue.serverTimestamp(),
+      });
+    }
+>>>>>>> origin/lihle-manager
 
     // Create alerts after transaction if 50% milestone reached
     try {
@@ -322,6 +351,7 @@ class DatabaseService {
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
     await BadgeService.checkAndAwardBadges(userId);
+<<<<<<< HEAD
 
     // Auto audit log: milestone completion
     await AuditLogger.logAuditAction(
@@ -329,6 +359,8 @@ class DatabaseService {
       actionType: 'milestone_completion',
       description: 'Goal marked completed',
     );
+=======
+>>>>>>> origin/lihle-manager
   }
 
   static Future<void> updateUserPoints(

@@ -12,6 +12,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
@@ -40,6 +41,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     Future.delayed(const Duration(milliseconds: 500), () {
       _loadStreakData();
     });
+
+    // Start real-time badge tracking and streak tracking for this user
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      BadgeService.startRealtimeTracking(user.uid);
+      StreakService.startRealtimeTracking(user.uid);
+    }
   }
 
   Future<void> _loadStreakData() async {
@@ -57,7 +65,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         }
       }
     } catch (e) {
-      developer.log('Error loading streak data: $e', name: 'EmployeeDashboardScreen');
+      developer.log(
+        'Error loading streak data: $e',
+        name: 'EmployeeDashboardScreen',
+      );
       // Set default values on error
       if (mounted) {
         setState(() {
@@ -67,6 +78,17 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       }
     }
   }
+
+  @override
+  void dispose() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      BadgeService.stopRealtimeTracking(user.uid);
+      StreakService.stopRealtimeTracking(user.uid);
+    }
+    super.dispose();
+  }
+
 
   Future<void> _loadUserData() async {
     try {
@@ -79,7 +101,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       if (user != null) {
         final profile = await DatabaseService.getUserProfile(user.uid);
         final goals = await DatabaseService.getUserGoals(user.uid);
-        
+
         setState(() {
           userProfile = profile;
           userGoals = goals;
@@ -97,56 +119,70 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    
     return FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return null;
-      return UserProfile.fromFirestore(doc);
-    });
+          if (!doc.exists) return null;
+          return UserProfile.fromFirestore(doc);
+        });
   }
 
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-    
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-              (e) => e.name == (data['category'] ?? 'personal'),
-              orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-              (e) => e.name == (data['priority'] ?? 'medium'),
-              orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-              (e) => e.name == (data['status'] ?? 'notStarted'),
-              orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-      }).toList();
-      
-      // Sort in memory instead of using Firestore orderBy to avoid index requirement
-      goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return goals;
-    });
+          final goals = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Goal(
+              id: doc.id,
+              userId: data['userId'] ?? user.uid,
+              title: data['title'] ?? '',
+              description: data['description'] ?? '',
+              category: GoalCategory.values.firstWhere(
+                (e) => e.name == (data['category'] ?? 'personal'),
+                orElse: () => GoalCategory.personal,
+              ),
+              priority: GoalPriority.values.firstWhere(
+                (e) => e.name == (data['priority'] ?? 'medium'),
+                orElse: () => GoalPriority.medium,
+              ),
+              status: GoalStatus.values.firstWhere(
+                (e) => e.name == (data['status'] ?? 'notStarted'),
+                orElse: () => GoalStatus.notStarted,
+              ),
+              progress: (data['progress'] ?? 0) as int,
+              createdAt:
+                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              targetDate:
+                  (data['targetDate'] as Timestamp?)?.toDate() ??
+                  DateTime.now(),
+              points: (data['points'] ?? 0) as int,
+            );
+          }).toList();
+
+          // Sort in memory instead of using Firestore orderBy to avoid index requirement
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return goals;
+        });
+  }
+
+  Stream<int> _getEarnedBadgesCountStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(0);
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('badges')
+        .where('isEarned', isEqualTo: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length)
+        .handleError((_) => 0);
   }
 
   String _getTimeBasedGreeting() {
@@ -172,7 +208,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     ];
     
     // Use day of year to get consistent daily motivation
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year, 1, 1))
+        .inDays;
     return motivations[dayOfYear % motivations.length];
   }
 
@@ -194,10 +232,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
       content: AppComponents.backgroundWithImage(
@@ -210,11 +245,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               stream: _getUserGoalsStream(),
               builder: (context, goalsSnapshot) {
                 // Handle loading states
-                if (profileSnapshot.connectionState == ConnectionState.waiting ||
+                if (profileSnapshot.connectionState ==
+                        ConnectionState.waiting ||
                     goalsSnapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.activeColor,
+                      ),
                     ),
                   );
                 }
@@ -223,9 +261,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 if (profileSnapshot.hasError || goalsSnapshot.hasError) {
                   final error = profileSnapshot.error ?? goalsSnapshot.error;
                   final errorMessage = error.toString();
-                  
+
                   // Check if it's a Firestore index error
-                  if (errorMessage.contains('failed-precondition') || 
+                  if (errorMessage.contains('failed-precondition') ||
                       errorMessage.contains('index')) {
                     return Center(
                       child: Column(
@@ -252,7 +290,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                           const SizedBox(height: 16),
                           ElevatedButton.icon(
                             onPressed: () {
-                              Navigator.pushNamed(context, '/my_goal_workspace');
+                              Navigator.pushNamed(
+                                context,
+                                '/my_goal_workspace',
+                              );
                             },
                             icon: const Icon(Icons.add),
                             label: const Text('Create Your First Goal'),
@@ -264,7 +305,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                       ),
                     );
                   }
-                  
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -290,7 +330,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
-                            setState(() {}); // Trigger rebuild to restart streams
+                            setState(
+                              () {},
+                            ); // Trigger rebuild to restart streams
                           },
                           child: const Text('Retry'),
                         ),
@@ -381,7 +423,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     String userName = 'User';
     
     // Use userProfile data if available, otherwise fallback to Firebase Auth
-    if (userProfile?.displayName != null && userProfile!.displayName.isNotEmpty) {
+    if (userProfile?.displayName != null &&
+        userProfile!.displayName.isNotEmpty) {
       userName = userProfile!.displayName.split(' ').first;
     } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
       userName = user.displayName!.split(' ').first;
@@ -392,7 +435,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final greeting = _getTimeBasedGreeting();
     final currentHour = DateTime.now().hour;
     String motivationalMessage;
-    
     if (currentHour < 12) {
       motivationalMessage = 'Ready to start your day strong?';
     } else if (currentHour < 17) {
@@ -408,11 +450,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           CircleAvatar(
             radius: 30,
             backgroundColor: AppColors.activeColor,
-            backgroundImage: userProfile?.profilePhotoUrl != null 
+            backgroundImage: userProfile?.profilePhotoUrl != null
                 ? NetworkImage(userProfile!.profilePhotoUrl!)
                 : null,
-            child: userProfile?.profilePhotoUrl == null 
-                ? const Icon(Icons.person, size: 30, color: AppColors.textPrimary)
+            child: userProfile?.profilePhotoUrl == null
+                ? const Icon(
+                    Icons.person,
+                    size: 30,
+                    color: AppColors.textPrimary,
+                  )
                 : null,
           ),
           const SizedBox(width: 15),
@@ -532,10 +578,17 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildQuickStats() {
     // Calculate real stats from user data
-    final activeGoals = userGoals.where((goal) => 
-        (goal.status != GoalStatus.completed) && (goal.progress < 100)).length;
-    final completedGoals = userGoals.where((goal) => 
-        goal.status == GoalStatus.completed || goal.progress >= 100).length;
+    final activeGoals = userGoals
+        .where(
+          (goal) =>
+              (goal.status != GoalStatus.completed) && (goal.progress < 100),
+        )
+        .length;
+    final completedGoals = userGoals
+        .where(
+          (goal) => goal.status == GoalStatus.completed || goal.progress >= 100,
+        )
+        .length;
     final totalPoints = userProfile?.totalPoints ?? 0;
 
     return Column(
@@ -577,8 +630,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Current Streak',
                 value: '${currentStreak.toString()} days',
-                icon: hasActivityToday ? Icons.local_fire_department : Icons.local_fire_department_outlined,
-                iconColor: hasActivityToday ? AppColors.warningColor : AppColors.textSecondary,
+                icon: hasActivityToday
+                    ? Icons.local_fire_department
+                    : Icons.local_fire_department_outlined,
+                iconColor: hasActivityToday
+                    ? AppColors.warningColor
+                    : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -587,12 +644,34 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 label: 'Today\'s Activity',
                 value: hasActivityToday ? 'Active' : 'None',
                 icon: hasActivityToday ? Icons.check_circle : Icons.schedule,
-                iconColor: hasActivityToday ? AppColors.successColor : AppColors.textSecondary,
+                iconColor: hasActivityToday
+                    ? AppColors.successColor
+                    : AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Container(), // Empty space to maintain layout
+              child: StreamBuilder<int>(
+                stream: _getEarnedBadgesCountStream(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return AppComponents.kpiCard(
+                    label: 'Badges',
+                    value: count.toString(),
+                    icon: Icons.workspace_premium,
+                    iconColor: AppColors.successColor,
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'You have $count badge${count == 1 ? '' : 's'}',
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -615,7 +694,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     // Get recent goals sorted by creation date
     final recentGoals = List<Goal>.from(userGoals)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
     return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,7 +734,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               IconData icon;
               Color iconColor;
               String actionText;
-              
               switch (goal.status) {
                 case GoalStatus.completed:
                   icon = Icons.check_circle;
@@ -674,7 +751,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   actionText = 'Created';
                   break;
               }
-              
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: AppComponents.activityItem(
@@ -693,7 +769,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
     if (difference.inDays > 0) {
       return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
     } else if (difference.inHours > 0) {
@@ -770,10 +845,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildUpcomingGoals() {
     // Get active goals sorted by target date
-    final upcomingGoals = userGoals
-        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
-        .toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+    final upcomingGoals =
+        userGoals
+            .where(
+              (goal) =>
+                  goal.status != GoalStatus.completed && goal.progress < 100,
+            )
+            .toList()
+          ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
 
     return AppComponents.card(
       child: Column(
@@ -804,11 +883,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.flag,
-                      size: 48,
-                      color: AppColors.textSecondary,
-                    ),
+                    Icon(Icons.flag, size: 48, color: AppColors.textSecondary),
                     const SizedBox(height: 8),
                     Text(
                       'No active goals',
@@ -842,9 +917,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             ...upcomingGoals.take(3).map((goal) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: _buildGoalItem(
-                  goal: goal,
-                ),
+                child: _buildGoalItem(goal: goal),
               );
             }),
         ],
@@ -852,19 +925,18 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     );
   }
 
-  Widget _buildGoalItem({
-    required Goal goal,
-  }) {
+  Widget _buildGoalItem({required Goal goal}) {
     final now = DateTime.now();
     final daysUntilDeadline = goal.targetDate.difference(now).inDays;
     final isOverdue = daysUntilDeadline < 0;
     final progress = goal.progress / 100.0; // Convert to 0-1 range
-    
+
     String deadlineText;
     Color deadlineColor = AppColors.textSecondary;
-    
+
     if (isOverdue) {
-      deadlineText = 'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
+      deadlineText =
+          'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
       deadlineColor = AppColors.dangerColor;
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
@@ -883,9 +955,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => GoalDetailScreen(goal: goal),
-          ),
+          MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
         );
       },
       borderRadius: BorderRadius.circular(8),
@@ -906,12 +976,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getPriorityColor(goal.priority).withValues(alpha: 0.1),
+                    color: _getPriorityColor(
+                      goal.priority,
+                    ).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _getPriorityColor(goal.priority).withValues(alpha: 0.3),
+                      color: _getPriorityColor(
+                        goal.priority,
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
