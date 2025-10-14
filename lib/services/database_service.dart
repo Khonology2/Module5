@@ -1,10 +1,13 @@
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/season.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/season_service.dart';
 
 class DatabaseService {
   static Future<UserProfile> getUserProfile(String uid) async {
@@ -70,13 +73,21 @@ class DatabaseService {
             (e) => e.name == (data['status'] ?? 'notStarted'),
             orElse: () => GoalStatus.notStarted,
           ),
-          progress: (data['progress'] ?? 0) as int,
+          progress: (() {
+            final raw = data['progress'];
+            if (raw is int) return raw;
+            if (raw is num) return raw.round();
+            return 0;
+          })(),
           createdAt:
               (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           targetDate:
               (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
           points: (data['points'] ?? 0) as int,
-          kpa: (data['kpa'] as String?)?.toLowerCase(),
+          kpa: (() {
+            final raw = data['kpa'];
+            return raw is String ? raw.toLowerCase() : null;
+          })(),
         );
       }).toList();
 
@@ -114,14 +125,22 @@ class DatabaseService {
                 (e) => e.name == (data['status'] ?? 'notStarted'),
                 orElse: () => GoalStatus.notStarted,
               ),
-              progress: (data['progress'] ?? 0) as int,
+              progress: (() {
+                final raw = data['progress'];
+                if (raw is int) return raw;
+                if (raw is num) return raw.round();
+                return 0;
+              })(),
               createdAt:
                   (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
               targetDate:
                   (data['targetDate'] as Timestamp?)?.toDate() ??
                   DateTime.now(),
               points: (data['points'] ?? 0) as int,
-              kpa: (data['kpa'] as String?)?.toLowerCase(),
+              kpa: (() {
+                final raw = data['kpa'];
+                return raw is String ? raw.toLowerCase() : null;
+              })(),
             );
           }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
         );
@@ -177,60 +196,125 @@ class DatabaseService {
     final goalRef = goals.doc(goalId);
     String? userId;
     
-    await FirebaseFirestore.instance.runTransaction((tx) async {
-      final snap = await tx.get(goalRef);
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>;
-      final currentStatus = (data['status'] ?? 'notStarted').toString();
-      userId = data['userId'] as String?;
-      final previousProgress = (data['progress'] ?? 0) as int;
-      final milestones = Map<String, dynamic>.from(
-        data['milestones'] ?? const {},
-      );
+    try {
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(goalRef);
+        if (!snap.exists) return;
+        final data = snap.data() as Map<String, dynamic>;
+        final currentStatus = (data['status'] ?? 'notStarted').toString();
+        userId = data['userId'] as String?;
+        final dynamic progressRaw = data['progress'];
+        final int previousProgress = progressRaw is int
+            ? progressRaw
+            : (progressRaw is num ? progressRaw.round() : 0);
+        final rawMilestones = data['milestones'];
+        final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
+            ? Map<String, dynamic>.from(rawMilestones)
+            : {};
 
-      // Always update progress
-      tx.update(goalRef, {'progress': snapped});
+        tx.update(goalRef, {'progress': snapped});
 
-      // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
-      if (snapped > 0 &&
-          currentStatus != GoalStatus.inProgress.name &&
-          currentStatus != GoalStatus.completed.name) {
-        tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-        if (userId != null && userId!.isNotEmpty) {
+        if (snapped > 0 &&
+            currentStatus != GoalStatus.inProgress.name &&
+            currentStatus != GoalStatus.completed.name) {
+          tx.update(goalRef, {'status': GoalStatus.inProgress.name});
+          if (userId != null && userId!.isNotEmpty) {
+            final userRef = FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId);
+            tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+          }
+        }
+
+        final crossed50 = previousProgress < 50 && snapped >= 50;
+        if (crossed50 &&
+            userId != null &&
+            userId!.isNotEmpty &&
+            milestones['p50'] != true) {
           final userRef = FirebaseFirestore.instance
               .collection('users')
               .doc(userId);
           tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+          milestones['p50'] = true;
+          tx.update(goalRef, {'milestones': milestones});
         }
-      }
-
-      // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
-      final crossed50 = previousProgress < 50 && snapped >= 50;
-      if (crossed50 &&
-          userId != null &&
-          userId!.isNotEmpty &&
-          milestones['p50'] != true) {
-        final userRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
-        tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
-        milestones['p50'] = true;
-        tx.update(goalRef, {'milestones': milestones});
-      }
-    });
+      });
+    } catch (e) {
+      developer.log('updateGoalProgress transaction failed: $e');
+      throw Exception('progress_update.tx: $e');
+    }
 
     // Record daily activity for streak tracking when making progress
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      await StreakService.recordDailyActivity(user.uid, 'goal_progress');
-      await BadgeService.checkAndAwardBadges(user.uid);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await StreakService.recordDailyActivity(user.uid, 'goal_progress');
+        await BadgeService.checkAndAwardBadges(user.uid);
+      }
+    } catch (e) {
+      developer.log('updateGoalProgress post-activity failed: $e');
+      // Do not fail the whole call for auxiliary updates
     }
     
     // Also update the user's lastActivity timestamp directly
-    if (userId != null && userId!.isNotEmpty) {
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'lastActivityAt': FieldValue.serverTimestamp(),
-      });
+    try {
+      if (userId != null && userId!.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('users').doc(userId).update({
+          'lastActivityAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      developer.log('updateGoalProgress lastActivity update failed: $e');
+    }
+
+    // If this goal is linked to a Season challenge, sync milestone progress there
+    try {
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goal = goalSnap.data();
+      if (goal != null && (goal['isSeasonGoal'] == true)) {
+        final String? seasonId = goal['seasonId'] as String?;
+        final String? challengeId = goal['challengeId'] as String?;
+        final String? uId = (userId ?? goal['userId']) as String?;
+        final dynamic p = goal['progress'];
+        final int pNow = p is int ? p : (p is num ? p.round() : 0);
+        if (seasonId != null && challengeId != null && uId != null && uId.isNotEmpty) {
+          // Load season to discover milestone criteria thresholds
+          final season = await SeasonService.getSeason(seasonId);
+          if (season != null) {
+            final challenge = season.challenges.firstWhere(
+              (c) => c.id == challengeId,
+              orElse: () => season.challenges.first,
+            );
+            for (final m in challenge.milestones) {
+              final crit = m.criteria;
+              final num? threshold = (crit['progress'] is num)
+                  ? crit['progress'] as num
+                  : null;
+              if (threshold != null && pNow >= threshold.round()) {
+                await SeasonService.updateMilestoneProgress(
+                  seasonId: seasonId,
+                  userId: uId,
+                  milestoneId: m.id,
+                  status: MilestoneStatus.completed,
+                );
+              } else if (pNow > 0 && threshold == null) {
+                // If no numeric criteria, mark as in progress when user starts
+                await SeasonService.updateMilestoneProgress(
+                  seasonId: seasonId,
+                  userId: uId,
+                  milestoneId: m.id,
+                  status: MilestoneStatus.inProgress,
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('updateGoalProgress season sync failed: $e');
     }
 
     // Create alerts after transaction if 50% milestone reached
@@ -242,10 +326,14 @@ class DatabaseService {
       final data = snap.data();
       if (data != null) {
         final userId = data['userId'] as String?;
-        final progressNow = (data['progress'] ?? 0) as int;
-        final milestones = Map<String, dynamic>.from(
-          data['milestones'] ?? const {},
-        );
+        final dynamic progressNowRaw = data['progress'];
+        final int progressNow = progressNowRaw is int
+            ? progressNowRaw
+            : (progressNowRaw is num ? progressNowRaw.round() : 0);
+        final rawMilestones = data['milestones'];
+        final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
+            ? Map<String, dynamic>.from(rawMilestones)
+            : {};
         if (userId != null &&
             userId.isNotEmpty &&
             progressNow >= 50 &&
@@ -263,7 +351,9 @@ class DatabaseService {
           );
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      developer.log('updateGoalProgress post-alerts failed: $e');
+    }
   }
 
   static Future<void> startGoal(String goalId, String userId) async {
