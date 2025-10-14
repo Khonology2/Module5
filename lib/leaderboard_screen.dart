@@ -258,10 +258,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        child: StreamBuilder<String?>(
+    // Render as a plain widget so it works inside MainLayout
+    return Container(
+      color: AppColors.backgroundColor,
+      child: StreamBuilder<String?>(
           stream: RoleService.instance.roleStream(),
           builder: (context, roleSnapshot) {
             final role = roleSnapshot.data;
@@ -273,9 +273,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
             final isManager = role == 'manager';
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            return StreamBuilder<QuerySnapshot>(
               stream: _buildQuery(userRole: role).snapshots(),
-              builder: (context, leaderboardSnapshot) {
+              builder: (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
                 if (leaderboardSnapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
@@ -297,16 +297,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
                 // Add debugging info
                 if (leaderboardSnapshot.hasData) {
-                  developer.log(
-                    'Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore',
-                  );
+                  developer.log('Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore');
                 }
 
                 List<Map<String, dynamic>> leaderboardData;
                 try {
                   leaderboardData = leaderboardSnapshot.hasData
                       ? _processLeaderboardData(
-                          leaderboardSnapshot.data!.docs,
+                          leaderboardSnapshot.data!.docs.toList(),
                           userRole: role,
                         )
                       : <Map<String, dynamic>>[];
@@ -338,7 +336,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               },
             );
           },
-        ),
       ),
     );
   }
@@ -367,7 +364,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 width: 35,
                 height: 35,
                 child: Image.asset(
-                  'Internet_Web_Browser/Live.png', // Replaced Icon with Image.asset
+                  'assets/Internet_Web_Browser/Live.png', // Corrected asset path
                   fit: BoxFit.contain,
                 ),
               ), // Replaced Icon with Image.asset

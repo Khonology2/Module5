@@ -361,7 +361,18 @@ class AppComponents {
     List<Color>? gradientColors,
     List<double>? gradientStops,
   }) {
-    return Stack(
+    // Constrain to finite size to avoid layout assertions inside scroll views
+    return LayoutBuilder(builder: (context, constraints) {
+      final double width = constraints.hasBoundedWidth
+          ? constraints.maxWidth
+          : MediaQuery.of(context).size.width;
+      final double height = constraints.hasBoundedHeight
+          ? constraints.maxHeight
+          : MediaQuery.of(context).size.height;
+      return SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
       children: [
         // Background image
         Positioned.fill(child: Image.asset(imagePath, fit: BoxFit.cover)),
@@ -383,7 +394,9 @@ class AppComponents {
           ),
         ),
       ],
-    );
+        ),
+      );
+    });
   }
 
   // ===== RESPONSIVE COMPONENTS =====
