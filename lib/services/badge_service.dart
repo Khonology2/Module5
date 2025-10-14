@@ -183,6 +183,9 @@ class BadgeService {
         developer.log('Updated user level from $currentLevel to $correctLevel');
       }
 
+      // Ensure default badges exist for this user before awarding
+      await _ensureDefaultBadgesExist(userId);
+
       // Award badges based on accomplishments
       await _awardRetroactiveBadges(
         userId,
@@ -207,14 +210,14 @@ class BadgeService {
     int level,
   ) async {
     try {
-      // Badge 1: Goal Starter (has any goals)
+      // First Goal: Create your first goal
       if (totalGoals > 0) {
         await _awardRetroactiveBadge(
           userId,
-          'goal_starter',
-          'Goal Starter',
+          'first_goal',
+          'First Goal',
           'Create your first goal',
-          'flag',
+          'emoji_events',
           BadgeCategory.goals,
           BadgeRarity.common,
         );
@@ -224,7 +227,7 @@ class BadgeService {
       if (totalGoals >= 5) {
         await _awardRetroactiveBadge(
           userId,
-          'goal_enthusiast_5',
+          'goal_starter',
           'Goal Enthusiast',
           'Create 5 goals',
           'track_changes',
@@ -445,6 +448,35 @@ class BadgeService {
     }
   }
 
+  /// Ensure the user's badges subcollection contains all defaults.
+  static Future<void> _ensureDefaultBadgesExist(String userId) async {
+    try {
+      final defaults = _getDefaultBadges();
+      final existing = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .get();
+
+      final existingIds = existing.docs.map((d) => d.id).toSet();
+      final missing = defaults.where((b) => !existingIds.contains(b.id)).toList();
+      if (missing.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final badge in missing) {
+        final ref = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(badge.id);
+        batch.set(ref, badge.toFirestore());
+      }
+      await batch.commit();
+    } catch (e) {
+      developer.log('Error ensuring default badges: $e');
+    }
+  }
+
   // Helper method to award a retroactive badge
   static Future<void> _awardRetroactiveBadge(
     String userId,
@@ -548,11 +580,20 @@ class BadgeService {
       } catch (_) {}
 
       // Get user badges
-      final badgesSnapshot = await _firestore
+      var badgesSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('badges')
           .get();
+      // If no badges exist (e.g., user predates badges feature), initialize them
+      if (badgesSnapshot.docs.isEmpty) {
+        await _ensureDefaultBadgesExist(userId);
+        badgesSnapshot = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .get();
+      }
 
       final userBadges = badgesSnapshot.docs
           .map((doc) => Badge.fromFirestore(doc))

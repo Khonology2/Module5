@@ -623,6 +623,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icons.group_work;
       case AlertType.employeeJoinedTeamGoal:
         return Icons.group_add;
+      case AlertType.seasonJoined:
+        return Icons.group_add;
+      case AlertType.seasonProgressUpdate:
+        return Icons.analytics_outlined;
+      case AlertType.seasonCompleted:
+        return Icons.celebration;
+      default:
+        return Icons.notifications;
     }
   }
 

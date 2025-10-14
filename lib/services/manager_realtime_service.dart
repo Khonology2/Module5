@@ -430,12 +430,13 @@ class ManagerRealtimeService {
           targetDepartment = managerDoc.data()?['department'] as String?;
         }
 
-        // For now, get all employees regardless of department
-        // This allows managers to see all employees in the system
-        // The Firestore rules will handle security
+        // Build employee query; if department known, constrain to that team
         Query query = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
+        if (targetDepartment != null && (targetDepartment as String).isNotEmpty) {
+          query = query.where('department', isEqualTo: targetDepartment);
+        }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
           if (usersSnapshot.docs.isEmpty) {
@@ -444,35 +445,40 @@ class ManagerRealtimeService {
           }
 
           final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
+          
+          // Firestore whereIn supports up to 10 values. Fetch in batches.
+          Future<List<QueryDocumentSnapshot>> _fetchInBatches(String collection) async {
+            final results = <QueryDocumentSnapshot>[];
+            for (int i = 0; i < employeeIds.length; i += 10) {
+              final batch = employeeIds.sublist(i, i + 10 > employeeIds.length ? employeeIds.length : i + 10);
+              final snap = await _firestore
+                  .collection(collection)
+                  .where('userId', whereIn: batch)
+                  .get();
+              results.addAll(snap.docs);
+            }
+            return results;
+          }
 
           // Batch fetch goals, activities, and alerts
-          final goalsQuery = await _firestore
-              .collection('goals')
-              .where('userId', whereIn: employeeIds)
-              .get();
-          final activitiesQuery = await _firestore
-              .collection('activities')
-              .where('userId', whereIn: employeeIds)
-              .get();
-          final alertsQuery = await _firestore
-              .collection('alerts')
-              .where('userId', whereIn: employeeIds)
-              .get();
+          final goalsDocs = await _fetchInBatches('goals');
+          final activitiesDocs = await _fetchInBatches('activities');
+          final alertsDocs = await _fetchInBatches('alerts');
 
           final goalsByEmployee = <String, List<Goal>>{};
-          for (var doc in goalsQuery.docs) {
+          for (var doc in goalsDocs) {
             final goal = Goal.fromFirestore(doc);
             goalsByEmployee.putIfAbsent(goal.userId, () => []).add(goal);
           }
 
           final activitiesByEmployee = <String, List<EmployeeActivity>>{};
-          for (var doc in activitiesQuery.docs) {
+          for (var doc in activitiesDocs) {
             final activity = EmployeeActivity.fromFirestore(doc);
             activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
           }
 
           final alertsByEmployee = <String, List<Alert>>{};
-          for (var doc in alertsQuery.docs) {
+          for (var doc in alertsDocs) {
             final alert = Alert.fromFirestore(doc);
             alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
           }

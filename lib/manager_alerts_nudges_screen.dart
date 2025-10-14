@@ -241,55 +241,107 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   }
 
   Widget _buildTeamAlertsTab(List<EmployeeData> employees) {
-    final allAlerts = <Alert>[];
-    for (final employee in employees) {
-      allAlerts.addAll(employee.recentAlerts);
-    }
-    final filteredAlerts = _filterAlerts(allAlerts);
+    // Build a fast lookup to avoid scanning all employees per alert
+    final employeesById = {
+      for (final e in employees) e.profile.uid: e,
+    };
 
-    return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFilterRow(),
-          const SizedBox(height: AppSpacing.lg),
-          if (filteredAlerts.isEmpty)
-            _buildEmptyAlertsState()
-          else
-            Column(
+    // Flatten alerts
+    final allAlerts = <Alert>[];
+    for (final e in employees) {
+      allAlerts.addAll(e.recentAlerts);
+    }
+
+    // Add synthetic inactivity alerts (>3 days)
+    final now = DateTime.now();
+    for (final e in employees) {
+      final inactivityDays = now.difference(e.lastActivity).inDays;
+      if (inactivityDays >= 3) {
+        allAlerts.add(
+          Alert(
+            id: 'synthetic_inactivity_${e.profile.uid}',
+            userId: e.profile.uid,
+            type: AlertType.inactivity,
+            priority: inactivityDays >= 7 ? AlertPriority.high : AlertPriority.medium,
+            title: 'Employee Inactive',
+            message: '${e.profile.displayName} inactive for $inactivityDays days',
+            createdAt: now.subtract(Duration(hours: 1)),
+          ),
+        );
+      }
+    }
+
+    // Keep only: overdue goals, inactivity, and manager season join/completed/progress alerts
+    final filteredAlerts = allAlerts.where((a) {
+      return a.type == AlertType.goalOverdue ||
+          a.type == AlertType.inactivity ||
+          a.type == AlertType.seasonJoined ||
+          a.type == AlertType.seasonCompleted ||
+          a.type == AlertType.seasonProgressUpdate;
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: AppSpacing.screenPadding,
+          sliver: SliverToBoxAdapter(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Team Alerts (${filteredAlerts.length})',
-                      style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                    ),
-                    if (filteredAlerts.any((alert) => !alert.isRead))
-                      TextButton(
-                        onPressed: () => _markAllAlertsAsRead(filteredAlerts),
-                        child: Text(
-                          'Mark All Read',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.activeColor,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ...filteredAlerts.map((alert) => 
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: _buildTeamAlertCard(alert, employees),
-                  ),
-                ),
+                _buildFilterRow(),
+                const SizedBox(height: AppSpacing.lg),
               ],
             ),
+          ),
+        ),
+        if (filteredAlerts.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: _buildEmptyAlertsState(),
+            ),
+          )
+        else ...[
+          SliverPadding(
+            padding: AppSpacing.screenPadding,
+            sliver: SliverToBoxAdapter(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Team Alerts (${filteredAlerts.length})',
+                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                  ),
+                  if (filteredAlerts.any((alert) => !alert.isRead))
+                    TextButton(
+                      onPressed: () => _markAllAlertsAsRead(filteredAlerts),
+                      child: Text(
+                        'Mark All Read',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.activeColor,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: AppSpacing.screenPadding,
+            sliver: SliverList.separated(
+              itemCount: filteredAlerts.length,
+              separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+              itemBuilder: (context, index) {
+                final alert = filteredAlerts[index];
+                final employee = employeesById[alert.userId] ?? employees.first;
+                return _buildTeamAlertCard(alert, employee);
+              },
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -344,10 +396,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildTeamAlertCard(Alert alert, List<EmployeeData> employees) {
-    final employee = employees.firstWhere((emp) => 
-      emp.recentAlerts.any((a) => a.id == alert.id),
-      orElse: () => employees.first);
+  Widget _buildTeamAlertCard(Alert alert, EmployeeData employee) {
     final alertColor = _getAlertColor(alert.priority);
     final alertIcon = _getAlertIcon(alert.type);
 
@@ -945,27 +994,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
  }
 
  // Helper methods
- List<Alert> _filterAlerts(List<Alert> alerts) {
-   var filtered = alerts.where((alert) {
-     bool matchesSearch = _searchQuery.isEmpty || 
-         alert.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-         alert.message.toLowerCase().contains(_searchQuery.toLowerCase());
-     
-     bool matchesPriority = _selectedPriority == null || alert.priority == _selectedPriority;
-     
-     return matchesSearch && matchesPriority;
-   }).toList();
-
-   // Sort by priority and date
-   filtered.sort((a, b) {
-     if (a.priority != b.priority) {
-       return b.priority.index.compareTo(a.priority.index);
-     }
-     return b.createdAt.compareTo(a.createdAt);
-   });
-
-   return filtered;
- }
 
  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
    if (_searchQuery.isEmpty) return employees;
