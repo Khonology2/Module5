@@ -66,10 +66,21 @@ class Goal {
                 ? GoalStatus.burnout
                 : GoalStatus.notStarted,
       ),
-      progress: (data?['progress'] ?? 0) as int,
+      // Coerce numeric values safely to int (Firestore may store as double)
+      progress: (() {
+        final raw = data?['progress'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return 0;
+      })(),
       createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       targetDate: (data?['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      points: (data?['points'] ?? 0) as int,
+      points: (() {
+        final raw = data?['points'];
+        if (raw is int) return raw;
+        if (raw is num) return raw.round();
+        return 0;
+      })(),
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
     );
   }

@@ -66,13 +66,16 @@ class _TeamChallengesSeasonsScreenState
 
   Widget _buildActiveSeasonsTab() {
     return Padding(
-      padding: AppSpacing.screenPadding,
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 48, AppSpacing.lg, AppSpacing.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.xs,
+              horizontal: AppSpacing.lg,
+            ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -107,7 +110,7 @@ class _TeamChallengesSeasonsScreenState
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Create themed challenges that employees can opt into. Each season has milestones, badges, and team progress tracking.',
                   style: AppTypography.bodyLarge.copyWith(
@@ -117,7 +120,7 @@ class _TeamChallengesSeasonsScreenState
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.xs),
 
           Text(
             'Active Seasons',
@@ -206,13 +209,16 @@ class _TeamChallengesSeasonsScreenState
 
   Widget _buildCreateSeasonTab() {
     return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 60, AppSpacing.lg, AppSpacing.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.symmetric(
+              vertical: AppSpacing.md,
+              horizontal: AppSpacing.lg,
+            ),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(12),
@@ -238,7 +244,7 @@ class _TeamChallengesSeasonsScreenState
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Design a themed growth season with challenges, milestones, and rewards. Employees can opt in and track their progress.',
                   style: AppTypography.bodyLarge.copyWith(
@@ -248,7 +254,7 @@ class _TeamChallengesSeasonsScreenState
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.md),
 
           _buildCreateSeasonForm(),
         ],
@@ -612,6 +618,10 @@ class _TeamChallengesSeasonsScreenState
                     season,
                   );
 
+                  final displayName = (participation.userName).trim().isNotEmpty
+                      ? participation.userName
+                      : 'Employee ${participantId.substring(0, participantId.length >= 6 ? 6 : participantId.length)}';
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: AppSpacing.xs),
                     padding: const EdgeInsets.all(AppSpacing.sm),
@@ -626,8 +636,8 @@ class _TeamChallengesSeasonsScreenState
                           radius: 12,
                           backgroundColor: AppColors.activeColor,
                           child: Text(
-                            participation.userName.isNotEmpty
-                                ? participation.userName[0].toUpperCase()
+                            displayName.isNotEmpty
+                                ? displayName[0].toUpperCase()
                                 : 'E',
                             style: AppTypography.bodySmall.copyWith(
                               color: Colors.white,
@@ -641,7 +651,7 @@ class _TeamChallengesSeasonsScreenState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                participation.userName,
+                                displayName,
                                 style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w500,
@@ -900,19 +910,37 @@ class _TeamChallengesSeasonsScreenState
 
     int totalMilestones = 0;
     int completedMilestones = 0;
+    int totalMilestonePoints = 0;
 
     for (final challenge in season.challenges) {
       totalMilestones += challenge.milestones.length;
       for (final milestone in challenge.milestones) {
-        final milestoneStatus =
-            participation.milestoneProgress['${challenge.id}.${milestone.id}'];
-        if (milestoneStatus == MilestoneStatus.completed) {
+        totalMilestonePoints += milestone.points;
+
+        // Support both flat and dotted milestone keys
+        final keyDot = '${challenge.id}.${milestone.id}';
+        final keyFlat = milestone.id;
+        final status = participation.milestoneProgress[keyDot] ??
+            participation.milestoneProgress[keyFlat];
+
+        if (status == MilestoneStatus.completed) {
           completedMilestones++;
         }
       }
     }
 
-    return totalMilestones > 0 ? completedMilestones / totalMilestones : 0.0;
+    final progressByStatus = totalMilestones > 0
+        ? completedMilestones / totalMilestones
+        : 0.0;
+
+    // Fallback: points-based progress if statuses are missing or partial
+    final pointsPossible = totalMilestonePoints;
+    final progressByPoints = pointsPossible > 0
+        ? (participation.totalPoints / pointsPossible).clamp(0.0, 1.0)
+        : 0.0;
+
+    // Use the better signal between status and points
+    return progressByStatus > 0 ? progressByStatus : progressByPoints;
   }
 
   void _viewSeasonDetails(Season season) {
