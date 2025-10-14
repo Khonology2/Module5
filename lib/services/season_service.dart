@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 
 class SeasonService {
@@ -227,6 +228,25 @@ class SeasonService {
           message: 'Congratulations! "${updatedSeason.title}" has been completed. Great work this season! 🎉',
         );
       }
+
+      // Notify manager about season completion
+      try {
+        await _firestore.collection('alerts').add({
+          'userId': updatedSeason.createdBy,
+          'type': AlertType.seasonCompleted.name,
+          'priority': AlertPriority.high.name,
+          'title': 'Season Completed 🎉',
+          'message': 'Your season "${updatedSeason.title}" has been completed by all participants.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          'metadata': {
+            'seasonId': updatedSeason.id,
+            'seasonTitle': updatedSeason.title,
+          },
+        });
+      } catch (_) {}
     }
   }
 
@@ -378,6 +398,28 @@ class SeasonService {
         description: 'Joined season: ${season.title}',
         metadata: {'seasonId': seasonId, 'seasonTitle': season.title},
       );
+
+      // Notify manager that an employee joined this season
+      try {
+        final managerId = season.createdBy;
+        await _firestore.collection('alerts').add({
+          'userId': managerId,
+          'type': AlertType.seasonJoined.name,
+          'priority': AlertPriority.medium.name,
+          'title': 'Employee Joined Season',
+          'message': '$userName joined the season "${season.title}"',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          'metadata': {
+            'seasonId': seasonId,
+            'seasonTitle': season.title,
+            'employeeId': userId,
+            'employeeName': userName,
+          },
+        });
+      } catch (_) {}
 
       developer.log('User $userId joined season $seasonId');
     } catch (e) {
@@ -840,8 +882,13 @@ class SeasonService {
       final alertRef = _firestore.collection('alerts').doc();
       await alertRef.set({
         'userId': managerId,
-        'type': 'season_progress_update',
-        'priority': allParticipantsCompleted ? 'high' : 'medium',
+        'type': (allParticipantsCompleted
+                ? AlertType.seasonCompleted
+                : AlertType.seasonProgressUpdate)
+            .name,
+        'priority': allParticipantsCompleted
+            ? AlertPriority.high.name
+            : AlertPriority.medium.name,
         'title': allParticipantsCompleted
             ? 'Season Ready for Completion! 🎉'
             : 'Season Progress Update 📈',

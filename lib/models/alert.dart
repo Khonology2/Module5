@@ -17,6 +17,9 @@ enum AlertType {
   employeeJoinedTeamGoal, // New alert type for managers
   inactivity, // No progress for N days
   milestoneRisk, // Behind schedule vs timeline/dependencies
+  seasonJoined, // Employee joined a season (manager-facing)
+  seasonProgressUpdate, // Employee completed a season goal / progress (manager-facing)
+  seasonCompleted, // Season fully completed (manager-facing)
 }
 
 enum AlertPriority {
