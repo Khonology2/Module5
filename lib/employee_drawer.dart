@@ -97,13 +97,7 @@ class EmployeeDrawer extends StatelessWidget {
             route: '/repository_audit',
             isSelected: currentRoute == '/repository_audit',
           ),
-          _buildDrawerItem(
-            context: context,
-            icon: Icons.upload_file,
-            text: 'Goal Evidence Submission',
-            route: '/goal_evidence_submission',
-            isSelected: currentRoute == '/goal_evidence_submission',
-          ),
+          // Goal Evidence Submission removed
           _buildDrawerItem(
             context: context,
             icon: Icons.settings_outlined,

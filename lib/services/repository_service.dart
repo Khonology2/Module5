@@ -63,26 +63,45 @@ class RepositoryService {
 
   static Stream<List<RepositoryGoal>> getRepositoryGoalsStream(String userId) {
     if (userId.isEmpty) {
-      // Fallback to mock data when no auth/Firebase context
-      return Stream.value(getMockRepositoryGoals());
+      return Stream.value([]);
     }
 
-    final base = _userRepositoryCollection(userId)
+    return _userRepositoryCollection(userId)
         .orderBy('verifiedDate', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
               .map((doc) => RepositoryGoal.fromFirestore(doc))
               .toList(),
-        );
+        )
+        .handleError((error) {
+          developer.log('Error getting repository goals: $error');
+          return <RepositoryGoal>[];
+        });
+  }
 
-    return base.transform(
-      StreamTransformer.fromHandlers(
-        handleError: (error, stack, sink) {
-          sink.add(getMockRepositoryGoals());
-        },
-      ),
-    );
+  // Manager: stream all repository goals across users via collectionGroup
+  static Stream<List<RepositoryGoal>> getAllRepositoryGoalsStream({String? department}) {
+    try {
+      final base = _firestore
+          .collectionGroup('completedGoals')
+          .orderBy('verifiedDate', descending: true)
+          .snapshots()
+          .map((snapshot) => snapshot.docs
+              .map((d) => RepositoryGoal.fromFirestore(d))
+              .where((g) {
+                if (department == null || department.isEmpty) return true;
+                return g.userDepartment == department;
+              })
+              .toList());
+      return base.handleError((e) {
+        developer.log('Error streaming all repository goals: $e');
+        return <RepositoryGoal>[];
+      });
+    } catch (e) {
+      developer.log('Error building all repository goals stream: $e');
+      return Stream.value([]);
+    }
   }
 
   static Stream<List<RepositoryGoal>> queryRepositoryGoals(
@@ -190,39 +209,4 @@ class RepositoryService {
     _syncActive = false;
   }
 
-  // Optional: mock data for offline testing
-  static List<RepositoryGoal> getMockRepositoryGoals() {
-    return [
-      RepositoryGoal(
-        id: 'goalIdA',
-        goalId: 'goalIdA',
-        goalTitle: 'Launch New Product Feature',
-        goalDescription: 'Released MVP of feature X to 10% users',
-        completedDate: DateTime(2024, 2, 28),
-        verifiedDate: DateTime(2024, 3, 3),
-        managerAcknowledgedBy: 'Sarah Chen',
-        score: 4.8,
-        comments: 'Excellent execution and cross-team collaboration',
-        evidence: ['Feature Spec Doc', 'Demo Link', 'Rollout Dashboard'],
-        userId: 'userId123',
-        userDisplayName: 'Jane Smith',
-        userDepartment: 'Engineering',
-      ),
-      RepositoryGoal(
-        id: 'goalIdB',
-        goalId: 'goalIdB',
-        goalTitle: 'Improve CSAT to 4.6+',
-        goalDescription: 'New playbooks, faster response times',
-        completedDate: DateTime(2024, 3, 15),
-        verifiedDate: DateTime(2024, 3, 20),
-        managerAcknowledgedBy: 'David Lee',
-        score: 4.7,
-        comments: 'Great outcome with measurable impact',
-        evidence: ['Survey Report', 'NPS Trends'],
-        userId: 'userId123',
-        userDisplayName: 'John Doe',
-        userDepartment: 'Customer Success',
-      ),
-    ];
-  }
 }
