@@ -287,6 +287,10 @@ class DatabaseService {
         goalId: doc.id,
         goalTitle: goal.title,
       );
+      // Immediately check badges so 'first_goal' and creation-based badges award right away
+      try {
+        await BadgeService.checkAndAwardBadges(goal.userId);
+      } catch (_) {}
     } catch (_) {}
     return doc.id;
   }
@@ -603,6 +607,10 @@ class DatabaseService {
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
     await BadgeService.checkAndAwardBadges(userId);
+    // Backfill any missed milestone badges and align level
+    try {
+      await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
+    } catch (_) {}
   }
 
   static Future<void> updateUserPoints(

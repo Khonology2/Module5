@@ -275,6 +275,32 @@ class BadgeService {
         );
       }
 
+      // 15 completed goals
+      if (completedGoals >= 15) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_completer_15',
+          'Goal Finisher (15)',
+          'Complete 15 goals',
+          'emoji_events',
+          BadgeCategory.goals,
+          BadgeRarity.rare,
+        );
+      }
+
+      // 50 completed goals
+      if (completedGoals >= 50) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_completer_50',
+          'Epic Goal Completer',
+          'Complete 50 goals',
+          'emoji_events',
+          BadgeCategory.goals,
+          BadgeRarity.epic,
+        );
+      }
+
       // Badge 5: Point Collector badges based on points
       if (points >= 100) {
         await _awardRetroactiveBadge(
@@ -451,6 +477,19 @@ class BadgeService {
           'goal_legend_25',
           'Goal Legend',
           'Complete 25 goals',
+          'emoji_events',
+          BadgeCategory.goals,
+          BadgeRarity.legendary,
+        );
+      }
+
+      // 100 completed goals
+      if (completedGoals >= 100) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_legend_100',
+          'Goal Grandmaster',
+          'Complete 100 goals',
           'emoji_events',
           BadgeCategory.goals,
           BadgeRarity.legendary,
@@ -709,6 +748,13 @@ class BadgeService {
         newProgress = completed.clamp(0, badge.maxProgress);
         break;
 
+      case 'goal_completer_15':
+        final completed15 = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+        newProgress = completed15.clamp(0, badge.maxProgress);
+        break;
+
       case 'goal_starter':
         newProgress = goals.length;
         break;
@@ -717,6 +763,13 @@ class BadgeService {
         newProgress = goals
             .where((g) => g.status == GoalStatus.completed)
             .length;
+        break;
+
+      case 'goal_completer_50':
+        final completed50 = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+        newProgress = completed50.clamp(0, badge.maxProgress);
         break;
 
       case 'goal_finisher_1':
@@ -735,16 +788,33 @@ class BadgeService {
         newProgress = completed25.clamp(0, badge.maxProgress);
         break;
 
+      case 'goal_legend_100':
+        final completed100 = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
+        newProgress = completed100.clamp(0, badge.maxProgress);
+        break;
+
       case 'streak_master_7':
         // Get current streak from StreakService
         final currentStreak = await StreakService.getCurrentStreak(userId);
         newProgress = currentStreak >= 7 ? 1 : 0;
         break;
 
+      case 'streak_starter_3':
+        final cs3 = await StreakService.getCurrentStreak(userId);
+        newProgress = cs3 >= 3 ? 1 : 0;
+        break;
+
       case 'streak_master_30':
         // Get current streak from StreakService
         final currentStreak = await StreakService.getCurrentStreak(userId);
         newProgress = currentStreak >= 30 ? 1 : 0;
+        break;
+
+      case 'streak_runner_14':
+        final cs14 = await StreakService.getCurrentStreak(userId);
+        newProgress = cs14 >= 14 ? 1 : 0;
         break;
 
       case 'point_collector_100':
@@ -789,6 +859,17 @@ class BadgeService {
             )
             .length;
         newProgress = highPriorityCompleted;
+        break;
+
+      case 'priority_champion_10':
+        final highPriorityCompleted10 = goals
+            .where(
+              (g) =>
+                  g.priority == GoalPriority.high &&
+                  g.status == GoalStatus.completed,
+            )
+            .length;
+        newProgress = highPriorityCompleted10.clamp(0, badge.maxProgress);
         break;
 
       case 'consistency_king':
