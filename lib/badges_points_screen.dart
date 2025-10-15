@@ -590,52 +590,55 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.backgroundColor,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.9),
-            ],
+      content: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.backgroundColor,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.backgroundColor,
+                AppColors.backgroundColor.withValues(alpha: 0.9),
+              ],
+            ),
           ),
-        ),
-        child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: ListView(
-            padding: AppSpacing.screenPadding,
-            children: [
-              FadeTransition(
-                opacity: _fadeAnimation,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Badges & Points',
-                      style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            child: ListView(
+              padding: AppSpacing.screenPadding,
+              children: [
+                FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Badges & Points',
+                        style: AppTypography.heading2.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    _buildPointsAndLevelCard(),
-                    const SizedBox(height: AppSpacing.xl),
-                    _buildUserRankCard(),
-                    const SizedBox(height: AppSpacing.xl),
-                    _buildSectionHeader('Your Badges'),
-                    _buildBadgesSection(),
-                    const SizedBox(height: AppSpacing.xl),
-                    _buildSectionHeader('Progress Stats'),
-                    _buildProgressStats(),
-                    const SizedBox(height: AppSpacing.xl),
-                    _buildRetroactiveUpdateButton(),
-                  ],
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildPointsAndLevelCard(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildUserRankCard(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildSectionHeader('Your Badges'),
+                      _buildBadgesSection(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildSectionHeader('Progress Stats'),
+                      _buildProgressStats(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildRetroactiveUpdateButton(),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
