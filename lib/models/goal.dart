@@ -6,6 +6,8 @@ enum GoalPriority { low, medium, high }
 
 enum GoalStatus { notStarted, inProgress, completed, paused, burnout }
 
+enum GoalApprovalStatus { pending, approved, rejected }
+
 class Goal {
   final String id;
   final String userId;
@@ -20,6 +22,11 @@ class Goal {
   final int points;
   // Key Performance Area tag for persistent excellence grouping
   final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
+  final GoalApprovalStatus approvalStatus;
+  final String? approvedByUserId;
+  final String? approvedByName;
+  final DateTime? approvedAt;
+  final String? rejectionReason;
 
   const Goal({
     required this.id,
@@ -34,6 +41,11 @@ class Goal {
     required this.targetDate,
     required this.points,
     this.kpa,
+    this.approvalStatus = GoalApprovalStatus.pending,
+    this.approvedByUserId,
+    this.approvedByName,
+    this.approvedAt,
+    this.rejectionReason,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -41,6 +53,7 @@ class Goal {
     final rawCategory = (data?['category'] ?? 'personal').toString().toLowerCase();
     final rawPriority = (data?['priority'] ?? 'medium').toString().toLowerCase();
     final rawStatus = (data?['status'] ?? 'notStarted').toString().toLowerCase();
+    final rawApproval = (data?['approvalStatus'] ?? 'approved').toString().toLowerCase();
 
     return Goal(
       id: doc.id,
@@ -82,6 +95,14 @@ class Goal {
         return 0;
       })(),
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
+      approvalStatus: GoalApprovalStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawApproval,
+        orElse: () => GoalApprovalStatus.approved,
+      ),
+      approvedByUserId: data?['approvedByUserId'],
+      approvedByName: data?['approvedByName'],
+      approvedAt: (data?['approvedAt'] as Timestamp?)?.toDate(),
+      rejectionReason: data?['rejectionReason'],
     );
   }
 
@@ -98,6 +119,11 @@ class Goal {
     DateTime? targetDate,
     int? points,
     String? kpa,
+    GoalApprovalStatus? approvalStatus,
+    String? approvedByUserId,
+    String? approvedByName,
+    DateTime? approvedAt,
+    String? rejectionReason,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -112,6 +138,11 @@ class Goal {
       targetDate: targetDate ?? this.targetDate,
       points: points ?? this.points,
       kpa: kpa ?? this.kpa,
+      approvalStatus: approvalStatus ?? this.approvalStatus,
+      approvedByUserId: approvedByUserId ?? this.approvedByUserId,
+      approvedByName: approvedByName ?? this.approvedByName,
+      approvedAt: approvedAt ?? this.approvedAt,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
 

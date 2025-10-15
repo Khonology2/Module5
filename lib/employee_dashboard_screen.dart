@@ -16,6 +16,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/upcoming_goals_list_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -882,7 +883,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               if (upcomingGoals.isNotEmpty)
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/my_goal_workspace');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UpcomingGoalsListScreen(),
+                      ),
+                    );
                   },
                   child: Text(
                     'View All',

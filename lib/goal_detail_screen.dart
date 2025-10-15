@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -27,11 +29,72 @@ class GoalDetailScreen extends StatefulWidget {
 class _GoalDetailScreenState extends State<GoalDetailScreen> {
   late Goal currentGoal;
   bool isLoading = false;
+  StreamSubscription<DocumentSnapshot>? _goalSub;
 
   @override
   void initState() {
     super.initState();
     currentGoal = widget.goal;
+    // Listen for live updates so approval status changes reflect immediately
+    _goalSub = FirebaseFirestore.instance
+        .collection('goals')
+        .doc(widget.goal.id)
+        .snapshots()
+        .listen((doc) {
+      if (!mounted) return;
+      try {
+        final updated = Goal.fromFirestore(doc);
+        setState(() {
+          currentGoal = updated;
+        });
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _confirmAndDeleteGoal() async {
+    if (isLoading) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Goal'),
+        content: const Text('Are you sure you want to permanently delete this goal? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.dangerColor, foregroundColor: Colors.white),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() { isLoading = true; });
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not signed in');
+      await DatabaseService.deleteGoal(goalId: currentGoal.id, requesterId: user.uid);
+      if (!mounted) return;
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('Goal deleted'), backgroundColor: Colors.green),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to delete goal: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { isLoading = false; });
+      }
+    }
   }
 
   Future<void> _startGoal() async {
@@ -315,6 +378,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             children: [
               _buildHeader(),
               const SizedBox(height: AppSpacing.xl),
+              _buildApprovalNotice(),
+              const SizedBox(height: AppSpacing.xl),
               _buildGoalInfo(),
               const SizedBox(height: AppSpacing.xl),
               _buildProgressSection(),
@@ -325,6 +390,44 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _goalSub?.cancel();
+    super.dispose();
+  }
+
+  Widget _buildApprovalNotice() {
+    if (currentGoal.approvalStatus == GoalApprovalStatus.approved) {
+      return const SizedBox.shrink();
+    }
+    final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
+    final color = isPending ? AppColors.warningColor : AppColors.dangerColor;
+    final icon = isPending ? Icons.hourglass_empty : Icons.cancel_outlined;
+    final text = isPending
+        ? 'This goal is awaiting manager approval.'
+        : 'This goal was rejected by your manager.';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -347,6 +450,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               color: AppColors.textPrimary,
             ),
           ),
+        ),
+        IconButton(
+          tooltip: 'Delete Goal',
+          onPressed: isLoading ? null : _confirmAndDeleteGoal,
+          icon: Icon(Icons.delete_outline, color: AppColors.dangerColor),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -518,7 +626,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed) ...[
+          if (currentGoal.status != GoalStatus.completed && currentGoal.approvalStatus == GoalApprovalStatus.approved) ...[
             Text(
               'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
@@ -586,6 +694,40 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             Expanded(
               child: Text(
                 'Congratulations! You completed this goal! 🎉',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If not approved yet, show disabled banner
+    if (currentGoal.approvalStatus != GoalApprovalStatus.approved) {
+      final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isPending ? Icons.hourglass_top : Icons.cancel,
+              color: isPending ? AppColors.warningColor : AppColors.dangerColor,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isPending
+                    ? 'Awaiting manager approval. You will be notified once approved.'
+                    : 'This goal was rejected by your manager.${currentGoal.rejectionReason != null && currentGoal.rejectionReason!.isNotEmpty ? ' Reason: ${currentGoal.rejectionReason}' : ''}',
                 style: AppTypography.bodyMedium.copyWith(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,

@@ -434,7 +434,7 @@ class ManagerRealtimeService {
         Query query = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
-        if (targetDepartment != null && (targetDepartment as String).isNotEmpty) {
+        if (targetDepartment != null && (targetDepartment).isNotEmpty) {
           query = query.where('department', isEqualTo: targetDepartment);
         }
 
@@ -447,7 +447,7 @@ class ManagerRealtimeService {
           final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
           
           // Firestore whereIn supports up to 10 values. Fetch in batches.
-          Future<List<QueryDocumentSnapshot>> _fetchInBatches(String collection) async {
+          Future<List<QueryDocumentSnapshot>> fetchInBatches(String collection) async {
             final results = <QueryDocumentSnapshot>[];
             for (int i = 0; i < employeeIds.length; i += 10) {
               final batch = employeeIds.sublist(i, i + 10 > employeeIds.length ? employeeIds.length : i + 10);
@@ -461,9 +461,9 @@ class ManagerRealtimeService {
           }
 
           // Batch fetch goals, activities, and alerts
-          final goalsDocs = await _fetchInBatches('goals');
-          final activitiesDocs = await _fetchInBatches('activities');
-          final alertsDocs = await _fetchInBatches('alerts');
+          final goalsDocs = await fetchInBatches('goals');
+          final activitiesDocs = await fetchInBatches('activities');
+          final alertsDocs = await fetchInBatches('alerts');
 
           final goalsByEmployee = <String, List<Goal>>{};
           for (var doc in goalsDocs) {
@@ -483,15 +483,22 @@ class ManagerRealtimeService {
             alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
           }
 
+          final now = DateTime.now();
           final employeeDataList = <EmployeeData>[];
           for (final userDoc in usersSnapshot.docs) {
             final userProfile = UserProfile.fromFirestore(userDoc);
+            final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
+            final activeAlerts = rawAlerts.where((a) {
+              if (a.isDismissed) return false;
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+              return true;
+            }).toList();
             final employeeData = await _buildEmployeeData(
               userProfile,
               timeFilter,
               goalsByEmployee[userDoc.id] ?? [],
               activitiesByEmployee[userDoc.id] ?? [],
-              alertsByEmployee[userDoc.id] ?? [],
+              activeAlerts,
             );
             employeeDataList.add(employeeData);
           }
