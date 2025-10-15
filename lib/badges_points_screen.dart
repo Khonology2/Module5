@@ -13,6 +13,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/rarity_badges_list_screen.dart';
 
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -1008,17 +1009,158 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           return _buildEmptyBadgesState();
         }
 
+        // Group badges by rarity in fixed order: Common -> Rare -> Epic -> Legendary
+        final Map<badge_model.BadgeRarity, List<badge_model.Badge>> byRarity = {
+          badge_model.BadgeRarity.common: [],
+          badge_model.BadgeRarity.rare: [],
+          badge_model.BadgeRarity.epic: [],
+          badge_model.BadgeRarity.legendary: [],
+        };
+        for (final b in visibleBadges) {
+          byRarity[b.rarity]?.add(b);
+        }
+
+        // Determine the active rarity based on user's current level
+        final level = userProfile?.level ?? 1;
+        bool _isInRange(badge_model.BadgeRarity r) {
+          if (r == badge_model.BadgeRarity.common) return level >= 1 && level <= 5;
+          if (r == badge_model.BadgeRarity.rare) return level >= 6 && level <= 10;
+          if (r == badge_model.BadgeRarity.epic) return level >= 11 && level <= 15;
+          return level >= 16; // legendary
+        }
+
         return Column(
-          children: visibleBadges
-              .map(
-                (badge) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _buildBadgeCard(badge),
-                ),
-              )
-              .toList(),
+          children: [
+            _buildRarityOvalSection(
+              title: 'Common Goals',
+              subtitle: 'Levels 1–5',
+              rarity: badge_model.BadgeRarity.common,
+              badges: byRarity[badge_model.BadgeRarity.common]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: _isInRange(badge_model.BadgeRarity.common),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.common),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildRarityOvalSection(
+              title: 'Rare Goals',
+              subtitle: 'Levels 6–10',
+              rarity: badge_model.BadgeRarity.rare,
+              badges: byRarity[badge_model.BadgeRarity.rare]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: _isInRange(badge_model.BadgeRarity.rare),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildRarityOvalSection(
+              title: 'Epic Goals',
+              subtitle: 'Levels 11–15',
+              rarity: badge_model.BadgeRarity.epic,
+              badges: byRarity[badge_model.BadgeRarity.epic]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: _isInRange(badge_model.BadgeRarity.epic),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            _buildRarityOvalSection(
+              title: 'Legendary Goals',
+              subtitle: 'Levels 16+',
+              rarity: badge_model.BadgeRarity.legendary,
+              badges: byRarity[badge_model.BadgeRarity.legendary]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: _isInRange(badge_model.BadgeRarity.legendary),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildRarityOvalSection({
+    required String title,
+    required String subtitle,
+    required badge_model.BadgeRarity rarity,
+    required List<badge_model.Badge>? badges,
+    bool isActive = false,
+    VoidCallback? onTap,
+  }) {
+    final list = badges ?? const <badge_model.Badge>[];
+    final earnedCount = list.where((b) => b.isEarned).length;
+    final total = list.length;
+
+    final baseColor = _getBadgeRarityColor(rarity);
+
+    final double lift = isActive ? 4 : 0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: baseColor.withValues(alpha: 0.5), width: isActive ? 2 : 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: baseColor.withValues(alpha: isActive ? 0.25 : 0.12),
+            blurRadius: isActive ? 16 : 12,
+            offset: Offset(0, 4 - lift),
+          ),
+        ],
+      ),
+      transform: Matrix4.translationValues(0, -lift, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(32),
+        onTap: onTap,
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: baseColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: baseColor.withValues(alpha: 0.6)),
+                ),
+                child: Icon(Icons.workspace_premium, color: baseColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              Text(
+                total == 0 ? '0/0' : '$earnedCount/$total',
+                style: AppTypography.bodySmall.copyWith(
+                  color: baseColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: baseColor),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            total == 0 ? 'No badges available in this group' : 'Tap to view all badges in this group',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
+        ),
+      ),
+    );
+  }
+
+  void _openRarityList(badge_model.BadgeRarity rarity) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RarityBadgesListScreen(rarity: rarity),
+      ),
     );
   }
 
