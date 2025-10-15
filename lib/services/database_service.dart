@@ -47,6 +47,104 @@ class DatabaseService {
     );
   }
 
+  static Future<void> approveGoal({
+    required String goalId,
+    required String managerId,
+    required String managerName,
+  }) async {
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await goalRef.update({
+      'approvalStatus': GoalApprovalStatus.approved.name,
+      'approvedByUserId': managerId,
+      'approvedByName': managerName,
+      'approvedAt': FieldValue.serverTimestamp(),
+      'rejectionReason': null,
+    });
+    try {
+      final doc = await goalRef.get();
+      final data = doc.data();
+      if (data != null) {
+        await AlertService.createGoalApprovalDecisionAlert(
+          employeeId: (data['userId'] ?? '') as String,
+          goalId: goalId,
+          goalTitle: (data['title'] ?? '') as String,
+          approved: true,
+        );
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> rejectGoal({
+    required String goalId,
+    required String managerId,
+    required String managerName,
+    String? reason,
+  }) async {
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await goalRef.update({
+      'approvalStatus': GoalApprovalStatus.rejected.name,
+      'approvedByUserId': managerId,
+      'approvedByName': managerName,
+      'approvedAt': FieldValue.serverTimestamp(),
+      'rejectionReason': reason,
+    });
+    try {
+      final doc = await goalRef.get();
+      final data = doc.data();
+      if (data != null) {
+        await AlertService.createGoalApprovalDecisionAlert(
+          employeeId: (data['userId'] ?? '') as String,
+          goalId: goalId,
+          goalTitle: (data['title'] ?? '') as String,
+          approved: false,
+          reason: reason,
+        );
+      }
+    } catch (_) {}
+  }
+
+  static Future<Goal?> getGoalById(String goalId) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return Goal(
+        id: doc.id,
+        userId: data['userId'] ?? '',
+        title: data['title'] ?? '',
+        description: data['description'] ?? '',
+        category: GoalCategory.values.firstWhere(
+          (e) => e.name == (data['category'] ?? 'personal'),
+          orElse: () => GoalCategory.personal,
+        ),
+        priority: GoalPriority.values.firstWhere(
+          (e) => e.name == (data['priority'] ?? 'medium'),
+          orElse: () => GoalPriority.medium,
+        ),
+        status: GoalStatus.values.firstWhere(
+          (e) => e.name == (data['status'] ?? 'notStarted'),
+          orElse: () => GoalStatus.notStarted,
+        ),
+        progress: (() {
+          final raw = data['progress'];
+          if (raw is int) return raw;
+          if (raw is num) return raw.round();
+          return 0;
+        })(),
+        createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        targetDate: (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        points: (data['points'] ?? 0) as int,
+        kpa: (() {
+          final raw = data['kpa'];
+          return raw is String ? raw.toLowerCase() : null;
+        })(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<List<Goal>> getUserGoals(String uid) async {
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -88,6 +186,14 @@ class DatabaseService {
             final raw = data['kpa'];
             return raw is String ? raw.toLowerCase() : null;
           })(),
+          approvalStatus: GoalApprovalStatus.values.firstWhere(
+            (e) => e.name == (data['approvalStatus'] ?? 'pending'),
+            orElse: () => GoalApprovalStatus.pending,
+          ),
+          approvedByUserId: data['approvedByUserId'],
+          approvedByName: data['approvedByName'],
+          approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
+          rejectionReason: data['rejectionReason'],
         );
       }).toList();
 
@@ -141,6 +247,14 @@ class DatabaseService {
                 final raw = data['kpa'];
                 return raw is String ? raw.toLowerCase() : null;
               })(),
+              approvalStatus: GoalApprovalStatus.values.firstWhere(
+                (e) => e.name == (data['approvalStatus'] ?? 'pending'),
+                orElse: () => GoalApprovalStatus.pending,
+              ),
+              approvedByUserId: data['approvedByUserId'],
+              approvedByName: data['approvedByName'],
+              approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
+              rejectionReason: data['rejectionReason'],
             );
           }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
         );
@@ -159,7 +273,21 @@ class DatabaseService {
       'targetDate': Timestamp.fromDate(goal.targetDate),
       'points': goal.points,
       'kpa': goal.kpa,
+      // approval fields
+      'approvalStatus': GoalApprovalStatus.pending.name,
+      'approvedByUserId': null,
+      'approvedByName': null,
+      'approvedAt': null,
+      'rejectionReason': null,
     });
+    try {
+      // Notify managers for approval
+      await AlertService.createGoalApprovalRequestedAlert(
+        employeeId: goal.userId,
+        goalId: doc.id,
+        goalTitle: goal.title,
+      );
+    } catch (_) {}
     return doc.id;
   }
 
@@ -177,6 +305,55 @@ class DatabaseService {
     });
   }
 
+  static Future<void> deleteGoal({
+    required String goalId,
+    required String requesterId,
+  }) async {
+    final fs = FirebaseFirestore.instance;
+    final goalRef = fs.collection('goals').doc(goalId);
+    final goalSnap = await goalRef.get();
+    if (!goalSnap.exists) {
+      throw Exception('Goal not found');
+    }
+    final data = goalSnap.data() as Map<String, dynamic>;
+    final ownerId = (data['userId'] ?? '') as String;
+
+    String role = 'employee';
+    try {
+      final userDoc = await fs.collection('users').doc(requesterId).get();
+      role = (userDoc.data()?['role'] ?? 'employee') as String;
+    } catch (_) {}
+
+    if (requesterId != ownerId && role != 'manager') {
+      throw Exception('Not authorized to delete this goal');
+    }
+
+    final batch = fs.batch();
+    batch.delete(goalRef);
+
+    try {
+      final alerts = await fs
+          .collection('alerts')
+          .where('relatedGoalId', isEqualTo: goalId)
+          .get();
+      for (final d in alerts.docs) {
+        batch.delete(d.reference);
+      }
+    } catch (_) {}
+
+    try {
+      final daily = await fs
+          .collection('goal_daily_progress')
+          .where('goalId', isEqualTo: goalId)
+          .get();
+      for (final d in daily.docs) {
+        batch.delete(d.reference);
+      }
+    } catch (_) {}
+
+    await batch.commit();
+  }
+
   static Future<void> attachGoalEvidence({
     required String goalId,
     required List<String> evidence,
@@ -189,6 +366,16 @@ class DatabaseService {
   }
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
+    // Gate: only allow progress on approved goals
+    try {
+      final meta = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final ap = (meta.data()?['approvalStatus'] ?? 'pending').toString();
+      if (ap != GoalApprovalStatus.approved.name) {
+        throw Exception('Goal is not approved yet');
+      }
+    } catch (e) {
+      throw Exception('progress_update.gate: $e');
+    }
     // Snap progress to 10% steps and clamp 0..100
     int snapped = ((progress / 10).round() * 10).clamp(0, 100);
 
@@ -357,6 +544,12 @@ class DatabaseService {
   }
 
   static Future<void> startGoal(String goalId, String userId) async {
+    // Gate: only allow start on approved goals
+    final snap = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+    final ap = (snap.data()?['approvalStatus'] ?? 'pending').toString();
+    if (ap != GoalApprovalStatus.approved.name) {
+      throw Exception('Goal is not approved yet');
+    }
     final batch = FirebaseFirestore.instance.batch();
 
     // Update goal status
@@ -382,6 +575,10 @@ class DatabaseService {
         throw Exception('Goal not found');
       }
       final data = snap.data() as Map<String, dynamic>;
+      final approval = (data['approvalStatus'] ?? 'pending').toString();
+      if (approval != GoalApprovalStatus.approved.name) {
+        throw Exception('Goal is not approved yet');
+      }
       final status = (data['status'] ?? 'notStarted').toString();
       final progress = (data['progress'] ?? 0) as int;
 

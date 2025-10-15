@@ -9,6 +9,8 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/goal_detail_screen.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -531,11 +533,26 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     onPressed: () async {
                       final navigator = Navigator.of(context);
                       final actionRoute = alert.actionRoute;
-                      
-                      // Mark as read when action is taken
+
                       await AlertService.markAsRead(alert.id);
-                      
-                      // Navigate to action route if provided
+
+                      final String? goalId = alert.relatedGoalId ??
+                          (alert.actionData != null ? alert.actionData!['goalId'] as String? : null);
+
+                      if (mounted && goalId != null && goalId.isNotEmpty) {
+                        final goal = await DatabaseService.getGoalById(goalId);
+                        if (!mounted) return;
+                        if (goal != null) {
+                          navigator.push(
+                            MaterialPageRoute(
+                              settings: const RouteSettings(name: '/goal_detail'),
+                              builder: (context) => GoalDetailScreen(goal: goal),
+                            ),
+                          );
+                          return;
+                        }
+                      }
+
                       if (mounted && actionRoute != null) {
                         navigator.pushNamed(actionRoute);
                       }

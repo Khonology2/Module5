@@ -86,6 +86,79 @@ class AlertService {
     await _createAlert(alert);
   }
 
+  static Future<void> createGoalApprovalRequestedAlert({
+    required String employeeId,
+    required String goalId,
+    required String goalTitle,
+  }) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(employeeId).get();
+      final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
+
+      Query mgrQuery = _firestore.collection('users').where('role', isEqualTo: 'manager');
+      final dept = userDoc.data()?['department'] as String?;
+      if (dept != null && dept.isNotEmpty) {
+        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
+      }
+      var mgrs = await mgrQuery.get();
+      // Fallback: if no managers found in the department, notify all managers
+      if (mgrs.docs.isEmpty) {
+        mgrs = await _firestore
+            .collection('users')
+            .where('role', isEqualTo: 'manager')
+            .get();
+      }
+
+      for (final mgr in mgrs.docs) {
+        await _firestore.collection('alerts').add({
+          'userId': mgr.id,
+          'type': AlertType.goalApprovalRequested.name,
+          'priority': AlertPriority.high.name,
+          'title': 'Goal Approval Needed',
+          'message': '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
+          'actionText': 'Review Goal',
+          'actionRoute': '/manager_alerts_nudges',
+          'createdAt': FieldValue.serverTimestamp(),
+          'relatedGoalId': goalId,
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 14))),
+        });
+      }
+    } catch (e) {
+      developer.log('Error creating approval request alerts: $e');
+    }
+  }
+
+  static Future<void> createGoalApprovalDecisionAlert({
+    required String employeeId,
+    required String goalId,
+    required String goalTitle,
+    required bool approved,
+    String? reason,
+  }) async {
+    final title = approved ? 'Goal Approved ✅' : 'Goal Rejected ❌';
+    final msg = approved
+        ? 'Your goal "$goalTitle" has been approved.'
+        : 'Your goal "$goalTitle" was rejected${reason != null && reason.isNotEmpty ? ': $reason' : '.'}';
+
+    final alert = Alert(
+      id: '',
+      userId: employeeId,
+      type: approved ? AlertType.goalApprovalApproved : AlertType.goalApprovalRejected,
+      priority: approved ? AlertPriority.medium : AlertPriority.high,
+      title: title,
+      message: msg,
+      actionText: 'View Goal',
+      actionRoute: '/my_goal_workspace',
+      createdAt: DateTime.now(),
+      relatedGoalId: goalId,
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+
+    await _createAlert(alert);
+  }
+
   static Future<void> createPointsAlert({
     required String userId,
     required int pointsEarned,
