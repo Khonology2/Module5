@@ -237,145 +237,148 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: AppComponents.backgroundWithImage(
-        imagePath:
-            'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
-        child: StreamBuilder<UserProfile?>(
-          stream: _getUserProfileStream(),
-          builder: (context, profileSnapshot) {
-            return StreamBuilder<List<Goal>>(
-              stream: _getUserGoalsStream(),
-              builder: (context, goalsSnapshot) {
-                // Handle loading states
-                if (profileSnapshot.connectionState ==
-                        ConnectionState.waiting ||
-                    goalsSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
+      content: FocusTraversalGroup(
+        policy: ReadingOrderTraversalPolicy(),
+        child: AppComponents.backgroundWithImage(
+          imagePath:
+              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+          child: StreamBuilder<UserProfile?>(
+            stream: _getUserProfileStream(),
+            builder: (context, profileSnapshot) {
+              return StreamBuilder<List<Goal>>(
+                stream: _getUserGoalsStream(),
+                builder: (context, goalsSnapshot) {
+                  // Handle loading states
+                  if (profileSnapshot.connectionState ==
+                          ConnectionState.waiting ||
+                      goalsSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                // Handle errors
-                if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                  final error = profileSnapshot.error ?? goalsSnapshot.error;
-                  final errorMessage = error.toString();
+                  // Handle errors
+                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                    final error = profileSnapshot.error ?? goalsSnapshot.error;
+                    final errorMessage = error.toString();
 
-                  // Check if it's a Firestore index error
-                  if (errorMessage.contains('failed-precondition') ||
-                      errorMessage.contains('index')) {
+                    // Check if it's a Firestore index error
+                    if (errorMessage.contains('failed-precondition') ||
+                        errorMessage.contains('index')) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 64,
+                              color: AppColors.warningColor,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Setting up your dashboard...',
+                              style: AppTypography.heading4,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'This is your first time using the app. Let\'s get you started!',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/my_goal_workspace',
+                                );
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create Your First Goal'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.activeColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.info_outline,
+                            Icons.error_outline,
                             size: 64,
-                            color: AppColors.warningColor,
+                            color: AppColors.dangerColor,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Setting up your dashboard...',
+                            'Error loading dashboard',
                             style: AppTypography.heading4,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'This is your first time using the app. Let\'s get you started!',
+                            'Please try again in a moment',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.textSecondary,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
-                          ElevatedButton.icon(
+                          ElevatedButton(
                             onPressed: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/my_goal_workspace',
-                              );
+                              setState(
+                                () {},
+                              ); // Trigger rebuild to restart streams
                             },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Create Your First Goal'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.activeColor,
-                            ),
+                            child: const Text('Retry'),
                           ),
                         ],
                       ),
                     );
                   }
 
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: AppColors.dangerColor,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading dashboard',
-                          style: AppTypography.heading4,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Please try again in a moment',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(
-                              () {},
-                            ); // Trigger rebuild to restart streams
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
+                  // Update local state with stream data
+                  userProfile = profileSnapshot.data;
+                  userGoals = goalsSnapshot.data ?? [];
+
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      setState(() {}); // Trigger rebuild to restart streams
+                    },
+                    child: SingleChildScrollView(
+                      padding: AppSpacing.screenPadding,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildWelcomeCard(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildDailyMotivationCard(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildQuickStats(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildRecentActivity(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildQuickActions(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildUpcomingGoals(),
+                        ],
+                      ),
                     ),
                   );
-                }
-
-                // Update local state with stream data
-                userProfile = profileSnapshot.data;
-                userGoals = goalsSnapshot.data ?? [];
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {}); // Trigger rebuild to restart streams
-                  },
-                  child: SingleChildScrollView(
-                    padding: AppSpacing.screenPadding,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildWelcomeCard(),
-                        const SizedBox(height: AppSpacing.xl),
-                        _buildDailyMotivationCard(),
-                        const SizedBox(height: AppSpacing.xl),
-                        _buildQuickStats(),
-                        const SizedBox(height: AppSpacing.xl),
-                        _buildRecentActivity(),
-                        const SizedBox(height: AppSpacing.xl),
-                        _buildQuickActions(),
-                        const SizedBox(height: AppSpacing.xl),
-                        _buildUpcomingGoals(),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-          },
+                },
+              );
+            },
+          ),
         ),
       ),
     );

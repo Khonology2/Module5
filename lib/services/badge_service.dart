@@ -236,16 +236,29 @@ class BadgeService {
         );
       }
 
-      // Badge 2: Goal Finisher (completed any goals)
+      // First completion badge: first completed goal
       if (completedGoals > 0) {
         await _awardRetroactiveBadge(
           userId,
-          'goal_finisher',
+          'goal_finisher_1',
           'Goal Finisher',
           'Complete your first goal',
           'check_circle',
           BadgeCategory.goals,
           BadgeRarity.common,
+        );
+      }
+
+      // 10 completed goals: match defaults for 'goal_finisher'
+      if (completedGoals >= 10) {
+        await _awardRetroactiveBadge(
+          userId,
+          'goal_finisher',
+          'Goal Master',
+          'Complete 10 goals',
+          'check_circle',
+          BadgeCategory.achievement,
+          BadgeRarity.rare,
         );
       }
 
@@ -579,21 +592,50 @@ class BadgeService {
         goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
       } catch (_) {}
 
+      // Ensure defaults exist so newly added badges appear for legacy users
+      await _ensureDefaultBadgesExist(userId);
+
       // Get user badges
       var badgesSnapshot = await _firestore
           .collection('users')
           .doc(userId)
           .collection('badges')
           .get();
-      // If no badges exist (e.g., user predates badges feature), initialize them
-      if (badgesSnapshot.docs.isEmpty) {
-        await _ensureDefaultBadgesExist(userId);
-        badgesSnapshot = await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .get();
-      }
+      // Migration: if 'goal_finisher' exists with outdated metadata, align it
+      try {
+        final finisherDocs =
+            badgesSnapshot.docs.where((d) => d.id == 'goal_finisher').toList();
+        if (finisherDocs.isNotEmpty) {
+          final data = finisherDocs.first.data();
+          final needsUpdate =
+              (data['maxProgress'] ?? 10) != 10 ||
+              (data['name'] ?? '') != 'Goal Master' ||
+              (data['description'] ?? '') != 'Complete 10 goals' ||
+              (data['category'] ?? '') != BadgeCategory.achievement.name ||
+              (data['rarity'] ?? '') != BadgeRarity.rare.name;
+          if (needsUpdate) {
+            await _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('badges')
+                .doc('goal_finisher')
+                .update({
+              'name': 'Goal Master',
+              'description': 'Complete 10 goals',
+              'iconName': 'check_circle',
+              'category': BadgeCategory.achievement.name,
+              'rarity': BadgeRarity.rare.name,
+              'maxProgress': 10,
+            });
+            // Refresh snapshot after migration
+            badgesSnapshot = await _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('badges')
+                .get();
+          }
+        }
+      } catch (_) {}
 
       final userBadges = badgesSnapshot.docs
           .map((doc) => Badge.fromFirestore(doc))
@@ -675,6 +717,14 @@ class BadgeService {
         newProgress = goals
             .where((g) => g.status == GoalStatus.completed)
             .length;
+        break;
+
+      case 'goal_finisher_1':
+        newProgress = goals
+                .where((g) => g.status == GoalStatus.completed)
+                .isNotEmpty
+            ? 1
+            : 0;
         break;
 
       // Complete 25 goals (progressive)
@@ -769,6 +819,17 @@ class BadgeService {
         rarity: BadgeRarity.common,
         pointsRequired: 0,
         criteria: {'goals_created': 1},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'goal_finisher_1',
+        name: 'Goal Finisher',
+        description: 'Complete your first goal',
+        iconName: 'check_circle',
+        category: BadgeCategory.goals,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'goals_completed': 1},
         maxProgress: 1,
       ),
       Badge(
