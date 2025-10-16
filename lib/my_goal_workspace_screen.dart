@@ -45,6 +45,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   // Dropdown selected values
   String? _goalCategory;
   String? _currentStatus;
+  String? _kpa; // 'operational' | 'customer' | 'financial'
 
   // Lists for dropdowns
   final List<String> _goalCategories = [
@@ -53,6 +54,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Wellness',
     'Finance',
     'Other',
+  ];
+  final List<String> _kpaOptions = [
+    'Operational',
+    'Customer',
+    'Financial',
   ];
 
   Future<void> _selectDate(
@@ -183,6 +189,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   });
                 },
               ),
+              _buildDropdownField(
+                hintText: 'Select Key Performance Area',
+                value: _kpa != null
+                    ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
+                    : null,
+                items: _kpaOptions,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _kpa = newValue?.toLowerCase();
+                  });
+                },
+              ),
               const SizedBox(height: AppSpacing.xl),
               _buildSmartCriteriaSection(),
               const SizedBox(height: AppSpacing.xl),
@@ -208,6 +226,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       ),
     );
   }
+
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -302,7 +321,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   Widget _buildDropdownField({
     required String hintText,
     required String? value,
-    required List<String> items,
+    required List<String>? items,
     required ValueChanged<String?> onChanged,
   }) {
     return Container(
@@ -319,7 +338,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
-          initialValue: value,
+          value: value,
           dropdownColor: AppColors.elevatedBackground,
           style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
@@ -331,7 +350,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           ),
           icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
           onChanged: onChanged,
-          items: items.map<DropdownMenuItem<String>>((String value) {
+          items: (items ?? const <String>[])
+              .map<DropdownMenuItem<String>>((String value) {
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
@@ -508,6 +528,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         createdAt: DateTime.now(),
         targetDate: _targetDate!,
         points: _calculatePoints(priority),
+        kpa: _kpa,
       );
 
       final goalId = await DatabaseService.createGoal(goal);

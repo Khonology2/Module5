@@ -51,6 +51,77 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     });
   }
 
+  Widget _buildKpaSelector() {
+    final List<String> options = ['Operational', 'Customer', 'Financial'];
+    final String? current = currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty
+        ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Key Performance Area',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: current,
+          dropdownColor: AppColors.elevatedBackground,
+          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Select Key Performance Area',
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            filled: true,
+            fillColor: AppColors.elevatedBackground,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.activeColor),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+          items: options.map((o) => DropdownMenuItem<String>(
+            value: o,
+            child: Text(o, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
+          )).toList(),
+          onChanged: (val) async {
+            if (val == null) return;
+            final newKpa = val.toLowerCase();
+            try {
+              setState(() { isLoading = true; });
+              final updated = currentGoal.copyWith(kpa: newKpa);
+              await DatabaseService.updateGoal(updated);
+              if (mounted) {
+                setState(() { currentGoal = updated; });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('KPA updated')),
+                );
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to update KPA: $e')),
+                );
+              }
+            } finally {
+              if (mounted) setState(() { isLoading = false; });
+            }
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _confirmAndDeleteGoal() async {
     if (isLoading) return;
     final confirm = await showDialog<bool>(
@@ -551,6 +622,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          _buildKpaSelector(),
         ],
       ),
     );

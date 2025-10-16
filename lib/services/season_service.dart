@@ -641,6 +641,32 @@ class SeasonService {
         'type': 'season_badge',
       });
 
+      // Also write to users/{userId}/badges in Badge model structure so it shows in the standard badges UI
+      final userBadgeId = '${seasonBadge.id}_${season.id}';
+      final userBadgeRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .doc(userBadgeId);
+      await userBadgeRef.set({
+        'name': seasonBadge.name,
+        'description': '${seasonBadge.description} - ${season.title}',
+        'iconName': 'emoji_events',
+        'category': 'leadership',
+        'rarity': 'common',
+        'pointsRequired': seasonBadge.points,
+        'criteria': {
+          'source': 'season',
+          'seasonId': season.id,
+          'seasonTitle': season.title,
+          'isManager': isManager,
+        },
+        'earnedAt': FieldValue.serverTimestamp(),
+        'isEarned': true,
+        'progress': 1,
+        'maxProgress': 1,
+      }, SetOptions(merge: true));
+
       // Update user's total points
       await _firestore.collection('users').doc(userId).update({
         'totalPoints': FieldValue.increment(seasonBadge.points),

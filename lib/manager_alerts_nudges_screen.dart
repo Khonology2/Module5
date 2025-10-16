@@ -144,6 +144,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                                 } catch (_) {}
                               }
                               final isApproved = status == GoalApprovalStatus.approved;
+                              final isRejected = status == GoalApprovalStatus.rejected;
+                              if (isRejected) {
+                                return ElevatedButton(
+                                  onPressed: null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.dangerColor,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Rejected'),
+                                );
+                              }
                               return ElevatedButton(
                                 onPressed: isApproved
                                     ? null

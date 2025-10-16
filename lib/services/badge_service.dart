@@ -44,7 +44,14 @@ class BadgeService {
         .snapshots()
         .listen((_) => maybeCheck(), onError: (_) {});
 
-    _trackingSubsByUser[userId] = [goalsSub, userDocSub];
+    // Also listen to seasons where the user participates so season-based badges update realtime
+    final seasonsSub = _firestore
+        .collection('seasons')
+        .where('participantIds', arrayContains: userId)
+        .snapshots()
+        .listen((_) => maybeCheck(), onError: (_) {});
+
+    _trackingSubsByUser[userId] = [goalsSub, userDocSub, seasonsSub];
 
     // Kick off an initial check on start
     maybeCheck();
@@ -877,6 +884,107 @@ class BadgeService {
         final longestStreak = await StreakService.getLongestStreak(userId);
         newProgress = longestStreak >= 100 ? 1 : 0;
         break;
+
+      // ===== Season-based badges =====
+      // Joined at least 1 season
+      case 'season_joined_1':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
+
+      // Joined at least 3 seasons (progressive)
+      case 'season_joined_3':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
+
+      // Contributed 500 season points (progressive)
+      case 'season_contributor_500':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          int total = 0;
+          for (final d in snap.docs) {
+            final data = d.data();
+            final participation = (data['participations'] ?? {}) as Map<String, dynamic>;
+            final me = participation[userId] as Map<String, dynamic>?;
+            if (me != null) {
+              final points = me['totalPoints'];
+              if (points is int) total += points; else if (points is num) total += points.round();
+            }
+          }
+          newProgress = total.clamp(0, badge.maxProgress);
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
+
+      // Contributed 1000 season points (progressive)
+      case 'season_contributor_1000':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          int total = 0;
+          for (final d in snap.docs) {
+            final data = d.data();
+            final participation = (data['participations'] ?? {}) as Map<String, dynamic>;
+            final me = participation[userId] as Map<String, dynamic>?;
+            if (me != null) {
+              final points = me['totalPoints'];
+              if (points is int) total += points; else if (points is num) total += points.round();
+            }
+          }
+          newProgress = total.clamp(0, badge.maxProgress);
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
+
+      // Completed at least 1 season (boolean)
+      case 'season_finisher_1':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('status', isEqualTo: 'completed')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          newProgress = snap.docs.isNotEmpty ? 1 : 0;
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
+
+      // Completed at least 3 seasons (progressive boolean as count up to 3)
+      case 'season_finisher_3':
+        try {
+          final snap = await _firestore
+              .collection('seasons')
+              .where('status', isEqualTo: 'completed')
+              .where('participantIds', arrayContains: userId)
+              .get();
+          newProgress = snap.docs.length.clamp(0, badge.maxProgress);
+        } catch (_) {
+          newProgress = 0;
+        }
+        break;
     }
 
     isEarned = newProgress >= badge.maxProgress;
@@ -1011,6 +1119,73 @@ class BadgeService {
         pointsRequired: 1000,
         criteria: {'total_points': 1000},
         maxProgress: 1,
+      ),
+      // ===== Season-based badges =====
+      Badge(
+        id: 'season_joined_1',
+        name: 'Season Starter',
+        description: 'Join your first team season',
+        iconName: 'group_add',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'seasons_joined': 1},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'season_joined_3',
+        name: 'Season Explorer',
+        description: 'Join 3 team seasons',
+        iconName: 'groups',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.rare,
+        pointsRequired: 0,
+        criteria: {'seasons_joined': 3},
+        maxProgress: 3,
+      ),
+      Badge(
+        id: 'season_contributor_500',
+        name: 'Season Contributor',
+        description: 'Earn 500 season points across seasons',
+        iconName: 'military_tech',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.rare,
+        pointsRequired: 0,
+        criteria: {'season_points': 500},
+        maxProgress: 500,
+      ),
+      Badge(
+        id: 'season_contributor_1000',
+        name: 'Season Champion',
+        description: 'Earn 1000 season points across seasons',
+        iconName: 'workspace_premium',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.epic,
+        pointsRequired: 0,
+        criteria: {'season_points': 1000},
+        maxProgress: 1000,
+      ),
+      Badge(
+        id: 'season_finisher_1',
+        name: 'Season Finisher',
+        description: 'Complete a team season',
+        iconName: 'emoji_events',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'seasons_completed': 1},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'season_finisher_3',
+        name: 'Season Veteran',
+        description: 'Complete 3 team seasons',
+        iconName: 'emoji_events',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.epic,
+        pointsRequired: 0,
+        criteria: {'seasons_completed': 3},
+        maxProgress: 3,
       ),
       Badge(
         id: 'point_collector_2000',

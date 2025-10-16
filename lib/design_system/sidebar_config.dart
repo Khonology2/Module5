@@ -85,6 +85,11 @@ class SidebarConfig {
       route: '/manager_alerts_nudges',
     ),
     SidebarItem(
+      icon: Icons.workspace_premium,
+      label: 'Manager Badges & Points',
+      route: '/manager_badges_points',
+    ),
+    SidebarItem(
       icon: Icons.notifications_none,
       label: 'Personal Alerts',
       route: '/alerts_nudges',
