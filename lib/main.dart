@@ -22,6 +22,7 @@ import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
+import 'package:pdh/manager_badges_points_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
@@ -175,6 +176,10 @@ class _MyAppState extends State<MyApp> {
               '/manager_alerts_nudges': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: const ManagerAlertsNudgesScreen(),
+              ),
+              '/manager_badges_points': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerBadgesPointsScreen(),
               ),
               '/employee_profile_detail': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,

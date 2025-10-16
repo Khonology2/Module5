@@ -14,6 +14,7 @@ import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/rarity_badges_list_screen.dart';
+import 'package:pdh/services/role_service.dart';
 
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -53,6 +54,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   @override
   void initState() {
     super.initState();
+    _redirectIfManager();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -110,6 +112,23 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     _badgeEarnedController.dispose();
     _pointsAnimationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _redirectIfManager() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_badges_points') {
+            Navigator.pushReplacementNamed(context, '/manager_badges_points');
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   Future<void> _loadData() async {
