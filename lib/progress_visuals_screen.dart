@@ -214,34 +214,11 @@ class _ManagerProgressVisualsContentState
               }
 
               final metrics = _calculateTeamMetrics(employees);
-              final insights = _generateTeamInsights(employees).take(5).toList();
 
               return Column(
                 children: [
                   _buildTeamMetricsCards(metrics),
                   const SizedBox(height: AppSpacing.xxl),
-                  if (insights.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Team Insights',
-                          style: AppTypography.heading3.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        ...insights.map(
-                          (insight) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: _buildInsightCard(insight),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xxl),
-                      ],
-                    ),
                   Text(
                     'Team Member Progress',
                     style: AppTypography.heading3.copyWith(
