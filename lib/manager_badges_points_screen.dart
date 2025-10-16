@@ -84,11 +84,32 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
 
         final allBadges = (snapshot.data ?? <badge_model.Badge>[])..removeWhere((b) => b.id == 'init');
 
+        int? _inferManagerLevel(badge_model.Badge b) {
+          final ml = b.criteria['managerLevel'];
+          if (ml is int) return ml;
+          if (ml is num) return ml.round();
+          // Fallback based on known manager badge IDs
+          switch (b.id) {
+            case 'mgr_active_coach':
+              return 1;
+            case 'mgr_feedback_champion':
+            case 'mgr_growth_enabler':
+              return 2;
+            case 'mgr_all_star_manager':
+            case 'mgr_engagement_booster':
+            case 'mgr_replan_hero':
+              return 3;
+            case 'mgr_season_leader':
+              return 4;
+            case 'mgr_master_coach':
+              return 5;
+          }
+          return null;
+        }
+
         List<badge_model.Badge> forLevel(int lvl) => allBadges.where((b) {
-              final ml = b.criteria['managerLevel'];
-              if (ml is int) return ml == lvl;
-              if (ml is num) return ml.round() == lvl;
-              return false;
+              final inferred = _inferManagerLevel(b);
+              return inferred == lvl;
             }).toList()
               ..sort((a, b) => a.name.compareTo(b.name));
 

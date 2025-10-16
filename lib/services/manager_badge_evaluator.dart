@@ -6,6 +6,7 @@ class ManagerBadgeEvaluator {
 
   static Future<void> evaluate(String managerId) async {
     // Compute metrics
+    await ensureBaselineManagerBadges(managerId);
     final approvalsCount = await _countApprovals(managerId);
     final monthlyAcknowledgements = await _countMonthlyAcknowledgements(managerId);
     final detailedNudges = await _countDetailedNudges(managerId);
@@ -126,6 +127,50 @@ class ManagerBadgeEvaluator {
       maxProgress: 5,
       managerLevel: 3,
     );
+  }
+
+  // Ensure manager badge docs exist (locked) so UI can display them grouped by level
+  static Future<void> ensureBaselineManagerBadges(String managerId) async {
+    Future<void> seed(
+      String id,
+      String name,
+      String description,
+      String iconName,
+      String rarity,
+      int maxProgress,
+      int managerLevel,
+    ) async {
+      final ref = _db.collection('users').doc(managerId).collection('badges').doc(id);
+      final snap = await ref.get();
+      if (!snap.exists) {
+        await ref.set({
+          'name': name,
+          'description': description,
+          'iconName': iconName,
+          'category': 'leadership',
+          'rarity': rarity,
+          'pointsRequired': 0,
+          'criteria': {
+            'badgeId': id,
+            'managerLevel': managerLevel,
+          },
+          'isEarned': false,
+          'progress': 0,
+          'maxProgress': maxProgress,
+        }, SetOptions(merge: true));
+      }
+    }
+
+    await Future.wait([
+      seed('mgr_active_coach', 'Active Coach', 'Acknowledge 10+ milestones in a month', 'verified', 'common', 10, 1),
+      seed('mgr_feedback_champion', 'Feedback Champion', 'Provide 10+ detailed feedback entries', 'chat', 'common', 10, 2),
+      seed('mgr_growth_enabler', 'Growth Enabler', 'Reach 500+ manager points', 'emoji_events', 'rare', 500, 2),
+      seed('mgr_replan_hero', 'Replan Hero', 'Helped replan 5+ delayed goals', 'build', 'common', 5, 3),
+      seed('mgr_engagement_booster', 'Engagement Booster', 'Reactivated 3+ inactive employees', 'bolt', 'common', 3, 3),
+      seed('mgr_all_star_manager', 'All-Star Manager', 'Reach 1000+ manager points', 'workspace_premium', 'epic', 1000, 3),
+      seed('mgr_season_leader', 'Season Leader', 'Lead a team challenge/season to completion', 'flag', 'rare', 1, 4),
+      seed('mgr_master_coach', 'Master Coach', 'Reach 3500+ manager points', 'trophy', 'legendary', 3500, 5),
+    ]);
   }
 
   static Future<int> _countApprovals(String managerId) async {
