@@ -13,6 +13,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/manager_badge_evaluator.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -45,6 +46,71 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     if (_tabController.length != 4) {
       _tabController.dispose();
       _tabController = TabController(length: 4, vsync: this);
+    }
+  }
+
+  Future<void> _rescheduleGoal(BuildContext context, String goalId, EmployeeData employee) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 7)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+
+    final noteController = TextEditingController();
+    final note = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Reschedule Note'),
+        content: TextField(
+          controller: noteController,
+          decoration: const InputDecoration(labelText: 'Optional note'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Skip')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, noteController.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    try {
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).update({
+        'targetDate': Timestamp.fromDate(picked),
+        'status': GoalStatus.inProgress.name,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await AlertService.createMotivationalAlert(
+        userId: employee.profile.uid,
+        message: 'Your goal has been rescheduled to ${picked.day}/${picked.month}/${picked.year}.',
+        goalId: goalId,
+      );
+
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager != null) {
+        await ManagerBadgeEvaluator.logReplanHelped(
+          managerId: manager.uid,
+          goalId: goalId,
+          note: (note != null && note.isNotEmpty)
+              ? 'Rescheduled: $note'
+              : 'Rescheduled from Team Alerts',
+        );
+        await ManagerBadgeEvaluator.evaluate(manager.uid);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal rescheduled successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reschedule goal: $e')),
+        );
+      }
     }
   }
 
@@ -889,6 +955,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             Row(
               children: [
                 Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _rescheduleGoal(context, alert.relatedGoalId!, employee),
+                    icon: const Icon(Icons.update),
+                    label: const Text('Reschedule'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.warningColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _extendGoalDeadline(context, alert.relatedGoalId!, employee),
                     icon: const Icon(Icons.schedule),
@@ -944,6 +1022,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         message: 'Your goal deadline has been extended to ${picked.day}/${picked.month}/${picked.year}. You got this!',
         goalId: goalId,
       );
+
+      final manager = FirebaseAuth.instance.currentUser;
+      if (manager != null) {
+        await ManagerBadgeEvaluator.logReplanHelped(
+          managerId: manager.uid,
+          goalId: goalId,
+          note: 'Extended deadline from Team Alerts',
+        );
+        await ManagerBadgeEvaluator.evaluate(manager.uid);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

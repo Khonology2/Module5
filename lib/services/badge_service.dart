@@ -802,6 +802,41 @@ class BadgeService {
         newProgress = completed100.clamp(0, badge.maxProgress);
         break;
 
+      // ===== Growth Levels (Employee) =====
+      case 'first_milestone':
+        // Approximation: consider having completed at least one milestone as completing any goal
+        final completedAny = goals.any((g) => g.status == GoalStatus.completed);
+        newProgress = completedAny ? 1 : 0;
+        break;
+
+      case 'goal_getter':
+        // Complete a full goal
+        final completed1 = goals.any((g) => g.status == GoalStatus.completed);
+        newProgress = completed1 ? 1 : 0;
+        break;
+
+      case 'consistency_streak_4w':
+        // 4-week streak (28 days) via StreakService
+        final currentStreak = await StreakService.getCurrentStreak(userId);
+        newProgress = currentStreak >= 28 ? 1 : 0;
+        break;
+
+      case 'evidence_collector_5':
+        // Pending: evidence items not yet modeled; leave 0 to show locked until integrated
+        newProgress = 0;
+        break;
+
+      case 'collaborator_3':
+        // Pending: manager review replies/comments not yet modeled; leave 0
+        newProgress = 0;
+        break;
+
+      case 'goal_master_3q':
+        // Approximation: 3+ completed goals (until time-window metadata available)
+        final completed = goals.where((g) => g.status == GoalStatus.completed).length;
+        newProgress = completed.clamp(0, badge.maxProgress);
+        break;
+
       case 'streak_master_7':
         // Get current streak from StreakService
         final currentStreak = await StreakService.getCurrentStreak(userId);
@@ -1086,6 +1121,73 @@ class BadgeService {
         pointsRequired: 0,
         criteria: {'streak_days': 30},
         maxProgress: 1,
+      ),
+      // ===== Growth Levels (Employee) =====
+      Badge(
+        id: 'first_milestone',
+        name: 'First Milestone',
+        description: 'Complete your first milestone',
+        iconName: 'emoji_events',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'milestones_completed': 1},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'goal_getter',
+        name: 'Goal Getter',
+        description: 'Complete a full goal',
+        iconName: 'check_circle',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'goals_completed': 1},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'consistency_streak_4w',
+        name: 'Consistency Streak',
+        description: 'Maintain a 4-week streak of progress updates',
+        iconName: 'local_fire_department',
+        category: BadgeCategory.streak,
+        rarity: BadgeRarity.rare,
+        pointsRequired: 0,
+        criteria: {'streak_days': 28},
+        maxProgress: 1,
+      ),
+      Badge(
+        id: 'evidence_collector_5',
+        name: 'Evidence Collector',
+        description: 'Upload or link 5+ pieces of evidence',
+        iconName: 'inventory_2',
+        category: BadgeCategory.learning,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'evidence_items': 5},
+        maxProgress: 5,
+      ),
+      Badge(
+        id: 'collaborator_3',
+        name: 'Collaborator',
+        description: 'Respond to or act on 3+ manager reviews or comments',
+        iconName: 'handshake',
+        category: BadgeCategory.collaboration,
+        rarity: BadgeRarity.common,
+        pointsRequired: 0,
+        criteria: {'manager_feedback_engagements': 3},
+        maxProgress: 3,
+      ),
+      Badge(
+        id: 'goal_master_3q',
+        name: 'Goal Master',
+        description: 'Complete 3 or more goals within a period',
+        iconName: 'workspace_premium',
+        category: BadgeCategory.achievement,
+        rarity: BadgeRarity.epic,
+        pointsRequired: 0,
+        criteria: {'goals_completed_period': 3},
+        maxProgress: 3,
       ),
       Badge(
         id: 'point_collector_100',

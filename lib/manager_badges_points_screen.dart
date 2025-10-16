@@ -406,6 +406,29 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   Widget _buildPointsCard(_ManagerMetrics m) {
     final points = m.totalPoints;
     final info = ManagerLevelService.getInfoForPoints(points);
+    // Determine next level threshold and remaining points
+    int? nextThreshold;
+    int nextLevel = info.level;
+    if (points < 500) {
+      nextThreshold = 500; // to Level 2
+      nextLevel = 2;
+    } else if (points < 1000) {
+      nextThreshold = 1000; // to Level 3
+      nextLevel = 3;
+    } else if (points < 2000) {
+      nextThreshold = 2000; // to Level 4
+      nextLevel = 4;
+    } else if (points < 3500) {
+      nextThreshold = 3500; // to Level 5
+      nextLevel = 5;
+    } else {
+      nextThreshold = null; // max level reached
+    }
+    final remaining = nextThreshold != null ? (nextThreshold - points).clamp(0, nextThreshold) : 0;
+    final progressToNext = nextThreshold != null
+        ? (points - (nextLevel == 2 ? 0 : (nextLevel == 3 ? 500 : (nextLevel == 4 ? 1000 : 2000)))) /
+            (nextThreshold - (nextLevel == 2 ? 0 : (nextLevel == 3 ? 500 : (nextLevel == 4 ? 1000 : 2000))))
+        : 1.0;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -451,6 +474,23 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  if (nextThreshold != null)
+                    Text(
+                      '$remaining to Level $nextLevel',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Max level reached',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                 ],
               ),
               Column(
@@ -475,6 +515,17 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          // Progress to next level
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progressToNext.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               _chip('Approvals', m.approvalsCount.toString()),

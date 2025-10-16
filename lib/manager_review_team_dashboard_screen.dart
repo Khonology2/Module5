@@ -149,7 +149,6 @@ class _ManagerReviewTeamDashboardScreenState
                                       _buildLoadingInsights(),
 
                                     const SizedBox(height: 24),
-                                    _buildQuickActions(),
                                   ],
                                 );
                               },
@@ -259,35 +258,7 @@ class _ManagerReviewTeamDashboardScreenState
     );
   }
 
-  Widget _buildQuickActions() {
-    Widget action(IconData icon, String label, Color color) {
-      return Expanded(
-        child: ElevatedButton.icon(
-          onPressed: () {},
-          icon: Icon(icon, color: Colors.white, size: 16),
-          label: Text(label),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        action(Icons.add_task, 'New Goal', const Color(0xFFC10D00)),
-        const SizedBox(width: 10),
-        action(Icons.campaign, 'Nudge', const Color(0xFFC10D00)),
-        const SizedBox(width: 10),
-        action(Icons.event, 'Schedule 1:1', const Color(0xFFC10D00)),
-      ],
-    );
-  }
+  
 
   Widget _buildHeader() {
     return Row(

@@ -987,7 +987,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           if (r == badge_model.BadgeRarity.epic) return level >= 11 && level <= 15;
           return level >= 16; // legendary
         }
-
         return Column(
           children: [
             _buildRarityOvalSection(
@@ -1031,6 +1030,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
+  
+
   Widget _buildRarityOvalSection({
     required String title,
     required String subtitle,
@@ -1065,7 +1066,19 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       transform: Matrix4.translationValues(0, -lift, 0),
       child: InkWell(
         borderRadius: BorderRadius.circular(32),
-        onTap: onTap,
+        onTap: () {
+          if (!isActive) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Tip: We recommend focusing here after your current level for faster progress.'),
+                backgroundColor: AppColors.elevatedBackground,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          if (onTap != null) onTap();
+        },
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1092,6 +1105,20 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                   ],
                 ),
               ),
+              if (isActive)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.6)),
+                  ),
+                  child: Text(
+                    'Recommended',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor, fontWeight: FontWeight.w600),
+                  ),
+                ),
               Text(
                 total == 0 ? '0/0' : '$earnedCount/$total',
                 style: AppTypography.bodySmall.copyWith(
