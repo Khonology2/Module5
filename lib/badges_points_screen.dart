@@ -962,7 +962,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
         // Determine the active rarity based on user's current level
         final level = userProfile?.level ?? 1;
-        bool _isInRange(badge_model.BadgeRarity r) {
+        bool isInRange(badge_model.BadgeRarity r) {
           if (r == badge_model.BadgeRarity.common) return level >= 1 && level <= 5;
           if (r == badge_model.BadgeRarity.rare) return level >= 6 && level <= 10;
           if (r == badge_model.BadgeRarity.epic) return level >= 11 && level <= 15;
@@ -976,7 +976,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               subtitle: 'Levels 1–5',
               rarity: badge_model.BadgeRarity.common,
               badges: byRarity[badge_model.BadgeRarity.common]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: _isInRange(badge_model.BadgeRarity.common),
+              isActive: isInRange(badge_model.BadgeRarity.common),
               onTap: () => _openRarityList(badge_model.BadgeRarity.common),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -985,7 +985,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               subtitle: 'Levels 6–10',
               rarity: badge_model.BadgeRarity.rare,
               badges: byRarity[badge_model.BadgeRarity.rare]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: _isInRange(badge_model.BadgeRarity.rare),
+              isActive: isInRange(badge_model.BadgeRarity.rare),
               onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -994,7 +994,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               subtitle: 'Levels 11–15',
               rarity: badge_model.BadgeRarity.epic,
               badges: byRarity[badge_model.BadgeRarity.epic]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: _isInRange(badge_model.BadgeRarity.epic),
+              isActive: isInRange(badge_model.BadgeRarity.epic),
               onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -1003,7 +1003,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               subtitle: 'Levels 16+',
               rarity: badge_model.BadgeRarity.legendary,
               badges: byRarity[badge_model.BadgeRarity.legendary]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: _isInRange(badge_model.BadgeRarity.legendary),
+              isActive: isInRange(badge_model.BadgeRarity.legendary),
               onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
             ),
           ],
