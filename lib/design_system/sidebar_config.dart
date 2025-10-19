@@ -4,68 +4,109 @@ import 'package:pdh/widgets/sidebar.dart';
 /// Standard sidebar configuration for the Personal Development Hub app
 /// Provides consistent navigation items for different user roles
 class SidebarConfig {
-  // Private constructor to prevent instantiation
+  // Private constructor
   SidebarConfig._();
 
+  /// Ensures all icons (image or icon) have consistent size and alignment
+  static Widget sidebarIcon(String assetPath) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Center(
+        child: Image.asset(
+          assetPath,
+          width: 24,
+          height: 24,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+
+  static SidebarItem itemWithAssets({
+    required String white,
+    String? red,
+    required String label,
+    required String route,
+  }) {
+    return SidebarItem(
+      assetWhite: white,
+      assetRed: red,
+      label: label,
+      route: route,
+    );
+  }
+
   // ===== EMPLOYEE SIDEBAR ITEMS =====
-  static const List<SidebarItem> employeeItems = [
-    SidebarItem(
-      icon: Icons.dashboard,
+  static List<SidebarItem> employeeItems = [
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red:   'assets/Khonodemy Icons/Dashboard_Red.png',
       label: 'Dashboard',
       route: '/employee_dashboard',
     ),
-    SidebarItem(
-      icon: Icons.person_outline,
-      label: 'Profile & PDP.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red:   'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'Profile & PDP',
       route: '/my_pdp',
     ),
-    SidebarItem(
-      icon: Icons.track_changes,
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
+      red:   'assets/Khonodemy Icons/GoalWorkspace_Red.png',
       label: 'Goal Workspace',
       route: '/my_goal_workspace',
     ),
-    SidebarItem(
-      icon: Icons.bar_chart,
-      label: 'Progress Visuals.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red:   'assets/Khonodemy Icons/ProgressVisuals_Red.png',
+      label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    SidebarItem(
-      icon: Icons.notifications_none,
-      label: 'Alerts & Visuals.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red:   'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Alerts & Visuals',
       route: '/alerts_nudges',
     ),
-    SidebarItem(
-      icon: Icons.workspace_premium,
-      label: 'Badges & Points.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red:   'assets/Khonodemy Icons/Badges&Points_Red.png',
+      label: 'Badges & Points',
       route: '/badges_points',
     ),
-    SidebarItem(
-      icon: Icons.leaderboard,
-      label: 'LeaderBoard.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red:   'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'LeaderBoard',
       route: '/leaderboard',
     ),
-    SidebarItem(
-      icon: Icons.folder_open,
-      label: 'Repository & Audit.',
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red:   'assets/Khonodemy Icons/Repository&Audit_Red.png',
+      label: 'Repository & Audit',
       route: '/repository_audit',
     ),
-    SidebarItem(
-      icon: Icons.upload_file,
-      label: 'Goal Proof',
-      route: '/goal_evidence_submission',
-    ),
-    SidebarItem(
-      icon: Icons.settings_outlined,
-      label: 'Settings & Privacy.',
+    // Goal Proof removed
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Settings_White.png',
+      red:   'assets/Khonodemy Icons/Settings_Red.png',
+      label: 'Settings & Privacy',
       route: '/settings',
     ),
   ];
 
   // ===== MANAGER SIDEBAR ITEMS =====
-  static const List<SidebarItem> managerItems = [
-    SidebarItem(icon: Icons.dashboard, label: 'Dashboard', route: '/dashboard'),
-    SidebarItem(
-      icon: Icons.people_outline,
+  static List<SidebarItem> managerItems = [
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Dashboard_White.png',
+      red:   'assets/Khonodemy Icons/Dashboard_Red.png',
+      label: 'Dashboard',
+      route: '/dashboard',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red:   'assets/Khonodemy Icons/Profile_Red.png',
       label: 'Team Management',
       route: '/manager_portal',
     ),
@@ -75,44 +116,39 @@ class SidebarConfig {
       route: '/manager_review_team_dashboard',
     ),
     SidebarItem(
-      icon: Icons.bar_chart,
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/ProgressVisuals_Whie.png'),
       label: 'Progress Visuals.',
       route: '/progress_visuals',
     ),
     SidebarItem(
-      icon: Icons.message_outlined,
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Alerts&Visuals_White.png'),
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
     ),
     SidebarItem(
-      icon: Icons.workspace_premium,
-      label: 'Manager Badges & Points',
-      route: '/manager_badges_points',
-    ),
-    SidebarItem(
-      icon: Icons.notifications_none,
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Alerts&Visuals_White.png'),
       label: 'Personal Alerts',
       route: '/alerts_nudges',
     ),
     SidebarItem(
-      icon: Icons.leaderboard,
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/LeaderBoard_White.png'),
       label: 'LeaderBoard.',
       route: '/leaderboard',
     ),
     SidebarItem(
-      icon: Icons.folder_open,
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Repository&Audit_White.png'),
       label: 'Repository & Audit.',
       route: '/repository_audit',
     ),
     SidebarItem(
-      icon: Icons.settings_outlined,
-      label: 'Settings & Privacy.',
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Settings_White.png'),
+      label: 'Settings & Privacy',
       route: '/settings',
     ),
   ];
 
   // ===== ADMIN SIDEBAR ITEMS =====
-  static const List<SidebarItem> adminItems = [
+  static List<SidebarItem> adminItems = [
     SidebarItem(
       icon: Icons.admin_panel_settings,
       label: 'Admin Dashboard',
@@ -138,7 +174,6 @@ class SidebarConfig {
   ];
 
   // ===== UTILITY METHODS =====
-  /// Get sidebar items based on user role
   static List<SidebarItem> getItemsForRole(String role) {
     switch (role.toLowerCase()) {
       case 'employee':
@@ -148,13 +183,11 @@ class SidebarConfig {
       case 'admin':
         return adminItems;
       default:
-        return employeeItems; // Default to employee items
+        return employeeItems;
     }
   }
 
-  /// Get sidebar items for a specific route
   static List<SidebarItem> getItemsForRoute(String route) {
-    // Determine role based on route
     if (route.startsWith('/manager') || route.startsWith('/dashboard')) {
       return managerItems;
     } else if (route.startsWith('/admin')) {
@@ -164,13 +197,11 @@ class SidebarConfig {
     }
   }
 
-  /// Check if a route is valid for a specific role
   static bool isRouteValidForRole(String route, String role) {
     final items = getItemsForRole(role);
     return items.any((item) => item.route == route);
   }
 
-  /// Get the default route for a specific role
   static String getDefaultRouteForRole(String role) {
     switch (role.toLowerCase()) {
       case 'employee':
@@ -184,9 +215,7 @@ class SidebarConfig {
     }
   }
 
-  /// Get the icon for a specific route
-  static IconData? getIconForRoute(String route) {
-    // Check all sidebar configurations
+  static Widget? getIconForRoute(String route) {
     final allItems = [...employeeItems, ...managerItems, ...adminItems];
     final item = allItems.firstWhere(
       (item) => item.route == route,
@@ -196,12 +225,10 @@ class SidebarConfig {
         route: '/unknown',
       ),
     );
-    return item.icon;
+    return item.iconWidget ?? Icon(item.icon!);
   }
 
-  /// Get the label for a specific route
   static String getLabelForRoute(String route) {
-    // Check all sidebar configurations
     final allItems = [...employeeItems, ...managerItems, ...adminItems];
     final item = allItems.firstWhere(
       (item) => item.route == route,

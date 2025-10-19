@@ -1036,7 +1036,7 @@ class BadgeService {
     return [
       Badge(
         id: 'first_goal',
-        name: 'First Goal',
+        name: 'Goal Starter', // Changed name to 'Goal Starter'
         description: 'Create your first goal',
         iconName: 'emoji_events',
         category: BadgeCategory.goals,
@@ -1069,9 +1069,10 @@ class BadgeService {
       ),
       Badge(
         id: 'goal_starter',
-        name: 'Goal Enthusiast',
+        name:
+            'Goal Enthusiast', // Kept this as 'Goal Enthusiast' or updated based on clarity
         description: 'Create 5 goals',
-        iconName: 'track_changes',
+        iconName: 'emoji_events', // Already set to emoji_events
         category: BadgeCategory.goals,
         rarity: BadgeRarity.common,
         pointsRequired: 0,
