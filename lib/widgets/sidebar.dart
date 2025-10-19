@@ -37,7 +37,9 @@ class ResponsiveSidebar extends StatelessWidget {
         final effectiveCollapsed = isSmall ? true : collapsed;
 
         return Container(
-          width: isSmall ? double.infinity : (effectiveCollapsed ? 72 : 240),
+          width: isSmall
+              ? double.infinity
+              : (effectiveCollapsed ? 72 : 280), // Increased from 240 to 280
           color: backgroundColor,
           child: Column(
             children: [
@@ -50,6 +52,9 @@ class ResponsiveSidebar extends StatelessWidget {
                       .map(
                         (it) => _NavTile(
                           icon: it.icon,
+                          iconWidget: it.iconWidget,
+                          assetWhite: it.assetWhite,
+                          assetRed: it.assetRed,
                           label: it.label,
                           route: it.route,
                           isActive: currentRouteName == it.route,
@@ -151,14 +156,23 @@ class _CollapseToggle extends StatelessWidget {
 
 class _NavTile extends StatefulWidget {
   const _NavTile({
-    required this.icon,
+    this.icon, // Make icon optional
+    this.iconWidget, // Add optional iconWidget
+    this.assetWhite,
+    this.assetRed,
     required this.label,
     required this.route,
     required this.isActive,
     required this.collapsed,
     required this.onTap,
-  });
-  final IconData icon;
+  }) : assert(
+         icon != null || iconWidget != null || assetWhite != null,
+         'Provide icon, iconWidget, or assetWhite',
+       );
+  final IconData? icon;
+  final Widget? iconWidget;
+  final String? assetWhite;
+  final String? assetRed;
   final String label;
   final String route;
   final bool isActive;
@@ -216,13 +230,7 @@ class _NavTileState extends State<_NavTile> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: isCollapsed
                   ? Center(
-                      child: Icon(
-                        widget.icon,
-                        color: isSelected
-                            ? ResponsiveSidebar.activeColor
-                            : AppColors.textPrimary,
-                        size: isSelected ? 24 : 20,
-                      ),
+                      child: _buildIcon(isSelected),
                     )
                   : LayoutBuilder(
                       builder: (context, constraints) {
@@ -234,11 +242,7 @@ class _NavTileState extends State<_NavTile> {
                             mainAxisAlignment: MainAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                widget.icon,
-                                color: AppColors.textPrimary,
-                                size: 20,
-                              ),
+                              _buildIcon(isSelected),
                             ],
                           );
                         }
@@ -246,12 +250,8 @@ class _NavTileState extends State<_NavTile> {
                           mainAxisAlignment: MainAxisAlignment.start,
                           mainAxisSize: MainAxisSize.max,
                           children: [
-                            Icon(
-                              widget.icon,
-                              color: AppColors.textPrimary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
+                            _buildIcon(isSelected),
+                            const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
                                 widget.label,
@@ -273,15 +273,52 @@ class _NavTileState extends State<_NavTile> {
       ),
     );
   }
+
+  Widget _buildIcon(bool isSelected) {
+    // Priority: explicit asset pair -> iconWidget -> IconData
+    if (widget.assetWhite != null) {
+      // Requirement: White when expanded (even if selected); Red only when mini AND selected
+      final bool useRed = isSelected && widget.collapsed && widget.assetRed != null;
+      final String path = useRed ? widget.assetRed! : widget.assetWhite!;
+      return SizedBox(
+        width: 24,
+        height: 24,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: Image.asset(
+            path,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+      );
+    }
+    if (widget.iconWidget != null) {
+      return widget.iconWidget!;
+    }
+    return Icon(
+      widget.icon,
+      color: isSelected ? ResponsiveSidebar.activeColor : AppColors.textPrimary,
+      size: 24.0,
+    );
+  }
 }
 
 class SidebarItem {
   const SidebarItem({
-    required this.icon,
+    this.icon, // Make icon optional
+    this.iconWidget, // Add optional iconWidget
+    this.assetWhite,
+    this.assetRed,
     required this.label,
     required this.route,
-  });
-  final IconData icon;
+  }) : assert(
+         icon != null || iconWidget != null || assetWhite != null,
+         'Provide icon, iconWidget, or assetWhite',
+       );
+  final IconData? icon; // Make icon nullable
+  final Widget? iconWidget; // New field for custom icon widget
+  final String? assetWhite; // unselected
+  final String? assetRed;   // selected
   final String label;
   final String route;
 }

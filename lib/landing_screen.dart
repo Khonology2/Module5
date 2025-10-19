@@ -102,7 +102,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                   // Logo - Centered
                   Center(
                     child: Image.asset(
-                      'assets/khonodemy.png',
+                      'assets/khono.png',
                       height: 160,
                       fit: BoxFit.contain,
                     ),
@@ -149,7 +149,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         shape: const StadiumBorder(), // Changed to StadiumBorder
                       ),
                       child: const Text(
-                        'Get Started',
+                        'GET STARTED',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,

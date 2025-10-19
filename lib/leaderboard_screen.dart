@@ -16,7 +16,6 @@ enum LeaderboardFilter {
   myTeam,
   organization,
 }
-
 enum LeaderboardMetric { points, level, badges }
 
 class LeaderboardScreen extends StatefulWidget {
@@ -56,7 +55,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _topHoverController.dispose();
     super.dispose();
   }
-
   Future<void> _loadCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -220,7 +218,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         };
       }).toList();
 
-      // Sort by the selected metric with safe comparisons
+      // Sort by the selected metric
       switch (_currentMetric) {
         case LeaderboardMetric.points:
           processedData.sort((a, b) {
@@ -260,10 +258,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        child: StreamBuilder<String?>(
+    // Render as a plain widget so it works inside MainLayout
+    return Container(
+      color: AppColors.backgroundColor,
+      child: StreamBuilder<String?>(
           stream: RoleService.instance.roleStream(),
           builder: (context, roleSnapshot) {
             final role = roleSnapshot.data;
@@ -275,9 +273,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
             final isManager = role == 'manager';
 
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            return StreamBuilder<QuerySnapshot>(
               stream: _buildQuery(userRole: role).snapshots(),
-              builder: (context, leaderboardSnapshot) {
+              builder: (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
                 if (leaderboardSnapshot.connectionState ==
                     ConnectionState.waiting) {
                   return const Center(
@@ -299,16 +297,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
                 // Add debugging info
                 if (leaderboardSnapshot.hasData) {
-                  developer.log(
-                    'Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore',
-                  );
+                  developer.log('Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore');
                 }
 
                 List<Map<String, dynamic>> leaderboardData;
                 try {
                   leaderboardData = leaderboardSnapshot.hasData
                       ? _processLeaderboardData(
-                          leaderboardSnapshot.data!.docs,
+                          leaderboardSnapshot.data!.docs.toList(),
                           userRole: role,
                         )
                       : <Map<String, dynamic>>[];
@@ -340,7 +336,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               },
             );
           },
-        ),
       ),
     );
   }
@@ -365,7 +360,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           ),
           Row(
             children: [
-              Icon(Icons.live_tv, color: AppColors.successColor, size: 16),
+              SizedBox(
+                width: 35,
+                height: 35,
+                child: Image.asset(
+                  'assets/Internet_Web_Browser/Live.png', // Corrected asset path
+                  fit: BoxFit.contain,
+                ),
+              ), // Replaced Icon with Image.asset
               const SizedBox(width: 8),
               Text(
                 'Live',
@@ -525,7 +527,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 border: Border.all(color: AppColors.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(
+                      alpha: (0.1 * 255).toDouble(),
+                    ),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -612,7 +616,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         border: Border.all(color: color, width: 2),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3),
+            color: color.withValues(alpha: (0.3 * 255).toDouble()),
             blurRadius: 8,
             spreadRadius: 1,
           ),
@@ -689,7 +693,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.4),
+            color: color.withValues(alpha: (0.4 * 255).toDouble()),
             blurRadius: 8,
             spreadRadius: 1,
           ),
@@ -748,7 +752,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
         const SizedBox(height: 10),
         ...topPerformers.map((user) => _buildLeaderboardItem(user)),
-
         if (remainingUsers.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(
@@ -917,23 +920,59 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   spacing: 4,
                   runSpacing: 2,
                   children: [
-                    _buildStatChip(Icons.stars, '$points pts', Colors.amber),
                     _buildStatChip(
-                      Icons.military_tech,
-                      'Lvl $level',
-                      Colors.blue,
+                      null, // Set icon to null as we are using iconWidget
+                      '$points pts',
+                      Colors.amber,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Process_Flows_Automation/Points.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     _buildStatChip(
-                      Icons.emoji_events,
+                      null, // Set icon to null as we are using iconWidget
+                      'Lvl $level',
+                      Colors.blue,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Business_Growth_Development/Growth_Development_Red.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    _buildStatChip(
+                      null, // Set icon to null as we are using iconWidget
                       '$badges',
                       Colors.orange,
+                      iconWidget: SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: Image.asset(
+                          'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
                     ),
                     if (user['department'] != null &&
                         user['department'] != 'Unknown')
                       _buildStatChip(
-                        Icons.business,
+                        null, // Set icon to null as we are using iconWidget
                         user['department'],
                         AppColors.successColor,
+                        iconWidget: SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: Image.asset(
+                            'Office_Workplace/Offices.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -945,7 +984,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
-  Widget _buildStatChip(IconData icon, String text, Color color) {
+  Widget _buildStatChip(
+    IconData? icon,
+    String text,
+    Color color, {
+    Widget? iconWidget,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -956,7 +1000,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 12),
+          if (iconWidget != null) ...[
+            SizedBox(width: 19, height: 19, child: iconWidget),
+          ] else if (icon != null) ...[
+            Icon(icon, color: color, size: 19),
+          ],
           const SizedBox(width: 3),
           Text(
             text,

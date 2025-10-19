@@ -417,23 +417,20 @@ class DatabaseService {
           }
         }
 
-        final crossed50 = previousProgress < 50 && snapped >= 50;
-        if (crossed50 &&
-            userId != null &&
-            userId!.isNotEmpty &&
-            milestones['p50'] != true) {
-          final userRef = FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId);
-          tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
-          milestones['p50'] = true;
-          tx.update(goalRef, {'milestones': milestones});
-        }
-      });
-    } catch (e) {
-      developer.log('updateGoalProgress transaction failed: $e');
-      throw Exception('progress_update.tx: $e');
-    }
+      // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
+      final crossed50 = previousProgress < 50 && snapped >= 50;
+      if (crossed50 &&
+        userId != null &&
+        userId!.isNotEmpty &&
+        milestones['p50'] != true) {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        milestones['p50'] = true;
+        tx.update(goalRef, {'milestones': milestones});
+      }
+    });
 
     // Record daily activity for streak tracking when making progress
     try {

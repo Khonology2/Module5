@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow each user to manage their own export files
+    match /exports/{userId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // (Optional) Evidence or other paths can be added here with similar scoping
+  }
+}
+
+
