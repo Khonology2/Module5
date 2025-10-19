@@ -657,6 +657,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         );
       case AlertType.goalCompleted:
         return Icon(Icons.check_circle);
+      case AlertType.goalApprovalRequested:
+        return Icon(Icons.pending_actions);
+      case AlertType.goalApprovalApproved:
+        return Icon(Icons.check_circle_outline);
+      case AlertType.goalApprovalRejected:
+        return Icon(Icons.cancel);
       case AlertType.goalDueSoon:
         return Icon(Icons.schedule);
       case AlertType.goalOverdue:
@@ -685,6 +691,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.group_work);
       case AlertType.employeeJoinedTeamGoal:
         return Icon(Icons.group_add);
+      case AlertType.seasonJoined:
+        return Icon(Icons.flag_circle);
+      case AlertType.seasonProgressUpdate:
+        return Icon(Icons.timeline);
+      case AlertType.seasonCompleted:
+        return Icon(Icons.emoji_events_outlined);
     }
   }
 

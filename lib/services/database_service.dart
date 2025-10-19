@@ -431,6 +431,9 @@ class DatabaseService {
         tx.update(goalRef, {'milestones': milestones});
       }
     });
+    } catch (e) {
+      developer.log('updateGoalProgress transaction failed: $e');
+    }
 
     // Record daily activity for streak tracking when making progress
     try {
