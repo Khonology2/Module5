@@ -961,7 +961,9 @@ class BadgeService {
             final me = participation[userId] as Map<String, dynamic>?;
             if (me != null) {
               final points = me['totalPoints'];
-              if (points is int) total += points; else if (points is num) total += points.round();
+              if (points is int) {
+                total += points;
+              } else if (points is num) total += points.round();
             }
           }
           newProgress = total.clamp(0, badge.maxProgress);
@@ -984,7 +986,9 @@ class BadgeService {
             final me = participation[userId] as Map<String, dynamic>?;
             if (me != null) {
               final points = me['totalPoints'];
-              if (points is int) total += points; else if (points is num) total += points.round();
+              if (points is int) {
+                total += points;
+              } else if (points is num) total += points.round();
             }
           }
           newProgress = total.clamp(0, badge.maxProgress);

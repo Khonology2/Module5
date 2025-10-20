@@ -1082,9 +1082,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       } catch (e) {
         if (mounted) {
+          String message = 'Error deleting account: $e';
+          if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
+            message = 'For your security, please sign in again and then delete your account.';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting account: $e'),
+              content: Text(message),
               backgroundColor: AppColors.dangerColor,
             ),
           );

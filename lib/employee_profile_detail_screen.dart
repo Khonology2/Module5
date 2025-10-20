@@ -99,6 +99,12 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back),
+                            color: AppColors.textPrimary,
+                            tooltip: 'Back',
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
                           _buildEmployeeHeader(profile),
                           const SizedBox(height: AppSpacing.lg),
                           _buildActionButtons(),
@@ -800,10 +806,11 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
         return FirebaseFirestore.instance
             .collection('goals')
             .where('userId', isEqualTo: widget.employeeId)
-            .orderBy('createdAt', descending: true)
             .snapshots()
             .map((snapshot) {
-          return snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return goals;
         });
       }
 
