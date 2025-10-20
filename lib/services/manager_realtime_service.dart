@@ -962,13 +962,14 @@ class ManagerRealtimeService {
     return _firestore
         .collection('activities')
         .where('userId', isEqualTo: employeeId)
-        .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
+          final list = snapshot.docs
               .map((doc) => EmployeeActivity.fromFirestore(doc))
               .toList();
+          list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return list;
         });
   }
 

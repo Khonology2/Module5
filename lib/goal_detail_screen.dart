@@ -69,7 +69,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: current,
+          initialValue: current,
           dropdownColor: AppColors.elevatedBackground,
           style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(

@@ -338,7 +338,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           dropdownColor: AppColors.elevatedBackground,
           style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(

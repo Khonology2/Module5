@@ -136,7 +136,7 @@ class ManagerBadgeEvaluator {
     // === Nudge Network per Level (lifetime distinct employees nudged) ===
     final distinctNudged = await _countDistinctEmployeesNudgedAllTime(managerId);
 
-    Future<void> _upsertNudgeNetwork({required int level, required int requiredCount}) async {
+    Future<void> upsertNudgeNetwork({required int level, required int requiredCount}) async {
       await _upsertBadge(
         userId: managerId,
         badgeId: 'mgr_nudge_network_l$level',
@@ -152,11 +152,11 @@ class ManagerBadgeEvaluator {
       );
     }
 
-    await _upsertNudgeNetwork(level: 1, requiredCount: 5);
-    await _upsertNudgeNetwork(level: 2, requiredCount: 6);
-    await _upsertNudgeNetwork(level: 3, requiredCount: 7);
-    await _upsertNudgeNetwork(level: 4, requiredCount: 8);
-    await _upsertNudgeNetwork(level: 5, requiredCount: 9);
+    await upsertNudgeNetwork(level: 1, requiredCount: 5);
+    await upsertNudgeNetwork(level: 2, requiredCount: 6);
+    await upsertNudgeNetwork(level: 3, requiredCount: 7);
+    await upsertNudgeNetwork(level: 4, requiredCount: 8);
+    await upsertNudgeNetwork(level: 5, requiredCount: 9);
   }
 
   // Ensure manager badge docs exist (locked) so UI can display them grouped by level

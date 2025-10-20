@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/services/storage_service.dart';
 
 class UserSettings {
   final String userId;
@@ -357,27 +358,86 @@ class SettingsService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
-      // Delete user data from Firestore
-      await _firestore.collection('users').doc(user.uid).delete();
-      
-      // Delete user goals
-      final goalsQuery = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-      
-      final batch = _firestore.batch();
-      for (final doc in goalsQuery.docs) {
-        batch.delete(doc.reference);
-      }
-      await batch.commit();
+      final uid = user.uid;
+      final emailLower = (user.email ?? '').toLowerCase();
 
-      // Delete Firebase Auth account
-      await user.delete();
+      // Record blocklist entry first (prevents future login/registration by email)
+      if (emailLower.isNotEmpty) {
+        try {
+          await _firestore.collection('deleted_accounts').doc(uid).set({
+            'uid': uid,
+            'emailLower': emailLower,
+            'deletedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (e) {
+          developer.log('Warning: could not write deleted_accounts for $uid: $e');
+        }
+      }
+
+      // Delete top-level documents referencing this user
+      Future<void> deleteWhere(String collection, String field) async {
+        final snap = await _firestore
+            .collection(collection)
+            .where(field, isEqualTo: uid)
+            .get();
+        final batch = _firestore.batch();
+        for (final d in snap.docs) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+      }
+
+      try { await deleteWhere('goals', 'userId'); } catch (e) { developer.log('delete goals failed: $e'); }
+      try { await deleteWhere('alerts', 'userId'); } catch (e) { developer.log('delete alerts failed: $e'); }
+      try { await deleteWhere('activities', 'userId'); } catch (e) { developer.log('delete activities failed: $e'); }
+      try { await deleteWhere('goal_daily_progress', 'userId'); } catch (e) { developer.log('delete goal_daily_progress failed: $e'); }
+
+      // Delete any subcollections under users/{uid}
+      final subcollections = [
+        'goals',
+        'streaks',
+        'badges',
+        'alerts',
+        'development_activities',
+        'daily_activities',
+      ];
+      for (final sub in subcollections) {
+        try {
+          final subSnap = await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection(sub)
+              .get();
+          final batch = _firestore.batch();
+          for (final d in subSnap.docs) {
+            batch.delete(d.reference);
+          }
+          await batch.commit();
+        } catch (e) {
+          developer.log('Error deleting subcollection $sub for $uid: $e');
+        }
+      }
+
+      // Delete the user profile document last
+      try {
+        await _firestore.collection('users').doc(uid).delete();
+      } catch (e) {
+        developer.log('Error deleting users/$uid: $e');
+      }
+
+      // Delete user evidence from Storage (best-effort)
+      try {
+        await StorageService.deleteAllEvidenceForUser(uid);
+      } catch (e) {
+        developer.log('Error deleting storage for $uid: $e');
+      }
 
       // Clear local settings
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
+
+      // Finally, delete Firebase Auth account
+      await user.delete();
     } catch (e) {
       developer.log('Error deleting account: $e');
       rethrow;

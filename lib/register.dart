@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore for blocklist
 import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
@@ -403,6 +404,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               }
 
                               try {
+                                // Prevent re-registration for deleted accounts
+                                final emailLower = _emailController.text.trim().toLowerCase();
+                                final blocked = await FirebaseFirestore.instance
+                                    .collection('deleted_accounts')
+                                    .where('emailLower', isEqualTo: emailLower)
+                                    .limit(1)
+                                    .get();
+                                if (blocked.docs.isNotEmpty) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('This email was permanently deleted and cannot be used to register.'),
+                                    ),
+                                  );
+                                  return;
+                                }
+
                                 UserCredential userCredential =
                                     await FirebaseAuth.instance
                                         .createUserWithEmailAndPassword(

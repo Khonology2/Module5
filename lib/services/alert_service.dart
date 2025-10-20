@@ -449,6 +449,43 @@ class AlertService {
     });
   }
 
+  /// Stream alerts for the manager inbox with optional filters.
+  /// - personal: when true, returns the manager's own alerts.
+  /// - typeFilter: 'nudge' maps to AlertType.managerNudge, 'approval_request' maps to AlertType.goalApprovalRequested, null means no type filter.
+  /// - limit: max number of alerts returned after filtering and sorting.
+  static Stream<List<Alert>> getManagerInboxStream({
+    required String managerId,
+    required bool personal,
+    String? typeFilter,
+    int limit = 200,
+  }) {
+    // For now, personal inbox is the manager's own alerts. Team inbox can be expanded later.
+    final baseStream = getUserAlertsStream(managerId);
+
+    return baseStream.map((alerts) {
+      List<Alert> items = List<Alert>.from(alerts);
+
+      if (typeFilter != null) {
+        items = items.where((a) {
+          switch (typeFilter) {
+            case 'nudge':
+              return a.type == AlertType.managerNudge;
+            case 'approval_request':
+              return a.type == AlertType.goalApprovalRequested;
+            default:
+              return true;
+          }
+        }).toList();
+      }
+
+      // Already sorted in getUserAlertsStream; just apply the limit override if larger than default 50
+      if (limit < items.length) {
+        items = items.take(limit).toList();
+      }
+      return items;
+    });
+  }
+
   static Future<void> markAsRead(String alertId) async {
     try {
       await _firestore.collection('alerts').doc(alertId).update({

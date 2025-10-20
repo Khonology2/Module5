@@ -32,6 +32,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   String _searchQuery = '';
   AlertPriority? _selectedPriority;
   final Set<String> _expandedApprovals = <String>{};
+  bool _inboxPersonal = true; // true = Personal, false = Team
+  String? _inboxTypeFilter; // null=All, 'alert' | 'nudge' | 'approval_request'
+  bool _inboxUnreadOnly = false;
 
   @override
   void initState() {
@@ -590,18 +593,28 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   }
 
   Widget _buildTeamAlertsTab(List<EmployeeData> employees) {
-    // Build a fast lookup to avoid scanning all employees per alert
-    final employeesById = {
+    final manager = FirebaseAuth.instance.currentUser;
+    if (manager == null) {
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Text(
+            'Please sign in to view team alerts',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    final Map<String, EmployeeData> employeesById = {
       for (final e in employees) e.profile.uid: e,
     };
 
-    // Flatten alerts
     final allAlerts = <Alert>[];
     for (final e in employees) {
       allAlerts.addAll(e.recentAlerts);
     }
 
-    // Add synthetic inactivity alerts (>3 days)
     final now = DateTime.now();
     for (final e in employees) {
       final inactivityDays = now.difference(e.lastActivity).inDays;
@@ -614,13 +627,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             priority: inactivityDays >= 7 ? AlertPriority.high : AlertPriority.medium,
             title: 'Employee Inactive',
             message: '${e.profile.displayName} inactive for $inactivityDays days',
-            createdAt: now.subtract(Duration(hours: 1)),
+            createdAt: now.subtract(const Duration(hours: 1)),
           ),
         );
       }
     }
 
-    // Keep only: overdue goals, inactivity, and manager season join/completed/progress alerts (exclude approvals; shown in Approvals tab)
     final filteredAlerts = allAlerts.where((a) {
       return a.type == AlertType.goalOverdue ||
           a.type == AlertType.inactivity ||
@@ -630,12 +642,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     }).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    // De-duplicate by (type, relatedGoalId) keeping latest
     final Map<String, Alert> dedup = {};
     for (final a in filteredAlerts) {
       final key = '${a.type.name}__${a.relatedGoalId ?? a.id}';
       if (!dedup.containsKey(key)) {
-        dedup[key] = a; // since list sorted desc, first is latest
+        dedup[key] = a;
       }
     }
     final alerts = dedup.values.toList()
@@ -646,16 +657,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         SliverPadding(
           padding: AppSpacing.screenPadding,
           sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildFilterRow(),
-                const SizedBox(height: AppSpacing.lg),
+                Text('Team Alerts (${alerts.length})',
+                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                if (alerts.any((alert) => !alert.isRead))
+                  TextButton(
+                    onPressed: () => _markAllAlertsAsRead(alerts),
+                    child: Text('Mark All Read',
+                        style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor)),
+                  ),
               ],
             ),
           ),
         ),
-        if (filteredAlerts.isEmpty)
+        if (alerts.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
             child: Padding(
@@ -663,93 +680,23 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               child: _buildEmptyAlertsState(),
             ),
           )
-        else ...[
-          SliverPadding(
-            padding: AppSpacing.screenPadding,
-            sliver: SliverToBoxAdapter(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Team Alerts (${filteredAlerts.length})',
-                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-                  ),
-                  if (filteredAlerts.any((alert) => !alert.isRead))
-                    TextButton(
-                      onPressed: () => _markAllAlertsAsRead(filteredAlerts),
-                      child: Text(
-                        'Mark All Read',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.activeColor,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
+        else
           SliverPadding(
             padding: AppSpacing.screenPadding,
             sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                alerts
-                    .map((alert) => _buildTeamAlertCard(alert, employeesById[alert.userId] ?? employees.first))
-                    .toList(),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final alert = alerts[index];
+                  final employee = employeesById[alert.userId] ?? (employees.isNotEmpty ? employees.first : employees.first);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _buildTeamAlertCard(alert, employee),
+                  );
+                },
+                childCount: alerts.length,
               ),
             ),
           ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildFilterRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            onChanged: (value) => setState(() => _searchQuery = value),
-            decoration: InputDecoration(
-              hintText: 'Search alerts...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.borderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.borderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: AppColors.activeColor),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderColor),
-          ),
-          child: DropdownButton<AlertPriority?>(
-            value: _selectedPriority,
-            underline: const SizedBox(),
-            hint: Text('Priority', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-            onChanged: (priority) => setState(() => _selectedPriority = priority),
-            items: [
-              DropdownMenuItem(value: null, child: Text('All Priorities')),
-              ...AlertPriority.values.map((priority) => 
-                DropdownMenuItem(value: priority, child: Text(priority.name.toUpperCase())),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

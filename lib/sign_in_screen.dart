@@ -321,13 +321,36 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         // Store lastLoginAt and record daily login activity
                                         final user = cred.user;
                                         if (user != null) {
-                                          await FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(user.uid)
-                                              .set({
-                                                'lastLoginAt':
-                                                    FieldValue.serverTimestamp(),
-                                              }, SetOptions(merge: true));
+                                          // Blocklist check after auth using direct doc read
+                                          try {
+                                            final blockedDoc = await FirebaseFirestore.instance
+                                                .collection('deleted_accounts')
+                                                .doc(user.uid)
+                                                .get();
+                                            if (blockedDoc.exists) {
+                                              await FirebaseAuth.instance.signOut();
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('This account has been permanently deleted and cannot be used to sign in.'),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                          } catch (_) {
+                                            // If rules deny access, skip blocklist check to avoid breaking sign-in for others
+                                          }
+                                          try {
+                                            await FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(user.uid)
+                                                .set({
+                                                  'lastLoginAt':
+                                                      FieldValue.serverTimestamp(),
+                                                }, SetOptions(merge: true));
+                                          } catch (_) {
+                                            // Non-critical; continue sign-in
+                                          }
                                           // Also record a light-weight daily activity for streaks
                                           try {
                                             await FirebaseFirestore.instance
@@ -473,13 +496,36 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       // Store lastLoginAt and record daily login activity
                                       final user = cred.user;
                                       if (user != null) {
-                                        await FirebaseFirestore.instance
-                                            .collection('users')
-                                            .doc(user.uid)
-                                            .set({
-                                              'lastLoginAt':
-                                                  FieldValue.serverTimestamp(),
-                                            }, SetOptions(merge: true));
+                                        // Blocklist check for OAuth sign-in using direct doc read
+                                        try {
+                                          final blockedDoc = await FirebaseFirestore.instance
+                                              .collection('deleted_accounts')
+                                              .doc(user.uid)
+                                              .get();
+                                          if (blockedDoc.exists) {
+                                            await FirebaseAuth.instance.signOut();
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('This Google account has been permanently deleted and cannot be used to sign in.'),
+                                              ),
+                                            );
+                                            return;
+                                          }
+                                        } catch (_) {
+                                          // Skip if insufficient permissions
+                                        }
+                                        try {
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(user.uid)
+                                              .set({
+                                                'lastLoginAt':
+                                                    FieldValue.serverTimestamp(),
+                                              }, SetOptions(merge: true));
+                                        } catch (_) {
+                                          // Non-critical; continue sign-in
+                                        }
                                         try {
                                           await FirebaseFirestore.instance
                                               .collection('users')
@@ -590,6 +636,26 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       }
                                       final user = cred.user;
                                       if (user != null) {
+                                        // Blocklist check for OAuth sign-in using direct doc read
+                                        try {
+                                          final blockedDoc = await FirebaseFirestore.instance
+                                              .collection('deleted_accounts')
+                                              .doc(user.uid)
+                                              .get();
+                                          if (blockedDoc.exists) {
+                                            await FirebaseAuth.instance.signOut();
+                                            setState(() { _isSigningIn = false; });
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('This Microsoft account has been permanently deleted and cannot be used to sign in.'),
+                                              ),
+                                            );
+                                            return;
+                                          }
+                                        } catch (_) {
+                                          // Skip if insufficient permissions
+                                        }
                                         await FirebaseFirestore.instance
                                             .collection('users')
                                             .doc(user.uid)
