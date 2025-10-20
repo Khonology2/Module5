@@ -28,11 +28,12 @@ class AppComponents {
       child: Container(
         padding: padding ?? AppSpacing.cardPadding,
         decoration: BoxDecoration(
-          color: backgroundColor ?? AppColors.cardBackground,
+          color: backgroundColor ?? Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(borderRadius),
-          border: borderColor != null
-              ? Border.all(color: borderColor, width: borderWidth)
-              : null,
+          border: Border.all(
+            color: (borderColor ?? Colors.white.withValues(alpha: 0.2)),
+            width: borderWidth == 0.0 ? 1.0 : borderWidth,
+          ),
           boxShadow: boxShadow,
         ),
         child: child,

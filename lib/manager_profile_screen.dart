@@ -329,7 +329,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png'),
+                  image: AssetImage('assets/khono_bg.png'),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -342,15 +342,11 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 1000),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2C3E50),
-                  borderRadius: BorderRadius.circular(24.0),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 5),
-                    ),
-                  ],
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 padding: const EdgeInsets.all(40.0),
                 child: Column(
@@ -527,8 +523,11 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       margin: const EdgeInsets.only(bottom: 32.0),
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2840),
-        borderRadius: BorderRadius.circular(16.0),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

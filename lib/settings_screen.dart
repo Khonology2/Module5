@@ -79,7 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       color: Colors.transparent,
       child: Container(
         decoration: const BoxDecoration(
-          color: AppColors.backgroundColor,
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -238,9 +241,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -273,9 +276,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

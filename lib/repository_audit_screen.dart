@@ -34,7 +34,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       color: Colors.transparent,
       child: Container(
         decoration: const BoxDecoration(
-          color: AppColors.backgroundColor,
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -225,9 +228,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,9 +344,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -378,9 +381,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.dangerColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -432,9 +435,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,9 +810,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: StreamBuilder<List<RepositoryGoal>>(
             stream: RepositoryService.queryRepositoryGoals(

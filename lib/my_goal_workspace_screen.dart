@@ -118,7 +118,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       },
       content: AppComponents.backgroundWithImage(
         imagePath:
-            'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+            'assets/khono_bg.png',
         child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           child: Column(
@@ -132,90 +132,100 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               ),
               const SizedBox(height: AppSpacing.xl),
               _buildSectionHeader('Goal Information'),
-              _buildTextField(
-                controller: _goalTitleController,
-                hintText: 'Enter your development goal title',
-              ),
-              _buildTextField(
-                controller: _goalDescriptionController,
-                hintText: 'Describe your goal in detail...',
-                maxLines: 5,
-              ),
+              _buildSectionCard(children: [
+                _buildTextField(
+                  controller: _goalTitleController,
+                  hintText: 'Enter your development goal title',
+                ),
+                _buildTextField(
+                  controller: _goalDescriptionController,
+                  hintText: 'Describe your goal in detail...',
+                  maxLines: 5,
+                ),
+              ]),
               const SizedBox(height: AppSpacing.xl),
               _buildSectionHeader('Goal Details'),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDateInput(
-                      context,
-                      'Start Date',
-                      _startDate,
-                      isStartDate: true,
+              _buildSectionCard(children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildDateInput(
+                        context,
+                        'Start Date',
+                        _startDate,
+                        isStartDate: true,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: _buildDateInput(
-                      context,
-                      'Target Date',
-                      _targetDate,
-                      isStartDate: false,
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: _buildDateInput(
+                        context,
+                        'Target Date',
+                        _targetDate,
+                        isStartDate: false,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _buildDropdownField(
-                hintText: 'Select category',
-                value: _goalCategory,
-                items: _goalCategories,
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _goalCategory = newValue;
-                  });
-                },
-              ),
-              _buildDropdownField(
-                hintText: 'Select priority',
-                value: _currentStatus,
-                items: ['High', 'Medium', 'Low'],
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _currentStatus = newValue;
-                  });
-                },
-              ),
-              _buildDropdownField(
-                hintText: 'Select Key Performance Area',
-                value: _kpa != null
-                    ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
-                    : null,
-                items: _kpaOptions,
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _kpa = newValue?.toLowerCase();
-                  });
-                },
-              ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _buildDropdownField(
+                  hintText: 'Select category',
+                  value: _goalCategory,
+                  items: _goalCategories,
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _goalCategory = newValue;
+                    });
+                  },
+                ),
+                _buildDropdownField(
+                  hintText: 'Select priority',
+                  value: _currentStatus,
+                  items: ['High', 'Medium', 'Low'],
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _currentStatus = newValue;
+                    });
+                  },
+                ),
+                _buildDropdownField(
+                  hintText: 'Select Key Performance Area',
+                  value: _kpa != null
+                      ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
+                      : null,
+                  items: _kpaOptions,
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _kpa = newValue?.toLowerCase();
+                    });
+                  },
+                ),
+              ]),
               const SizedBox(height: AppSpacing.xl),
               _buildSmartCriteriaSection(),
               const SizedBox(height: AppSpacing.xl),
               _buildSectionHeader('Dependencies & Prerequisites'),
-              _buildTextField(
-                controller: _dependenciesController,
-                hintText:
-                    'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-                maxLines: 4,
-              ),
+              _buildSectionCard(children: [
+                _buildTextField(
+                  controller: _dependenciesController,
+                  hintText:
+                      'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                  maxLines: 4,
+                ),
+              ]),
               const SizedBox(height: AppSpacing.xl),
               _buildSectionHeader('Success Metrics'),
-              _buildTextField(
-                controller: _successMetricsController,
-                hintText: 'Define specific metrics or milestones...',
-                maxLines: 4,
-              ),
+              _buildSectionCard(children: [
+                _buildTextField(
+                  controller: _successMetricsController,
+                  hintText: 'Define specific metrics or milestones...',
+                  maxLines: 4,
+                ),
+              ]),
               const SizedBox(height: AppSpacing.xxl),
-              _buildActionButtons(),
+              _buildSectionCard(children: [
+                _buildActionButtons(),
+              ]),
             ],
           ),
         ),
@@ -234,6 +244,21 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  Widget _buildSectionCard({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String hintText,
@@ -242,9 +267,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor, width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -276,9 +301,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor, width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -323,15 +348,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor, width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
           value: value,
-          dropdownColor: AppColors.elevatedBackground,
+          dropdownColor: Colors.black.withValues(alpha: 0.8),
           style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textPrimary,
           ),
@@ -365,9 +390,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.activeColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Material(
         color: Colors.transparent,

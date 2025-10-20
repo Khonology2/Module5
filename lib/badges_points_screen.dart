@@ -607,19 +607,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         }
       },
       content: FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
+        policy: WidgetOrderTraversalPolicy(),
         child: Container(
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.backgroundColor,
-                AppColors.backgroundColor.withValues(alpha: 0.9),
-              ],
+            image: DecorationImage(
+              image: AssetImage('assets/khono_bg.png'),
+              fit: BoxFit.cover,
             ),
           ),
           child: RefreshIndicator(
@@ -1154,9 +1149,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1221,16 +1216,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: badge.isEarned
-                                ? AppColors.elevatedBackground
-                                : AppColors.elevatedBackground.withValues(
-                                    alpha: 0.5,
-                                  ),
+                            color: Colors.black.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: badge.isEarned
                                   ? _getBadgeRarityColor(badge.rarity)
-                                  : AppColors.borderColor,
+                                  : Colors.white.withValues(alpha: 0.2),
                               width: badge.isEarned ? 2 : 1,
                             ),
                             boxShadow: badge.isEarned
@@ -1459,14 +1450,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: badge.isEarned
-                  ? AppColors.elevatedBackground
-                  : AppColors.elevatedBackground.withValues(alpha: 0.5),
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: badge.isEarned
                     ? _getBadgeRarityColor(badge.rarity)
-                    : AppColors.borderColor,
+                    : Colors.white.withValues(alpha: 0.2),
                 width: badge.isEarned ? 2 : 1,
               ),
               boxShadow: badge.isEarned
@@ -1642,9 +1631,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1793,9 +1782,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

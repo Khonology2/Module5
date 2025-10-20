@@ -172,7 +172,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 BlendMode.darken,
               ),
               child: Image.asset(
-                'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                'assets/khono_bg.png',
                 fit: BoxFit.cover,
               ),
             ),

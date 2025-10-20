@@ -237,10 +237,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         }
       },
       content: FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
+        policy: WidgetOrderTraversalPolicy(),
         child: AppComponents.backgroundWithImage(
           imagePath:
-              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+              'assets/khono_bg.png',
           child: StreamBuilder<UserProfile?>(
             stream: _getUserProfileStream(),
             builder: (context, profileSnapshot) {
@@ -403,9 +403,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
