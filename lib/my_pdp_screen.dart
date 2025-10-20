@@ -209,8 +209,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       child: FocusScope(
         node: FocusScopeNode(), // Create a new FocusScopeNode
         child: AppComponents.backgroundWithImage(
-          imagePath:
-              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+          imagePath: 'assets/khono_bg.png',
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0), // Adjust padding as needed
             child: Column(
@@ -276,8 +275,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       color: Colors.transparent, // Ensure it's transparent
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2840), // App's card background color
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           children: [
@@ -355,10 +357,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
             return Column(
               children: goals.map((goal) {
-                return Card(
-                  color: const Color(0xFF26324F),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),

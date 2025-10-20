@@ -35,10 +35,10 @@ class _TeamChallengesSeasonsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.cardBackground,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Team Challenges & Growth Seasons'),
-        backgroundColor: AppColors.activeColor,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -220,9 +220,9 @@ class _TeamChallengesSeasonsScreenState
               horizontal: AppSpacing.lg,
             ),
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -445,16 +445,9 @@ class _TeamChallengesSeasonsScreenState
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.activeColor.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -626,9 +619,9 @@ class _TeamChallengesSeasonsScreenState
                     margin: const EdgeInsets.only(bottom: AppSpacing.xs),
                     padding: const EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
-                      color: AppColors.elevatedBackground,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.borderColor),
+                      color: Colors.black.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                     ),
                     child: Row(
                       children: [

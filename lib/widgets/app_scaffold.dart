@@ -74,7 +74,12 @@ class AppScaffold extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            Positioned.fill(child: content),
+            Positioned.fill(
+              child: FocusTraversalGroup(
+                policy: WidgetOrderTraversalPolicy(),
+                child: content,
+              ),
+            ),
             if (topRightAction != null)
               Positioned(top: 8, right: 8, child: topRightAction!),
           ],
@@ -130,7 +135,12 @@ class AppScaffold extends StatelessWidget {
                   child: ClipRect(
                     child: Stack(
                       children: [
-                        Positioned.fill(child: content),
+                        Positioned.fill(
+                          child: FocusTraversalGroup(
+                            policy: WidgetOrderTraversalPolicy(),
+                            child: content,
+                          ),
+                        ),
                         if (topRightAction != null)
                           Positioned(
                             top: 16,

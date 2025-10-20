@@ -146,7 +146,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             decoration: const BoxDecoration(
               image: DecorationImage(
                 image: AssetImage(
-                  'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                  'assets/khono_bg.png',
                 ),
                 fit: BoxFit.cover,
               ),

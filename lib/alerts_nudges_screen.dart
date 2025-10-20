@@ -54,14 +54,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: AppColors.backgroundColor,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.9),
-            ],
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
           ),
         ),
         child: SingleChildScrollView(
@@ -184,17 +179,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.activeColor.withValues(alpha: 0.1),
-            AppColors.elevatedBackground,
-          ],
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,9 +412,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -475,11 +462,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
           color: alert.isRead
-              ? AppColors.borderColor
+              ? Colors.white.withValues(alpha: 0.2)
               : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
@@ -719,11 +706,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.warningColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [

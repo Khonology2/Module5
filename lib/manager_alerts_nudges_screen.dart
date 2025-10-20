@@ -173,9 +173,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 
             return Container(
               decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
+                color: Colors.black.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderColor),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
@@ -430,14 +430,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           final employees = snapshot.data ?? [];
 
           return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.backgroundColor,
-                  AppColors.backgroundColor.withValues(alpha: 0.8),
-                ],
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/khono_bg.png'),
+                fit: BoxFit.cover,
               ),
             ),
             child: Column(
@@ -474,9 +470,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.elevatedBackground,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.borderColor),
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: TabBar(
                     controller: _tabController,
@@ -562,9 +558,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -732,9 +728,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: DropdownButton<AlertPriority?>(
             value: _selectedPriority,
@@ -743,10 +739,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
             onChanged: (priority) => setState(() => _selectedPriority = priority),
             items: [
-              DropdownMenuItem(value: null, child: Text('All Priorities')),
-              ...AlertPriority.values.map((priority) => 
-                DropdownMenuItem(value: priority, child: Text(priority.name.toUpperCase())),
-              ),
+              const DropdownMenuItem(value: null, child: Text('All Priorities')),
+              ...AlertPriority.values
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase())))
+                  .toList(),
             ],
           ),
         ),
@@ -761,12 +757,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: alert.isRead ? AppColors.borderColor : alertColor.withValues(alpha: 0.3),
-          width: alert.isRead ? 1 : 2,
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1146,9 +1139,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1307,9 +1300,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: AppColors.elevatedBackground,
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: Column(
               children: [
@@ -1341,65 +1334,65 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
-       children: [
-         Icon(
-           Icons.notifications_off,
-           size: 48,
-           color: AppColors.textSecondary,
-         ),
-         const SizedBox(height: 16),
-         Text(
-           'No Team Alerts',
-           style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-         ),
-         const SizedBox(height: 8),
-         Text(
-           'Your team doesn\'t have any alerts right now.',
-           style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-           textAlign: TextAlign.center,
-         ),
-       ],
-     ),
-   );
- }
+        children: [
+          Icon(
+            Icons.notifications_off,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Team Alerts',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your team doesn\'t have any alerts right now.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
- Widget _buildNoEmployeesState() {
-   return Container(
-     padding: const EdgeInsets.all(32),
-     decoration: BoxDecoration(
-       color: AppColors.elevatedBackground,
-       borderRadius: BorderRadius.circular(12),
-       border: Border.all(color: AppColors.borderColor),
-     ),
-     child: Column(
-       children: [
-         Icon(
-           Icons.people_outline,
-           size: 48,
-           color: AppColors.textSecondary,
-         ),
-         const SizedBox(height: 16),
-         Text(
-           'No Team Members',
-           style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-         ),
-         const SizedBox(height: 8),
-         Text(
-           'You don\'t have any team members to send nudges to.',
-           style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-           textAlign: TextAlign.center,
-         ),
-      ],
-     ),
-   );
- }
+  Widget _buildNoEmployeesState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Team Members',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You don\'t have any team members to send nudges to.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
- // Helper methods
+// Helper methods
 
  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
    if (_searchQuery.isEmpty) return employees;

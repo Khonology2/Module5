@@ -125,13 +125,21 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {});
-          },
-          child: isManager
-              ? ManagerProgressVisualsContent(userProfile: userProfile!)
-              : EmployeeProgressVisualsContent(userProfile: userProfile!),
+        return Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/khono_bg.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: RefreshIndicator(
+            onRefresh: () async {
+              setState(() {});
+            },
+            child: isManager
+                ? ManagerProgressVisualsContent(userProfile: userProfile!)
+                : EmployeeProgressVisualsContent(userProfile: userProfile!),
+          ),
         );
       },
     );
@@ -387,9 +395,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButton<TimeFilter>(
         value: currentTimeFilter,
@@ -416,9 +424,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButton<String?>(
         value: selectedDepartment,
@@ -555,9 +563,9 @@ class _ManagerProgressVisualsContentState
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,9 +633,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: priorityColor.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -778,7 +786,7 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: statusColor.withValues(alpha: 0.3)),
       ),
@@ -1176,9 +1184,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1207,9 +1215,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1238,9 +1246,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1696,9 +1704,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -1803,9 +1811,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1878,9 +1886,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
