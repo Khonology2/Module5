@@ -9,6 +9,10 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/models/goal.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:pdh/services/database_service.dart';
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -26,10 +30,298 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   String _search = '';
   AlertPriority? _priorityFilter;
 
+  // SMART rubric local state per goalId for the review sheet
+  final Map<String, int> _clarity = {};
+  final Map<String, int> _measurability = {};
+  final Map<String, int> _achievability = {};
+  final Map<String, int> _relevance = {};
+  final Map<String, int> _timeline = {};
+  final Map<String, TextEditingController> _reviewNotes = {};
+
   @override
   void initState() {
     super.initState();
     _redirectIfManager();
+  }
+
+  void _showGoalReviewSheet(Alert alert) {
+    final goalId = alert.relatedGoalId;
+    if (goalId == null) return;
+    _clarity.putIfAbsent(goalId, () => 3);
+    _measurability.putIfAbsent(goalId, () => 3);
+    _achievability.putIfAbsent(goalId, () => 3);
+    _relevance.putIfAbsent(goalId, () => 3);
+    _timeline.putIfAbsent(goalId, () => 3);
+    _reviewNotes.putIfAbsent(goalId, () => TextEditingController());
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.elevatedBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.8,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance.collection('goals').doc(goalId).snapshots(),
+                builder: (context, snap) {
+                  Goal? goal;
+                  if (snap.hasData && snap.data!.exists) {
+                    try { goal = Goal.fromFirestore(snap.data!); } catch (_) {}
+                  }
+                  return ListView(
+                    controller: scrollController,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Goal Review', style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close),
+                            color: AppColors.textSecondary,
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (goal != null) ...[
+                        Text(goal.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        if ((goal.description).isNotEmpty)
+                          Text(goal.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                        const SizedBox(height: 8),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          _chip('Category', goal.category.name),
+                          if (goal.kpa != null && goal.kpa!.isNotEmpty) _chip('KPA', goal.kpa!.toUpperCase()),
+                          _chip('Target', _fmtDate(goal.targetDate)),
+                        ]),
+                        const SizedBox(height: 12),
+                      ],
+                      Row(
+                        children: [
+                          Icon(Icons.rule, color: AppColors.activeColor, size: 18),
+                          const SizedBox(width: 8),
+                          Text('SMART Review', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          _scorePill(_smartTotal(goalId)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _scoreRow('Clarity (Specific)', goalId, _clarity, '1=vague, 5=precise'),
+                      _scoreRow('Measurability', goalId, _measurability, '1=no KPI, 5=KPI+baseline+target'),
+                      _scoreRow('Achievability', goalId, _achievability, '1=unlikely, 5=realistic'),
+                      _scoreRow('Relevance', goalId, _relevance, '1=not aligned, 5=directly aligned'),
+                      _scoreRow('Timeline', goalId, _timeline, '1=no date, 5=realistic date'),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _reviewNotes[goalId],
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Review note (required for Request changes/Reject)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await _persistReview(goalId, decision: 'approved');
+                              await _approveGoal(goalId);
+                              if (mounted) Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.check),
+                            label: const Text('Approve'),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.successColor, foregroundColor: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                              if (note.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a note for Request changes')));
+                                return;
+                              }
+                              await _persistReview(goalId, decision: 'changes_requested');
+                              await _rejectGoal(goalId, reason: note);
+                              if (mounted) Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.edit_note),
+                            label: const Text('Request changes'),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warningColor, foregroundColor: Colors.white),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                              if (note.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a reason to reject')));
+                                return;
+                              }
+                              await _persistReview(goalId, decision: 'rejected');
+                              await _rejectGoal(goalId, reason: note);
+                              if (mounted) Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.close),
+                            label: const Text('Reject'),
+                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.dangerColor, side: BorderSide(color: AppColors.dangerColor)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _persistReview(String goalId, {required String decision}) async {
+    try {
+      final reviewer = fb.FirebaseAuth.instance.currentUser;
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
+        'review': {
+          'smart': {
+            'clarity': _clarity[goalId] ?? 3,
+            'measurability': _measurability[goalId] ?? 3,
+            'achievability': _achievability[goalId] ?? 3,
+            'relevance': _relevance[goalId] ?? 3,
+            'timeline': _timeline[goalId] ?? 3,
+            'total': _smartTotal(goalId),
+          },
+          'decision': decision,
+          'note': _reviewNotes[goalId]?.text.trim(),
+          'reviewerId': reviewer?.uid,
+          'reviewedAt': FieldValue.serverTimestamp(),
+        }
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  int _smartTotal(String goalId) {
+    return (_clarity[goalId] ?? 3) + (_measurability[goalId] ?? 3) + (_achievability[goalId] ?? 3) + (_relevance[goalId] ?? 3) + (_timeline[goalId] ?? 3);
+  }
+
+  Widget _scorePill(int total) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Text('SMART: $total/25', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+    );
+  }
+
+  Widget _scoreRow(String title, String goalId, Map<String, int> map, String helper) {
+    final current = map[goalId] ?? 3;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text(helper, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            children: List.generate(5, (i) {
+              final score = i + 1;
+              final selected = score == current;
+              return ChoiceChip(
+                label: Text('$score'),
+                selected: selected,
+                onSelected: (_) => setState(() => map[goalId] = score),
+                selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
+                backgroundColor: AppColors.elevatedBackground,
+                labelStyle: AppTypography.bodySmall.copyWith(color: selected ? AppColors.textPrimary : AppColors.textSecondary),
+                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
+
+  Widget _chip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Text(value, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _approveGoal(String goalId) async {
+    try {
+      final manager = fb.FirebaseAuth.instance.currentUser;
+      final managerName = manager?.displayName ?? 'Manager';
+      await DatabaseService.approveGoal(
+        goalId: goalId,
+        managerId: manager?.uid ?? '',
+        managerName: managerName,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal approved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to approve goal: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectGoal(String goalId, {required String reason}) async {
+    try {
+      final manager = fb.FirebaseAuth.instance.currentUser;
+      final managerName = manager?.displayName ?? 'Manager';
+      await DatabaseService.rejectGoal(
+        goalId: goalId,
+        managerId: manager?.uid ?? '',
+        managerName: managerName,
+        reason: reason,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal rejected')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to reject goal: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _redirectIfManager() async {
@@ -346,11 +638,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              if (alert.actionText != null)
+              if (alert.type == AlertType.goalApprovalRequested)
+                TextButton.icon(
+                  onPressed: () => _showGoalReviewSheet(alert),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('View Goal'),
+                )
+              else if (alert.actionText != null)
                 TextButton(
-                  onPressed: () {
-                    // TODO: navigate using actionRoute/actionData when integrated
-                  },
+                  onPressed: () {},
                   child: Text(alert.actionText!),
                 ),
               const Spacer(),

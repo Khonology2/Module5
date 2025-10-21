@@ -25,12 +25,12 @@ class MyGoalWorkspaceScreen extends StatefulWidget {
 }
 
 class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
-  // Checkbox states for SMART criteria
-  bool _isSpecific = false;
-  bool _isMeasurable = false;
-  bool _isAchievable = false;
-  bool _isRelevant = false;
-  bool _isTimeBound = false;
+  // SMART scoring (1-5)
+  int _clarity = 3;        // Specific
+  int _measurability = 3;  // Measurable
+  int _achievability = 3;  // Achievable
+  int _relevance = 3;      // Relevant
+  int _timeline = 3;       // Time-bound
 
   // Controllers for text fields
   final _goalTitleController = TextEditingController();
@@ -227,6 +227,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  
+
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -392,43 +394,51 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     color: AppColors.textPrimary,
                   ),
                 ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.elevatedBackground,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
+                  child: Text(
+                    'SMART: ${_computeSmartTotal()}/25',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            _buildSmartCheckbox(
-              'Specific - Goal is clear and well-defined',
-              _isSpecific,
-              (value) {
-                setState(() => _isSpecific = value!);
-              },
+            _buildScoreSelector(
+              title: 'Specific - Goal is clear and well-defined',
+              value: _clarity,
+              onChanged: (v) => setState(() => _clarity = v),
+              helper: '1=vague, 3=some detail, 5=precise deliverable & scope',
             ),
-            _buildSmartCheckbox(
-              'Measurable - Progress can be tracked',
-              _isMeasurable,
-              (value) {
-                setState(() => _isMeasurable = value!);
-              },
+            _buildScoreSelector(
+              title: 'Measurable - Progress can be tracked',
+              value: _measurability,
+              onChanged: (v) => setState(() => _measurability = v),
+              helper: '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
             ),
-            _buildSmartCheckbox(
-              'Achievable - Goal is realistic and attainable',
-              _isAchievable,
-              (value) {
-                setState(() => _isAchievable = value!);
-              },
+            _buildScoreSelector(
+              title: 'Achievable - Goal is realistic and attainable',
+              value: _achievability,
+              onChanged: (v) => setState(() => _achievability = v),
+              helper: '1=unlikely, 3=stretch, 5=realistic with resources',
             ),
-            _buildSmartCheckbox(
-              'Relevant - Goal aligns with your values',
-              _isRelevant,
-              (value) {
-                setState(() => _isRelevant = value!);
-              },
+            _buildScoreSelector(
+              title: 'Relevant - Goal aligns with your values/role/OKR',
+              value: _relevance,
+              onChanged: (v) => setState(() => _relevance = v),
+              helper: '1=not aligned, 3=indirect, 5=direct OKR/competency fit',
             ),
-            _buildSmartCheckbox(
-              'Time-bound - Goal has a clear deadline',
-              _isTimeBound,
-              (value) {
-                setState(() => _isTimeBound = value!);
-              },
+            _buildScoreSelector(
+              title: 'Time-bound - Goal has a clear deadline',
+              value: _timeline,
+              onChanged: (v) => setState(() => _timeline = v),
+              helper: '1=no date, 3=date tight, 5=realistic + milestones',
             ),
           ],
         ),
@@ -436,23 +446,51 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildSmartCheckbox(
-    String title,
-    bool value,
-    ValueChanged<bool?> onChanged,
-  ) {
-    return Theme(
-      data: ThemeData(unselectedWidgetColor: AppColors.textSecondary),
-      child: CheckboxListTile(
-        title: Text(
-          title,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.activeColor,
-        checkColor: AppColors.textPrimary,
-        contentPadding: EdgeInsets.zero,
+  int _computeSmartTotal() =>
+      _clarity + _measurability + _achievability + _relevance + _timeline;
+
+  Widget _buildScoreSelector({
+    required String title,
+    required int value,
+    required ValueChanged<int> onChanged,
+    String? helper,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              helper,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: List.generate(5, (i) {
+              final score = i + 1;
+              final selected = score == value;
+              return ChoiceChip(
+                selected: selected,
+                label: Text('$score'),
+                onSelected: (_) => onChanged(score),
+                selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
+                labelStyle: AppTypography.bodySmall.copyWith(
+                  color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                ),
+                backgroundColor: AppColors.elevatedBackground,
+                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
@@ -481,6 +519,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       );
       return;
     }
+
+    // SMART criteria are advisory; goal approval will be handled by managers
 
     try {
       final user = FirebaseAuth.instance.currentUser;
