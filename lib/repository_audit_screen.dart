@@ -92,10 +92,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             hintStyle: TextStyle(color: AppColors.textMuted),
             prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
             filled: true,
-            fillColor: AppColors.elevatedBackground,
-            border: OutlineInputBorder(
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
               borderRadius: const BorderRadius.all(Radius.circular(15.0)),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(15.0)),
+              borderSide: BorderSide(color: AppColors.activeColor),
             ),
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -112,14 +116,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   labelText: 'Filter by Status',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
-                dropdownColor: AppColors.elevatedBackground,
+                dropdownColor: Colors.black.withValues(alpha: 0.9),
                 style: TextStyle(color: AppColors.textPrimary),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('All Statuses')),
@@ -141,10 +149,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   labelText: 'Month (YYYY-MM)',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
@@ -160,10 +172,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   labelText: 'Min Score',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
@@ -566,8 +582,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
+                color: Colors.black.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,10 +673,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 labelText: 'Score (1.0 - 5.0)',
                 labelStyle: TextStyle(color: AppColors.textMuted),
                 filled: true,
-                fillColor: AppColors.elevatedBackground,
-                border: OutlineInputBorder(
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
                 ),
               ),
               style: TextStyle(color: AppColors.textPrimary),
@@ -672,10 +693,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 labelText: 'Comments (optional)',
                 labelStyle: TextStyle(color: AppColors.textMuted),
                 filled: true,
-                fillColor: AppColors.elevatedBackground,
-                border: OutlineInputBorder(
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
                 ),
               ),
               style: TextStyle(color: AppColors.textPrimary),
@@ -741,10 +766,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             labelText: 'Reason for changes',
             labelStyle: TextStyle(color: AppColors.textMuted),
             filled: true,
-            fillColor: AppColors.elevatedBackground,
-            border: OutlineInputBorder(
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.dangerColor),
             ),
           ),
           style: TextStyle(color: AppColors.textPrimary),
@@ -862,7 +891,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
                       style: TextStyle(color: AppColors.textMuted),
                     ),
-                    trailing: Text('${g.evidence.length} evidence'),
+                    trailing: Text(
+                      '${g.evidence.length} evidence',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   );
                 },
               );
