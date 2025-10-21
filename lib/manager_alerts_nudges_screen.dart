@@ -36,12 +36,227 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   bool _inboxPersonal = true; // true = Personal, false = Team
   String? _inboxTypeFilter; // null=All, 'alert' | 'nudge' | 'approval_request'
   bool _inboxUnreadOnly = false;
+  // SMART rubric state per goalId
+  final Map<String, int> _clarity = {};
+  final Map<String, int> _measurability = {};
+  final Map<String, int> _achievability = {};
+  final Map<String, int> _relevance = {};
+  final Map<String, int> _timeline = {};
+  final Map<String, TextEditingController> _reviewNotes = {};
+  String _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _redirectIfManager();
+  }
+
+  Widget _buildManagerReviewPanel(String goalId, List<EmployeeData> employees) {
+    // init local state defaults if absent
+    _clarity.putIfAbsent(goalId, () => 3);
+    _measurability.putIfAbsent(goalId, () => 3);
+    _achievability.putIfAbsent(goalId, () => 3);
+    _relevance.putIfAbsent(goalId, () => 3);
+    _timeline.putIfAbsent(goalId, () => 3);
+    _reviewNotes.putIfAbsent(goalId, () => TextEditingController());
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('goals').doc(goalId).snapshots(),
+      builder: (context, snap) {
+        final data = snap.data;
+        Goal? goal;
+        if (data != null && data.exists) {
+          try { goal = Goal.fromFirestore(data); } catch (_) {}
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (goal != null) ...[
+              Text(goal.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              if ((goal.description).isNotEmpty)
+                Text(goal.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                _chip('Category', goal.category.name),
+                if (goal.kpa != null && goal.kpa!.isNotEmpty) _chip('KPA', goal.kpa!.toUpperCase()),
+                _chip('Target', _fmtDate(goal.targetDate)),
+              ]),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                Icon(Icons.rule, color: AppColors.activeColor, size: 18),
+                const SizedBox(width: 8),
+                Text('SMART Review', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                _scorePill(_smartTotal(goalId)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _scoreRow('Clarity (Specific)', goalId, _clarity, '1=vague, 5=precise'),
+            _scoreRow('Measurability', goalId, _measurability, '1=no KPI, 5=KPI+baseline+target'),
+            _scoreRow('Achievability', goalId, _achievability, '1=unlikely, 5=realistic'),
+            _scoreRow('Relevance', goalId, _relevance, '1=not aligned, 5=directly aligned'),
+            _scoreRow('Timeline', goalId, _timeline, '1=no date, 5=realistic date'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _reviewNotes[goalId],
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Review note (required for Request changes/Reject)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await _persistReview(goalId, decision: 'approved');
+                    final emp = _findEmployeeForGoal(employees, goalId);
+                    await _approveGoal(goalId, emp);
+                  },
+                  icon: const Icon(Icons.check),
+                  label: const Text('Approve'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.successColor, foregroundColor: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                    if (note.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a note for Request changes')));
+                      return;
+                    }
+                    await _persistReview(goalId, decision: 'changes_requested');
+                    final emp = _findEmployeeForGoal(employees, goalId);
+                    await _rejectGoal(context, goalId, emp); // reuse reject flow as request-changes alert
+                  },
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('Request changes'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.warningColor, foregroundColor: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                    if (note.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a reason to reject')));
+                      return;
+                    }
+                    await _persistReview(goalId, decision: 'rejected');
+                    final emp = _findEmployeeForGoal(employees, goalId);
+                    await _rejectGoal(context, goalId, emp);
+                  },
+                  icon: const Icon(Icons.close),
+                  label: const Text('Reject'),
+                  style: OutlinedButton.styleFrom(foregroundColor: AppColors.dangerColor, side: BorderSide(color: AppColors.dangerColor)),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  EmployeeData _findEmployeeForGoal(List<EmployeeData> employees, String goalId) {
+    return employees.firstWhere(
+      (e) => e.goals.any((g) => g.id == goalId),
+      orElse: () => employees.isNotEmpty ? employees.first : EmployeeData.fromMap({'profile': {}}, id: ''),
+    );
+  }
+
+  Future<void> _persistReview(String goalId, {required String decision}) async {
+    try {
+      final reviewer = FirebaseAuth.instance.currentUser;
+      await FirebaseFirestore.instance.collection('goals').doc(goalId).set({
+        'review': {
+          'smart': {
+            'clarity': _clarity[goalId] ?? 3,
+            'measurability': _measurability[goalId] ?? 3,
+            'achievability': _achievability[goalId] ?? 3,
+            'relevance': _relevance[goalId] ?? 3,
+            'timeline': _timeline[goalId] ?? 3,
+            'total': _smartTotal(goalId),
+          },
+          'decision': decision,
+          'note': _reviewNotes[goalId]?.text.trim(),
+          'reviewerId': reviewer?.uid,
+          'reviewedAt': FieldValue.serverTimestamp(),
+        }
+      }, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
+  int _smartTotal(String goalId) {
+    return (_clarity[goalId] ?? 3) + (_measurability[goalId] ?? 3) + (_achievability[goalId] ?? 3) + (_relevance[goalId] ?? 3) + (_timeline[goalId] ?? 3);
+  }
+
+  Widget _scorePill(int total) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Text('SMART: $total/25', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+    );
+  }
+
+  Widget _scoreRow(String title, String goalId, Map<String, int> map, String helper) {
+    final current = map[goalId] ?? 3;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+          const SizedBox(height: 4),
+          Text(helper, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            children: List.generate(5, (i) {
+              final score = i + 1;
+              final selected = score == current;
+              return ChoiceChip(
+                label: Text('$score'),
+                selected: selected,
+                onSelected: (_) => setState(() => map[goalId] = score),
+                selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
+                backgroundColor: AppColors.elevatedBackground,
+                labelStyle: AppTypography.bodySmall.copyWith(color: selected ? AppColors.textPrimary : AppColors.textSecondary),
+                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
+
+  Widget _chip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Text(value, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -145,205 +360,117 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   }
 
   Widget _buildApprovalsTab(List<EmployeeData> employees) {
-    final manager = FirebaseAuth.instance.currentUser;
-    if (manager == null) {
+    // Build a status list of approved/rejected goals across team
+    final items = <Map<String, dynamic>>[];
+    for (final e in employees) {
+      for (final g in e.goals) {
+        if (g.approvalStatus == GoalApprovalStatus.approved || g.approvalStatus == GoalApprovalStatus.rejected) {
+          items.add({'employee': e, 'goal': g});
+        }
+      }
+    }
+    items.sort((a, b) {
+      final ga = (a['goal'] as Goal).targetDate;
+      final gb = (b['goal'] as Goal).targetDate;
+      return gb.compareTo(ga);
+    });
+
+    if (items.isEmpty) {
       return Center(
         child: Padding(
           padding: AppSpacing.screenPadding,
           child: Text(
-            'Please sign in to view approvals',
+            'No approved or rejected goals',
             style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
           ),
         ),
       );
     }
 
-    return StreamBuilder<List<Alert>>(
-      stream: AlertService.getUserAlertsStream(manager.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final all = snapshot.data ?? const <Alert>[];
-        // Filter to approval requests and de-duplicate by relatedGoalId (keep latest)
-        final rawApprovals = all
-            .where((a) => a.type == AlertType.goalApprovalRequested)
-            .toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Apply status filter
+    final filtered = items.where((m) {
+      if (_approvalsStatusFilter == 'approved') {
+        return (m['goal'] as Goal).approvalStatus == GoalApprovalStatus.approved;
+      } else if (_approvalsStatusFilter == 'rejected') {
+        return (m['goal'] as Goal).approvalStatus == GoalApprovalStatus.rejected;
+      }
+      return true;
+    }).toList();
 
-        final Map<String, Alert> byGoal = {};
-        for (final a in rawApprovals) {
-          final key = a.relatedGoalId ?? a.id;
-          if (!byGoal.containsKey(key)) {
-            byGoal[key] = a; // since sorted desc, first is latest
-          }
-        }
-        final approvals = byGoal.values.toList()
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        if (approvals.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: AppSpacing.screenPadding,
-              child: Text(
-                'No pending approvals',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-              ),
-            ),
-          );
-        }
-
-        return ListView.separated(
+    return Column(
+      children: [
+        Padding(
           padding: AppSpacing.screenPadding,
-          itemCount: approvals.length,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (context, index) {
-            final alert = approvals[index];
-            final expanded = _expandedApprovals.contains(alert.id);
-
-            return Container(
-              decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderColor),
+          child: Row(
+            children: [
+              ChoiceChip(
+                label: const Text('All'),
+                selected: _approvalsStatusFilter == 'all',
+                onSelected: (_) => setState(() => _approvalsStatusFilter = 'all'),
               ),
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: Icon(Icons.fact_check_outlined, color: AppColors.activeColor),
-                    title: Text(
-                      alert.title,
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      alert.message,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (alert.relatedGoalId != null)
-                          StreamBuilder<DocumentSnapshot>(
-                            stream: FirebaseFirestore.instance.collection('goals').doc(alert.relatedGoalId).snapshots(),
-                            builder: (context, snap) {
-                              final data = snap.data;
-                              GoalApprovalStatus? status;
-                              if (data != null && data.exists) {
-                                try {
-                                  final g = Goal.fromFirestore(data);
-                                  status = g.approvalStatus;
-                                } catch (_) {}
-                              }
-                              final isApproved = status == GoalApprovalStatus.approved;
-                              final isRejected = status == GoalApprovalStatus.rejected;
-                              if (isRejected) {
-                                return ElevatedButton(
-                                  onPressed: null,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.dangerColor,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Rejected'),
-                                );
-                              }
-                              return ElevatedButton(
-                                onPressed: isApproved
-                                    ? null
-                                    : () async {
-                                        final emp = employees.firstWhere(
-                                          (e) => e.goals.any((g) => g.id == alert.relatedGoalId),
-                                          orElse: () => employees.isNotEmpty ? employees.first : EmployeeData.fromMap({'profile': {}}, id: ''),
-                                        );
-                                        await _approveGoal(alert.relatedGoalId!, emp);
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isApproved ? AppColors.successColor : AppColors.activeColor,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: Text(isApproved ? 'Approved' : 'Approve'),
-                              );
-                            },
-                          ),
-                        const SizedBox(width: 8),
-                        PopupMenuButton<String>(
-                          onSelected: (value) async {
-                            switch (value) {
-                              case 'reject':
-                                if (alert.relatedGoalId != null) {
-                                  final emp = employees.firstWhere(
-                                    (e) => e.goals.any((g) => g.id == alert.relatedGoalId),
-                                    orElse: () => employees.isNotEmpty ? employees.first : EmployeeData.fromMap({'profile': {}}, id: ''),
-                                  );
-                                  await _rejectGoal(context, alert.relatedGoalId!, emp);
-                                }
-                                break;
-                              case 'mark_read':
-                                _markAlertAsRead(alert.id);
-                                break;
-                              case 'nudge':
-                                if (employees.isNotEmpty) {
-                                  _showSendNudgeDialog(employee: employees.first);
-                                }
-                                break;
-                            }
-                          },
-                          itemBuilder: (ctx) => const [
-                            PopupMenuItem(value: 'reject', child: Text('Reject')),
-                            PopupMenuItem(value: 'mark_read', child: Text('Mark Read')),
-                            PopupMenuItem(value: 'nudge', child: Text('Send Nudge')),
-                          ],
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              if (expanded) {
-                                _expandedApprovals.remove(alert.id);
-                              } else {
-                                _expandedApprovals.add(alert.id);
-                              }
-                            });
-                          },
-                          icon: Icon(
-                            expanded ? Icons.expand_less : Icons.expand_more,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    onTap: () {
-                      setState(() {
-                        if (expanded) {
-                          _expandedApprovals.remove(alert.id);
-                        } else {
-                          _expandedApprovals.add(alert.id);
-                        }
-                      });
-                    },
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Approved'),
+                selected: _approvalsStatusFilter == 'approved',
+                onSelected: (_) => setState(() => _approvalsStatusFilter = 'approved'),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Rejected'),
+                selected: _approvalsStatusFilter == 'rejected',
+                onSelected: (_) => setState(() => _approvalsStatusFilter = 'rejected'),
+              ),
+              const Spacer(),
+              Text('${filtered.length} items', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: AppSpacing.screenPadding,
+            itemCount: filtered.length,
+            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final e = filtered[index]['employee'] as EmployeeData;
+              final g = filtered[index]['goal'] as Goal;
+              final isApproved = g.approvalStatus == GoalApprovalStatus.approved;
+              final statusColor = isApproved ? AppColors.successColor : AppColors.dangerColor;
+              return Container(
+                decoration: BoxDecoration(
+                  color: AppColors.elevatedBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderColor),
+                ),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: statusColor.withValues(alpha: 0.15),
+                    child: Icon(isApproved ? Icons.thumb_up_alt_outlined : Icons.thumb_down_alt_outlined, color: statusColor),
                   ),
-                  if (expanded) ...[
-                    const Divider(height: 1, color: Color(0x1FFFFFFF)),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          alert.message,
-                          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ),
+                  title: Text(g.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 2),
+                      Text(e.profile.displayName, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                      const SizedBox(height: 2),
+                      Text('Target: ${_fmtDate(g.targetDate)}', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.4)),
                     ),
-                  ],
-                ],
-              ),
-            );
-          },
-        );
-      },
+                    child: Text(isApproved ? 'APPROVED' : 'REJECTED', style: AppTypography.bodySmall.copyWith(color: statusColor, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
