@@ -3,6 +3,9 @@
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -346,21 +349,28 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: AppComponents.backgroundWithImage(
+    return AppScaffold(
+      title: 'My Profile',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/employee_profile',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        }
+      },
+      content: AppComponents.backgroundWithImage(
         imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
         child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + kToolbarHeight + 16.0, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
                   child: Center(
                     child: Container(
                       margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto

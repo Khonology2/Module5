@@ -7,6 +7,10 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/auth_service.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -260,10 +264,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
-      body: SafeArea(
-        child: StreamBuilder<String?>(
+    return AppScaffold(
+      title: 'Leaderboard',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/leaderboard',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        }
+      },
+      content: SafeArea(
+        child: AppComponents.backgroundWithImage(
+          imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+          child: StreamBuilder<String?>(
           stream: RoleService.instance.roleStream(),
           builder: (context, roleSnapshot) {
             final role = roleSnapshot.data;
@@ -297,7 +319,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   return _buildErrorState();
                 }
 
-                // Add debugging info
                 if (leaderboardSnapshot.hasData) {
                   developer.log(
                     'Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore',
@@ -327,13 +348,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       const SizedBox(height: 20),
                       _buildFiltersBar(isManager: isManager),
                       const SizedBox(height: 16),
-                      if (leaderboardData.isEmpty)
-                        _buildEmptyState()
-                      else ...[
-                        _buildPodium(leaderboardData),
-                        const SizedBox(height: 20),
-                        _buildLeaderList(leaderboardData, isManager: isManager),
-                      ],
+                      leaderboardData.isEmpty
+                          ? _buildEmptyState()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildPodium(leaderboardData),
+                                const SizedBox(height: 20),
+                                _buildLeaderList(
+                                  leaderboardData,
+                                  isManager: isManager,
+                                ),
+                              ],
+                            ),
                     ],
                   ),
                 );
@@ -341,6 +369,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             );
           },
         ),
+      ),
       ),
     );
   }
