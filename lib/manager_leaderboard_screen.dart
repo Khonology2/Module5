@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/role_service.dart';
 
 enum LeaderboardMetric { points, streaks, progress }
 
@@ -24,7 +25,30 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   @override
   void initState() {
     super.initState();
+    _redirectIfManagerStandalone();
     _loadManagerProfile();
+  }
+
+  Future<void> _redirectIfManagerStandalone() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        if (widget.embedded) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/manager_leaderboard'},
+            );
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   Future<void> _loadManagerProfile() async {

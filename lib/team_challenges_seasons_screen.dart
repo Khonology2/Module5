@@ -6,6 +6,7 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/services/role_service.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
   const TeamChallengesSeasonsScreen({super.key});
@@ -24,12 +25,32 @@ class _TeamChallengesSeasonsScreenState
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _redirectIfManagerStandalone();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _redirectIfManagerStandalone() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      final routeName = ModalRoute.of(context)?.settings.name;
+      if (role == 'manager' && routeName != '/manager_portal') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/manager_portal',
+            arguments: {'initialRoute': '/team_challenges_seasons'},
+          );
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   @override

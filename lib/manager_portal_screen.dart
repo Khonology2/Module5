@@ -4,6 +4,8 @@ import 'package:pdh/manager_review_team_dashboard_screen.dart'; // Import Manage
 import 'package:pdh/manager_dashboard_screen.dart'; // New Manager Dashboard
 import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScreen
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
+import 'package:pdh/manager_inbox_screen.dart'; // Manager Inbox
+import 'package:pdh/alerts_nudges_screen.dart'; // Personal Alerts
 // Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
 // Removed in favor of employee leaderboard UI for uniformity
 import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
@@ -28,6 +30,7 @@ class ManagerPortalScreen extends StatefulWidget {
 
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
+  bool _didInitFromArgs = false;
 
   final List<SidebarItem> _managerSidebarItems = [
     const SidebarItem(
@@ -55,6 +58,11 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       icon: Icons.message_outlined,
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
+    ),
+    const SidebarItem(
+      icon: Icons.inbox_outlined,
+      label: 'Inbox',
+      route: '/manager_inbox',
     ),
     const SidebarItem(
       icon: Icons.workspace_premium,
@@ -95,6 +103,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
         return const ManagerAlertsNudgesScreen(embedded: true);
+      case '/manager_inbox':
+        return const ManagerInboxScreen(embedded: true);
+      case '/alerts_nudges':
+        return const AlertsNudgesScreen(embedded: true);
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
@@ -130,6 +142,17 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_didInitFromArgs) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        final initial = args['initialRoute'] as String?;
+        if (initial != null && initial.isNotEmpty && initial != _currentRoute) {
+          // Initialize the portal to show the requested initial route
+          _currentRoute = initial;
+        }
+      }
+      _didInitFromArgs = true;
+    }
     // Set system UI overlay style here if needed to ensure consistency across the portal
     // SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     //   statusBarColor: Colors.transparent, // Transparent status bar

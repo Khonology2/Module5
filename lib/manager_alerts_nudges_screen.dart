@@ -14,6 +14,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
+import 'package:pdh/services/role_service.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -40,6 +41,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _redirectIfManager();
   }
 
   @override
@@ -49,6 +51,31 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     if (_tabController.length != 4) {
       _tabController.dispose();
       _tabController = TabController(length: 4, vsync: this);
+    }
+  }
+
+  Future<void> _redirectIfManager() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        if (widget.embedded) {
+          // Already inside Manager Portal; stay here.
+          return;
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/manager_alerts_nudges'},
+            );
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
     }
   }
 

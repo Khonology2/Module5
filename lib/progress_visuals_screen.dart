@@ -9,6 +9,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/role_service.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -27,7 +28,30 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   @override
   void initState() {
     super.initState();
+    _redirectIfManagerStandalone();
     _loadUserData();
+  }
+
+  Future<void> _redirectIfManagerStandalone() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        if (widget.embedded) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/progress_visuals'},
+            );
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
   }
 
   Future<void> _loadUserData() async {
