@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -160,13 +163,26 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.of(context).pushReplacementNamed('/employee_dashboard');
-        return false;
+    return AppScaffold(
+      title: 'My PDP',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/my_pdp',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
       },
-      child: FocusScope(
-        node: FocusScopeNode(), // Create a new FocusScopeNode
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        }
+      },
+      content: FocusScope(
+        node: FocusScopeNode(),
         child: ClipRect(
           child: AppComponents.backgroundWithImage(
             imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
@@ -187,10 +203,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   ),
                   Text(
                     'My Personal Development Plan',
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineMedium
-                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 20),
                   _buildExcellenceArea(
