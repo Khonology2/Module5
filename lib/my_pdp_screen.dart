@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/storage_service.dart';
 // Drawer removed in favor of persistent sidebar
@@ -74,6 +75,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
   Future<void> _attachEvidence(BuildContext context, Goal goal) async {
     final controller = TextEditingController();
+    
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) {
@@ -100,54 +102,85 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        final picked = await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: [
-                            'pdf',
-                            'doc',
-                            'docx',
-                            'png',
-                            'jpg',
-                            'jpeg',
-                          ],
-                          withData: true,
-                        );
-                        if (picked != null && picked.files.isNotEmpty) {
-                          final file = picked.files.first;
-                          final bytes = file.bytes;
-                          if (bytes != null) {
-                            final ext = (file.extension ?? '').toLowerCase();
-                            String contentType = 'application/octet-stream';
-                            if (ext == 'pdf') {
-                              contentType = 'application/pdf';
+                        try {
+                          print('Starting file picker...');
+                          final picked = await FilePicker.platform.pickFiles(
+                            type: FileType.any,
+                            withData: true,
+                          );
+                          
+                          print('File picker result: ${picked?.files.length} files');
+                          
+                          if (picked != null && picked.files.isNotEmpty) {
+                            final file = picked.files.first;
+                            print('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
+                            
+                            final bytes = file.bytes;
+                            if (bytes != null) {
+                              // Show loading
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Uploading file...'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              
+                              print('Starting file processing...');
+                              try {
+                                // For now, store file info as evidence since Firebase Storage isn't set up
+                                final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Selected on ${DateTime.now().toString().split('.')[0]}';
+                                
+                                await DatabaseService.attachGoalEvidence(
+                                  goalId: goal.id,
+                                  evidence: [fileInfo],
+                                );
+                                
+                                print('File info attached to goal: $fileInfo');
+                                
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('File selected and info saved! (Note: Firebase Storage needs to be set up for full file upload)'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                  Navigator.of(ctx).pop('uploaded');
+                                  // Refresh the screen to show the new evidence
+                                  setState(() {});
+                                }
+                              } catch (error) {
+                                print('Error saving file info: $error');
+                                
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error saving file info: $error'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } else {
+                              print('No file bytes available');
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Error: No file data available'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
                             }
-                            if (ext == 'doc') {
-                              contentType = 'application/msword';
-                            }
-                            if (ext == 'docx') {
-                              contentType =
-                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                            }
-                            if (ext == 'png') {
-                              contentType = 'image/png';
-                            }
-                            if (ext == 'jpg' || ext == 'jpeg') {
-                              contentType = 'image/jpeg';
-                            }
-
-                            final url = await StorageService.uploadEvidence(
-                              goalId: goal.id,
-                              fileName: file.name,
-                              bytes: bytes,
-                              contentType: contentType,
+                          } else {
+                            print('No files selected');
+                          }
+                        } catch (e) {
+                          print('Error during file upload: $e');
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Error uploading file: $e'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
-                            await DatabaseService.attachGoalEvidence(
-                              goalId: goal.id,
-                              evidence: [url],
-                            );
-                            if (ctx.mounted) {
-                              Navigator.of(ctx).pop('uploaded');
-                            }
                           }
                         }
                       },
@@ -183,7 +216,31 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Evidence added')));
+        // Refresh the screen to show the new evidence
+        setState(() {});
       }
+    }
+  }
+
+  String _getContentType(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'gif':
+        return 'image/gif';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
     }
   }
 
@@ -391,6 +448,69 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                           minHeight: 6,
                         ),
                         const SizedBox(height: 12),
+                        
+                        // Show attached evidence if any
+                        if (goal.evidence.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2A3441),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.attachment,
+                                      color: Colors.green,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Attached Evidence (${goal.evidence.length})',
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                ...goal.evidence.map((evidence) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.description,
+                                        color: Colors.white70,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          evidence,
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
