@@ -801,7 +801,7 @@ class SeasonService {
       // Award points for all milestones
       final totalMilestonePoints = challenge.milestones.fold<int>(
         0,
-        (sum, m) => sum + m.points,
+        (acc, m) => acc + m.points,
       );
       batch.update(seasonRef, {
         'participations.$userId.totalPoints': FieldValue.increment(

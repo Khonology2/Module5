@@ -669,10 +669,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   }
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    final totalAlerts = employees.fold<int>(0, (sum, emp) => sum + emp.recentAlerts.length);
-    final urgentAlerts = employees.fold<int>(0, (sum, emp) => 
-      sum + emp.recentAlerts.where((a) => a.priority == AlertPriority.urgent).length);
-    final overdueGoals = employees.fold<int>(0, (sum, emp) => sum + emp.overdueGoalsCount);
+    final totalAlerts = employees.fold<int>(0, (acc, emp) => acc + emp.recentAlerts.length);
+    final urgentAlerts = employees.fold<int>(0, (acc, emp) => 
+      acc + emp.recentAlerts.where((a) => a.priority == AlertPriority.urgent).length);
+    final overdueGoals = employees.fold<int>(0, (acc, emp) => acc + emp.overdueGoalsCount);
 
     return Row(
       children: [

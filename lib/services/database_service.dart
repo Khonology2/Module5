@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/services/points_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/season.dart';
@@ -10,6 +11,81 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
 
 class DatabaseService {
+  // Caps configuration
+  static const int _dailyPointsCap = 400;
+  static const int _weeklyPointsCap = 1500;
+
+  static String _dateKey(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y$m$d';
+  }
+
+  static String _weekKey(DateTime dt) {
+    // Simple week-of-year approximation
+    final firstDay = DateTime(dt.year, 1, 1);
+    final days = dt.difference(firstDay).inDays;
+    final week = (days / 7).floor() + 1;
+    final w = week.toString().padLeft(2, '0');
+    return '${dt.year}W$w';
+  }
+
+  // Safely increment user points enforcing daily/weekly caps; returns awarded amount
+  static Future<int> _incrementUserPointsCapped({
+    required String userId,
+    required int amount,
+  }) async {
+    if (amount <= 0) return 0;
+    final now = DateTime.now();
+    final dKey = _dateKey(now);
+    final wKey = _weekKey(now);
+    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+    int awarded = 0;
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(userRef);
+      if (!snap.exists) return;
+      final data = snap.data() as Map<String, dynamic>;
+      final metrics = (data['metrics'] as Map<String, dynamic>?) ?? {};
+      final points = (metrics['points'] as Map<String, dynamic>?) ?? {};
+      final daily = (points['daily'] as Map<String, dynamic>?) ?? {};
+      final weekly = (points['weekly'] as Map<String, dynamic>?) ?? {};
+      int daySoFar = 0;
+      final rawDay = daily[dKey];
+      if (rawDay is int) {
+        daySoFar = rawDay;
+      } else if (rawDay is num) {
+        daySoFar = rawDay.round();
+      } else {
+        daySoFar = 0;
+      }
+      int weekSoFar = 0;
+      final rawWeek = weekly[wKey];
+      if (rawWeek is int) {
+        weekSoFar = rawWeek;
+      } else if (rawWeek is num) {
+        weekSoFar = rawWeek.round();
+      } else {
+        weekSoFar = 0;
+      }
+
+      final remainingDay = (_dailyPointsCap - daySoFar).clamp(0, _dailyPointsCap);
+      final remainingWeek = (_weeklyPointsCap - weekSoFar).clamp(0, _weeklyPointsCap);
+      final allow = amount.clamp(0, remainingDay).clamp(0, remainingWeek);
+      if (allow <= 0) {
+        awarded = 0;
+        return;
+      }
+      awarded = allow;
+      tx.update(userRef, {
+        'totalPoints': FieldValue.increment(allow),
+        'metrics.points.daily.$dKey': (daySoFar + allow),
+        'metrics.points.weekly.$wKey': (weekSoFar + allow),
+        'metrics.points.lastUpdated': FieldValue.serverTimestamp(),
+      });
+    });
+    return awarded;
+  }
   static Future<UserProfile> getUserProfile(String uid) async {
     final doc = await FirebaseFirestore.instance
         .collection('users')
@@ -127,7 +203,7 @@ class DatabaseService {
           orElse: () => GoalStatus.notStarted,
         ),
         progress: (() {
-          final raw = data['progress'];
+          final raw = data['progress']; 
           if (raw is int) return raw;
           if (raw is num) return raw.round();
           return 0;
@@ -386,6 +462,9 @@ class DatabaseService {
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
     String? userId;
+    int awardKickoff = 0;
+    int awardDelta = 0;
+    int awardP50 = 0;
     
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -402,30 +481,46 @@ class DatabaseService {
         final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
             ? Map<String, dynamic>.from(rawMilestones)
             : {};
+        // Parse category/priority for allocated points
+        final rawCategory = (data['category'] ?? 'personal').toString().toLowerCase();
+        final rawPriority = (data['priority'] ?? 'medium').toString().toLowerCase();
+        final category = GoalCategory.values.firstWhere(
+          (e) => e.name.toLowerCase() == rawCategory,
+          orElse: () => GoalCategory.personal,
+        );
+        final priority = GoalPriority.values.firstWhere(
+          (e) => e.name.toLowerCase() == rawPriority,
+          orElse: () => GoalPriority.medium,
+        );
+        final int allocated = PointsService.allocatedPointsForGoal(category, priority);
 
         tx.update(goalRef, {'progress': snapped});
 
+        // Kickoff: first progress change from notStarted -> inProgress
         if (snapped > 0 &&
             currentStatus != GoalStatus.inProgress.name &&
             currentStatus != GoalStatus.completed.name) {
           tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-          if (userId != null && userId!.isNotEmpty) {
-            final userRef = FirebaseFirestore.instance
-                .collection('users')
-                .doc(userId);
-            tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+          if ((milestones['kickoff'] ?? false) != true && userId != null && userId!.isNotEmpty) {
+            awardKickoff = PointsService.kickoffBonus(allocated);
+            milestones['kickoff'] = true;
+            tx.update(goalRef, {'milestones': milestones});
           }
         }
 
+        // Progress delta award
+        final int delta = (snapped - previousProgress).clamp(0, 100);
+        if (delta > 0 && userId != null && userId!.isNotEmpty) {
+          final inc = PointsService.progressDeltaPoints(allocated, delta);
+          if (inc > 0) {
+            awardDelta += inc;
+          }
+        }
+
+        // Optional: retain legacy 50% milestone as motivational nudge (kept as-is)
         final crossed50 = previousProgress < 50 && snapped >= 50;
-        if (crossed50 &&
-            userId != null &&
-            userId!.isNotEmpty &&
-            milestones['p50'] != true) {
-          final userRef = FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId);
-          tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        if (crossed50 && userId != null && userId!.isNotEmpty && milestones['p50'] != true) {
+          awardP50 = 20;
           milestones['p50'] = true;
           tx.update(goalRef, {'milestones': milestones});
         }
@@ -433,6 +528,24 @@ class DatabaseService {
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
       throw Exception('progress_update.tx: $e');
+    }
+
+    // Apply capped increments after transaction
+    try {
+      final uid = userId;
+      if (uid != null && uid.isNotEmpty) {
+        if (awardKickoff > 0) {
+          await _incrementUserPointsCapped(userId: uid, amount: awardKickoff);
+        }
+        if (awardDelta > 0) {
+          await _incrementUserPointsCapped(userId: uid, amount: awardDelta);
+        }
+        if (awardP50 > 0) {
+          await _incrementUserPointsCapped(userId: uid, amount: awardP50);
+        }
+      }
+    } catch (e) {
+      developer.log('updateGoalProgress capped increment failed: $e');
     }
 
     // Record daily activity for streak tracking when making progress
@@ -556,15 +669,41 @@ class DatabaseService {
     }
     final batch = FirebaseFirestore.instance.batch();
 
-    // Update goal status
+    // Update goal status and award kickoff based on allocated points (idempotent via milestones)
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    batch.update(goalRef, {'status': GoalStatus.inProgress.name});
+    final goalSnap = await goalRef.get();
+    final data = goalSnap.data();
+    final rawCategory = (data?['category'] ?? 'personal').toString().toLowerCase();
+    final rawPriority = (data?['priority'] ?? 'medium').toString().toLowerCase();
+    final category = GoalCategory.values.firstWhere(
+      (e) => e.name.toLowerCase() == rawCategory,
+      orElse: () => GoalCategory.personal,
+    );
+    final priority = GoalPriority.values.firstWhere(
+      (e) => e.name.toLowerCase() == rawPriority,
+      orElse: () => GoalPriority.medium,
+    );
+    final allocated = PointsService.allocatedPointsForGoal(category, priority);
+    final int bonus = PointsService.kickoffBonus(allocated);
 
-    // Award points for starting goal
-    final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-    batch.update(userRef, {'totalPoints': FieldValue.increment(20)});
+    batch.update(goalRef, {'status': GoalStatus.inProgress.name});
+    // mark kickoff in milestones
+    final Map<String, dynamic> milestones = (data?['milestones'] is Map<String, dynamic>)
+        ? Map<String, dynamic>.from(data!['milestones'] as Map)
+        : {};
+    if ((milestones['kickoff'] ?? false) != true) {
+      milestones['kickoff'] = true;
+      batch.update(goalRef, {'milestones': milestones});
+    }
 
     await batch.commit();
+
+    // Apply capped kickoff award
+    try {
+      await _incrementUserPointsCapped(userId: userId, amount: bonus);
+    } catch (e) {
+      developer.log('startGoal capped increment failed: $e');
+    }
 
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_started');
@@ -573,6 +712,7 @@ class DatabaseService {
 
   static Future<void> completeGoal(String goalId, String userId) async {
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    int completionAward = 0;
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(goalRef);
       if (!snap.exists) {
@@ -597,12 +737,49 @@ class DatabaseService {
       // Update goal status to completed
       tx.update(goalRef, {'status': GoalStatus.completed.name});
 
-      // Award points for completing goal
-      final userRef = FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId);
-      tx.update(userRef, {'totalPoints': FieldValue.increment(100)});
+      // Award weighted completion bonus and timing modifier (idempotent via milestones)
+      final rawCategory = (data['category'] ?? 'personal').toString().toLowerCase();
+      final rawPriority = (data['priority'] ?? 'medium').toString().toLowerCase();
+      final category = GoalCategory.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawCategory,
+        orElse: () => GoalCategory.personal,
+      );
+      final priority = GoalPriority.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawPriority,
+        orElse: () => GoalPriority.medium,
+      );
+      final allocated = PointsService.allocatedPointsForGoal(category, priority);
+
+      final Map<String, dynamic> milestones = (data['milestones'] is Map<String, dynamic>)
+          ? Map<String, dynamic>.from(data['milestones'] as Map)
+          : {};
+      if ((milestones['completion'] ?? false) != true) {
+        int totalAward = PointsService.completionBonus(allocated);
+        // On-time or late modifier
+        final targetTs = data['targetDate'];
+        if (targetTs is Timestamp) {
+          final target = targetTs.toDate();
+          final now = DateTime.now();
+          if (!now.isAfter(target)) {
+            totalAward += PointsService.onTimeModifier(allocated);
+          } else {
+            totalAward += PointsService.lateModifier(allocated);
+          }
+        }
+        completionAward = totalAward;
+        milestones['completion'] = true;
+        tx.update(goalRef, {'milestones': milestones});
+      }
     });
+
+    // Apply capped completion award
+    try {
+      if (completionAward > 0) {
+        await _incrementUserPointsCapped(userId: userId, amount: completionAward);
+      }
+    } catch (e) {
+      developer.log('completeGoal capped increment failed: $e');
+    }
 
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
