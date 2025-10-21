@@ -802,6 +802,36 @@ class BadgeService {
         newProgress = completed100.clamp(0, badge.maxProgress);
         break;
 
+      // Category-specific completions by count
+      case 'cat_work_bronze':
+      case 'cat_work_silver':
+      case 'cat_work_gold':
+        final workCompleted = goals
+            .where((g) => g.status == GoalStatus.completed && g.category == GoalCategory.work)
+            .length;
+        final max = (badge.criteria['count'] as int?) ?? badge.maxProgress;
+        newProgress = workCompleted.clamp(0, max);
+        break;
+      case 'cat_financial_bronze':
+      case 'cat_financial_silver':
+      case 'cat_financial_gold':
+        final finCompleted = goals
+            .where((g) => g.status == GoalStatus.completed && (g.kpa == 'financial'))
+            .length;
+        final max = (badge.criteria['count'] as int?) ?? badge.maxProgress;
+        newProgress = finCompleted.clamp(0, max);
+        break;
+
+      case 'balanced_performer':
+        final cats = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .map((g) => g.category)
+            .toSet()
+            .length;
+        final target = (badge.criteria['uniqueCategories'] as int?) ?? 3;
+        newProgress = cats.clamp(0, target);
+        break;
+
       // ===== Growth Levels (Employee) =====
       case 'first_milestone':
         // Approximation: consider having completed at least one milestone as completing any goal
@@ -963,7 +993,9 @@ class BadgeService {
               final points = me['totalPoints'];
               if (points is int) {
                 total += points;
-              } else if (points is num) total += points.round();
+              } else if (points is num) {
+                total += points.round();
+              }
             }
           }
           newProgress = total.clamp(0, badge.maxProgress);
@@ -988,7 +1020,9 @@ class BadgeService {
               final points = me['totalPoints'];
               if (points is int) {
                 total += points;
-              } else if (points is num) total += points.round();
+              } else if (points is num) {
+                total += points.round();
+              }
             }
           }
           newProgress = total.clamp(0, badge.maxProgress);

@@ -157,5 +157,41 @@ class Alert {
     );
   }
 
-  static void fromMap(param0) {}
+  static Alert fromMap(Map<String, dynamic> map) {
+    return Alert(
+      id: map['id'] ?? '',
+      userId: map['userId'] ?? '',
+      type: AlertType.values.firstWhere(
+        (e) => e.name == (map['type']?.toString() ?? 'goalCreated'),
+        orElse: () => AlertType.goalCreated,
+      ),
+      priority: AlertPriority.values.firstWhere(
+        (e) => e.name == (map['priority']?.toString() ?? 'medium'),
+        orElse: () => AlertPriority.medium,
+      ),
+      title: map['title'] ?? '',
+      message: map['message'] ?? '',
+      actionText: map['actionText'],
+      actionRoute: map['actionRoute'],
+      actionData: map['actionData'] is Map<String, dynamic>
+          ? Map<String, dynamic>.from(map['actionData'])
+          : null,
+      createdAt: map['createdAt'] is DateTime
+          ? map['createdAt'] as DateTime
+          : (map['createdAt'] is Timestamp
+              ? (map['createdAt'] as Timestamp).toDate()
+              : DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
+                  DateTime.now()),
+      isRead: map['isRead'] ?? false,
+      isDismissed: map['isDismissed'] ?? false,
+      expiresAt: map['expiresAt'] is DateTime
+          ? map['expiresAt'] as DateTime
+          : (map['expiresAt'] is Timestamp
+              ? (map['expiresAt'] as Timestamp).toDate()
+              : null),
+      relatedGoalId: map['relatedGoalId'],
+      fromUserId: map['fromUserId'],
+      fromUserName: map['fromUserName'],
+    );
+  }
 }
