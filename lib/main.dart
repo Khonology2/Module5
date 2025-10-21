@@ -27,7 +27,7 @@ import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
-import 'package:pdh/ai_chatbot.dart'; // Import the new AI Chatbot screen
+import 'package:pdh/ai_chatbot.dart' hide ChatMessage; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
@@ -39,6 +39,7 @@ import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal C
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
+import 'package:pdh/team_chats.dart' hide ChatMessage;
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -252,6 +253,7 @@ class _MyAppState extends State<MyApp> {
               ),
               '/ai_chatbot': (context) =>
                   const AiChatbotScreen(), // Add the new AI Chatbot route
+              '/team_chats': (context) => const TeamChatsScreen(),
               '/team_management': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: Builder(
@@ -338,6 +340,15 @@ class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
             },
           ),
         ),
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ValueListenableBuilder<String?>(
+            valueListenable: widget.currentRouteNotifier,
+            builder: (context, currentRoute, _) {
+              return TeamChatButton(currentRoute: currentRoute);
+            },
+          ),
+        ),
       ],
     );
   }
@@ -393,6 +404,60 @@ class _ChatbotButtonState extends State<ChatbotButton> {
           width: 40.0,
           height: 40.0,
         ), // Use the AI_Red.png image
+      ),
+    );
+  }
+}
+
+class TeamChatButton extends StatefulWidget {
+  final String? currentRoute;
+  const TeamChatButton({super.key, this.currentRoute});
+
+  @override
+  State<TeamChatButton> createState() => _TeamChatButtonState();
+}
+
+class _TeamChatButtonState extends State<TeamChatButton> {
+  @override
+  Widget build(BuildContext context) {
+    final allowedRoutes = [
+      '/dashboard',
+      '/my_pdp',
+      '/my_goal_workspace',
+      '/progress_visuals',
+      '/alerts_nudges',
+      '/badges_points',
+      '/leaderboard',
+      '/repository_audit',
+      '/settings',
+      '/gamification',
+      '/season_challenge',
+      '/manager_review_team_dashboard',
+      '/employee_dashboard',
+      '/employee_portal',
+      '/manager_portal',
+    ];
+
+    if (widget.currentRoute == null ||
+        !allowedRoutes.contains(widget.currentRoute) ||
+        widget.currentRoute == '/team_chats') {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      bottom: 90,
+      right: 20,
+      child: FloatingActionButton(
+        onPressed: () {
+          navigatorKey.currentState!.pushNamed('/team_chats');
+        },
+        backgroundColor: Colors.white,
+        shape: const CircleBorder(),
+        child: const Icon(
+          Icons.forum,
+          color: Color(0xFFC10D00),
+          size: 28,
+        ),
       ),
     );
   }

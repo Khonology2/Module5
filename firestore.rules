@@ -217,5 +217,13 @@ service cloud.firestore {
         isAdmin()
       );
     }
+
+    match /team.chat/{messageId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        request.auth.uid == resource.data.senderId || isAdmin()
+      );
+    }
   }
 }
