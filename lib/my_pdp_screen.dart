@@ -167,52 +167,53 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       },
       child: FocusScope(
         node: FocusScopeNode(), // Create a new FocusScopeNode
-        child: AppComponents.backgroundWithImage(
-          imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
-          child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0), // Adjust padding as needed
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Back to portal button
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/employee_dashboard');
-                  },
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  label: const Text('Back to Portal', style: TextStyle(color: Colors.white)),
-                ),
+        child: ClipRect(
+          child: AppComponents.backgroundWithImage(
+            imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pushReplacementNamed('/employee_dashboard');
+                      },
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      label: const Text('Back to Portal', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                  Text(
+                    'My Personal Development Plan',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
+                        ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildExcellenceArea(
+                    title: 'Operational Excellence',
+                    expanded: _isOperationalExpanded,
+                    onToggle: (v) => setState(() => _isOperationalExpanded = v),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildExcellenceArea(
+                    title: 'Customer Excellence',
+                    expanded: _isCustomerExpanded,
+                    onToggle: (v) => setState(() => _isCustomerExpanded = v),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildExcellenceArea(
+                    title: 'Financial Excellence',
+                    expanded: _isFinancialExpanded,
+                    onToggle: (v) => setState(() => _isFinancialExpanded = v),
+                  ),
+                  const SizedBox(height: 80),
+                ],
               ),
-              Text(
-                'My Personal Development Plan',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Operational Excellence',
-                expanded: _isOperationalExpanded,
-                onToggle: (v) => setState(() => _isOperationalExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Customer Excellence',
-                expanded: _isCustomerExpanded,
-                onToggle: (v) => setState(() => _isCustomerExpanded = v),
-              ),
-              const SizedBox(height: 20),
-              _buildExcellenceArea(
-                title: 'Financial Excellence',
-                expanded: _isFinancialExpanded,
-                onToggle: (v) => setState(() => _isFinancialExpanded = v),
-              ),
-              const SizedBox(height: 80),
-            ],
-          ),
+            ),
           ),
         ),
       ),
