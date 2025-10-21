@@ -8,6 +8,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/role_service.dart';
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -24,6 +25,37 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _unreadOnly = false;
   String _search = '';
   AlertPriority? _priorityFilter;
+
+  @override
+  void initState() {
+    super.initState();
+    _redirectIfManager();
+  }
+
+  Future<void> _redirectIfManager() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        if (widget.embedded) {
+          // Already inside Manager Portal; stay here.
+          return;
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/manager_inbox'},
+            );
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

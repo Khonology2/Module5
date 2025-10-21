@@ -119,10 +119,19 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       final role = await RoleService.instance.getRole();
       if (!mounted) return;
       if (role == 'manager') {
+        if (widget.embedded) {
+          // Already inside Manager Portal; stay put.
+          return;
+        }
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final current = ModalRoute.of(context)?.settings.name;
-          if (current != '/manager_badges_points') {
-            Navigator.pushReplacementNamed(context, '/manager_badges_points');
+          // Avoid redundant navigation loops
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/badges_points'},
+            );
           }
         });
       }

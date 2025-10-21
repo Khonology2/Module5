@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/role_service.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({super.key});
@@ -14,6 +15,33 @@ class ManagerDashboardScreen extends StatefulWidget {
 
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
+
+  @override
+  void initState() {
+    super.initState();
+    _redirectIfManagerStandalone();
+  }
+
+  Future<void> _redirectIfManagerStandalone() async {
+    try {
+      final role = await RoleService.instance.getRole();
+      if (!mounted) return;
+      if (role == 'manager') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final current = ModalRoute.of(context)?.settings.name;
+          if (current != '/manager_portal') {
+            Navigator.pushReplacementNamed(
+              context,
+              '/manager_portal',
+              arguments: {'initialRoute': '/dashboard'},
+            );
+          }
+        });
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

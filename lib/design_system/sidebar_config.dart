@@ -95,11 +95,6 @@ class SidebarConfig {
       route: '/manager_badges_points',
     ),
     SidebarItem(
-      icon: Icons.notifications_none,
-      label: 'Personal Alerts',
-      route: '/alerts_nudges',
-    ),
-    SidebarItem(
       icon: Icons.leaderboard,
       label: 'LeaderBoard.',
       route: '/leaderboard',
