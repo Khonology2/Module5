@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -677,228 +678,225 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
     return GestureDetector(
       onTap: () => _showLevelDetails(),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.activeColor, // Red
-              Color(0xFF8B0000), // Dark red
-              Color(0xFF2D1B1B), // Very dark red/brown
-              Color(0xFF1A1A1A), // Almost black
-            ],
-            stops: [0.0, 0.3, 0.7, 1.0],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.activeColor.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            try {
+                              // Check if animation is properly initialized
+                              return AnimatedBuilder(
+                                animation: _pointsCountAnimation,
+                                builder: (context, child) {
+                                  try {
+                                    final animatedPoints =
+                                        _pointsCountAnimation.isCompleted
+                                        ? points
+                                        : (_previousPoints +
+                                                    (points - _previousPoints) *
+                                                        _pointsCountAnimation.value)
+                                                .round();
+                                    return Text(
+                                      _formatNumber(animatedPoints),
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    return Text(
+                                      _formatNumber(points),
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            } catch (e) {
+                              return Text(
+                                _formatNumber(points),
+                                style: AppTypography.heading1.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        Text(
+                          'Total Points',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            try {
+                              // Check if animation is properly initialized
+                              return AnimatedBuilder(
+                                animation: _levelUpScale,
+                                builder: (context, child) {
+                                  try {
+                                    return Transform.scale(
+                                      scale: _showLevelUpDialog
+                                          ? _levelUpScale.value
+                                          : 1.0,
+                                      child: Text(
+                                        'Level $level',
+                                        style: AppTypography.heading1.copyWith(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    return Text(
+                                      'Level $level',
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            } catch (e) {
+                              return Text(
+                                'Level $level',
+                                style: AppTypography.heading1.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        Text(
+                          _getLevelTitle(level),
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Builder(
-                      builder: (context) {
-                        try {
-                          // Check if animation is properly initialized
-                          return AnimatedBuilder(
-                            animation: _pointsCountAnimation,
-                            builder: (context, child) {
-                              try {
-                                final animatedPoints =
-                                    _pointsCountAnimation.isCompleted
-                                    ? points
-                                    : (_previousPoints +
-                                              (points - _previousPoints) *
-                                                  _pointsCountAnimation.value)
-                                          .round();
-                                return Text(
-                                  _formatNumber(animatedPoints),
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              } catch (e) {
-                                return Text(
-                                  _formatNumber(points),
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              }
-                            },
-                          );
-                        } catch (e) {
-                          return Text(
-                            _formatNumber(points),
-                            style: AppTypography.heading1.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    Text(
-                      'Total Points',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Builder(
-                      builder: (context) {
-                        try {
-                          // Check if animation is properly initialized
-                          return AnimatedBuilder(
-                            animation: _levelUpScale,
-                            builder: (context, child) {
-                              try {
-                                return Transform.scale(
-                                  scale: _showLevelUpDialog
-                                      ? _levelUpScale.value
-                                      : 1.0,
-                                  child: Text(
-                                    'Level $level',
-                                    style: AppTypography.heading1.copyWith(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                return Text(
-                                  'Level $level',
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              }
-                            },
-                          );
-                        } catch (e) {
-                          return Text(
-                            'Level $level',
-                            style: AppTypography.heading1.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    Text(
-                      _getLevelTitle(level),
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Progress to Level ${level + 1}',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                    Text(
-                      '$progressToNext XP to go',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Stack(
-                  children: [
-                    LinearProgressIndicator(
-                      value: progressPercentage,
-                      backgroundColor: AppColors.textPrimary.withValues(
-                        alpha: 0.2,
-                      ),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.textPrimary,
-                      ),
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    if (progressPercentage >= 1.0)
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.yellow.withValues(alpha: 0.8),
-                                Colors.orange.withValues(alpha: 0.8),
-                              ],
-                            ),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.stars,
-                              color: Colors.white,
-                              size: 16,
-                            ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress to Level ${level + 1}',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tap for level details',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.6),
-                      ),
+                        Text(
+                          '$progressToNext XP to go',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(
-                      width: 35,
-                      height: 35,
-                      child: Image.asset(
-                        'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
-                        fit: BoxFit.contain,
-                      ),
-                    ), // Replaced Icon with Image.asset
+                    const SizedBox(height: 8),
+                    Stack(
+                      children: [
+                        LinearProgressIndicator(
+                          value: progressPercentage,
+                          backgroundColor: AppColors.textPrimary.withValues(
+                            alpha: 0.2,
+                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.textPrimary,
+                          ),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        if (progressPercentage >= 1.0)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.yellow.withValues(alpha: 0.8),
+                                    Colors.orange.withValues(alpha: 0.8),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.stars,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Tap for level details',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 35,
+                          height: 35,
+                          child: Image.asset(
+                            'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
+                            fit: BoxFit.contain,
+                          ),
+                        ), // Replaced Icon with Image.asset
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1046,12 +1044,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: baseColor.withValues(alpha: 0.5), width: isActive ? 2 : 1.5),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: isActive ? 2 : 1.5),
         boxShadow: [
           BoxShadow(
-            color: baseColor.withValues(alpha: isActive ? 0.25 : 0.12),
+            color: Colors.black.withValues(alpha: isActive ? 0.25 : 0.15),
             blurRadius: isActive ? 16 : 12,
             offset: Offset(0, 4 - lift),
           ),
@@ -1737,9 +1735,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: safeColor.withValues(alpha: 0.1),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: safeColor.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
