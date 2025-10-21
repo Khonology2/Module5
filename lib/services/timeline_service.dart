@@ -9,19 +9,19 @@ class TimelineService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static CollectionReference<Map<String, dynamic>> _timelineCollection(
-    String goalId,
+    String auditEntryId,
   ) {
     return _firestore
         .collection('audit_entries')
-        .doc(goalId)
+        .doc(auditEntryId)
         .collection('timeline');
   }
 
-  static Future<void> logEvent(String goalId, AuditTimelineEvent event) async {
+  static Future<void> logEvent(String auditEntryId, AuditTimelineEvent event) async {
     try {
-      await _timelineCollection(goalId).add(event.toFirestore());
+      await _timelineCollection(auditEntryId).add(event.toFirestore());
       developer.log(
-        'Timeline event logged: ${event.eventType} for goal $goalId',
+        'Timeline event logged: ${event.eventType} for audit entry $auditEntryId',
       );
     } catch (e) {
       developer.log('Error logging timeline event: $e');
@@ -29,8 +29,8 @@ class TimelineService {
     }
   }
 
-  static Stream<List<AuditTimelineEvent>> getTimelineStream(String goalId) {
-    return _timelineCollection(goalId)
+  static Stream<List<AuditTimelineEvent>> getTimelineStream(String auditEntryId) {
+    return _timelineCollection(auditEntryId)
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map(

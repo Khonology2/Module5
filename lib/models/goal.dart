@@ -20,6 +20,7 @@ class Goal {
   final int points;
   // Key Performance Area tag for persistent excellence grouping
   final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
+  final List<String> evidence; // List of evidence attachments
 
   const Goal({
     required this.id,
@@ -34,6 +35,7 @@ class Goal {
     required this.targetDate,
     required this.points,
     this.kpa,
+    this.evidence = const [],
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -67,6 +69,7 @@ class Goal {
       targetDate: (data?['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       points: (data?['points'] ?? 0) as int,
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
+      evidence: List<String>.from(data?['evidence'] ?? const []),
     );
   }
 
@@ -110,6 +113,7 @@ class Goal {
           ? (map['points'] as int)
           : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
       kpa: map['kpa']?.toString().toLowerCase(),
+      evidence: List<String>.from(map['evidence'] ?? const []),
     );
   }
 
@@ -126,6 +130,7 @@ class Goal {
     DateTime? targetDate,
     int? points,
     String? kpa,
+    List<String>? evidence,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -140,6 +145,7 @@ class Goal {
       targetDate: targetDate ?? this.targetDate,
       points: points ?? this.points,
       kpa: kpa ?? this.kpa,
+      evidence: evidence ?? this.evidence,
     );
   }
 }
