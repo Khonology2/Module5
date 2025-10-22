@@ -43,7 +43,7 @@ class _ManagerReviewTeamDashboardScreenState
               decoration: const BoxDecoration(
                 image: DecorationImage(
                   image: AssetImage(
-                    'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                    'assets/khono_bg.png',
                   ),
                   fit: BoxFit.cover,
                 ),
@@ -210,8 +210,9 @@ class _ManagerReviewTeamDashboardScreenState
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0x80000000), // transparent black window (50%)
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,14 +286,14 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFC10D00)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<TimeFilter>(
           value: _selectedTimeFilter,
-          dropdownColor: const Color(0x80000000),
+          dropdownColor: Colors.black.withValues(alpha: 0.8),
           icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
           style: const TextStyle(color: Colors.white, fontSize: 12),
           onChanged: (TimeFilter? newValue) {
@@ -334,8 +335,9 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,8 +484,9 @@ class _ManagerReviewTeamDashboardScreenState
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0x80000000),
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: const Center(
           child: Text(
@@ -555,15 +558,18 @@ class _ManagerReviewTeamDashboardScreenState
           ),
         );
       },
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0x80000000),
-          borderRadius: BorderRadius.circular(10),
-          border: employee.status == EmployeeStatus.overdue
-              ? Border.all(color: Colors.red.withValues(alpha: 0.5), width: 2)
-              : null,
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: employee.status == EmployeeStatus.overdue
+                ? Colors.red.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.2),
+            width: employee.status == EmployeeStatus.overdue ? 2 : 1,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -757,8 +763,9 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(6),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -784,8 +791,9 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: const Center(
         child: Column(
@@ -806,8 +814,9 @@ class _ManagerReviewTeamDashboardScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,

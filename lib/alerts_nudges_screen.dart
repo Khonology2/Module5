@@ -52,14 +52,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: AppColors.backgroundColor,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.9),
-            ],
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
           ),
         ),
         child: SingleChildScrollView(
@@ -182,17 +177,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(20.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.activeColor.withValues(alpha: 0.1),
-            AppColors.elevatedBackground,
-          ],
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,9 +410,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -473,11 +460,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12.0),
         border: Border.all(
           color: alert.isRead
-              ? AppColors.borderColor
+              ? Colors.white.withValues(alpha: 0.2)
               : alertColor.withValues(alpha: 0.3),
           width: alert.isRead ? 1 : 2,
         ),
@@ -584,6 +571,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       final navigator = Navigator.of(context);
                       final actionRoute = alert.actionRoute;
 
+
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
 
@@ -654,16 +642,16 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         );
       case AlertType.goalCompleted:
         return Icon(Icons.check_circle);
+      case AlertType.goalApprovalRequested:
+        return Icon(Icons.pending_actions);
+      case AlertType.goalApprovalApproved:
+        return Icon(Icons.check_circle_outline);
+      case AlertType.goalApprovalRejected:
+        return Icon(Icons.cancel);
       case AlertType.goalDueSoon:
         return Icon(Icons.schedule);
       case AlertType.goalOverdue:
         return Icon(Icons.warning);
-      case AlertType.goalApprovalRequested:
-        return Icon(Icons.hourglass_top);
-      case AlertType.goalApprovalApproved:
-        return Icon(Icons.verified);
-      case AlertType.goalApprovalRejected:
-        return Icon(Icons.cancel);
       case AlertType.inactivity:
         return Icon(Icons.notifications_active_outlined);
       case AlertType.milestoneRisk:
@@ -689,11 +677,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       case AlertType.employeeJoinedTeamGoal:
         return Icon(Icons.group_add);
       case AlertType.seasonJoined:
-        return Icon(Icons.event_available);
+        return Icon(Icons.flag_circle);
       case AlertType.seasonProgressUpdate:
         return Icon(Icons.timeline);
       case AlertType.seasonCompleted:
-        return Icon(Icons.celebration);
+        return Icon(Icons.emoji_events_outlined);
     }
   }
 
@@ -716,11 +704,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.warningColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [

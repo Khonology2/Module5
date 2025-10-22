@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -616,19 +617,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         }
       },
       content: FocusTraversalGroup(
-        policy: ReadingOrderTraversalPolicy(),
+        policy: WidgetOrderTraversalPolicy(),
         child: Container(
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.backgroundColor,
-                AppColors.backgroundColor.withValues(alpha: 0.9),
-              ],
+            image: DecorationImage(
+              image: AssetImage('assets/khono_bg.png'),
+              fit: BoxFit.cover,
             ),
           ),
           child: RefreshIndicator(
@@ -691,228 +687,225 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
     return GestureDetector(
       onTap: () => _showLevelDetails(),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.activeColor, // Red
-              Color(0xFF8B0000), // Dark red
-              Color(0xFF2D1B1B), // Very dark red/brown
-              Color(0xFF1A1A1A), // Almost black
-            ],
-            stops: [0.0, 0.3, 0.7, 1.0],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.activeColor.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            try {
+                              // Check if animation is properly initialized
+                              return AnimatedBuilder(
+                                animation: _pointsCountAnimation,
+                                builder: (context, child) {
+                                  try {
+                                    final animatedPoints =
+                                        _pointsCountAnimation.isCompleted
+                                        ? points
+                                        : (_previousPoints +
+                                                    (points - _previousPoints) *
+                                                        _pointsCountAnimation.value)
+                                                .round();
+                                    return Text(
+                                      _formatNumber(animatedPoints),
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    return Text(
+                                      _formatNumber(points),
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            } catch (e) {
+                              return Text(
+                                _formatNumber(points),
+                                style: AppTypography.heading1.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        Text(
+                          'Total Points',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Builder(
+                          builder: (context) {
+                            try {
+                              // Check if animation is properly initialized
+                              return AnimatedBuilder(
+                                animation: _levelUpScale,
+                                builder: (context, child) {
+                                  try {
+                                    return Transform.scale(
+                                      scale: _showLevelUpDialog
+                                          ? _levelUpScale.value
+                                          : 1.0,
+                                      child: Text(
+                                        'Level $level',
+                                        style: AppTypography.heading1.copyWith(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    return Text(
+                                      'Level $level',
+                                      style: AppTypography.heading1.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            } catch (e) {
+                              return Text(
+                                'Level $level',
+                                style: AppTypography.heading1.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        Text(
+                          _getLevelTitle(level),
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Builder(
-                      builder: (context) {
-                        try {
-                          // Check if animation is properly initialized
-                          return AnimatedBuilder(
-                            animation: _pointsCountAnimation,
-                            builder: (context, child) {
-                              try {
-                                final animatedPoints =
-                                    _pointsCountAnimation.isCompleted
-                                    ? points
-                                    : (_previousPoints +
-                                              (points - _previousPoints) *
-                                                  _pointsCountAnimation.value)
-                                          .round();
-                                return Text(
-                                  _formatNumber(animatedPoints),
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              } catch (e) {
-                                return Text(
-                                  _formatNumber(points),
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              }
-                            },
-                          );
-                        } catch (e) {
-                          return Text(
-                            _formatNumber(points),
-                            style: AppTypography.heading1.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    Text(
-                      'Total Points',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Builder(
-                      builder: (context) {
-                        try {
-                          // Check if animation is properly initialized
-                          return AnimatedBuilder(
-                            animation: _levelUpScale,
-                            builder: (context, child) {
-                              try {
-                                return Transform.scale(
-                                  scale: _showLevelUpDialog
-                                      ? _levelUpScale.value
-                                      : 1.0,
-                                  child: Text(
-                                    'Level $level',
-                                    style: AppTypography.heading1.copyWith(
-                                      color: AppColors.textPrimary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                );
-                              } catch (e) {
-                                return Text(
-                                  'Level $level',
-                                  style: AppTypography.heading1.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                );
-                              }
-                            },
-                          );
-                        } catch (e) {
-                          return Text(
-                            'Level $level',
-                            style: AppTypography.heading1.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                    Text(
-                      _getLevelTitle(level),
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Progress to Level ${level + 1}',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.8),
-                      ),
-                    ),
-                    Text(
-                      '$progressToNext XP to go',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Stack(
-                  children: [
-                    LinearProgressIndicator(
-                      value: progressPercentage,
-                      backgroundColor: AppColors.textPrimary.withValues(
-                        alpha: 0.2,
-                      ),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.textPrimary,
-                      ),
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    if (progressPercentage >= 1.0)
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(4),
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.yellow.withValues(alpha: 0.8),
-                                Colors.orange.withValues(alpha: 0.8),
-                              ],
-                            ),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.stars,
-                              color: Colors.white,
-                              size: 16,
-                            ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress to Level ${level + 1}',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.8),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Tap for level details',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.6),
-                      ),
+                        Text(
+                          '$progressToNext XP to go',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(
-                      width: 35,
-                      height: 35,
-                      child: Image.asset(
-                        'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
-                        fit: BoxFit.contain,
-                      ),
-                    ), // Replaced Icon with Image.asset
+                    const SizedBox(height: 8),
+                    Stack(
+                      children: [
+                        LinearProgressIndicator(
+                          value: progressPercentage,
+                          backgroundColor: AppColors.textPrimary.withValues(
+                            alpha: 0.2,
+                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.textPrimary,
+                          ),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        if (progressPercentage >= 1.0)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(4),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.yellow.withValues(alpha: 0.8),
+                                    Colors.orange.withValues(alpha: 0.8),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.stars,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Tap for level details',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textPrimary.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 35,
+                          height: 35,
+                          child: Image.asset(
+                            'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
+                            fit: BoxFit.contain,
+                          ),
+                        ), // Replaced Icon with Image.asset
+                      ],
+                    ),
                   ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1095,74 +1088,102 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     required bool isActive,
     required VoidCallback onTap,
   }) {
-    final color = _getBadgeRarityColor(rarity);
-    final total = (badges ?? const <badge_model.Badge>[]).length;
-    final earned = (badges ?? const <badge_model.Badge>[]).where((b) => b.isEarned).length;
+    final list = badges ?? const <badge_model.Badge>[];
+    final earnedCount = list.where((b) => b.isEarned).length;
+    final total = list.length;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive ? color : AppColors.borderColor,
-            width: isActive ? 2 : 1,
+    final baseColor = _getBadgeRarityColor(rarity);
+
+    final double lift = isActive ? 4 : 0;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: isActive ? 2 : 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isActive ? 0.25 : 0.15),
+            blurRadius: isActive ? 16 : 12,
+            offset: Offset(0, 4 - lift),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: color.withValues(alpha: 0.6)),
+        ],
+      ),
+      transform: Matrix4.translationValues(0, -lift, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(32),
+        onTap: () {
+          if (!isActive) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Tip: We recommend focusing here after your current level for faster progress.'),
+                backgroundColor: AppColors.elevatedBackground,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
               ),
-              child: Icon(Icons.workspace_premium, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+            );
+          }
+          if (onTap != null) onTap();
+        },
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: baseColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: baseColor.withValues(alpha: 0.6)),
+                ),
+                child: Icon(Icons.workspace_premium, color: baseColor),
               ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '$earned / $total earned',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+              if (isActive)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.6)),
+                  ),
+                  child: Text(
+                    'Recommended',
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor, fontWeight: FontWeight.w600),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
-              ],
-            ),
-          ],
+              Text(
+                total == 0 ? '0/0' : '$earnedCount/$total',
+                style: AppTypography.bodySmall.copyWith(
+                  color: baseColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: baseColor),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            total == 0 ? 'No badges available in this group' : 'Tap to view all badges in this group',
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+          ),
+        ],
         ),
       ),
     );
@@ -1177,8 +1198,478 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
+  Widget _buildEmptyBadgesState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.emoji_events_outlined,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No badges yet',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start completing goals and activities to earn your first badges!',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(context, '/my_goal_workspace');
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Create Your First Goal'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.activeColor,
+              foregroundColor: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildBadgeCard(badge_model.Badge badge) {
+    final isNewlyEarned = _newlyEarnedBadges.any((b) => b.id == badge.id);
 
+    return Builder(
+      builder: (context) {
+        try {
+          // Check if animation is properly initialized
+          return AnimatedBuilder(
+            animation: _badgeEarnedScale,
+            builder: (context, child) {
+              try {
+                return Transform.scale(
+                  scale: isNewlyEarned ? _badgeEarnedScale.value : 1.0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _showBadgeDetail(badge),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: badge.isEarned
+                                  ? _getBadgeRarityColor(badge.rarity)
+                                  : Colors.white.withValues(alpha: 0.2),
+                              width: badge.isEarned ? 2 : 1,
+                            ),
+                            boxShadow: badge.isEarned
+                                ? [
+                                    BoxShadow(
+                                      color: _getBadgeRarityColor(
+                                        badge.rarity,
+                                      ).withValues(alpha: 0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: _getBadgeRarityColor(
+                                        badge.rarity,
+                                      ).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                        color: _getBadgeRarityColor(
+                                          badge.rarity,
+                                        ),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: _getBadgeIcon(
+                                      badge.iconName,
+                                    ), // Directly use the returned widget
+                                  ),
+                                  if (isNewlyEarned)
+                                    Positioned(
+                                      top: -2,
+                                      right: -2,
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.star,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            badge.name,
+                                            style: AppTypography.bodyLarge
+                                                .copyWith(
+                                                  color: badge.isEarned
+                                                      ? AppColors.textPrimary
+                                                      : AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getBadgeRarityColor(
+                                              badge.rarity,
+                                            ).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            badge.rarity.name.toUpperCase(),
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: _getBadgeRarityColor(
+                                                    badge.rarity,
+                                                  ),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 10,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      badge.description,
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (!badge.isEarned) ...[
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: LinearProgressIndicator(
+                                              value: badge.progressPercentage,
+                                              backgroundColor:
+                                                  AppColors.borderColor,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    _getBadgeRarityColor(
+                                                      badge.rarity,
+                                                    ),
+                                                  ),
+                                              minHeight: 6,
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${badge.progress}/${badge.maxProgress}',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ] else ...[
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 21,
+                                            height: 21,
+                                            child: Image.asset(
+                                              'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                              fit: BoxFit.contain,
+                                            ),
+                                          ), // Replaced Icon with Image.asset
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            badge.earnedAt != null
+                                                ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                                : 'Earned just now',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: AppColors.successColor,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      (badge.isEarned
+                                              ? Colors.red
+                                              : AppColors.textSecondary)
+                                          .withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  badge.isEarned ? 'Earned' : 'Locked',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: badge.isEarned
+                                        ? Colors.red
+                                        : AppColors.textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              } catch (e) {
+                return _buildStaticBadgeCard(badge);
+              }
+            },
+          );
+        } catch (e) {
+          return _buildStaticBadgeCard(badge);
+        }
+      },
+    );
+  }
+
+  Widget _buildStaticBadgeCard(badge_model.Badge badge) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showBadgeDetail(badge),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: badge.isEarned
+                    ? _getBadgeRarityColor(badge.rarity)
+                    : Colors.white.withValues(alpha: 0.2),
+                width: badge.isEarned ? 2 : 1,
+              ),
+              boxShadow: badge.isEarned
+                  ? [
+                      BoxShadow(
+                        color: _getBadgeRarityColor(
+                          badge.rarity,
+                        ).withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: _getBadgeRarityColor(
+                      badge.rarity,
+                    ).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: _getBadgeRarityColor(badge.rarity),
+                      width: 2,
+                    ),
+                  ),
+                  child: _getBadgeIcon(
+                    badge.iconName,
+                  ), // Directly use the returned widget
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              badge.name,
+                              style: AppTypography.bodyLarge.copyWith(
+                                color: badge.isEarned
+                                    ? AppColors.textPrimary
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getBadgeRarityColor(
+                                badge.rarity,
+                              ).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              badge.rarity.name.toUpperCase(),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: _getBadgeRarityColor(badge.rarity),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        badge.description,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (!badge.isEarned) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: LinearProgressIndicator(
+                                value: badge.progressPercentage,
+                                backgroundColor: AppColors.borderColor,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  _getBadgeRarityColor(badge.rarity),
+                                ),
+                                minHeight: 6,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${badge.progress}/${badge.maxProgress}',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 21,
+                              height: 21,
+                              child: Image.asset(
+                                'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                fit: BoxFit.contain,
+                              ),
+                            ), // Replaced Icon with Image.asset
+                            const SizedBox(width: 4),
+                            Text(
+                              badge.earnedAt != null
+                                  ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                  : 'Earned just now',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.successColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        (badge.isEarned ? Colors.red : AppColors.textSecondary)
+                            .withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge.isEarned ? 'Earned' : 'Locked',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: badge.isEarned
+                          ? Colors.red
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildProgressStats() {
     final user = FirebaseAuth.instance.currentUser;
@@ -1194,9 +1685,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,9 +1791,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: safeColor.withValues(alpha: 0.1),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: safeColor.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1345,9 +1836,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1514,5 +2005,115 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
 
+    if (difference == 0) return 'today';
+    if (difference == 1) return 'yesterday';
+    if (difference < 7) return '${difference}d ago';
+    if (difference < 30) return '${(difference / 7).floor()}w ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _showBadgeDetail(badge_model.Badge badge) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.elevatedBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            _getBadgeIcon(badge.iconName), // Directly use the returned widget
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                badge.name,
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _getBadgeRarityColor(
+                  badge.rarity,
+                ).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                badge.rarity.name.toUpperCase(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: _getBadgeRarityColor(badge.rarity),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              badge.description,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (badge.isEarned) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: AppColors.successColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    badge.earnedAt != null
+                        ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                        : 'Earned just now',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.successColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Text(
+                'Progress: ${badge.progress}/${badge.maxProgress}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: badge.progressPercentage,
+                backgroundColor: AppColors.borderColor,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _getBadgeRarityColor(badge.rarity),
+                ),
+                minHeight: 8,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(color: AppColors.activeColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

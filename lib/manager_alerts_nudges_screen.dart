@@ -174,90 +174,192 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       );
     }
 
-    // Apply status filter
-    final filtered = items.where((m) {
-      if (_approvalsStatusFilter == 'approved') {
-        return (m['goal'] as Goal).approvalStatus == GoalApprovalStatus.approved;
-      } else if (_approvalsStatusFilter == 'rejected') {
-        return (m['goal'] as Goal).approvalStatus == GoalApprovalStatus.rejected;
-      }
-      return true;
-    }).toList();
+    return StreamBuilder<List<Alert>>(
+      stream: AlertService.getUserAlertsStream(manager.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final all = snapshot.data ?? const <Alert>[];
+        // Filter to approval requests and de-duplicate by relatedGoalId (keep latest)
+        final rawApprovals = all
+            .where((a) => a.type == AlertType.goalApprovalRequested)
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return Column(
-      children: [
-        Padding(
+        final Map<String, Alert> byGoal = {};
+        for (final a in rawApprovals) {
+          final key = a.relatedGoalId ?? a.id;
+          if (!byGoal.containsKey(key)) {
+            byGoal[key] = a; // since sorted desc, first is latest
+          }
+        }
+        final approvals = byGoal.values.toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        if (approvals.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: Text(
+                'No pending approvals',
+                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+          );
+        }
+
+        return ListView.separated(
           padding: AppSpacing.screenPadding,
-          child: Row(
-            children: [
-              ChoiceChip(
-                label: const Text('All'),
-                selected: _approvalsStatusFilter == 'all',
-                onSelected: (_) => setState(() => _approvalsStatusFilter = 'all'),
+          itemCount: approvals.length,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (context, index) {
+            final alert = approvals[index];
+            final expanded = _expandedApprovals.contains(alert.id);
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Approved'),
-                selected: _approvalsStatusFilter == 'approved',
-                onSelected: (_) => setState(() => _approvalsStatusFilter = 'approved'),
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Rejected'),
-                selected: _approvalsStatusFilter == 'rejected',
-                onSelected: (_) => setState(() => _approvalsStatusFilter = 'rejected'),
-              ),
-              const Spacer(),
-              Text('${filtered.length} items', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.separated(
-            padding: AppSpacing.screenPadding,
-            itemCount: filtered.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-            itemBuilder: (context, index) {
-              final e = filtered[index]['employee'] as EmployeeData;
-              final g = filtered[index]['goal'] as Goal;
-              final isApproved = g.approvalStatus == GoalApprovalStatus.approved;
-              final statusColor = isApproved ? AppColors.successColor : AppColors.dangerColor;
-              return Container(
-                decoration: BoxDecoration(
-                  color: AppColors.elevatedBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderColor),
-                ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: statusColor.withValues(alpha: 0.15),
-                    child: Icon(isApproved ? Icons.thumb_up_alt_outlined : Icons.thumb_down_alt_outlined, color: statusColor),
-                  ),
-                  title: Text(g.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 2),
-                      Text(e.profile.displayName, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-                      const SizedBox(height: 2),
-                      Text('Target: ${_fmtDate(g.targetDate)}', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Icon(Icons.fact_check_outlined, color: AppColors.activeColor),
+                    title: Text(
+                      alert.title,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    child: Text(isApproved ? 'APPROVED' : 'REJECTED', style: AppTypography.bodySmall.copyWith(color: statusColor, fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                      alert.message,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (alert.relatedGoalId != null)
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseFirestore.instance.collection('goals').doc(alert.relatedGoalId).snapshots(),
+                            builder: (context, snap) {
+                              final data = snap.data;
+                              GoalApprovalStatus? status;
+                              if (data != null && data.exists) {
+                                try {
+                                  final g = Goal.fromFirestore(data);
+                                  status = g.approvalStatus;
+                                } catch (_) {}
+                              }
+                              final isApproved = status == GoalApprovalStatus.approved;
+                              final isRejected = status == GoalApprovalStatus.rejected;
+                              if (isRejected) {
+                                return ElevatedButton(
+                                  onPressed: null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.dangerColor,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Rejected'),
+                                );
+                              }
+                              return ElevatedButton(
+                                onPressed: isApproved
+                                    ? null
+                                    : () async {
+                                        final emp = employees.firstWhere(
+                                          (e) => e.goals.any((g) => g.id == alert.relatedGoalId),
+                                          orElse: () => employees.isNotEmpty ? employees.first : EmployeeData.fromMap({'profile': {}}, id: ''),
+                                        );
+                                        await _approveGoal(alert.relatedGoalId!, emp);
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isApproved ? AppColors.successColor : AppColors.activeColor,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: Text(isApproved ? 'Approved' : 'Approve'),
+                              );
+                            },
+                          ),
+                        const SizedBox(width: 8),
+                        PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            switch (value) {
+                              case 'reject':
+                                if (alert.relatedGoalId != null) {
+                                  final emp = employees.firstWhere(
+                                    (e) => e.goals.any((g) => g.id == alert.relatedGoalId),
+                                    orElse: () => employees.isNotEmpty ? employees.first : EmployeeData.fromMap({'profile': {}}, id: ''),
+                                  );
+                                  await _rejectGoal(context, alert.relatedGoalId!, emp);
+                                }
+                                break;
+                              case 'mark_read':
+                                _markAlertAsRead(alert.id);
+                                break;
+                              case 'nudge':
+                                if (employees.isNotEmpty) {
+                                  _showSendNudgeDialog(employee: employees.first);
+                                }
+                                break;
+                            }
+                          },
+                          itemBuilder: (ctx) => const [
+                            PopupMenuItem(value: 'reject', child: Text('Reject')),
+                            PopupMenuItem(value: 'mark_read', child: Text('Mark Read')),
+                            PopupMenuItem(value: 'nudge', child: Text('Send Nudge')),
+                          ],
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              if (expanded) {
+                                _expandedApprovals.remove(alert.id);
+                              } else {
+                                _expandedApprovals.add(alert.id);
+                              }
+                            });
+                          },
+                          icon: Icon(
+                            expanded ? Icons.expand_less : Icons.expand_more,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      setState(() {
+                        if (expanded) {
+                          _expandedApprovals.remove(alert.id);
+                        } else {
+                          _expandedApprovals.add(alert.id);
+                        }
+                      });
+                    },
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+                  if (expanded) ...[
+                    const Divider(height: 1, color: Color(0x1FFFFFFF)),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          alert.message,
+                          style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -374,14 +476,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           final employees = snapshot.data ?? [];
 
           return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.backgroundColor,
-                  AppColors.backgroundColor.withValues(alpha: 0.8),
-                ],
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/khono_bg.png'),
+                fit: BoxFit.cover,
               ),
             ),
             child: Column(
@@ -418,9 +516,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.elevatedBackground,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.borderColor),
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   child: TabBar(
                     controller: _tabController,
@@ -506,9 +604,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -625,19 +723,65 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           SliverPadding(
             padding: AppSpacing.screenPadding,
             sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final alert = alerts[index];
-                  final employee = employeesById[alert.userId] ?? (employees.isNotEmpty ? employees.first : employees.first);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _buildTeamAlertCard(alert, employee),
-                  );
-                },
-                childCount: alerts.length,
+              delegate: SliverChildListDelegate(
+                alerts
+                    .map((alert) => _buildTeamAlertCard(alert, employeesById[alert.userId] ?? employees.first))
+                    .toList(),
               ),
             ),
           ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildFilterRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            onChanged: (value) => setState(() => _searchQuery = value),
+            decoration: InputDecoration(
+              hintText: 'Search alerts...',
+              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.activeColor),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: DropdownButton<AlertPriority?>(
+            value: _selectedPriority,
+            underline: const SizedBox(),
+            hint: Text('Priority', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+            onChanged: (priority) => setState(() => _selectedPriority = priority),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Priorities')),
+              ...AlertPriority.values
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase())))
+                  .toList(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -649,12 +793,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: alert.isRead ? AppColors.borderColor : alertColor.withValues(alpha: 0.3),
-          width: alert.isRead ? 1 : 2,
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1034,9 +1175,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1195,9 +1336,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: AppColors.elevatedBackground,
+              color: Colors.black.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
             child: Column(
               children: [
@@ -1229,65 +1370,65 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
-       children: [
-         Icon(
-           Icons.notifications_off,
-           size: 48,
-           color: AppColors.textSecondary,
-         ),
-         const SizedBox(height: 16),
-         Text(
-           'No Team Alerts',
-           style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-         ),
-         const SizedBox(height: 8),
-         Text(
-           'Your team doesn\'t have any alerts right now.',
-           style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-           textAlign: TextAlign.center,
-         ),
-       ],
-     ),
-   );
- }
+        children: [
+          Icon(
+            Icons.notifications_off,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Team Alerts',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Your team doesn\'t have any alerts right now.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
- Widget _buildNoEmployeesState() {
-   return Container(
-     padding: const EdgeInsets.all(32),
-     decoration: BoxDecoration(
-       color: AppColors.elevatedBackground,
-       borderRadius: BorderRadius.circular(12),
-       border: Border.all(color: AppColors.borderColor),
-     ),
-     child: Column(
-       children: [
-         Icon(
-           Icons.people_outline,
-           size: 48,
-           color: AppColors.textSecondary,
-         ),
-         const SizedBox(height: 16),
-         Text(
-           'No Team Members',
-           style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-         ),
-         const SizedBox(height: 8),
-         Text(
-           'You don\'t have any team members to send nudges to.',
-           style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-           textAlign: TextAlign.center,
-         ),
-      ],
-     ),
-   );
- }
+  Widget _buildNoEmployeesState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.people_outline,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Team Members',
+            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'You don\'t have any team members to send nudges to.',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
- // Helper methods
+// Helper methods
 
  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
    if (_searchQuery.isEmpty) return employees;
