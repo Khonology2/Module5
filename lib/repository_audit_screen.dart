@@ -1,3 +1,5 @@
+// ignore_for_file: unused_import, unused_element
+
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
 import 'package:flutter/foundation.dart';
@@ -128,102 +130,201 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             if (isWideScreen) {
               // Wide screen: use Row with Expanded
               return Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue: _statusFilter,
-                decoration: InputDecoration(
-                  labelText: 'Filter by Status',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                  filled: true,
-                  fillColor: Colors.black.withValues(alpha: 0.4),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _statusFilter,
+                      decoration: InputDecoration(
+                        labelText: 'Filter by Status',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      dropdownColor: Colors.black.withValues(alpha: 0.9),
+                      style: TextStyle(color: AppColors.textPrimary),
+                      items: const [
+                        DropdownMenuItem(value: null, child: Text('All Statuses')),
+                        DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                        DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _statusFilter = value;
+                        });
+                      },
+                    ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.activeColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Month (YYYY-MM)',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      style: TextStyle(color: AppColors.textPrimary),
+                      onChanged: (v) => setState(() => _monthFilter = v.trim()),
+                    ),
                   ),
-                  isDense: true,
-                ),
-                dropdownColor: Colors.black.withValues(alpha: 0.9),
-                style: TextStyle(color: AppColors.textPrimary),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('All Statuses')),
-                  DropdownMenuItem(value: 'verified', child: Text('Verified')),
-                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                  DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 120,
+                    child: TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Min Score',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: AppColors.textPrimary),
+                      onChanged: (v) =>
+                          setState(() => _minScore = double.tryParse(v)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
+                        _statusFilter = null;
+                        _monthFilter = null;
+                        _minScore = null;
+                      });
+                    },
+                    icon: Icon(Icons.clear, color: AppColors.textMuted),
+                    tooltip: 'Clear filters',
+                  ),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _statusFilter = value;
-                  });
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'Month (YYYY-MM)',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                  filled: true,
-                  fillColor: Colors.black.withValues(alpha: 0.4),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              );
+            } else {
+              // Narrow screen: stack controls vertically
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _statusFilter,
+                    decoration: InputDecoration(
+                      labelText: 'Filter by Status',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    dropdownColor: Colors.black.withValues(alpha: 0.9),
+                    style: TextStyle(color: AppColors.textPrimary),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('All Statuses')),
+                      DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                      DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _statusFilter = value;
+                      });
+                    },
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.activeColor),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Month (YYYY-MM)',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    style: TextStyle(color: AppColors.textPrimary),
+                    onChanged: (v) => setState(() => _monthFilter = v.trim()),
                   ),
-                  isDense: true,
-                ),
-                style: TextStyle(color: AppColors.textPrimary),
-                onChanged: (v) => setState(() => _monthFilter = v.trim()),
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 120,
-              child: TextFormField(
-                decoration: InputDecoration(
-                  labelText: 'Min Score',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                  filled: true,
-                  fillColor: Colors.black.withValues(alpha: 0.4),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Min Score',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: AppColors.textPrimary),
+                    onChanged: (v) => setState(() => _minScore = double.tryParse(v)),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.activeColor),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _statusFilter = null;
+                          _monthFilter = null;
+                          _minScore = null;
+                        });
+                      },
+                      icon: Icon(Icons.clear, color: AppColors.textMuted),
+                      tooltip: 'Clear filters',
+                    ),
                   ),
-                  isDense: true,
-                ),
-                keyboardType: TextInputType.number,
-                style: TextStyle(color: AppColors.textPrimary),
-                onChanged: (v) =>
-                    setState(() => _minScore = double.tryParse(v)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _searchController.clear();
-                  _searchQuery = '';
-                  _statusFilter = null;
-                  _monthFilter = null;
-                  _minScore = null;
-                });
-              },
-              icon: Icon(Icons.clear, color: AppColors.textMuted),
-              tooltip: 'Clear filters',
-            ),
-          ],
+                ],
+              );
+            }
+          },
         ),
       ],
     );
@@ -304,7 +405,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         );
       },
     );
-    }
   }
 
   Widget _buildStatusChip(String label, int count, Color color) {
@@ -611,10 +711,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
-                    ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
-              ],
+              ),
             ),
           ],
 
@@ -646,7 +749,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       fontSize: 14,
                     ),
                   ),
-                  ],
                 ],
               ),
             ),
@@ -978,7 +1080,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const Divider(color: AppColors.borderColor),
                 itemBuilder: (context, index) {
                   final g = items[index];

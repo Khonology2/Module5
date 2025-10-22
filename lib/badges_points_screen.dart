@@ -1025,59 +1025,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
-  // Empty state shown when the user has no visible badges yet
-  Widget _buildEmptyBadgesState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 64,
-            height: 64,
-            child: Image.asset(
-              'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
-              fit: BoxFit.contain,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No badges yet',
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Start completing goals and activities to earn your first badges.',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/my_goal_workspace');
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Your First Goal'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   // Compact oval section to present a badge rarity group entry point
   Widget _buildRarityOvalSection({

@@ -357,7 +357,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           dropdownColor: Colors.black.withValues(alpha: 0.8),
           style: AppTypography.bodyMedium.copyWith(
             color: AppColors.textPrimary,
@@ -470,6 +470,59 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  int _computeSmartTotal() {
+    return _clarity + _measurability + _achievability + _relevance + _timeline;
+  }
+
+  Widget _buildScoreSelector({
+    required String title,
+    required int value,
+    required ValueChanged<int> onChanged,
+    String? helper,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              helper,
+              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: List.generate(5, (index) {
+              final score = index + 1;
+              final selected = value == score;
+              return ChoiceChip(
+                label: Text(
+                  '$score',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                  ),
+                ),
+                selected: selected,
+                onSelected: (_) => onChanged(score),
+                selectedColor: AppColors.activeColor,
+                backgroundColor: Colors.black.withValues(alpha: 0.3),
+                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildSmartCheckbox(
     String title,
     bool value,
