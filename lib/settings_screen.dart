@@ -79,7 +79,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       color: Colors.transparent,
       child: Container(
         decoration: const BoxDecoration(
-          color: AppColors.backgroundColor,
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -164,9 +167,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -238,9 +241,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -273,9 +276,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -659,10 +662,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         labelStyle: TextStyle(color: AppColors.textMuted),
         prefixIcon: Icon(icon, color: AppColors.textMuted),
         filled: true,
-        fillColor: AppColors.elevatedBackground,
-        border: OutlineInputBorder(
+        fillColor: Colors.black.withValues(alpha: 0.4),
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -768,15 +771,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             items: items,
             onChanged: onChanged,
             decoration: InputDecoration(
-      filled: true,
-              fillColor: AppColors.elevatedBackground,
-              border: OutlineInputBorder(
+              filled: true,
+              fillColor: Colors.black.withValues(alpha: 0.4),
+              enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AppColors.activeColor),
+              ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
-            dropdownColor: AppColors.elevatedBackground,
+            dropdownColor: Colors.black.withValues(alpha: 0.9),
             style: TextStyle(color: AppColors.textPrimary),
           ),
         ],

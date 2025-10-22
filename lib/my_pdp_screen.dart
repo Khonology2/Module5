@@ -25,8 +25,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
-  
-  final Logger _log = Logger(level: kDebugMode ? Level.debug : Level.off);
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -106,85 +104,54 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        try {
-                          _log.i('Starting file picker...');
-                          final picked = await FilePicker.platform.pickFiles(
-                            type: FileType.any,
-                            withData: true,
-                          );
-                          
-                          _log.i('File picker result: ${picked?.files.length} files');
-                          
-                          if (picked != null && picked.files.isNotEmpty) {
-                            final file = picked.files.first;
-                            _log.i('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
-                            
-                            final bytes = file.bytes;
-                            if (bytes != null) {
-                              // Show loading
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Uploading file...'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                              
-                              _log.i('Starting file processing...');
-                              try {
-                                // For now, store file info as evidence since Firebase Storage isn't set up
-                                final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Selected on ${DateTime.now().toString().split('.')[0]}';
-                                
-                                await DatabaseService.attachGoalEvidence(
-                                  goalId: goal.id,
-                                  evidence: [fileInfo],
-                                );
-                                
-                                _log.i('File info attached to goal: $fileInfo');
-                                
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('File selected and info saved! (Note: Firebase Storage needs to be set up for full file upload)'),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                  Navigator.of(ctx).pop('uploaded');
-                                  // Refresh the screen to show the new evidence
-                                  setState(() {});
-                                }
-                              } catch (error) {
-                                _log.e('Error saving file info: $error');
-                                
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error saving file info: $error'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              }
-                            } else {
-                              _log.w('No file bytes available');
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Error: No file data available'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                        final picked = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: [
+                            'pdf',
+                            'doc',
+                            'docx',
+                            'png',
+                            'jpg',
+                            'jpeg',
+                          ],
+                          withData: true,
+                        );
+                        if (picked != null && picked.files.isNotEmpty) {
+                          final file = picked.files.first;
+                          final bytes = file.bytes;
+                          if (bytes != null) {
+                            final ext = (file.extension ?? '').toLowerCase();
+                            String contentType = 'application/octet-stream';
+                            if (ext == 'pdf') {
+                              contentType = 'application/pdf';
                             }
-                          } else {
-                            _log.i('No files selected');
-                          }
-                        } catch (e) {
-                          _log.e('Error during file upload: $e');
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(
-                                content: Text('Error uploading file: $e'),
-                                backgroundColor: Colors.red,
-                              ),
+                            if (ext == 'doc') {
+                              contentType = 'application/msword';
+                            }
+                            if (ext == 'docx') {
+                              contentType =
+                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                            }
+                            if (ext == 'png') {
+                              contentType = 'image/png';
+                            }
+                            if (ext == 'jpg' || ext == 'jpeg') {
+                              contentType = 'image/jpeg';
+                            }
+
+                            final url = await StorageService.uploadEvidence(
+                              goalId: goal.id,
+                              fileName: file.name,
+                              bytes: bytes,
+                              contentType: contentType,
                             );
+                            await DatabaseService.attachGoalEvidence(
+                              goalId: goal.id,
+                              evidence: [url],
+                            );
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop('uploaded');
+                            }
                           }
                         }
                       },
@@ -220,8 +187,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Evidence added')));
-        // Refresh the screen to show the new evidence
-        setState(() {});
       }
     }
   }
@@ -248,8 +213,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       child: FocusScope(
         node: FocusScopeNode(), // Create a new FocusScopeNode
         child: AppComponents.backgroundWithImage(
-          imagePath:
-              'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+          imagePath: 'assets/khono_bg.png',
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0), // Adjust padding as needed
             child: Column(
@@ -315,8 +279,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       color: Colors.transparent, // Ensure it's transparent
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1F2840), // App's card background color
-          borderRadius: BorderRadius.circular(10),
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           children: [
@@ -394,10 +361,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
             return Column(
               children: goals.map((goal) {
-                return Card(
-                  color: const Color(0xFF26324F),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                return Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
@@ -430,69 +400,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                           minHeight: 6,
                         ),
                         const SizedBox(height: 12),
-                        
-                        // Show attached evidence if any
-                        if (goal.evidence.isNotEmpty) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2A3441),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.attachment,
-                                      color: Colors.green,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Attached Evidence (${goal.evidence.length})',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                ...goal.evidence.map((evidence) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.description,
-                                        color: Colors.white70,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          evidence,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,

@@ -324,7 +324,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     }
 
     return FocusTraversalGroup(
-      policy: ReadingOrderTraversalPolicy(),
+      policy: WidgetOrderTraversalPolicy(),
       child: Container(
         width: double.infinity,
         height: double.infinity,

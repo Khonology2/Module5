@@ -260,7 +260,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   Widget build(BuildContext context) {
     // Render as a plain widget so it works inside MainLayout
     return Container(
-      color: AppColors.backgroundColor,
+      color: Colors.transparent,
       child: StreamBuilder<String?>(
           stream: RoleService.instance.roleStream(),
           builder: (context, roleSnapshot) {
@@ -350,9 +350,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -423,9 +423,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,18 +528,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               width: MediaQuery.of(context).size.width * 0.85,
               height: 200,
               decoration: BoxDecoration(
-                color: AppColors.cardBackground,
+                color: Colors.black.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.borderColor),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(
-                      alpha: (0.1 * 255).toDouble(),
-                    ),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ],
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
               ),
             ),
           ),
@@ -831,13 +822,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isCurrentUser
-            ? AppColors.activeColor.withValues(alpha: 0.2)
-            : AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: isCurrentUser
-            ? Border.all(color: AppColors.activeColor, width: 2)
-            : Border.all(color: AppColors.borderColor),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

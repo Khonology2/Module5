@@ -225,24 +225,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
   Widget _buildSectionCard({required List<Widget> children}) {
     return Container(
-      padding: const EdgeInsets.all(24.0), // Equivalent to 2.5rem padding
+      padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: const Color(0xFF2C3E50), // Matches dark-card-2
-        borderRadius: BorderRadius.circular(24.0), // Equivalent to 1.5rem border-radius
-        boxShadow: [
-          BoxShadow(
-            color: Color.fromARGB(51, 0, 0, 0),
-            spreadRadius: 0,
-            blurRadius: 15,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: Color.fromARGB(25, 0, 0, 0),
-            spreadRadius: 0,
-            blurRadius: 6,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
@@ -261,9 +248,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Color.fromARGB(13, 255, 255, 255), // bg-white/5
-        borderRadius: BorderRadius.circular(8.0), // rounded-lg
-        border: Border.all(color: Colors.transparent), // border-transparent
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: TextFormField(
         controller: controller,
@@ -275,9 +262,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           hintText: hintText,
           hintStyle: const TextStyle(color: Colors.white30), // Adjust hint color
           contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // px-4 py-2
-          enabledBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(8.0)),
+          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(8.0)),
           focusedBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0), // focus:border-red-600
+            borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
             borderRadius: BorderRadius.circular(8.0),
           ),
           isDense: true,
@@ -306,9 +293,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), // py-2 px-3
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white12), // border border-gray-700
-            borderRadius: BorderRadius.circular(8), // rounded-lg
-            color: Color.fromARGB(13, 255, 255, 255), // bg-white/5
+            border: Border.all(color: Colors.white24),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.black.withValues(alpha: 0.4),
           ),
           constraints: const BoxConstraints(minHeight: 44), // min-h-[44px]
           child: Wrap(
@@ -318,7 +305,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // px-2 py-1
                 decoration: BoxDecoration(
-                  color: Color.fromARGB(25, 255, 255, 255), // bg-gray-700 equivalent
+                  color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(9999), // rounded-full
                 ),
                 child: Row(
@@ -349,26 +336,19 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'My Profile',
-      showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/employee_profile',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: AppComponents.backgroundWithImage(
-        imagePath: 'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
                   child: Center(

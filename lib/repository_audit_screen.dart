@@ -8,6 +8,7 @@ import 'package:pdh/services/audit_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
+import 'package:pdh/services/repository_export_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
@@ -30,17 +31,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   double? _minScore;
 
   @override
-  void initState() {
-    super.initState();
-    // Ensure repository auto-sync is running to mirror verified audits
-    try {
-      RepositoryService.startAutoSync();
-    } catch (e) {
-      developer.log('Error starting auto-sync: $e');
-    }
-  }
-
-  @override
   void dispose() {
     _searchController.dispose();
     try {
@@ -57,7 +47,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       color: Colors.transparent,
       child: Container(
         decoration: const BoxDecoration(
-          color: AppColors.backgroundColor,
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -112,10 +105,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             hintStyle: TextStyle(color: AppColors.textMuted),
             prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
             filled: true,
-            fillColor: AppColors.elevatedBackground,
-            border: OutlineInputBorder(
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
               borderRadius: const BorderRadius.all(Radius.circular(15.0)),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(15.0)),
+              borderSide: BorderSide(color: AppColors.activeColor),
             ),
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -133,27 +130,30 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               return Row(
           children: [
             Expanded(
-                    flex: 2,
-                    child: DropdownButtonFormField<String?>(
+              child: DropdownButtonFormField<String>(
                 initialValue: _statusFilter,
                 decoration: InputDecoration(
                   labelText: 'Filter by Status',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
-                dropdownColor: AppColors.elevatedBackground,
+                dropdownColor: Colors.black.withValues(alpha: 0.9),
                 style: TextStyle(color: AppColors.textPrimary),
-                      items: const <DropdownMenuItem<String?>>[
-                        DropdownMenuItem<String?>(value: null, child: Text('All Statuses')),
-                        DropdownMenuItem<String?>(value: 'verified', child: Text('Verified')),
-                        DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
-                        DropdownMenuItem<String?>(value: 'rejected', child: Text('Rejected')),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('All Statuses')),
+                  DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                  DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
                 ],
                 onChanged: (value) {
                   setState(() {
@@ -164,16 +164,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-                    flex: 2,
               child: TextFormField(
                 decoration: InputDecoration(
                   labelText: 'Month (YYYY-MM)',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
@@ -182,17 +185,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
             const SizedBox(width: 12),
-                  Expanded(
-                    flex: 1,
+            SizedBox(
+              width: 120,
               child: TextFormField(
                 decoration: InputDecoration(
                   labelText: 'Min Score',
                   labelStyle: TextStyle(color: AppColors.textMuted),
                   filled: true,
-                  fillColor: AppColors.elevatedBackground,
-                  border: OutlineInputBorder(
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
                   ),
                   isDense: true,
                 ),
@@ -217,98 +224,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               tooltip: 'Clear filters',
             ),
           ],
-              );
-            } else {
-              // Narrow screen: use Column with full width
-              return Column(
-                children: [
-                  DropdownButtonFormField<String?>(
-                    initialValue: _statusFilter,
-                    decoration: InputDecoration(
-                      labelText: 'Filter by Status',
-                      labelStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: AppColors.elevatedBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      isDense: true,
-                    ),
-                    dropdownColor: AppColors.elevatedBackground,
-                    style: TextStyle(color: AppColors.textPrimary),
-                    items: const <DropdownMenuItem<String?>>[
-                      DropdownMenuItem<String?>(value: null, child: Text('All Statuses')),
-                      DropdownMenuItem<String?>(value: 'verified', child: Text('Verified')),
-                      DropdownMenuItem<String?>(value: 'pending', child: Text('Pending')),
-                      DropdownMenuItem<String?>(value: 'rejected', child: Text('Rejected')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _statusFilter = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          decoration: InputDecoration(
-                            labelText: 'Month (YYYY-MM)',
-                            labelStyle: TextStyle(color: AppColors.textMuted),
-                            filled: true,
-                            fillColor: AppColors.elevatedBackground,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            isDense: true,
-                          ),
-                          style: TextStyle(color: AppColors.textPrimary),
-                          onChanged: (v) => setState(() => _monthFilter = v.trim()),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          decoration: InputDecoration(
-                            labelText: 'Min Score',
-                            labelStyle: TextStyle(color: AppColors.textMuted),
-                            filled: true,
-                            fillColor: AppColors.elevatedBackground,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            isDense: true,
-                          ),
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(color: AppColors.textPrimary),
-                          onChanged: (v) =>
-                              setState(() => _minScore = double.tryParse(v)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _searchController.clear();
-                            _searchQuery = '';
-                            _statusFilter = null;
-                            _monthFilter = null;
-                            _minScore = null;
-                          });
-                        },
-                        icon: Icon(Icons.clear, color: AppColors.textMuted),
-                        tooltip: 'Clear filters',
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            }
-          },
         ),
       ],
     );
@@ -341,243 +256,27 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildRoleSummaryBar({required bool isManager}) {
-    if (isManager) {
-      return StreamBuilder<Map<String, dynamic>>(
-        stream: AuditService.getManagerAuditStatsStream(),
+    return StreamBuilder<Map<String, int>>(
+      stream: Stream.fromFuture(AuditService.getAuditStats()),
       builder: (context, snapshot) {
-          if (!snapshot.hasData) return const SizedBox.shrink();
-          final stats = snapshot.data!;
+        final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
         
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                  children: [
-                    Icon(Icons.manage_accounts, color: AppColors.textPrimary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Manager Dashboard - Real-time Tracking',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildStatusChip('Total', stats['total'] ?? 0, AppColors.textPrimary),
-                    _buildStatusChip('Verified', stats['verified'] ?? 0, AppColors.successColor),
-                    _buildStatusChip('Pending', stats['pending'] ?? 0, AppColors.warningColor),
-                    _buildStatusChip('Rejected', stats['rejected'] ?? 0, AppColors.dangerColor),
-                  ],
-                ),
-                if (stats['byDepartment'] != null && (stats['byDepartment'] as Map).isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Department Breakdown - ALL EMPLOYEES',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: (stats['byDepartment'] as Map<String, dynamic>).entries.map((entry) {
-                      final dept = entry.key;
-                      final deptStats = entry.value as Map<String, int>;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.activeColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          '$dept: ${deptStats['total']} total (${deptStats['verified']} verified)',
-                          style: TextStyle(
-                            color: AppColors.activeColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-                if (stats['topPerformers'] != null && (stats['topPerformers'] as List).isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Top Performers - ALL EMPLOYEES',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...(stats['topPerformers'] as List).take(5).map((performer) {
-                    final name = performer['name'] as String;
-                    final verifiedGoals = performer['verifiedGoals'] as int;
-                    final avgScore = performer['averageScore'] as double;
-                    final dept = performer['department'] as String;
-                    
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.successColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.star, color: AppColors.warningColor, size: 16),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '$name ($dept)',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '$verifiedGoals goals',
-                            style: TextStyle(
-                              color: AppColors.successColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          if (avgScore > 0) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              '${avgScore.toStringAsFixed(1)} avg',
-                              style: TextStyle(
-                                color: AppColors.warningColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-                if (stats['recentActivity'] != null && (stats['recentActivity'] as List).isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Recent Activity - ALL EMPLOYEES',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...(stats['recentActivity'] as List).take(3).map((activity) {
-                    final goalTitle = activity['goalTitle'] as String;
-                    final employeeName = activity['employeeName'] as String;
-                    final status = activity['status'] as String;
-                    final dept = activity['department'] as String;
-                    
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(status).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _getStatusColor(status).withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
                 children: [
                   Icon(
-                            _getStatusIcon(status),
-                            color: _getStatusColor(status),
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '$employeeName ($dept): $goalTitle',
-                              style: TextStyle(
+                    isManager ? Icons.manage_accounts : Icons.person,
                     color: AppColors.textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(status),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ],
-            ),
-          );
-        },
-      );
-    } else {
-      return StreamBuilder<Map<String, int>>(
-        stream: Stream.fromFuture(AuditService.getAuditStats()),
-        builder: (context, snapshot) {
-          final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
-          
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.person, color: AppColors.textPrimary),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -661,7 +360,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
         if (snapshot.hasError) {
           developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
-          return _buildErrorState('Failed to load audit entries. Please try again.');
+          return _buildErrorState('Failed to load audit entries: ${snapshot.error}');
         }
 
         final entries = snapshot.data ?? [];
@@ -681,9 +380,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -709,29 +408,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _showGoalSubmissionDialog,
-            icon: const Icon(Icons.add_task),
-            label: const Text('Submit Goal for Audit'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-              foregroundColor: Colors.white,
-            ),
-          ),
         ],
       ),
     );
   }
 
-
   Widget _buildErrorState(String error) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.dangerColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -783,9 +471,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -928,8 +616,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ],
               ],
             ),
+          ],
+
           if (entry.comments != null && entry.comments!.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
                       'Manager Feedback:',
                     style: TextStyle(
@@ -1078,10 +778,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 labelText: 'Score (1.0 - 5.0)',
                 labelStyle: TextStyle(color: AppColors.textMuted),
                 filled: true,
-                fillColor: AppColors.elevatedBackground,
-                border: OutlineInputBorder(
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
                 ),
               ),
               style: TextStyle(color: AppColors.textPrimary),
@@ -1094,10 +798,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 labelText: 'Comments (optional)',
                 labelStyle: TextStyle(color: AppColors.textMuted),
                 filled: true,
-                fillColor: AppColors.elevatedBackground,
-                border: OutlineInputBorder(
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
                 ),
               ),
               style: TextStyle(color: AppColors.textPrimary),
@@ -1163,10 +871,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             labelText: 'Reason for changes',
             labelStyle: TextStyle(color: AppColors.textMuted),
             filled: true,
-            fillColor: AppColors.elevatedBackground,
-            border: OutlineInputBorder(
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.dangerColor),
             ),
           ),
           style: TextStyle(color: AppColors.textPrimary),
@@ -1232,9 +944,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: AppColors.cardBackground,
+            color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.borderColor),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: StreamBuilder<List<RepositoryGoal>>(
             stream: RepositoryService.queryRepositoryGoals(
@@ -1266,7 +978,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                separatorBuilder: (_, _) =>
+                separatorBuilder: (_, __) =>
                     const Divider(color: AppColors.borderColor),
                 itemBuilder: (context, index) {
                   final g = items[index];
@@ -1284,7 +996,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
                       style: TextStyle(color: AppColors.textMuted),
                     ),
-                    trailing: Text('${g.evidence.length} evidence'),
+                    trailing: Text(
+                      '${g.evidence.length} evidence',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
                   );
                 },
               );
@@ -1313,18 +1028,44 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.table_chart),
-                title: const Text('Export Repository as CSV'),
+                title: const Text('Export as CSV'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _exportRepositoryCSV(messenger);
+                  final uid = FirebaseAuth.instance.currentUser?.uid;
+                  if (uid == null) return;
+                  try {
+                    // Fire-and-forget export to avoid keeping sheet context alive
+                    // and use parent messenger for feedback
+                    // ignore: unawaited_futures
+                    RepositoryExportService.exportRepositoryAsCSV(uid);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Export started (CSV)')),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.picture_as_pdf),
-                title: const Text('Export Repository as PDF'),
+                title: const Text('Export as PDF'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _exportRepositoryPDF(messenger);
+                  final uid = FirebaseAuth.instance.currentUser?.uid;
+                  if (uid == null) return;
+                  try {
+                    // ignore: unawaited_futures
+                    RepositoryExportService.exportRepositoryAsPDF(uid);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Export started (PDF)')),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
                 },
               ),
               const SizedBox(height: 8),
@@ -1333,278 +1074,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         );
       },
     );
-  }
-
-  Future<void> _exportRepositoryCSV(ScaffoldMessengerState messenger) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-                    messenger.showSnackBar(
-          const SnackBar(content: Text('User not authenticated')),
-        );
-        return;
-      }
-
-      // Get repository data
-      final repositoryGoals = await RepositoryService.getRepositoryGoalsStream(user.uid).first;
-      
-      if (repositoryGoals.isEmpty) {
-                    messenger.showSnackBar(
-          const SnackBar(content: Text('No repository data to export')),
-        );
-        return;
-      }
-
-      // Create CSV content
-      final csvContent = _generateCSVContent(repositoryGoals);
-      
-      // Web download via data URL; fallback for non-web
-      if (kIsWeb) {
-        final dataUrl = 'data:text/csv;charset=utf-8,${Uri.encodeComponent(csvContent)}';
-        final a = web.document.createElement('a') as web.HTMLAnchorElement;
-        a.href = dataUrl;
-        a.setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.csv');
-        a.style.display = 'none';
-        web.document.body?.append(a);
-        a.click();
-        a.remove();
-      } else {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('CSV export is currently supported on web builds only.')),
-        );
-      }
-      
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('CSV exported successfully: ${repositoryGoals.length} goals'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Export failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _exportRepositoryPDF(ScaffoldMessengerState messenger) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('User not authenticated')),
-        );
-        return;
-      }
-
-      // Get repository data
-      final repositoryGoals = await RepositoryService.getRepositoryGoalsStream(user.uid).first;
-      
-      if (repositoryGoals.isEmpty) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('No repository data to export')),
-        );
-        return;
-      }
-
-      // Generate PDF content
-      final pdfContent = _generatePDFContent(repositoryGoals);
-      
-      // Web download via data URL; fallback for non-web
-      if (kIsWeb) {
-        final bytes = convert.utf8.encode(pdfContent);
-        final b64 = convert.base64Encode(bytes);
-        final dataUrl = 'data:application/pdf;base64,$b64';
-        final a = web.document.createElement('a') as web.HTMLAnchorElement;
-        a.href = dataUrl;
-        a.setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.pdf');
-        a.style.display = 'none';
-        web.document.body?.append(a);
-        a.click();
-        a.remove();
-      } else {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('PDF export is currently supported on web builds only.')),
-        );
-      }
-      
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('PDF exported successfully: ${repositoryGoals.length} goals'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Export failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  String _generateCSVContent(List<RepositoryGoal> goals) {
-    final buffer = StringBuffer();
-    
-    // CSV Header
-    buffer.writeln('Goal Title,Completed Date,Verified Date,Score,Manager,Comments,Evidence Count');
-    
-    // CSV Data
-    for (final goal in goals) {
-      final completedDate = goal.completedDate?.toIso8601String().split('T')[0] ?? 'N/A';
-      final verifiedDate = goal.verifiedDate?.toIso8601String().split('T')[0] ?? 'N/A';
-      final score = goal.score?.toStringAsFixed(1) ?? 'N/A';
-      final manager = goal.managerAcknowledgedBy ?? 'N/A';
-      final comments = (goal.comments ?? '').replaceAll(',', ';').replaceAll('\n', ' ');
-      final evidenceCount = goal.evidence.length;
-      
-      buffer.writeln('"${goal.goalTitle}","$completedDate","$verifiedDate","$score","$manager","$comments","$evidenceCount"');
-    }
-    
-    return buffer.toString();
-  }
-
-  String _generatePDFContent(List<RepositoryGoal> goals) {
-    final buffer = StringBuffer();
-    
-    // PDF Header
-    buffer.writeln('%PDF-1.4');
-    buffer.writeln('1 0 obj');
-    buffer.writeln('<<');
-    buffer.writeln('/Type /Catalog');
-    buffer.writeln('/Pages 2 0 R');
-    buffer.writeln('>>');
-    buffer.writeln('endobj');
-    
-    // Pages object
-    buffer.writeln('2 0 obj');
-    buffer.writeln('<<');
-    buffer.writeln('/Type /Pages');
-    buffer.writeln('/Kids [3 0 R]');
-    buffer.writeln('/Count 1');
-    buffer.writeln('>>');
-    buffer.writeln('endobj');
-    
-    // Page object
-    buffer.writeln('3 0 obj');
-    buffer.writeln('<<');
-    buffer.writeln('/Type /Page');
-    buffer.writeln('/Parent 2 0 R');
-    buffer.writeln('/MediaBox [0 0 612 792]');
-    buffer.writeln('/Resources <<');
-    buffer.writeln('/Font <<');
-    buffer.writeln('/F1 4 0 R');
-    buffer.writeln('>>');
-    buffer.writeln('>>');
-    buffer.writeln('/Contents 5 0 R');
-    buffer.writeln('>>');
-    buffer.writeln('endobj');
-    
-    // Font object
-    buffer.writeln('4 0 obj');
-    buffer.writeln('<<');
-    buffer.writeln('/Type /Font');
-    buffer.writeln('/Subtype /Type1');
-    buffer.writeln('/BaseFont /Helvetica');
-    buffer.writeln('>>');
-    buffer.writeln('endobj');
-    
-    // Content stream
-    buffer.writeln('5 0 obj');
-    buffer.writeln('<<');
-    buffer.writeln('/Length ${_generatePDFContentLength(goals)}');
-    buffer.writeln('>>');
-    buffer.writeln('stream');
-    buffer.writeln('BT');
-    buffer.writeln('/F1 16 Tf');
-    buffer.writeln('50 750 Td');
-    buffer.writeln('(Repository Goals Report) Tj');
-    buffer.writeln('0 -30 Td');
-    buffer.writeln('/F1 12 Tf');
-    buffer.writeln('(Generated on: ${DateTime.now().toIso8601String().split('T')[0]}) Tj');
-    buffer.writeln('0 -40 Td');
-    buffer.writeln('(Total Goals: ${goals.length}) Tj');
-    buffer.writeln('0 -60 Td');
-    
-    // Goals data
-    for (int i = 0; i < goals.length && i < 20; i++) {
-      final goal = goals[i];
-      final completedDate = goal.completedDate?.toIso8601String().split('T')[0] ?? 'N/A';
-      final verifiedDate = goal.verifiedDate?.toIso8601String().split('T')[0] ?? 'N/A';
-      final score = goal.score?.toStringAsFixed(1) ?? 'N/A';
-      final manager = goal.managerAcknowledgedBy ?? 'N/A';
-      
-      buffer.writeln('(Goal ${i + 1}: ${goal.goalTitle}) Tj');
-      buffer.writeln('0 -20 Td');
-      buffer.writeln('(Completed: $completedDate | Verified: $verifiedDate | Score: $score) Tj');
-      buffer.writeln('0 -15 Td');
-      buffer.writeln('(Manager: $manager | Evidence: ${goal.evidence.length} items) Tj');
-      buffer.writeln('0 -25 Td');
-      
-      if (i < goals.length - 1) {
-        buffer.writeln('(----------------------------------------) Tj');
-        buffer.writeln('0 -15 Td');
-      }
-    }
-    
-    if (goals.length > 20) {
-      buffer.writeln('0 -20 Td');
-      buffer.writeln('(... and ${goals.length - 20} more goals) Tj');
-    }
-    
-    buffer.writeln('ET');
-    buffer.writeln('endstream');
-    buffer.writeln('endobj');
-    
-    // Cross-reference table
-    buffer.writeln('xref');
-    buffer.writeln('0 6');
-    buffer.writeln('0000000000 65535 f ');
-    buffer.writeln('0000000009 00000 n ');
-    buffer.writeln('0000000058 00000 n ');
-    buffer.writeln('0000000115 00000 n ');
-    buffer.writeln('0000000274 00000 n ');
-    buffer.writeln('0000000341 00000 n ');
-    
-    // Trailer
-    buffer.writeln('trailer');
-    buffer.writeln('<<');
-    buffer.writeln('/Size 6');
-    buffer.writeln('/Root 1 0 R');
-    buffer.writeln('>>');
-    buffer.writeln('startxref');
-    buffer.writeln('${_calculatePDFXrefOffset(goals)}');
-    buffer.writeln('%%EOF');
-    
-    return buffer.toString();
-  }
-
-  int _generatePDFContentLength(List<RepositoryGoal> goals) {
-    // Calculate approximate content length
-    int length = 200; // Base content
-    for (int i = 0; i < goals.length && i < 20; i++) {
-      final goal = goals[i];
-      length += goal.goalTitle.length + 100; // Goal title + formatting
-      length += 80; // Date and score info
-      length += (goal.managerAcknowledgedBy?.length ?? 0) + 50; // Manager info
-      length += 60; // Separator and spacing
-    }
-    if (goals.length > 20) {
-      length += 50; // "and X more goals" text
-    }
-    return length;
-  }
-
-  int _calculatePDFXrefOffset(List<RepositoryGoal> goals) {
-    // Calculate the offset where xref table starts
-    int offset = 200; // Header and objects
-    offset += _generatePDFContentLength(goals);
-    offset += 50; // xref table
-    return offset;
   }
 
   // Helper widget to build individual evidence items.

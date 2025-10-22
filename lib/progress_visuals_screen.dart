@@ -149,13 +149,21 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {});
-          },
-          child: isManager
-              ? ManagerProgressVisualsContent(userProfile: userProfile!)
-              : EmployeeProgressVisualsContent(userProfile: userProfile!),
+        return Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/khono_bg.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: RefreshIndicator(
+            onRefresh: () async {
+              setState(() {});
+            },
+            child: isManager
+                ? ManagerProgressVisualsContent(userProfile: userProfile!)
+                : EmployeeProgressVisualsContent(userProfile: userProfile!),
+          ),
         );
       },
     );
@@ -334,9 +342,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButton<TimeFilter>(
         value: currentTimeFilter,
@@ -363,9 +371,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButton<String?>(
         value: selectedDepartment,
@@ -502,9 +510,9 @@ class _ManagerProgressVisualsContentState
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,6 +554,127 @@ class _ManagerProgressVisualsContentState
     );
   }
 
+  Widget _buildInsightCard(TeamInsight insight) {
+    Color priorityColor;
+    IconData priorityIcon;
+
+    switch (insight.priority) {
+      case InsightPriority.urgent:
+        priorityColor = AppColors.dangerColor;
+        priorityIcon = Icons.priority_high;
+        break;
+      case InsightPriority.high:
+        priorityColor = AppColors.warningColor;
+        priorityIcon = Icons.warning;
+        break;
+      case InsightPriority.medium:
+        priorityColor = AppColors.infoColor;
+        priorityIcon = Icons.info_outline;
+        break;
+      case InsightPriority.low:
+        priorityColor = AppColors.successColor;
+        priorityIcon = Icons.check_circle_outline;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(priorityIcon, color: priorityColor, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  insight.title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                insight.priority.name.toUpperCase(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: priorityColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            insight.description,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: priorityColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.lightbulb_outline, color: priorityColor, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    insight.actionRequired,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: priorityColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (insight.priority == InsightPriority.urgent ||
+              insight.priority == InsightPriority.high) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _sendNudgeToEmployee(insight.employeeName),
+                    icon: const Icon(Icons.send, size: 16),
+                    label: const Text('Send Nudge'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: priorityColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _scheduleMeeting(insight.employeeName),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: const Text('Meet'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: priorityColor,
+                    side: BorderSide(color: priorityColor),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildEmployeeCard(EmployeeData employee) {
     Color statusColor;
@@ -604,7 +733,7 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: statusColor.withValues(alpha: 0.3)),
       ),
@@ -1002,9 +1131,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1033,9 +1162,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1064,9 +1193,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1495,9 +1624,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -1602,9 +1731,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -1677,9 +1806,9 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

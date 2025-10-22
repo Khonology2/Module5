@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                 BlendMode.darken,
               ),
               child: Image.asset(
-                'assets/20250919_1033_Futuristic Red Patterns_remix_01k5ghm3a8e39bxbzcpw8sgg6v.png',
+                'assets/khono_bg.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -183,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w400,
-                                  color: Colors.white.withValues(alpha: 0.8),
+                                  color: Colors.white.withOpacity(0.8),
                                   fontFamily: 'Poppins',
                                 ),
                               ),
@@ -198,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     keyboardType: TextInputType.emailAddress,
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.black.withValues(alpha: 0.3),
+                                      fillColor: Colors.black.withOpacity(0.3),
                                       hintText: 'Email',
                                       hintStyle: const TextStyle(
                                         color: Colors.white70,
@@ -208,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide(
-                                          color: Colors.white.withValues(alpha: 0.2),
+                                          color: Colors.white.withOpacity(0.2),
                                           width: 1.0,
                                         ),
                                       ),
@@ -255,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     obscureText: true,
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.black.withValues(alpha: 0.3),
+                                      fillColor: Colors.black.withOpacity(0.3),
                                       hintText: 'Password',
                                       hintStyle: const TextStyle(
                                         color: Colors.white70,
@@ -265,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide(
-                                          color: Colors.white.withValues(alpha: 0.2),
+                                          color: Colors.white.withOpacity(0.2),
                                           width: 1.0,
                                         ),
                                       ),
@@ -305,7 +305,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   color: const Color(0xFFC10D00),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFFC10D00).withValues(alpha: 0.3),
+                                      color: const Color(0xFFC10D00).withOpacity(0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -421,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   Expanded(
                                     child: Container(
                                       height: 1,
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withOpacity(0.2),
                                     ),
                                   ),
                                   Padding(
@@ -431,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     child: Text(
                                       'or',
                                       style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.7),
+                                        color: Colors.white.withOpacity(0.7),
                                         fontSize: 14,
                                         fontFamily: 'Poppins',
                                       ),
@@ -440,7 +440,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   Expanded(
                                     child: Container(
                                       height: 1,
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withOpacity(0.2),
                                     ),
                                   ),
                                 ],
@@ -453,7 +453,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(28),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.3),
+                                    color: Colors.white.withOpacity(0.3),
                                     width: 1.5,
                                   ),
                                   color: Colors.transparent,

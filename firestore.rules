@@ -267,36 +267,34 @@ service cloud.firestore {
       );
     }
 
-    // Repositories - users can read their own, managers can read all
-    match /repositories/{userId} {
-      allow read: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (isManager() && canManagerSeeEmployee(userId)) ||
-        isAdmin()
+    match /team.chat/{messageId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        // Author or admin can update any fields (edit/delete flags, replies, etc.)
+        request.auth.uid == resource.data.senderId || isAdmin() ||
+        // Any signed-in user may update ONLY the 'reactions' field, including first-time creation
+        (
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.text == resource.data.text &&
+          request.resource.data.timestamp == resource.data.timestamp &&
+          request.resource.data.senderName == resource.data.senderName &&
+          request.resource.data.isDeleted == resource.data.isDeleted &&
+          request.resource.data.clientAt == resource.data.clientAt &&
+          request.resource.data.editedAt == resource.data.editedAt &&
+          request.resource.data.deletedAt == resource.data.deletedAt &&
+          request.resource.data.deletedBy == resource.data.deletedBy &&
+          request.resource.data.replyTo == resource.data.replyTo &&
+          request.resource.data.replyToText == resource.data.replyToText &&
+          request.resource.data.replyToSender == resource.data.replyToSender &&
+          (
+            // reactions existed and only changed
+            (('reactions' in resource.data) && ('reactions' in request.resource.data) && request.resource.data.keys().size() == resource.data.keys().size()) ||
+            // reactions added for the first time
+            ((!('reactions' in resource.data)) && ('reactions' in request.resource.data) && request.resource.data.keys().size() == resource.data.keys().size() + 1)
+          )
+        )
       );
-      
-      allow list: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
-      // Completed goals subcollection
-      match /completedGoals/{goalId} {
-        allow read: if isSignedIn() && (
-          request.auth.uid == userId ||
-          (isManager() && canManagerSeeEmployee(userId)) ||
-          isAdmin()
-        );
-        
-        allow write: if isSignedIn() && (
-          isManager() || isAdmin()
-        );
-        
-        allow list: if isSignedIn() && (
-          request.auth.uid == userId ||
-          (isManager() && canManagerSeeEmployee(userId)) ||
-          isAdmin()
-        );
-      }
     }
   }
 }
