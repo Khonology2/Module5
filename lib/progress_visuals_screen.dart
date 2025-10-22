@@ -1673,7 +1673,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
             value: '${(overallProgress * 100).toInt()}%',
             progress: overallProgress,
             color: AppColors.successColor,
-            icon: Icons.check_circle_outline,
+            iconWidget: SizedBox(
+              width: 50,
+              height: 50,
+              child: Image.asset(
+                'Approved_Tick/approved_red_badge_white.png', // Corrected path and filename
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
         ),
         const SizedBox(width: AppSpacing.md),
@@ -1683,7 +1690,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
             value: activeGoals.toString(),
             progress: totalGoals > 0 ? (activeGoals / totalGoals) : 0.0,
             color: AppColors.activeColor,
-            icon: Icons.track_changes,
+            iconWidget: SizedBox(
+              width: 50,
+              height: 50,
+              child: Image.asset(
+                'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Corrected path and filename
+                fit: BoxFit.contain,
+              ),
+            ),
           ),
         ),
       ],
@@ -1695,8 +1709,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     required String value,
     required double progress,
     required Color color,
-    required IconData icon,
+    IconData? icon, // Make icon optional
+    Widget? iconWidget, // Add new iconWidget parameter
   }) {
+    assert(
+      icon != null || iconWidget != null,
+      'Either icon or iconWidget must be provided.',
+    );
+
     return Container(
       height: 120,
       decoration: BoxDecoration(
@@ -1710,7 +1730,17 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 20),
+              if (iconWidget != null) ...[
+                // Use iconWidget if provided
+                SizedBox(
+                  width: 20, // Default size for icons in these cards
+                  height: 20,
+                  child: iconWidget,
+                ),
+              ] else if (icon != null) ...[
+                // Fallback to IconData if iconWidget is null
+                Icon(icon, color: color, size: 20),
+              ],
               const SizedBox(width: 8),
               Text(
                 title,
@@ -1803,7 +1833,14 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(Icons.flag_outlined, size: 48, color: AppColors.textSecondary),
+          SizedBox(
+            width: 70,
+            height: 70,
+            child: Image.asset(
+              'Business_Growth_Development/Growth_Development_Red.png', // Corrected path and filename
+              fit: BoxFit.contain,
+            ),
+          ), // Replaced Icon with Image.asset
           const SizedBox(height: 16),
           Text(
             'No Active Goals',

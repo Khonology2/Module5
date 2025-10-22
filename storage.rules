@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow each user to manage their own export files
+    match /exports/{userId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow each user to manage their own evidence files
+    // Allow managers to read evidence files from their department employees
+    match /evidence/{userId}/{goalId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (
+        (isManager() && canManagerSeeEmployee(userId)) ||
+        isAdmin()
+      );
+    }
+  }
+}
+
+

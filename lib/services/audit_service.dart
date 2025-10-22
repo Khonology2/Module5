@@ -2,6 +2,8 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/timeline_service.dart';
+import 'package:pdh/models/audit_timeline_event.dart';
 
 class AuditEntry {
   final String id;
@@ -89,6 +91,17 @@ class AuditService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
+      // Check if this goal is already submitted for audit to prevent duplicates
+      final existingEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: user.uid)
+          .where('goalId', isEqualTo: goal.id)
+          .get();
+
+      if (existingEntries.docs.isNotEmpty) {
+        throw Exception('This goal has already been submitted for audit');
+      }
+
       // Get user profile for display name and department
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
@@ -106,7 +119,18 @@ class AuditService {
         userDepartment: userData['department'] ?? 'Unknown',
       );
 
-      await _firestore.collection('audit_entries').add(auditEntry.toFirestore());
+      final ref = await _firestore.collection('audit_entries').add(auditEntry.toFirestore());
+
+      // Log timeline event: submission
+      try {
+        final event = TimelineService.buildEvent(
+          eventType: 'submission',
+          description: 'Goal submitted for audit: ${goal.title}',
+        );
+        await TimelineService.logEvent(ref.id, event);
+      } catch (e) {
+        developer.log('Failed to log submission timeline event: $e');
+      }
     } catch (e) {
       developer.log('Error submitting goal for audit: $e');
       rethrow;
@@ -119,39 +143,186 @@ class AuditService {
     String? status,
     String? searchQuery,
   }) {
-    Query query = _firestore.collection('audit_entries');
+    try {
+      Query query = _firestore.collection('audit_entries');
 
-    // Add filters
-    if (department != null && department.isNotEmpty) {
-      query = query.where('userDepartment', isEqualTo: department);
-    }
-    
-    if (status != null && status.isNotEmpty) {
-      query = query.where('status', isEqualTo: status);
-    }
-
-    // Order by submission date (most recent first)
-    query = query.orderBy('submittedDate', descending: true);
-
-    return query.snapshots().map((snapshot) {
-      List<AuditEntry> entries = snapshot.docs
-          .map((doc) => AuditEntry.fromFirestore(doc))
-          .toList();
-
-      // Apply search filter if provided
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        final lowercaseQuery = searchQuery.toLowerCase();
-        entries = entries.where((entry) {
-          return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                 entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
-                 entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
-                 entry.evidence.any((evidence) => 
-                     evidence.toLowerCase().contains(lowercaseQuery));
-        }).toList();
+      // Add filters
+      if (department != null && department.isNotEmpty) {
+        query = query.where('userDepartment', isEqualTo: department);
+      }
+      
+      if (status != null && status.isNotEmpty) {
+        query = query.where('status', isEqualTo: status);
       }
 
-      return entries;
-    });
+      // Order by submission date (most recent first)
+      query = query.orderBy('submittedDate', descending: true);
+
+      return query.snapshots().map((snapshot) {
+        List<AuditEntry> entries = snapshot.docs
+            .map((doc) => AuditEntry.fromFirestore(doc))
+            .toList();
+
+        // Apply search filter if provided
+        if (searchQuery != null && searchQuery.isNotEmpty) {
+          final lowercaseQuery = searchQuery.toLowerCase();
+          entries = entries.where((entry) {
+            return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
+                   entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
+                   entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
+                   entry.evidence.any((evidence) => 
+                       evidence.toLowerCase().contains(lowercaseQuery));
+          }).toList();
+        }
+
+        return entries;
+      }).handleError((error) {
+        developer.log('Manager audit entries stream error: $error');
+        return <AuditEntry>[];
+      });
+    } catch (e) {
+      developer.log('Error building manager audit entries stream: $e');
+      return Stream.value(<AuditEntry>[]);
+    }
+  }
+
+  // Get comprehensive audit statistics for managers - ALL EMPLOYEES DATA
+  static Stream<Map<String, dynamic>> getManagerAuditStatsStream() {
+    try {
+      return _firestore.collection('audit_entries').snapshots().map((snapshot) {
+        final entries = snapshot.docs.map((doc) {
+          try {
+            return AuditEntry.fromFirestore(doc);
+          } catch (e) {
+            developer.log('Error parsing audit entry ${doc.id}: $e');
+            return null;
+          }
+        }).where((entry) => entry != null).cast<AuditEntry>().toList();
+        
+        final stats = <String, dynamic>{
+          'total': entries.length,
+          'pending': entries.where((e) => e.status == 'pending').length,
+          'verified': entries.where((e) => e.status == 'verified').length,
+          'rejected': entries.where((e) => e.status == 'rejected').length,
+          'byDepartment': <String, Map<String, int>>{},
+          'byEmployee': <String, Map<String, int>>{},
+          'recentActivity': <Map<String, dynamic>>[],
+          'topPerformers': <Map<String, dynamic>>[],
+        };
+
+        // Group by department - ALL DEPARTMENTS
+        final departmentGroups = <String, List<AuditEntry>>{};
+        for (final entry in entries) {
+          departmentGroups.putIfAbsent(entry.userDepartment, () => []).add(entry);
+        }
+        
+        for (final dept in departmentGroups.keys) {
+          final deptEntries = departmentGroups[dept]!;
+          stats['byDepartment'][dept] = {
+            'total': deptEntries.length,
+            'pending': deptEntries.where((e) => e.status == 'pending').length,
+            'verified': deptEntries.where((e) => e.status == 'verified').length,
+            'rejected': deptEntries.where((e) => e.status == 'rejected').length,
+          };
+        }
+
+        // Group by employee - ALL EMPLOYEES
+        final employeeGroups = <String, List<AuditEntry>>{};
+        for (final entry in entries) {
+          employeeGroups.putIfAbsent(entry.userId, () => []).add(entry);
+        }
+        
+        for (final empId in employeeGroups.keys) {
+          final empEntries = employeeGroups[empId]!;
+          final empName = empEntries.first.userDisplayName;
+          final empDept = empEntries.first.userDepartment;
+          final verifiedCount = empEntries.where((e) => e.status == 'verified').length;
+          final totalScore = empEntries
+              .where((e) => e.score != null)
+              .fold(0.0, (sum, e) => sum + e.score!);
+          final avgScore = verifiedCount > 0 ? totalScore / verifiedCount : 0.0;
+          
+          stats['byEmployee'][empName] = {
+            'total': empEntries.length,
+            'pending': empEntries.where((e) => e.status == 'pending').length,
+            'verified': verifiedCount,
+            'rejected': empEntries.where((e) => e.status == 'rejected').length,
+            'department': empDept,
+            'averageScore': avgScore,
+            'userId': empId,
+          };
+        }
+
+        // Recent activity - ALL EMPLOYEES
+        final recentEntries = entries.take(10).map((entry) => {
+          'goalTitle': entry.goalTitle,
+          'employeeName': entry.userDisplayName,
+          'department': entry.userDepartment,
+          'status': entry.status,
+          'submittedDate': entry.submittedDate.toIso8601String(),
+          'score': entry.score,
+        }).toList();
+        stats['recentActivity'] = recentEntries;
+
+        // Top performers - ALL EMPLOYEES ranked by verified goals and scores
+        final employeePerformance = <String, Map<String, dynamic>>{};
+        for (final empId in employeeGroups.keys) {
+          final empEntries = employeeGroups[empId]!;
+          final verifiedEntries = empEntries.where((e) => e.status == 'verified').toList();
+          final totalScore = verifiedEntries
+              .where((e) => e.score != null)
+              .fold(0.0, (sum, e) => sum + e.score!);
+          final avgScore = verifiedEntries.isNotEmpty && verifiedEntries.any((e) => e.score != null) 
+              ? totalScore / verifiedEntries.where((e) => e.score != null).length 
+              : 0.0;
+          
+          employeePerformance[empId] = {
+            'name': empEntries.first.userDisplayName,
+            'department': empEntries.first.userDepartment,
+            'verifiedGoals': verifiedEntries.length,
+            'averageScore': avgScore,
+            'totalScore': totalScore,
+            'userId': empId,
+          };
+        }
+        
+        // Sort by verified goals count, then by average score
+        final sortedPerformers = employeePerformance.values.toList()
+          ..sort((a, b) {
+            final goalComparison = (b['verifiedGoals'] as int).compareTo(a['verifiedGoals'] as int);
+            if (goalComparison != 0) return goalComparison;
+            return (b['averageScore'] as double).compareTo(a['averageScore'] as double);
+          });
+        
+        stats['topPerformers'] = sortedPerformers.take(10).toList();
+
+        return stats;
+      }).handleError((error) {
+        developer.log('Manager audit stats stream error: $error');
+        return <String, dynamic>{
+          'total': 0,
+          'pending': 0,
+          'verified': 0,
+          'rejected': 0,
+          'byDepartment': <String, Map<String, int>>{},
+          'byEmployee': <String, Map<String, int>>{},
+          'recentActivity': <Map<String, dynamic>>[],
+          'topPerformers': <Map<String, dynamic>>[],
+        };
+      });
+    } catch (e) {
+      developer.log('Error building manager audit stats stream: $e');
+      return Stream.value(<String, dynamic>{
+        'total': 0,
+        'pending': 0,
+        'verified': 0,
+        'rejected': 0,
+        'byDepartment': <String, Map<String, int>>{},
+        'byEmployee': <String, Map<String, int>>{},
+        'recentActivity': <Map<String, dynamic>>[],
+        'topPerformers': <Map<String, dynamic>>[],
+      });
+    }
   }
 
   // Get audit entries stream for employees (their own entries)
@@ -162,33 +333,41 @@ class AuditService {
     final user = _auth.currentUser;
     if (user == null) return Stream.value([]);
 
-    Query query = _firestore
-        .collection('audit_entries')
-        .where('userId', isEqualTo: user.uid);
+    try {
+      Query query = _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: user.uid);
 
-    if (status != null && status.isNotEmpty) {
-      query = query.where('status', isEqualTo: status);
-    }
-
-    query = query.orderBy('submittedDate', descending: true);
-
-    return query.snapshots().map((snapshot) {
-      List<AuditEntry> entries = snapshot.docs
-          .map((doc) => AuditEntry.fromFirestore(doc))
-          .toList();
-
-      // Apply search filter if provided
-      if (searchQuery != null && searchQuery.isNotEmpty) {
-        final lowercaseQuery = searchQuery.toLowerCase();
-        entries = entries.where((entry) {
-          return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                 entry.evidence.any((evidence) => 
-                     evidence.toLowerCase().contains(lowercaseQuery));
-        }).toList();
+      if (status != null && status.isNotEmpty) {
+        query = query.where('status', isEqualTo: status);
       }
 
-      return entries;
-    });
+      query = query.orderBy('submittedDate', descending: true);
+
+      return query.snapshots().map((snapshot) {
+        List<AuditEntry> entries = snapshot.docs
+            .map((doc) => AuditEntry.fromFirestore(doc))
+            .toList();
+
+        // Apply search filter if provided
+        if (searchQuery != null && searchQuery.isNotEmpty) {
+          final lowercaseQuery = searchQuery.toLowerCase();
+          entries = entries.where((entry) {
+            return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
+                   entry.evidence.any((evidence) => 
+                       evidence.toLowerCase().contains(lowercaseQuery));
+          }).toList();
+        }
+
+        return entries;
+      }).handleError((error) {
+        developer.log('Employee audit entries stream error: $error');
+        return <AuditEntry>[];
+      });
+    } catch (e) {
+      developer.log('Error building employee audit entries stream: $e');
+      return Stream.value(<AuditEntry>[]);
+    }
   }
 
   // Verify an audit entry (manager action)
@@ -209,6 +388,17 @@ class AuditService {
         'acknowledgedById': user.uid,
         'verifiedDate': Timestamp.now(),
       });
+
+      // Log timeline event: verification
+      try {
+        final event = TimelineService.buildEvent(
+          eventType: 'verification',
+          description: 'Entry verified with score ${score.toStringAsFixed(1)}',
+        );
+        await TimelineService.logEvent(entryId, event);
+      } catch (e) {
+        developer.log('Failed to log verification timeline event: $e');
+      }
     } catch (e) {
       developer.log('Error verifying audit entry: $e');
       rethrow;
@@ -232,6 +422,17 @@ class AuditService {
         'acknowledgedById': user.uid,
         'rejectedDate': Timestamp.now(),
       });
+
+      // Log timeline event: rejection
+      try {
+        final event = TimelineService.buildEvent(
+          eventType: 'rejection',
+          description: 'Changes requested: $reason',
+        );
+        await TimelineService.logEvent(entryId, event);
+      } catch (e) {
+        developer.log('Failed to log rejection timeline event: $e');
+      }
     } catch (e) {
       developer.log('Error requesting changes: $e');
       rethrow;
@@ -269,60 +470,4 @@ class AuditService {
     }
   }
 
-  // Get mock data for development/fallback
-  static List<AuditEntry> getMockAuditEntries() {
-    return [
-      AuditEntry(
-        id: 'mock1',
-        userId: 'user1',
-        goalId: 'goal1',
-        goalTitle: 'Increase Customer Satisfaction Score',
-        completedDate: DateTime(2024, 3, 15),
-        submittedDate: DateTime(2024, 3, 16),
-        status: 'verified',
-        evidence: [
-          'Survey Results Report',
-          'Dashboard Analytics Link',
-          'Customer Feedback Files',
-        ],
-        acknowledgedBy: 'Sarah Chen',
-        score: 4.8,
-        userDisplayName: 'John Doe',
-        userDepartment: 'Customer Success',
-      ),
-      AuditEntry(
-        id: 'mock2',
-        userId: 'user2',
-        goalId: 'goal2',
-        goalTitle: 'Launch New Product Feature',
-        completedDate: DateTime(2024, 2, 28),
-        submittedDate: DateTime(2024, 3, 1),
-        status: 'pending',
-        evidence: [
-          'Feature Specification Document',
-          'GitHub Repository Link',
-        ],
-        userDisplayName: 'Jane Smith',
-        userDepartment: 'Engineering',
-      ),
-      AuditEntry(
-        id: 'mock3',
-        userId: 'user3',
-        goalId: 'goal3',
-        goalTitle: 'Strategic Market Expansion Plan',
-        completedDate: DateTime(2024, 1, 20),
-        submittedDate: DateTime(2024, 1, 22),
-        status: 'verified',
-        evidence: [
-          'Market Research Summary',
-          'Competitor Analysis',
-          'Expansion Proposal Document',
-        ],
-        acknowledgedBy: 'Mike Johnson',
-        score: 4.5,
-        userDisplayName: 'Alice Brown',
-        userDepartment: 'Strategy',
-      ),
-    ];
-  }
 }

@@ -496,57 +496,33 @@ class DatabaseService {
 
         tx.update(goalRef, {'progress': snapped});
 
-        // Kickoff: first progress change from notStarted -> inProgress
-        if (snapped > 0 &&
-            currentStatus != GoalStatus.inProgress.name &&
-            currentStatus != GoalStatus.completed.name) {
-          tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-          if ((milestones['kickoff'] ?? false) != true && userId != null && userId!.isNotEmpty) {
-            awardKickoff = PointsService.kickoffBonus(allocated);
-            milestones['kickoff'] = true;
-            tx.update(goalRef, {'milestones': milestones});
-          }
-        }
-
-        // Progress delta award
-        final int delta = (snapped - previousProgress).clamp(0, 100);
-        if (delta > 0 && userId != null && userId!.isNotEmpty) {
-          final inc = PointsService.progressDeltaPoints(allocated, delta);
-          if (inc > 0) {
-            awardDelta += inc;
-          }
-        }
-
-        // Optional: retain legacy 50% milestone as motivational nudge (kept as-is)
-        final crossed50 = previousProgress < 50 && snapped >= 50;
-        if (crossed50 && userId != null && userId!.isNotEmpty && milestones['p50'] != true) {
-          awardP50 = 20;
-          milestones['p50'] = true;
-          tx.update(goalRef, {'milestones': milestones});
-        }
-      });
-    } catch (e) {
-      developer.log('updateGoalProgress transaction failed: $e');
-      throw Exception('progress_update.tx: $e');
-    }
-
-    // Apply capped increments after transaction
-    try {
-      final uid = userId;
-      if (uid != null && uid.isNotEmpty) {
-        if (awardKickoff > 0) {
-          await _incrementUserPointsCapped(userId: uid, amount: awardKickoff);
-        }
-        if (awardDelta > 0) {
-          await _incrementUserPointsCapped(userId: uid, amount: awardDelta);
-        }
-        if (awardP50 > 0) {
-          await _incrementUserPointsCapped(userId: uid, amount: awardP50);
+      // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
+      if (snapped > 0 &&
+          currentStatus != GoalStatus.inProgress.name &&
+          currentStatus != GoalStatus.completed.name) {
+        tx.update(goalRef, {'status': GoalStatus.inProgress.name});
+        if (userId != null && userId!.isNotEmpty) {
+          final userRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId);
+          tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
         }
       }
-    } catch (e) {
-      developer.log('updateGoalProgress capped increment failed: $e');
-    }
+
+      // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
+      final crossed50 = previousProgress < 50 && snapped >= 50;
+      if (crossed50 &&
+        userId != null &&
+        userId!.isNotEmpty &&
+        milestones['p50'] != true) {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        milestones['p50'] = true;
+        tx.update(goalRef, {'milestones': milestones});
+      }
+    });
 
     // Record daily activity for streak tracking when making progress
     try {
