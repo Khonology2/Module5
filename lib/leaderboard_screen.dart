@@ -7,10 +7,6 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/auth_service.dart';
-import 'package:pdh/design_system/app_components.dart';
 
 enum LeaderboardFilter {
   thisMonth,

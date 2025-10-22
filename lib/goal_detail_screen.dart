@@ -145,19 +145,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     if (confirm != true) return;
 
     setState(() { isLoading = true; });
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
       await DatabaseService.deleteGoal(goalId: currentGoal.id, requesterId: user.uid);
       if (!mounted) return;
-      scaffoldMessenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Goal deleted'), backgroundColor: Colors.green),
       );
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to delete goal: $e'), backgroundColor: Colors.red),
         );
       }
@@ -170,9 +169,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _startGoal() async {
     if (isLoading) return;
-    
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
+
     setState(() {
       isLoading = true;
     });
@@ -207,7 +204,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             currentGoal = currentGoal.copyWith(status: GoalStatus.inProgress);
           });
 
-          scaffoldMessenger.showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Goal started! +20 points earned 🎉'),
               backgroundColor: Colors.green,
@@ -217,7 +214,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error starting goal: ${e.toString()}'),
             backgroundColor: Colors.red,
@@ -236,10 +233,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Future<void> _completeGoal() async {
     if (isLoading) return;
     
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     // Guard: ensure started and at 100% before attempting to complete
     if (currentGoal.status != GoalStatus.inProgress) {
-      scaffoldMessenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please start the goal before completing it.'),
           backgroundColor: Colors.orange,
@@ -248,7 +244,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       return;
     }
     if (currentGoal.progress < 100) {
-      scaffoldMessenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Set progress to 100% to complete.'),
           backgroundColor: Colors.orange,
@@ -297,7 +293,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             );
           });
 
-          scaffoldMessenger.showSnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Goal completed! +100 points earned 🏆'),
               backgroundColor: Colors.green,
@@ -311,7 +307,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error completing goal: ${e.toString()}'),
             backgroundColor: Colors.red,
@@ -329,8 +325,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _updateProgress(int newProgress) async {
     if (isLoading) return;
-    
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     
     setState(() {
       isLoading = true;
@@ -367,7 +361,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           _awardMilestonePoints(75, '75% progress milestone');
         }
 
-        scaffoldMessenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Progress updated to $newProgress%'),
             backgroundColor: Colors.blue,
@@ -376,7 +370,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error updating progress: ${e.toString()}'),
             backgroundColor: Colors.red,
@@ -419,14 +413,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         }
       },
       onLogout: () async {
-        final navigator = Navigator.of(context);
         await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
-        }
+        if (!context.mounted) return;
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/sign_in',
+          (route) => false,
+        );
       },
       content: Container(
         width: double.infinity,

@@ -32,6 +32,7 @@ dependencies:
   speech_to_text: ^7.3.0
   js: ^0.6.7 # Added for Dart-JavaScript interop
   web: ^1.1.1 # Added for modern web interop
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

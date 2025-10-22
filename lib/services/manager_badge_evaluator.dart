@@ -385,24 +385,7 @@ class ManagerBadgeEvaluator {
     return counted;
   }
 
-  static Future<int> _countDistinctEmployeesNudgedInWindow(String managerId, DateTime windowStart) async {
-    final nudgesSnap = await _db
-        .collection('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId)
-        .get();
-    final distinct = <String>{};
-    for (final d in nudgesSnap.docs) {
-      final data = d.data();
-      final ts = data['createdAt'] ?? data['lastUpdated'] ?? data['timestamp'];
-      if (ts is! Timestamp) continue;
-      final dt = ts.toDate();
-      if (dt.isBefore(windowStart)) continue;
-      final toUserId = (data['toUserId'] ?? data['userId'] ?? '').toString();
-      if (toUserId.isNotEmpty) distinct.add(toUserId);
-    }
-    return distinct.length;
-  }
+  // Removed unused helper: _countDistinctEmployeesNudgedInWindow
 
   static Future<void> _logPointSnapshot({
     required String userId,

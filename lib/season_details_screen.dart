@@ -160,6 +160,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         try {
           await SeasonService.completeSeasonIfEligible(season.id);
         } catch (e) {
+          if (!mounted) return;
           final confirm = await showDialog<bool>(
             context: context,
             builder: (ctx) {
@@ -191,6 +192,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           }
         }
       } else {
+        if (!mounted) return;
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) {

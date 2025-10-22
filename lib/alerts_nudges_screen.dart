@@ -9,8 +9,6 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/alert.dart';
-import 'package:pdh/services/database_service.dart';
-import 'package:pdh/goal_detail_screen.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -660,6 +658,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.schedule);
       case AlertType.goalOverdue:
         return Icon(Icons.warning);
+      case AlertType.goalApprovalRequested:
+        return Icon(Icons.hourglass_top);
+      case AlertType.goalApprovalApproved:
+        return Icon(Icons.verified);
+      case AlertType.goalApprovalRejected:
+        return Icon(Icons.cancel);
       case AlertType.inactivity:
         return Icon(Icons.notifications_active_outlined);
       case AlertType.milestoneRisk:
@@ -684,6 +688,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.group_work);
       case AlertType.employeeJoinedTeamGoal:
         return Icon(Icons.group_add);
+      case AlertType.seasonJoined:
+        return Icon(Icons.event_available);
+      case AlertType.seasonProgressUpdate:
+        return Icon(Icons.timeline);
+      case AlertType.seasonCompleted:
+        return Icon(Icons.celebration);
     }
   }
 

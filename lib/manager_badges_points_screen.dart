@@ -265,7 +265,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                           return ListView.separated(
                             shrinkWrap: true,
                             itemCount: badges.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            separatorBuilder: (_, _) => const SizedBox(height: 8),
                             itemBuilder: (context, i) {
                               final b = badges[i];
                               final earned = b.isEarned;
@@ -547,145 +547,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  Widget _buildPointsBreakdown(_ManagerMetrics m) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _breakdownRow('Approvals/Acknowledgements', m.approvalsCount, weightApproval),
-          _breakdownRow('Nudges/Check-ins', m.nudgesSent, weightNudge),
-          _breakdownRow('High Completion Bonus (≥60%)', m.teamCompletionRate >= 0.6 ? 1 : 0, weightHighCompletionBonus, isBonus: true),
-          _breakdownRow('Engagement Bonus (≥70%)', m.teamEngagement >= 70 ? 1 : 0, weightEngagementBonus, isBonus: true),
-        ],
-      ),
-    );
-  }
 
-  Widget _breakdownRow(String label, int count, int weight, {bool isBonus = false}) {
-    final subtotal = count * weight;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-            ),
-          ),
-          Text(
-            isBonus ? (count > 0 ? '+$weight' : '+0') : '$count × $weight',
-            style: AppTypography.bodyMedium.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            isBonus ? (count > 0 ? '+$subtotal' : '+0') : '+$subtotal',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.activeColor, fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTeamKpis(_ManagerMetrics m) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: [
-        _kpi('Team Completion', '${(m.teamCompletionRate * 100).toStringAsFixed(0)}%'),
-        _kpi('Engagement', '${m.teamEngagement.toStringAsFixed(0)}%'),
-        _kpi('Goals Completed', m.goalsCompleted.toString()),
-        _kpi('Employees', m.totalEmployees.toString()),
-        _kpi('Avg Progress', '${m.avgTeamProgress.toStringAsFixed(0)}%'),
-      ],
-    );
-  }
-
-  Widget _kpi(String label, String value) {
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: AppTypography.heading4.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Text(label, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentActions(_ManagerMetrics m) {
-    if (m.recentActions.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Text('No recent actions found', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-      );
-    }
-    return Column(
-      children: m.recentActions.map((a) => _recentTile(a)).toList(),
-    );
-  }
-
-  Widget _recentTile(_RecentManagerAction a) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        children: [
-          Icon(a.type == 'nudge' ? Icons.message_outlined : Icons.verified_outlined, size: 18, color: Colors.white),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(a.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
-          ),
-          Text(a.timeLabel, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSeasonContributions(_ManagerMetrics m) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _kpi('Seasons Managed', m.seasonsManaged.toString()),
-          _kpi('Active Season Team Pts', m.activeSeasonsTeamPoints.toString()),
-          _kpi('Team Challenges Done', m.completedTeamChallenges.toString()),
-        ],
-      ),
-    );
-  }
 
   Widget _chip(String label, String value) {
     return Container(
@@ -706,51 +568,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  Widget _buildManagerBadges(_ManagerMetrics m) {
-    if (m.managerSeasonBadges.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Text(
-          'No manager badges earned yet. Lead seasons, drive engagement, and complete challenges to earn badges!',
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-        ),
-      );
-    }
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: m.managerSeasonBadges.map((id) => _buildManagerBadgeTile(id)).toList(),
-    );
-  }
-
-  Widget _buildManagerBadgeTile(String id) {
-    final meta = _managerBadgeMeta[id] ?? const _ManagerBadgeMeta(name: 'Achievement', desc: 'Manager achievement', emoji: '🏆');
-    return Container(
-      width: 210,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(meta.emoji, style: const TextStyle(fontSize: 28)),
-          const SizedBox(height: 8),
-          Text(meta.name, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(meta.desc, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
 
   Widget _buildExplanation() {
     return Container(
@@ -986,6 +804,7 @@ class _ManagerMetrics {
       );
 }
 
+// ignore: unused_element
 class _ManagerBadgeMeta {
   final String name;
   final String desc;
@@ -994,23 +813,6 @@ class _ManagerBadgeMeta {
 }
 
 // Mirror of SeasonService manager badge IDs
-const Map<String, _ManagerBadgeMeta> _managerBadgeMeta = {
-  'team_builder': _ManagerBadgeMeta(
-    name: 'Team Builder',
-    desc: 'Assembled a team of 5+ for a season',
-    emoji: '👥',
-  ),
-  'momentum_maker': _ManagerBadgeMeta(
-    name: 'Momentum Maker',
-    desc: 'Team earned over 500 points in a season',
-    emoji: '🚀',
-  ),
-  'challenge_crusher': _ManagerBadgeMeta(
-    name: 'Challenge Crusher',
-    desc: 'Team completed 10+ challenges in a season',
-    emoji: '💥',
-  ),
-};
 
 class _RecentManagerAction {
   final String type; // 'nudge' | 'approval'

@@ -1,19 +1,17 @@
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
-import 'dart:html' as html;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
-import 'package:pdh/services/repository_export_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -408,9 +406,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppColors.activeColor.withOpacity(0.1),
+                          color: AppColors.activeColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.activeColor.withOpacity(0.3)),
+                          border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           '$dept: ${deptStats['total']} total (${deptStats['verified']} verified)',
@@ -447,9 +445,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.successColor.withOpacity(0.1),
+                        color: AppColors.successColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.successColor.withOpacity(0.3)),
+                        border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
@@ -487,7 +485,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
                 if (stats['recentActivity'] != null && (stats['recentActivity'] as List).isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -512,9 +510,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getStatusColor(status).withOpacity(0.1),
+                        color: _getStatusColor(status).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _getStatusColor(status).withOpacity(0.3)),
+                        border: Border.all(color: _getStatusColor(status).withValues(alpha: 0.3)),
                       ),
                       child: Row(
                 children: [
@@ -554,7 +552,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ],
             ),
@@ -891,9 +889,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.successColor.withOpacity(0.1),
+                color: AppColors.successColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.successColor.withOpacity(0.3)),
+                border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -959,9 +957,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.dangerColor.withOpacity(0.1),
+                color: AppColors.dangerColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.dangerColor.withOpacity(0.3)),
+                border: Border.all(color: AppColors.dangerColor.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1022,7 +1020,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: events.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final ev = events[index];
                     return ListTile(
@@ -1268,7 +1266,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const Divider(color: AppColors.borderColor),
                 itemBuilder: (context, index) {
                   final g = items[index];
@@ -1360,18 +1358,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       // Create CSV content
       final csvContent = _generateCSVContent(repositoryGoals);
       
-      // For web, create a downloadable blob
-      final bytes = convert.utf8.encode(csvContent);
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      
-      // Create download link
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.csv')
-        ..click();
-      
-      // Clean up
-      html.Url.revokeObjectUrl(url);
+      // Web download via data URL; fallback for non-web
+      if (kIsWeb) {
+        final dataUrl = 'data:text/csv;charset=utf-8,${Uri.encodeComponent(csvContent)}';
+        final a = web.document.createElement('a') as web.HTMLAnchorElement;
+        a.href = dataUrl;
+        a.setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.csv');
+        a.style.display = 'none';
+        web.document.body?.append(a);
+        a.click();
+        a.remove();
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('CSV export is currently supported on web builds only.')),
+        );
+      }
       
       messenger.showSnackBar(
         SnackBar(
@@ -1412,18 +1413,23 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       // Generate PDF content
       final pdfContent = _generatePDFContent(repositoryGoals);
       
-      // For web, create a downloadable blob
-      final bytes = convert.utf8.encode(pdfContent);
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      
-      // Create download link
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.pdf')
-        ..click();
-      
-      // Clean up
-      html.Url.revokeObjectUrl(url);
+      // Web download via data URL; fallback for non-web
+      if (kIsWeb) {
+        final bytes = convert.utf8.encode(pdfContent);
+        final b64 = convert.base64Encode(bytes);
+        final dataUrl = 'data:application/pdf;base64,$b64';
+        final a = web.document.createElement('a') as web.HTMLAnchorElement;
+        a.href = dataUrl;
+        a.setAttribute('download', 'repository_goals_${DateTime.now().millisecondsSinceEpoch}.pdf');
+        a.style.display = 'none';
+        web.document.body?.append(a);
+        a.click();
+        a.remove();
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('PDF export is currently supported on web builds only.')),
+        );
+      }
       
       messenger.showSnackBar(
         SnackBar(
@@ -1655,63 +1661,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  // Helper widget to build file evidence items
-  Widget _buildFileEvidenceItem(EvidenceFile file) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: InkWell(
-        onTap: () => _openFileEvidence(file),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderColor),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                _getFileIcon(file.fileType),
-                color: AppColors.activeColor,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      file.fileName,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      '${(file.fileSize / 1024).toStringAsFixed(1)} KB • ${_formatDate(file.uploadedAt)}',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.download,
-                color: AppColors.textMuted,
-                size: 16,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   void _openEvidence(String evidence) {
     final isUrl = evidence.startsWith('http://') || evidence.startsWith('https://');
@@ -1797,10 +1746,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-  void _openFileEvidence(EvidenceFile file) {
-    // For web, open file in new tab
-    html.window.open(file.url, '_blank');
-  }
+  
 
   void _showGoalSubmissionDialog() {
     showDialog(
@@ -1973,8 +1919,37 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: isUploading ? null : () => _uploadFiles(goal.id, setState, uploadedFiles, isUploading),
-                    icon: isUploading 
+                    onPressed: isUploading
+                        ? null
+                        : () async {
+                            setState(() => isUploading = true);
+                            try {
+                              final files = await _uploadFiles(goal.id);
+                              setState(() {
+                                uploadedFiles.addAll(files);
+                                isUploading = false;
+                              });
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${files.length} file(s) uploaded successfully'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setState(() => isUploading = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error uploading files: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: isUploading
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -2107,40 +2082,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Future<void> _uploadFiles(String goalId, StateSetter setState, List<EvidenceFile> uploadedFiles, bool isUploading) async {
-    setState(() {
-      isUploading = true;
-    });
-
-    try {
-      final files = await EvidenceUploadService.pickAndUploadFiles(goalId: goalId);
-      setState(() {
-        uploadedFiles.addAll(files);
-        isUploading = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${files.length} file(s) uploaded successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        isUploading = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading files: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  Future<List<EvidenceFile>> _uploadFiles(String goalId) async {
+    final files = await EvidenceUploadService.pickAndUploadFiles(goalId: goalId);
+    return files;
   }
 
   IconData _getFileIcon(String fileType) {
@@ -2170,32 +2114,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-  Future<void> _submitGoalForAudit(Goal goal, List<String> evidence) async {
-    try {
-      await AuditService.submitGoalForAudit(goal, evidence);
-      
-      if (mounted) {
-        Navigator.pop(context); // Close evidence dialog
-        Navigator.pop(context); // Close goal selection dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Goal submitted for audit successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      developer.log('Error submitting goal for audit: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error submitting goal: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  
 
   Future<void> _submitGoalForAuditWithFiles(Goal goal, List<String> textEvidence, List<EvidenceFile> uploadedFiles) async {
     try {

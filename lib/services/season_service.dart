@@ -1168,9 +1168,9 @@ class SeasonService {
       // Challenge breakdown by type using available metrics if present
       final Map<String, dynamic> challengeBreakdown = {};
       for (final challenge in season.challenges) {
-        final key = challenge.type.name;
-        final completions = season.metrics.challengeCompletions[key] ?? 0;
-        challengeBreakdown[key] = completions;
+        final type = challenge.type; // enum ChallengeType
+        final completions = season.metrics.challengeCompletions[type] ?? 0;
+        challengeBreakdown[type.name] = completions;
       }
 
       // Summary based on metrics

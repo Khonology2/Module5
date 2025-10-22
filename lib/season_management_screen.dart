@@ -735,7 +735,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   }
 
   void _extendSeason() {
-    // TODO: Implement season extension
+   
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Season extension feature coming soon!'),
