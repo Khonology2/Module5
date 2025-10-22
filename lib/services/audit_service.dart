@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/timeline_service.dart';
-import 'package:pdh/models/audit_timeline_event.dart';
 
 class AuditEntry {
   final String id;
@@ -239,7 +238,7 @@ class AuditService {
           final verifiedCount = empEntries.where((e) => e.status == 'verified').length;
           final totalScore = empEntries
               .where((e) => e.score != null)
-              .fold(0.0, (sum, e) => sum + e.score!);
+              .fold(0.0, (acc, e) => acc + e.score!);
           final avgScore = verifiedCount > 0 ? totalScore / verifiedCount : 0.0;
           
           stats['byEmployee'][empName] = {
@@ -271,7 +270,7 @@ class AuditService {
           final verifiedEntries = empEntries.where((e) => e.status == 'verified').toList();
           final totalScore = verifiedEntries
               .where((e) => e.score != null)
-              .fold(0.0, (sum, e) => sum + e.score!);
+              .fold(0.0, (acc, e) => acc + e.score!);
           final avgScore = verifiedEntries.isNotEmpty && verifiedEntries.any((e) => e.score != null) 
               ? totalScore / verifiedEntries.where((e) => e.score != null).length 
               : 0.0;

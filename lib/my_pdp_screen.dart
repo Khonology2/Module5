@@ -1,17 +1,16 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
+// ignore: unused_import
 import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
-import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdh/services/storage_service.dart';
+import 'package:logger/logger.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -26,6 +25,8 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
+  
+  final Logger _log = Logger(level: kDebugMode ? Level.debug : Level.off);
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -106,17 +107,17 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () async {
                         try {
-                          print('Starting file picker...');
+                          _log.i('Starting file picker...');
                           final picked = await FilePicker.platform.pickFiles(
                             type: FileType.any,
                             withData: true,
                           );
                           
-                          print('File picker result: ${picked?.files.length} files');
+                          _log.i('File picker result: ${picked?.files.length} files');
                           
                           if (picked != null && picked.files.isNotEmpty) {
                             final file = picked.files.first;
-                            print('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
+                            _log.i('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
                             
                             final bytes = file.bytes;
                             if (bytes != null) {
@@ -128,7 +129,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 ),
                               );
                               
-                              print('Starting file processing...');
+                              _log.i('Starting file processing...');
                               try {
                                 // For now, store file info as evidence since Firebase Storage isn't set up
                                 final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Selected on ${DateTime.now().toString().split('.')[0]}';
@@ -138,7 +139,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   evidence: [fileInfo],
                                 );
                                 
-                                print('File info attached to goal: $fileInfo');
+                                _log.i('File info attached to goal: $fileInfo');
                                 
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -152,7 +153,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   setState(() {});
                                 }
                               } catch (error) {
-                                print('Error saving file info: $error');
+                                _log.e('Error saving file info: $error');
                                 
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -164,7 +165,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 }
                               }
                             } else {
-                              print('No file bytes available');
+                              _log.w('No file bytes available');
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
                                   content: Text('Error: No file data available'),
@@ -173,10 +174,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                               );
                             }
                           } else {
-                            print('No files selected');
+                            _log.i('No files selected');
                           }
                         } catch (e) {
-                          print('Error during file upload: $e');
+                          _log.e('Error during file upload: $e');
                           if (ctx.mounted) {
                             ScaffoldMessenger.of(ctx).showSnackBar(
                               SnackBar(
@@ -222,28 +223,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         // Refresh the screen to show the new evidence
         setState(() {});
       }
-    }
-  }
-
-  String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'gif':
-        return 'image/gif';
-      case 'txt':
-        return 'text/plain';
-      default:
-        return 'application/octet-stream';
     }
   }
 
@@ -460,7 +439,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF2A3441),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

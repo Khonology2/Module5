@@ -570,7 +570,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           boxShadow: [
             BoxShadow(
               // ignore: deprecated_member_use
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               spreadRadius: 1,
               blurRadius: 5,
               offset: const Offset(0, 3),
@@ -680,7 +680,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
             child: Container(
               // ignore: deprecated_member_use
-              color: Colors.grey[850]?.withOpacity(0.7),
+              color: Colors.grey[850]?.withValues(alpha: 0.7),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -788,7 +788,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
             child: Container(
               // ignore: deprecated_member_use
-              color: Colors.grey[850]?.withOpacity(0.7),
+              color: Colors.grey[850]?.withValues(alpha: 0.7),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

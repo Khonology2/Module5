@@ -23,6 +23,11 @@ class Goal {
   // Key Performance Area tag for persistent excellence grouping
   final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
   final List<String> evidence; // List of evidence attachments
+  final GoalApprovalStatus approvalStatus;
+  final String? approvedByUserId;
+  final String? approvedByName;
+  final DateTime? approvedAt;
+  final String? rejectionReason;
 
   const Goal({
     required this.id,
@@ -38,6 +43,11 @@ class Goal {
     required this.points,
     this.kpa,
     this.evidence = const [],
+    this.approvalStatus = GoalApprovalStatus.pending,
+    this.approvedByUserId,
+    this.approvedByName,
+    this.approvedAt,
+    this.rejectionReason,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -88,6 +98,14 @@ class Goal {
       })(),
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
       evidence: List<String>.from(data?['evidence'] ?? const []),
+      approvalStatus: GoalApprovalStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawApproval,
+        orElse: () => GoalApprovalStatus.pending,
+      ),
+      approvedByUserId: data?['approvedByUserId']?.toString(),
+      approvedByName: data?['approvedByName']?.toString(),
+      approvedAt: (data?['approvedAt'] as Timestamp?)?.toDate(),
+      rejectionReason: data?['rejectionReason']?.toString(),
     );
   }
 
@@ -95,6 +113,7 @@ class Goal {
     final rawCategory = (map['category'] ?? 'personal').toString().toLowerCase();
     final rawPriority = (map['priority'] ?? 'medium').toString().toLowerCase();
     final rawStatus = (map['status'] ?? 'notStarted').toString().toLowerCase();
+    final rawApproval = (map['approvalStatus'] ?? 'pending').toString().toLowerCase();
 
     DateTime parseDate(dynamic v) {
       if (v is Timestamp) return v.toDate();
@@ -132,6 +151,14 @@ class Goal {
           : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
       kpa: map['kpa']?.toString().toLowerCase(),
       evidence: List<String>.from(map['evidence'] ?? const []),
+      approvalStatus: GoalApprovalStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawApproval,
+        orElse: () => GoalApprovalStatus.pending,
+      ),
+      approvedByUserId: map['approvedByUserId']?.toString(),
+      approvedByName: map['approvedByName']?.toString(),
+      approvedAt: map['approvedAt'] != null ? parseDate(map['approvedAt']) : null,
+      rejectionReason: map['rejectionReason']?.toString(),
     );
   }
 
@@ -149,6 +176,11 @@ class Goal {
     int? points,
     String? kpa,
     List<String>? evidence,
+    GoalApprovalStatus? approvalStatus,
+    String? approvedByUserId,
+    String? approvedByName,
+    DateTime? approvedAt,
+    String? rejectionReason,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -164,6 +196,11 @@ class Goal {
       points: points ?? this.points,
       kpa: kpa ?? this.kpa,
       evidence: evidence ?? this.evidence,
+      approvalStatus: approvalStatus ?? this.approvalStatus,
+      approvedByUserId: approvedByUserId ?? this.approvedByUserId,
+      approvedByName: approvedByName ?? this.approvedByName,
+      approvedAt: approvedAt ?? this.approvedAt,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
 }

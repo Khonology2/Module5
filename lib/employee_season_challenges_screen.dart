@@ -309,7 +309,7 @@ class _EmployeeSeasonChallengesScreenState
     final progress = participation?.totalPoints ?? 0;
     final totalPossiblePoints = season.challenges.fold<int>(
       0,
-      (sum, challenge) => sum + challenge.points,
+      (acc, challenge) => acc + challenge.points,
     );
     final progressPercentage = totalPossiblePoints > 0
         ? (progress / totalPossiblePoints * 100).round()
@@ -683,6 +683,9 @@ class _EmployeeSeasonChallengesScreenState
       // Close loading
       if (mounted) Navigator.of(context).pop();
 
+      // Ensure widget is still mounted before using context after async gap
+      if (!mounted) return;
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -696,6 +699,9 @@ class _EmployeeSeasonChallengesScreenState
     } catch (e) {
       // Close loading
       if (mounted) Navigator.of(context).pop();
+
+      // Ensure widget is still mounted before using context after async gap
+      if (!mounted) return;
 
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(

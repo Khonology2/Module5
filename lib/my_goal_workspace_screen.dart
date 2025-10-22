@@ -445,25 +445,70 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  Widget _buildSmartCheckbox(
-    String title,
-    bool value,
-    ValueChanged<bool?> onChanged,
-  ) {
-    return Theme(
-      data: ThemeData(unselectedWidgetColor: AppColors.textSecondary),
-      child: CheckboxListTile(
-        title: Text(
-          title,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+  int _computeSmartTotal() {
+    return _clarity + _measurability + _achievability + _relevance + _timeline;
+  }
+
+  Widget _buildScoreSelector({
+    required String title,
+    required int value,
+    required ValueChanged<int> onChanged,
+    String? helper,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.activeColor,
-        checkColor: AppColors.textPrimary,
-        contentPadding: EdgeInsets.zero,
+          const SizedBox(height: 8),
+          Row(
+            children: List.generate(5, (index) {
+              final score = index + 1;
+              final selected = value == score;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: InkWell(
+                  onTap: () => onChanged(score),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.activeColor
+                          : AppColors.elevatedBackground,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: selected ? AppColors.activeColor : AppColors.borderColor,
+                      ),
+                    ),
+                    child: Text(
+                      '$score',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              helper,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

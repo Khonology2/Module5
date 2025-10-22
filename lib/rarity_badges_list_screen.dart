@@ -164,7 +164,7 @@ class RarityBadgesListScreen extends StatelessWidget {
                         }
                         return ListView.separated(
                           itemCount: filtered.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final badge = filtered[index];
                             final color = _colorForRarity(rarity);

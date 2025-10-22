@@ -1212,15 +1212,17 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
         endDate: _endDate!,
         challenges: challenges,
       );
-
+      if (!mounted) return;
       widget.onSeasonCreated();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error creating season: $e'),
-          backgroundColor: AppColors.dangerColor,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating season: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isCreating = false;

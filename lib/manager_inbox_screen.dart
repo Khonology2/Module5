@@ -136,7 +136,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             onPressed: () async {
                               await _persistReview(goalId, decision: 'approved');
                               await _approveGoal(goalId);
-                              if (mounted) Navigator.pop(context);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
                             },
                             icon: const Icon(Icons.check),
                             label: const Text('Approve'),
@@ -152,7 +153,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               }
                               await _persistReview(goalId, decision: 'changes_requested');
                               await _rejectGoal(goalId, reason: note);
-                              if (mounted) Navigator.pop(context);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
                             },
                             icon: const Icon(Icons.edit_note),
                             label: const Text('Request changes'),
@@ -168,7 +170,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                               }
                               await _persistReview(goalId, decision: 'rejected');
                               await _rejectGoal(goalId, reason: note);
-                              if (mounted) Navigator.pop(context);
+                              if (!context.mounted) return;
+                              Navigator.pop(context);
                             },
                             icon: const Icon(Icons.close),
                             label: const Text('Reject'),
@@ -334,6 +337,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           return;
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           final current = ModalRoute.of(context)?.settings.name;
           if (current != '/manager_portal') {
             Navigator.pushReplacementNamed(
@@ -366,9 +370,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       onLogout: () async {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
+        if (!context.mounted) return;
+        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
       },
       content: _buildContent(),
     );
@@ -469,7 +472,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 return ListView.separated(
                   padding: AppSpacing.screenPadding,
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                  separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (context, i) => _buildInboxCard(items[i]),
                 );
               },

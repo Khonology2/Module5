@@ -462,9 +462,6 @@ class DatabaseService {
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
     String? userId;
-    int awardKickoff = 0;
-    int awardDelta = 0;
-    int awardP50 = 0;
     
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -481,19 +478,6 @@ class DatabaseService {
         final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
             ? Map<String, dynamic>.from(rawMilestones)
             : {};
-        // Parse category/priority for allocated points
-        final rawCategory = (data['category'] ?? 'personal').toString().toLowerCase();
-        final rawPriority = (data['priority'] ?? 'medium').toString().toLowerCase();
-        final category = GoalCategory.values.firstWhere(
-          (e) => e.name.toLowerCase() == rawCategory,
-          orElse: () => GoalCategory.personal,
-        );
-        final priority = GoalPriority.values.firstWhere(
-          (e) => e.name.toLowerCase() == rawPriority,
-          orElse: () => GoalPriority.medium,
-        );
-        final int allocated = PointsService.allocatedPointsForGoal(category, priority);
-
         tx.update(goalRef, {'progress': snapped});
 
       // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
@@ -523,6 +507,9 @@ class DatabaseService {
         tx.update(goalRef, {'milestones': milestones});
       }
     });
+    } catch (e) {
+      developer.log('updateGoalProgress transaction failed: $e');
+    }
 
     // Record daily activity for streak tracking when making progress
     try {
