@@ -1502,8 +1502,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
               return Column(
                 children: [
                   _buildPersonalOverview(goals),
-                  const SizedBox(height: AppSpacing.xxl),
-                  _buildGoalsProgress(context, goals),
                 ],
               );
             },
@@ -1677,59 +1675,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     );
   }
 
-  Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
-    final activeGoals =
-        goals
-            .where(
-              (goal) =>
-                  goal.status != GoalStatus.completed && goal.progress < 100,
-            )
-            .toList()
-          ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Your Goals Progress',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            if (activeGoals.isNotEmpty)
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/my_goal_workspace');
-                },
-                icon: Icon(Icons.add, color: AppColors.activeColor, size: 18),
-                label: Text(
-                  'Add Goal',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.activeColor,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (activeGoals.isEmpty)
-          _buildEmptyGoalsState(context)
-        else
-          ...activeGoals
-              .take(5)
-              .map(
-                (goal) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: _buildGoalProgressCard(context, goal: goal),
-                ),
-              ),
-      ],
-    );
-  }
-
   Widget _buildEmptyGoalsState(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(32),
@@ -1762,18 +1707,6 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/my_goal_workspace');
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Goal'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
-            ),
           ),
         ],
       ),

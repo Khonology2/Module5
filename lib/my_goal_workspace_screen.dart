@@ -622,6 +622,37 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         kpa: _kpa,
       );
 
+      // Show loading dialog while creating goal
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Creating your goal... Please wait',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
       final goalId = await DatabaseService.createGoal(goal);
 
       // Create goal with the returned ID for alert
@@ -633,6 +664,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         goal: createdGoal,
         type: AlertType.goalCreated,
       );
+ 
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
 
       if (mounted) {
         scaffoldMessenger.showSnackBar(
@@ -649,6 +684,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         );
       }
     } catch (e) {
+      
+      try {
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } catch (_) {}
+
       if (mounted) {
         scaffoldMessenger.showSnackBar(
           SnackBar(
