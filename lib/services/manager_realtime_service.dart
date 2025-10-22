@@ -103,10 +103,9 @@ class EmployeeData {
               id: map['profile']?['uid'] ?? id,
             ),
       goals:
-          ((map['goals'] as List<dynamic>? ?? [])
+          (map['goals'] as List<dynamic>? ?? [])
                   .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
-                  .toList()
-              as List<Goal>),
+                  .toList(),
       recentActivities: (map['recentActivities'] as List<dynamic>? ?? [])
           .map(
             (a) =>
