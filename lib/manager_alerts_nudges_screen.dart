@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,7 +36,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 // true = Personal, false = Team
 // null=All, 'alert' | 'nudge' | 'approval_request'
   // SMART rubric state per goalId
-  String _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
+  // ignore: unused_field
+  final  _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
+  final Set<String> _expandedApprovals = <String>{};
+  AlertPriority? _selectedPriority;
 
   @override
   void initState() {
@@ -174,6 +179,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       );
     }
 
+    final manager = FirebaseAuth.instance.currentUser;
+    if (manager == null) {
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Text(
+            'Please sign in to view approvals',
+            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
     return StreamBuilder<List<Alert>>(
       stream: AlertService.getUserAlertsStream(manager.uid),
       builder: (context, snapshot) {
@@ -212,7 +230,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         return ListView.separated(
           padding: AppSpacing.screenPadding,
           itemCount: approvals.length,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
           itemBuilder: (context, index) {
             final alert = approvals[index];
             final expanded = _expandedApprovals.contains(alert.id);
@@ -730,7 +748,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               ),
             ),
           ),
-        ],
       ],
     );
   }
@@ -777,8 +794,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             items: [
               const DropdownMenuItem(value: null, child: Text('All Priorities')),
               ...AlertPriority.values
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase())))
-                  .toList(),
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase()))),
             ],
           ),
         ),

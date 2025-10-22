@@ -1,8 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+// ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/services/storage_service.dart';
 // ignore: unused_import
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +12,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:file_picker/file_picker.dart';
+// ignore: unused_import
 import 'package:logger/logger.dart';
 // Drawer removed in favor of persistent sidebar
 

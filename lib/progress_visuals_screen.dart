@@ -554,6 +554,7 @@ class _ManagerProgressVisualsContentState
     );
   }
 
+  // ignore: unused_element
   Widget _buildInsightCard(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
@@ -1454,6 +1455,8 @@ ${goalsDocs.map((doc) {
       ).showSnackBar(SnackBar(content: Text('Debug Error: $e')));
     }
   }
+  
+  void _scheduleMeeting(String employeeName) {}
 }
 
 class EmployeeProgressVisualsContent extends StatelessWidget {
