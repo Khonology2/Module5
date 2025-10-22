@@ -138,36 +138,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-          final goals = snapshot.docs.map((doc) {
-            final data = doc.data();
-            return Goal(
-              id: doc.id,
-              userId: data['userId'] ?? user.uid,
-              title: data['title'] ?? '',
-              description: data['description'] ?? '',
-              category: GoalCategory.values.firstWhere(
-                (e) => e.name == (data['category'] ?? 'personal'),
-                orElse: () => GoalCategory.personal,
-              ),
-              priority: GoalPriority.values.firstWhere(
-                (e) => e.name == (data['priority'] ?? 'medium'),
-                orElse: () => GoalPriority.medium,
-              ),
-              status: GoalStatus.values.firstWhere(
-                (e) => e.name == (data['status'] ?? 'notStarted'),
-                orElse: () => GoalStatus.notStarted,
-              ),
-              progress: (data['progress'] ?? 0) as int,
-              createdAt:
-                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-              targetDate:
-                  (data['targetDate'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
-              points: (data['points'] ?? 0) as int,
-            );
-          }).toList();
-
-          // Sort in memory instead of using Firestore orderBy to avoid index requirement
+          final goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .toList();
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
         });

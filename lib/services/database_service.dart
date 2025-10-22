@@ -228,50 +228,9 @@ class DatabaseService {
           .where('userId', isEqualTo: uid)
           .get();
 
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'personal'),
-            orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-            (e) => e.name == (data['priority'] ?? 'medium'),
-            orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-            (e) => e.name == (data['status'] ?? 'notStarted'),
-            orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (() {
-            final raw = data['progress'];
-            if (raw is int) return raw;
-            if (raw is num) return raw.round();
-            return 0;
-          })(),
-          createdAt:
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate:
-              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-          kpa: (() {
-            final raw = data['kpa'];
-            return raw is String ? raw.toLowerCase() : null;
-          })(),
-          approvalStatus: GoalApprovalStatus.values.firstWhere(
-            (e) => e.name == (data['approvalStatus'] ?? 'pending'),
-            orElse: () => GoalApprovalStatus.pending,
-          ),
-          approvedByUserId: data['approvedByUserId'],
-          approvedByName: data['approvedByName'],
-          approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
-          rejectionReason: data['rejectionReason'],
-        );
-      }).toList();
+      final goals = snapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
 
       // Sort in memory to avoid Firestore index requirements
       goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -288,51 +247,10 @@ class DatabaseService {
         .where('userId', isEqualTo: uid)
         .snapshots()
         .map(
-          (snapshot) => snapshot.docs.map((doc) {
-            final data = doc.data();
-            return Goal(
-              id: doc.id,
-              userId: data['userId'] ?? uid,
-              title: data['title'] ?? '',
-              description: data['description'] ?? '',
-              category: GoalCategory.values.firstWhere(
-                (e) => e.name == (data['category'] ?? 'personal'),
-                orElse: () => GoalCategory.personal,
-              ),
-              priority: GoalPriority.values.firstWhere(
-                (e) => e.name == (data['priority'] ?? 'medium'),
-                orElse: () => GoalPriority.medium,
-              ),
-              status: GoalStatus.values.firstWhere(
-                (e) => e.name == (data['status'] ?? 'notStarted'),
-                orElse: () => GoalStatus.notStarted,
-              ),
-              progress: (() {
-                final raw = data['progress'];
-                if (raw is int) return raw;
-                if (raw is num) return raw.round();
-                return 0;
-              })(),
-              createdAt:
-                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-              targetDate:
-                  (data['targetDate'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
-              points: (data['points'] ?? 0) as int,
-              kpa: (() {
-                final raw = data['kpa'];
-                return raw is String ? raw.toLowerCase() : null;
-              })(),
-              approvalStatus: GoalApprovalStatus.values.firstWhere(
-                (e) => e.name == (data['approvalStatus'] ?? 'pending'),
-                orElse: () => GoalApprovalStatus.pending,
-              ),
-              approvedByUserId: data['approvedByUserId'],
-              approvedByName: data['approvedByName'],
-              approvedAt: (data['approvedAt'] as Timestamp?)?.toDate(),
-              rejectionReason: data['rejectionReason'],
-            );
-          }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+          (snapshot) => snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
         );
   }
 

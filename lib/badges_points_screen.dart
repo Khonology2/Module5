@@ -1007,18 +1007,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/my_goal_workspace');
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Your First Goal'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
-            ),
-          ),
         ],
         );
       },
@@ -1176,18 +1164,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/my_goal_workspace');
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Create Your First Goal'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
-            ),
           ),
         ],
       ),
