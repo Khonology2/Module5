@@ -47,7 +47,6 @@ flutter:
     - assets/Approved_Tick/
     - assets/Brand/
     - assets/fonts/poppins/
-    - assets/Send_Paper Plane/
     - assets/videos/
     - assets/1.Audio_Sound.png 
     - assets/Goal_Target/ 
@@ -63,12 +62,7 @@ flutter:
     - assets/Office_Workplace/
     - assets/Internet_Web_Browser/
     - assets/Khonodemy Icons/
-
-
-
-
-
-
+    - assets/Send_Paper_Plane/
 
 
 
