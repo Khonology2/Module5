@@ -33,9 +33,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   String _searchQuery = '';
   AlertPriority? _selectedPriority;
   final Set<String> _expandedApprovals = <String>{};
-  bool _inboxPersonal = true; // true = Personal, false = Team
+  final bool _inboxPersonal = true; // true = Personal, false = Team
   String? _inboxTypeFilter; // null=All, 'alert' | 'nudge' | 'approval_request'
-  bool _inboxUnreadOnly = false;
+  final bool _inboxUnreadOnly = false;
   // SMART rubric state per goalId
   final Map<String, int> _clarity = {};
   final Map<String, int> _measurability = {};
