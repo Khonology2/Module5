@@ -50,7 +50,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   int _previousPoints = 0;
   List<badge_model.Badge> _newlyEarnedBadges = [];
   bool _didInitialProfileLoad = false;
-
   @override
   void initState() {
     super.initState();
@@ -90,7 +89,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         curve: Curves.easeOut,
       ),
     );
-
     // Initialize default values to prevent null issues
     setState(() {
       currentStreak = 0;
@@ -378,11 +376,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    _getBadgeIcon(_newlyEarnedBadges.first.iconName),
-                    size: 80,
-                    color: Colors.white,
-                  ),
+                  _getBadgeIcon(
+                    _newlyEarnedBadges.first.iconName,
+                  ), // Directly use the returned widget
                   const SizedBox(height: 16),
                   Text(
                     'BADGE EARNED!',
@@ -904,17 +900,84 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                         color: AppColors.textPrimary.withValues(alpha: 0.6),
                       ),
                     ),
-                    Icon(
-                      Icons.info_outline,
-                      color: AppColors.textPrimary.withValues(alpha: 0.6),
-                      size: 16,
-                    ),
+                    SizedBox(
+                      width: 35,
+                      height: 35,
+                      child: Image.asset(
+                        'Information_Detail/Information_Red_Badge_White.png', // Corrected path and filename
+                        fit: BoxFit.contain,
+                      ),
+                    ), // Replaced Icon with Image.asset
                   ],
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildUserRankCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.activeColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: AppColors.activeColor, width: 2),
+            ),
+            child: Center(
+              child: Text(
+                '#$userRank',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.activeColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Global Rank',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _getRankDescription(userRank),
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: Image.asset(
+              'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Replaced Icon with Image.asset
+              fit: BoxFit.contain,
+            ),
+          ), // Replaced Icon with Image.asset
+        ],
       ),
     );
   }
@@ -1006,181 +1069,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               isActive: isInRange(badge_model.BadgeRarity.common),
               onTap: () => _openRarityList(badge_model.BadgeRarity.common),
             ),
-            const SizedBox(height: AppSpacing.md),
-            _buildRarityOvalSection(
-              title: 'Rare Goals',
-              subtitle: 'Levels 6–10',
-              rarity: badge_model.BadgeRarity.rare,
-              badges: byRarity[badge_model.BadgeRarity.rare]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.rare),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildRarityOvalSection(
-              title: 'Epic Goals',
-              subtitle: 'Levels 11–15',
-              rarity: badge_model.BadgeRarity.epic,
-              badges: byRarity[badge_model.BadgeRarity.epic]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.epic),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildRarityOvalSection(
-              title: 'Legendary Goals',
-              subtitle: 'Levels 16+',
-              rarity: badge_model.BadgeRarity.legendary,
-              badges: byRarity[badge_model.BadgeRarity.legendary]!..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.legendary),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  
-
-  Widget _buildRarityOvalSection({
-    required String title,
-    required String subtitle,
-    required badge_model.BadgeRarity rarity,
-    required List<badge_model.Badge>? badges,
-    bool isActive = false,
-    VoidCallback? onTap,
-  }) {
-    final list = badges ?? const <badge_model.Badge>[];
-    final earnedCount = list.where((b) => b.isEarned).length;
-    final total = list.length;
-
-    final baseColor = _getBadgeRarityColor(rarity);
-
-    final double lift = isActive ? 4 : 0;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: baseColor.withValues(alpha: 0.5), width: isActive ? 2 : 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: baseColor.withValues(alpha: isActive ? 0.25 : 0.12),
-            blurRadius: isActive ? 16 : 12,
-            offset: Offset(0, 4 - lift),
-          ),
-        ],
-      ),
-      transform: Matrix4.translationValues(0, -lift, 0),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(32),
-        onTap: () {
-          if (!isActive) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Tip: We recommend focusing here after your current level for faster progress.'),
-                backgroundColor: AppColors.elevatedBackground,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-          if (onTap != null) onTap();
-        },
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: baseColor.withValues(alpha: 0.6)),
-                ),
-                child: Icon(Icons.workspace_premium, color: baseColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              if (isActive)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.activeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.6)),
-                  ),
-                  child: Text(
-                    'Recommended',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              Text(
-                total == 0 ? '0/0' : '$earnedCount/$total',
-                style: AppTypography.bodySmall.copyWith(
-                  color: baseColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: baseColor),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            total == 0 ? 'No badges available in this group' : 'Tap to view all badges in this group',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
-        ),
-      ),
-    );
-  }
-
-  void _openRarityList(badge_model.BadgeRarity rarity) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => RarityBadgesListScreen(rarity: rarity),
-      ),
-    );
-  }
-
-  Widget _buildEmptyBadgesState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.emoji_events_outlined,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No badges yet',
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -1203,6 +1091,437 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBadgeCard(badge_model.Badge badge) {
+    final isNewlyEarned = _newlyEarnedBadges.any((b) => b.id == badge.id);
+
+    return Builder(
+      builder: (context) {
+        try {
+          // Check if animation is properly initialized
+          return AnimatedBuilder(
+            animation: _badgeEarnedScale,
+            builder: (context, child) {
+              try {
+                return Transform.scale(
+                  scale: isNewlyEarned ? _badgeEarnedScale.value : 1.0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _showBadgeDetail(badge),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: badge.isEarned
+                                ? AppColors.elevatedBackground
+                                : AppColors.elevatedBackground.withValues(
+                                    alpha: 0.5,
+                                  ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: badge.isEarned
+                                  ? _getBadgeRarityColor(badge.rarity)
+                                  : AppColors.borderColor,
+                              width: badge.isEarned ? 2 : 1,
+                            ),
+                            boxShadow: badge.isEarned
+                                ? [
+                                    BoxShadow(
+                                      color: _getBadgeRarityColor(
+                                        badge.rarity,
+                                      ).withValues(alpha: 0.2),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            children: [
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: _getBadgeRarityColor(
+                                        badge.rarity,
+                                      ).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(
+                                        color: _getBadgeRarityColor(
+                                          badge.rarity,
+                                        ),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: _getBadgeIcon(
+                                      badge.iconName,
+                                    ), // Directly use the returned widget
+                                  ),
+                                  if (isNewlyEarned)
+                                    Positioned(
+                                      top: -2,
+                                      right: -2,
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.star,
+                                          color: Colors.white,
+                                          size: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            badge.name,
+                                            style: AppTypography.bodyLarge
+                                                .copyWith(
+                                                  color: badge.isEarned
+                                                      ? AppColors.textPrimary
+                                                      : AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _getBadgeRarityColor(
+                                              badge.rarity,
+                                            ).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            badge.rarity.name.toUpperCase(),
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: _getBadgeRarityColor(
+                                                    badge.rarity,
+                                                  ),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 10,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      badge.description,
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    if (!badge.isEarned) ...[
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: LinearProgressIndicator(
+                                              value: badge.progressPercentage,
+                                              backgroundColor:
+                                                  AppColors.borderColor,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    _getBadgeRarityColor(
+                                                      badge.rarity,
+                                                    ),
+                                                  ),
+                                              minHeight: 6,
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            '${badge.progress}/${badge.maxProgress}',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ] else ...[
+                                      Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 21,
+                                            height: 21,
+                                            child: Image.asset(
+                                              'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                              fit: BoxFit.contain,
+                                            ),
+                                          ), // Replaced Icon with Image.asset
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            badge.earnedAt != null
+                                                ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                                : 'Earned just now',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: AppColors.successColor,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      (badge.isEarned
+                                              ? Colors.red
+                                              : AppColors.textSecondary)
+                                          .withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  badge.isEarned ? 'Earned' : 'Locked',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: badge.isEarned
+                                        ? Colors.red
+                                        : AppColors.textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              } catch (e) {
+                return _buildStaticBadgeCard(badge);
+              }
+            },
+          );
+        } catch (e) {
+          return _buildStaticBadgeCard(badge);
+        }
+      },
+    );
+  }
+
+  Widget _buildStaticBadgeCard(badge_model.Badge badge) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showBadgeDetail(badge),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: badge.isEarned
+                  ? AppColors.elevatedBackground
+                  : AppColors.elevatedBackground.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: badge.isEarned
+                    ? _getBadgeRarityColor(badge.rarity)
+                    : AppColors.borderColor,
+                width: badge.isEarned ? 2 : 1,
+              ),
+              boxShadow: badge.isEarned
+                  ? [
+                      BoxShadow(
+                        color: _getBadgeRarityColor(
+                          badge.rarity,
+                        ).withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: _getBadgeRarityColor(
+                      badge.rarity,
+                    ).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: _getBadgeRarityColor(badge.rarity),
+                      width: 2,
+                    ),
+                  ),
+                  child: _getBadgeIcon(
+                    badge.iconName,
+                  ), // Directly use the returned widget
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              badge.name,
+                              style: AppTypography.bodyLarge.copyWith(
+                                color: badge.isEarned
+                                    ? AppColors.textPrimary
+                                    : AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getBadgeRarityColor(
+                                badge.rarity,
+                              ).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              badge.rarity.name.toUpperCase(),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: _getBadgeRarityColor(badge.rarity),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        badge.description,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (!badge.isEarned) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: LinearProgressIndicator(
+                                value: badge.progressPercentage,
+                                backgroundColor: AppColors.borderColor,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  _getBadgeRarityColor(badge.rarity),
+                                ),
+                                minHeight: 6,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${badge.progress}/${badge.maxProgress}',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 21,
+                              height: 21,
+                              child: Image.asset(
+                                'Approved_Tick/Approve_2.png', // Replaced Image with new asset
+                                fit: BoxFit.contain,
+                              ),
+                            ), // Replaced Icon with Image.asset
+                            const SizedBox(width: 4),
+                            Text(
+                              badge.earnedAt != null
+                                  ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                                  : 'Earned just now',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.successColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        (badge.isEarned ? Colors.red : AppColors.textSecondary)
+                            .withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge.isEarned ? 'Earned' : 'Locked',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: badge.isEarned
+                          ? Colors.red
+                          : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1242,16 +1561,30 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Total Points',
                   _formatNumber(safeUserProfile?.totalPoints ?? 0),
-                  Icons.stars,
-                  AppColors.warningColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Process_Flows_Automation/Points.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.warningColor,
                 ),
               ),
               Expanded(
                 child: _buildStatItem(
                   'Current Level',
                   'Level ${(safeUserProfile?.level ?? 1).toString()}',
-                  Icons.military_tech,
-                  AppColors.activeColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Business_Growth_Development/Growth_Development_Red.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.activeColor,
                 ),
               ),
             ],
@@ -1263,10 +1596,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Current Streak',
                   '${safeCurrentStreak.toString()} days',
-                  safeHasActivityToday
-                      ? Icons.local_fire_department
-                      : Icons.local_fire_department_outlined,
-                  safeHasActivityToday
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Like_Thumbs_Up/Okay.png', // Replaced IconData with iconWidget
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: safeHasActivityToday
                       ? AppColors.warningColor
                       : AppColors.textSecondary,
                 ),
@@ -1275,8 +1613,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 child: _buildStatItem(
                   'Global Rank',
                   '#${safeUserRank.toString()}',
-                  Icons.emoji_events,
-                  AppColors.warningColor,
+                  iconWidget: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Image.asset(
+                      'Project_Direction_Acceleration/Global_Rank.png', // Corrected path and filename
+                      fit: BoxFit.contain,
+                    ),
+                  ), // Replaced IconData with iconWidget
+                  color: AppColors.warningColor,
                 ),
               ),
             ],
@@ -1288,14 +1633,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
   Widget _buildStatItem(
     String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+    String value, {
+    IconData? icon, // Make icon an optional named parameter
+    Widget? iconWidget, // Keep existing iconWidget parameter
+    Color color = AppColors.textPrimary,
+  }) {
     // Ensure all parameters are safe
     final safeLabel = label.isNotEmpty ? label : 'Unknown';
     final safeValue = value.isNotEmpty ? value : '0';
-    final safeIcon = icon;
     final safeColor = color;
 
     return Container(
@@ -1308,7 +1653,16 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
       child: Column(
         children: [
-          Icon(safeIcon, color: safeColor, size: 24),
+          if (iconWidget != null) // Prioritize iconWidget if provided
+            iconWidget
+          else if (icon != null) // Use IconData if provided as named parameter
+            Icon(icon, color: safeColor, size: 24)
+          else // Fallback if neither is provided
+            Icon(
+              Icons.help_outline,
+              color: safeColor,
+              size: 24,
+            ), // Default icon
           const SizedBox(height: 8),
           Text(
             safeValue,
@@ -1330,6 +1684,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
     );
   }
+
+  // Leaderboard removed
 
   Widget _buildRetroactiveUpdateButton() {
     return Container(
@@ -1416,7 +1772,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   // Leaderboard removed
 
   // Leaderboard entry removed
-
   // Helper methods
   String _formatNumber(int number) {
     if (number >= 1000000) {
@@ -1449,35 +1804,171 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
   }
 
-  IconData _getBadgeIcon(String iconName) {
+  Widget _getBadgeIcon(String iconName) {
+    developer.log(
+      'Fetching icon for badge with iconName: $iconName',
+      name: 'BadgesPointsScreen',
+    );
     switch (iconName) {
       case 'emoji_events':
-        return Icons.emoji_events;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'track_changes':
-        return Icons.track_changes;
+        return Icon(Icons.track_changes);
       case 'check_circle':
-        return Icons.check_circle;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Approved_Tick/approved_red_badge_white.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'local_fire_department':
-        return Icons.local_fire_department;
+        return Icon(Icons.local_fire_department);
       case 'stars':
-        return Icons.stars;
+        return SizedBox(
+          width: 40,
+          height: 40,
+          child: Image.asset(
+            'Process_Flows_Automation/Points.png',
+            fit: BoxFit.contain,
+          ),
+        ); // Replaced Icon with Image.asset
       case 'star':
-        return Icons.star;
+        return Icon(Icons.star);
       case 'workspace_premium':
-        return Icons.workspace_premium;
+        return Icon(Icons.workspace_premium);
       case 'military_tech':
-        return Icons.military_tech;
+        return Icon(Icons.military_tech);
       case 'shield':
-        return Icons.shield;
+        return Icon(Icons.shield);
       case 'explore':
-        return Icons.explore;
+        return Icon(Icons.explore);
       case 'priority_high':
-        return Icons.priority_high;
+        return Icon(Icons.priority_high);
       case 'trending_up':
-        return Icons.trending_up;
+        return Icon(Icons.trending_up);
       default:
-        return Icons.emoji_events;
+        return Icon(Icons.emoji_events);
     }
   }
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date).inDays;
+
+    if (difference == 0) return 'today';
+    if (difference == 1) return 'yesterday';
+    if (difference < 7) return '${difference}d ago';
+    if (difference < 30) return '${(difference / 7).floor()}w ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _showBadgeDetail(badge_model.Badge badge) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.elevatedBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            _getBadgeIcon(badge.iconName), // Directly use the returned widget
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                badge.name,
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: _getBadgeRarityColor(
+                  badge.rarity,
+                ).withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                badge.rarity.name.toUpperCase(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: _getBadgeRarityColor(badge.rarity),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              badge.description,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (badge.isEarned) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: AppColors.successColor,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    badge.earnedAt != null
+                        ? 'Earned ${_formatDate(badge.earnedAt!)}'
+                        : 'Earned just now',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.successColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Text(
+                'Progress: ${badge.progress}/${badge.maxProgress}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: badge.progressPercentage,
+                backgroundColor: AppColors.borderColor,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _getBadgeRarityColor(badge.rarity),
+                ),
+                minHeight: 8,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(color: AppColors.activeColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

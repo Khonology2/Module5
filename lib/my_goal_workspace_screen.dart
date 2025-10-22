@@ -14,11 +14,8 @@ import 'package:pdh/models/alert.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
-  
-  const MyGoalWorkspaceScreen({
-    super.key,
-    this.embedded = false,
-  });
+
+  const MyGoalWorkspaceScreen({super.key, this.embedded = false});
 
   @override
   State<MyGoalWorkspaceScreen> createState() => _MyGoalWorkspaceScreenState();
@@ -116,10 +113,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
       content: AppComponents.backgroundWithImage(
@@ -132,7 +126,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             children: [
               Text(
                 'Create Personal Development Goal',
-                style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                style: AppTypography.heading2.copyWith(
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: AppSpacing.xl),
               _buildSectionHeader('Goal Information'),
@@ -235,9 +231,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Text(
         title,
-        style: AppTypography.heading4.copyWith(
-          color: AppColors.textPrimary,
-        ),
+        style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
       ),
     );
   }
@@ -252,17 +246,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.borderColor,
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.borderColor, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: TextField(
           controller: controller,
           maxLines: maxLines,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -287,10 +280,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.borderColor,
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.borderColor, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -301,18 +291,23 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                date != null ? '${date.day}/${date.month}/${date.year}' : hintText,
+                date != null
+                    ? '${date.day}/${date.month}/${date.year}'
+                    : hintText,
                 style: AppTypography.bodyMedium.copyWith(
                   color: date != null
                       ? AppColors.textPrimary
                       : AppColors.textSecondary,
                 ),
               ),
-              Icon(
-                Icons.calendar_today,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
+              SizedBox(
+                width: 30,
+                height: 30,
+                child: Image.asset(
+                  'Calendar_Date_Picker/Date_Picker_White_Badge_Red.png',
+                  fit: BoxFit.contain,
+                ),
+              ), // Replaced Icon with Image.asset
             ],
           ),
         ),
@@ -332,17 +327,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppColors.borderColor,
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.borderColor, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
         child: DropdownButtonFormField<String>(
           initialValue: value,
           dropdownColor: AppColors.elevatedBackground,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -358,7 +352,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               value: value,
               child: Text(
                 value,
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                ),
               ),
             );
           }).toList(),
@@ -382,11 +378,14 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.lightbulb_outline,
-                  color: AppColors.activeColor,
-                  size: 20,
-                ),
+                SizedBox(
+                  width: 60,
+                  height: 60,
+                  child: Image.asset(
+                    'Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png',
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced Icon with Image.asset
                 const SizedBox(width: 10),
                 Text(
                   'SMART Criteria Verification',
@@ -446,51 +445,25 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
-  int _computeSmartTotal() =>
-      _clarity + _measurability + _achievability + _relevance + _timeline;
-
-  Widget _buildScoreSelector({
-    required String title,
-    required int value,
-    required ValueChanged<int> onChanged,
-    String? helper,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+  Widget _buildSmartCheckbox(
+    String title,
+    bool value,
+    ValueChanged<bool?> onChanged,
+  ) {
+    return Theme(
+      data: ThemeData(unselectedWidgetColor: AppColors.textSecondary),
+      child: CheckboxListTile(
+        title: Text(
+          title,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
           ),
-          if (helper != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              helper,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: List.generate(5, (i) {
-              final score = i + 1;
-              final selected = score == value;
-              return ChoiceChip(
-                selected: selected,
-                label: Text('$score'),
-                onSelected: (_) => onChanged(score),
-                selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
-                labelStyle: AppTypography.bodySmall.copyWith(
-                  color: selected ? AppColors.textPrimary : AppColors.textSecondary,
-                ),
-                backgroundColor: AppColors.elevatedBackground,
-                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
-              );
-            }),
-          ),
-        ],
+        ),
+        value: value,
+        onChanged: onChanged,
+        activeColor: AppColors.activeColor,
+        checkColor: AppColors.textPrimary,
+        contentPadding: EdgeInsets.zero,
       ),
     );
   }
@@ -498,7 +471,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   Future<void> _saveGoal() async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    
+
     // Validate required fields
     if (_goalTitleController.text.trim().isEmpty) {
       scaffoldMessenger.showSnackBar(
@@ -572,10 +545,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       );
 
       final goalId = await DatabaseService.createGoal(goal);
-      
+
       // Create goal with the returned ID for alert
       final createdGoal = goal.copyWith(id: goalId);
-      
+
       // Create alert for goal creation
       await AlertService.createGoalAlert(
         userId: user.uid,

@@ -57,7 +57,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       if (user != null) {
         final streak = await StreakService.getCurrentStreak(user.uid);
         final activityToday = await StreakService.hasActivityToday(user.uid);
-
+        
         if (mounted) {
           setState(() {
             currentStreak = streak;
@@ -90,6 +90,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     super.dispose();
   }
 
+
   Future<void> _loadUserData() async {
     try {
       setState(() {
@@ -119,7 +120,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-
     return FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
@@ -133,7 +133,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
@@ -208,7 +207,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       "Success is the sum of small efforts repeated day in and day out.",
       "The only way to do great work is to love what you do.",
     ];
-
+    
     // Use day of year to get consistent daily motivation
     final dayOfYear = DateTime.now()
         .difference(DateTime(DateTime.now().year, 1, 1))
@@ -266,85 +265,84 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     final error = profileSnapshot.error ?? goalsSnapshot.error;
                     final errorMessage = error.toString();
 
-                    // Check if it's a Firestore index error
-                    if (errorMessage.contains('failed-precondition') ||
-                        errorMessage.contains('index')) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 64,
-                              color: AppColors.warningColor,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Setting up your dashboard...',
-                              style: AppTypography.heading4,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'This is your first time using the app. Let\'s get you started!',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/my_goal_workspace',
-                                );
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Your First Goal'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.activeColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
+                  // Check if it's a Firestore index error
+                  if (errorMessage.contains('failed-precondition') ||
+                      errorMessage.contains('index')) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.error_outline,
+                            Icons.info_outline,
                             size: 64,
-                            color: AppColors.dangerColor,
+                            color: AppColors.warningColor,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Error loading dashboard',
+                            'Setting up your dashboard...',
                             style: AppTypography.heading4,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Please try again in a moment',
+                            'This is your first time using the app. Let\'s get you started!',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.textSecondary,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
-                          ElevatedButton(
+                          ElevatedButton.icon(
                             onPressed: () {
-                              setState(
-                                () {},
-                              ); // Trigger rebuild to restart streams
+                              Navigator.pushNamed(
+                                context,
+                                '/my_goal_workspace',
+                              );
                             },
-                            child: const Text('Retry'),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create Your First Goal'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.activeColor,
+                            ),
                           ),
                         ],
                       ),
                     );
                   }
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppColors.dangerColor,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading dashboard',
+                          style: AppTypography.heading4,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Please try again in a moment',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(
+                              () {},
+                            ); // Trigger rebuild to restart streams
+                          },
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
                   // Update local state with stream data
                   userProfile = profileSnapshot.data;
@@ -427,7 +425,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Widget _buildWelcomeCard() {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
-
+    
     // Use userProfile data if available, otherwise fallback to Firebase Auth
     if (userProfile?.displayName != null &&
         userProfile!.displayName.isNotEmpty) {
@@ -441,7 +439,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final greeting = _getTimeBasedGreeting();
     final currentHour = DateTime.now().hour;
     String motivationalMessage;
-
     if (currentHour < 12) {
       motivationalMessage = 'Ready to start your day strong?';
     } else if (currentHour < 17) {
@@ -455,18 +452,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Row(
         children: [
           CircleAvatar(
-            radius: 30,
+            radius: 30, // Keep radius 30 for the outer circle
             backgroundColor: AppColors.activeColor,
-            backgroundImage: userProfile?.profilePhotoUrl != null
-                ? NetworkImage(userProfile!.profilePhotoUrl!)
-                : null,
-            child: userProfile?.profilePhotoUrl == null
-                ? const Icon(
-                    Icons.person,
-                    size: 30,
-                    color: AppColors.textPrimary,
-                  )
-                : null,
+            // Always display the custom profile image
+            backgroundImage: const AssetImage(
+              'assets/Account_User_Profile/Profile.png',
+            ),
+            // Removed the conditional child icon to prevent double icons
           ),
           const SizedBox(width: 15),
           Expanded(
@@ -545,13 +537,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.activeColor.withValues(alpha: 0.2),
+                color: Colors
+                    .transparent, // Changed background color to transparent
                 borderRadius: BorderRadius.circular(50),
               ),
-              child: Icon(
-                Icons.lightbulb_outline,
-                color: AppColors.warningColor,
-                size: 24,
+              child: Image.asset(
+                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
+                width: 78, // Increased from 24 to 48
+                height: 78, // Increased from 24 to 48
+                fit: BoxFit.contain,
               ),
             ),
             const SizedBox(width: 16),
@@ -606,7 +600,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Active Goals',
                 value: activeGoals.toString(),
-                icon: Icons.track_changes,
+                iconWidget: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Image.asset(
+                    'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Corrected path to use forward slashes
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.activeColor,
               ),
             ),
@@ -615,7 +616,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Completed',
                 value: completedGoals.toString(),
-                icon: Icons.check_circle,
+                iconWidget: SizedBox(
+                  width: 37,
+                  height: 37,
+                  child: Image.asset(
+                    'Approved_Tick/Approved_White_Badge_Red.png',
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.successColor,
               ),
             ),
@@ -624,7 +632,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Points',
                 value: _formatNumber(totalPoints),
-                icon: Icons.stars,
+                iconWidget: SizedBox(
+                  width: 37, // Adjust size as needed
+                  height: 37, // Adjust size as needed
+                  child: Image.asset(
+                    'process_flows_automation/Process_Flows_Automation_White_Badge_Red.png', // Corrected path and filename
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: AppColors.warningColor,
               ),
             ),
@@ -650,7 +665,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               child: AppComponents.kpiCard(
                 label: 'Today\'s Activity',
                 value: hasActivityToday ? 'Active' : 'None',
-                icon: hasActivityToday ? Icons.check_circle : Icons.schedule,
+                iconWidget: SizedBox(
+                  width: 37,
+                  height: 37,
+                  child: Image.asset(
+                    'Approved_Tick/Approved_White_Badge_Red.png',
+                    fit: BoxFit.contain,
+                  ),
+                ), // Replaced icon with iconWidget
                 iconColor: hasActivityToday
                     ? AppColors.successColor
                     : AppColors.textSecondary,
@@ -701,7 +723,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     // Get recent goals sorted by creation date
     final recentGoals = List<Goal>.from(userGoals)
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
     return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -714,10 +735,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.timeline,
-                      size: 48,
-                      color: AppColors.textSecondary,
+                    SizedBox(
+                      width: 48, // Set a consistent size for the image
+                      height: 48,
+                      child: Image.asset(
+                        'Approved_Tick/approved_red_badge_white.png', // Updated to use the new asset
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -739,23 +763,18 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             )
           else
             ...recentGoals.take(3).map((goal) {
-              IconData icon;
               Color iconColor;
               String actionText;
-
               switch (goal.status) {
                 case GoalStatus.completed:
-                  icon = Icons.check_circle;
                   iconColor = AppColors.successColor;
                   actionText = 'Completed';
                   break;
                 case GoalStatus.inProgress:
-                  icon = Icons.play_circle;
                   iconColor = AppColors.activeColor;
                   actionText = 'Started working on';
                   break;
                 case GoalStatus.notStarted:
-                  icon = Icons.add_circle;
                   iconColor = AppColors.activeColor;
                   actionText = 'Created';
                   break;
@@ -770,14 +789,19 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   actionText = 'Burnout flagged on';
                   break;
               }
-
               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: AppComponents.activityItem(
-                  icon: icon,
+                  iconWidget: Image.asset(
+                    'Approved_Tick/approved_red_badge_white.png',
+                    width: 60, // Match the size defined in activityItem
+                    height: 60, // Match the size defined in activityItem
+                    fit: BoxFit.contain,
+                  ),
                   title: '$actionText "${goal.title}"',
                   subtitle: _getTimeAgo(goal.createdAt),
-                  iconColor: iconColor,
+                  iconColor:
+                      iconColor, // iconColor is still used for text if not replaced
                 ),
               );
             }),
@@ -789,7 +813,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-
     if (difference.inDays > 0) {
       return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
     } else if (difference.inHours > 0) {
@@ -909,7 +932,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(Icons.flag, size: 48, color: AppColors.textSecondary),
+                    SizedBox(
+                      width: 78, // Set a consistent size for the image
+                      height: 78,
+                      child: Image.asset(
+                        'Business_Growth_Development/Growth_Development_Red.png', // Replaced flag icon with custom image
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       'No active goals',

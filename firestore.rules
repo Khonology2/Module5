@@ -88,14 +88,7 @@ service cloud.firestore {
         isAdmin()
       );
       
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
-        isAdmin()
-      );
-
-      // Allow managers to perform batch queries for their team
-      allow list: if isSignedIn() && isManager();
+        allow create: if isSignedIn();
     }
 
     // Activities tracking for managers
@@ -108,11 +101,7 @@ service cloud.firestore {
       );
 
       // Create must validate against request.resource since resource doesn't exist yet
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
-        isAdmin()
-      );
+        allow create: if isSignedIn();
 
       // Updates/deletes validate against existing resource
       allow update, delete: if isSignedIn() && (
@@ -163,11 +152,7 @@ service cloud.firestore {
         isAdmin()
       );
       
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
-        isAdmin()
-      );
+        allow create: if isSignedIn();
     }
 
     // Seasons/Challenges - managers create; employees can read and self-join
@@ -211,11 +196,107 @@ service cloud.firestore {
         isAdmin()
       );
       
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(request.resource.data.userId)) ||
+        allow create: if isSignedIn();
+    }
+
+    // Audit Entries - employees can create/read their own, managers can read/write all
+    match /audit_entries/{auditId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        isAdmin()
+      );
+      
+      allow update: if isSignedIn() && (
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      // Allow listing for managers to see all entries in their department
+      allow list: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      // Timeline subcollection
+      match /timeline/{timelineId} {
+        allow read: if isSignedIn();
+        
+        allow create: if isSignedIn() && (
+          request.auth.uid == request.resource.data.userId ||
+          (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+          isAdmin()
+        );
+        
+        allow list: if isSignedIn();
+      }
+    }
+
+    // Evidence Files - users can read/write their own, managers can read all
+    match /evidence_files/{fileId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        request.auth.uid == request.resource.data.userId ||
+        isAdmin()
+      );
+      
+      allow update: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      
+      allow delete: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        isAdmin()
+      );
+      
+      allow list: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+    }
+
+    // Repositories - users can read their own, managers can read all
+    match /repositories/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (isManager() && canManagerSeeEmployee(userId)) ||
+        isAdmin()
+      );
+      
+      allow list: if isSignedIn() && (
+        isManager() || isAdmin()
+      );
+      
+      // Completed goals subcollection
+      match /completedGoals/{goalId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == userId ||
+          (isManager() && canManagerSeeEmployee(userId)) ||
+          isAdmin()
+        );
+        
+        allow write: if isSignedIn() && (
+          isManager() || isAdmin()
+        );
+        
+        allow list: if isSignedIn() && (
+          request.auth.uid == userId ||
+          (isManager() && canManagerSeeEmployee(userId)) ||
+          isAdmin()
+        );
+      }
     }
   }
 }

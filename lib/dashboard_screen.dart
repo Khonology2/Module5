@@ -53,16 +53,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final managerId = FirebaseAuth.instance.currentUser?.uid;
       if (managerId == null) return;
 
-      print('Dashboard: Loading employee data for manager: $managerId');
+      debugPrint('Dashboard: Loading employee data for manager: $managerId');
 
       // Get the stream and take the first value
       final stream = ManagerRealtimeService.getTeamDataStream();
       await for (final employees in stream.take(1)) {
-        print('Dashboard: Loaded ${employees.length} employees');
+        debugPrint('Dashboard: Loaded ${employees.length} employees');
 
-        print('Dashboard: All employees (${employees.length}):');
+        debugPrint('Dashboard: All employees (${employees.length}):');
         for (final emp in employees) {
-          print(
+          debugPrint(
             'Dashboard: Employee - "${emp.profile.displayName}" (${emp.profile.department.isEmpty ? "No Department" : emp.profile.department}) - Goals: ${emp.goals.length}',
           );
         }
@@ -74,7 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         break;
       }
     } catch (e) {
-      print('Dashboard: Error loading employee data: $e');
+      debugPrint('Dashboard: Error loading employee data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -218,19 +218,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _greeting,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16, // Adjusted radius from 30 to 16 to match icon size
+                backgroundColor: Colors.transparent,
+                child: Image.asset(
+                  'assets/Account_User_Profile/Profile.png',
+                  width: 32.0, // Adjust as needed
+                  height: 32.0, // Adjust as needed
+                ),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greeting,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Keep up the great momentum!',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const Text(
+                    'Level 1', // Static for now, can be dynamic later
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Here\'s your team overview for today',
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
+          // Removed the original Text widget as it's now part of the Column
+          // Text(
+          //   'Here\'s your team overview for today',
+          //   style: const TextStyle(color: Colors.white70, fontSize: 14),
+          // ),
         ],
       ),
     );
@@ -292,9 +321,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     // Debug logging
-    print('Dashboard KPI: Employee data count: ${_employeeData.length}');
+    debugPrint('Dashboard KPI: Employee data count: ${_employeeData.length}');
     for (final emp in _employeeData) {
-      print(
+      debugPrint(
         'Dashboard KPI: ${emp.profile.displayName} - Goals: ${emp.goals.length}, Status: ${emp.status}, Overdue: ${emp.overdueGoalsCount}',
       );
     }
@@ -311,7 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .where((emp) => emp.status == EmployeeStatus.overdue)
         .length;
 
-    print(
+    debugPrint(
       'Dashboard KPI: Active Goals: $activeGoals, At Risk: $atRiskCount, Overdue: $overdueCount',
     );
 

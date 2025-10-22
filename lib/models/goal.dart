@@ -22,11 +22,7 @@ class Goal {
   final int points;
   // Key Performance Area tag for persistent excellence grouping
   final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
-  final GoalApprovalStatus approvalStatus;
-  final String? approvedByUserId;
-  final String? approvedByName;
-  final DateTime? approvedAt;
-  final String? rejectionReason;
+  final List<String> evidence; // List of evidence attachments
 
   const Goal({
     required this.id,
@@ -41,11 +37,7 @@ class Goal {
     required this.targetDate,
     required this.points,
     this.kpa,
-    this.approvalStatus = GoalApprovalStatus.pending,
-    this.approvedByUserId,
-    this.approvedByName,
-    this.approvedAt,
-    this.rejectionReason,
+    this.evidence = const [],
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -95,14 +87,51 @@ class Goal {
         return 0;
       })(),
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
-      approvalStatus: GoalApprovalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawApproval,
-        orElse: () => GoalApprovalStatus.approved,
+      evidence: List<String>.from(data?['evidence'] ?? const []),
+    );
+  }
+
+  static Goal fromMap(Map<String, dynamic> map, {String? id}) {
+    final rawCategory = (map['category'] ?? 'personal').toString().toLowerCase();
+    final rawPriority = (map['priority'] ?? 'medium').toString().toLowerCase();
+    final rawStatus = (map['status'] ?? 'notStarted').toString().toLowerCase();
+
+    DateTime parseDate(dynamic v) {
+      if (v is Timestamp) return v.toDate();
+      if (v is DateTime) return v;
+      final parsed = DateTime.tryParse(v?.toString() ?? '');
+      return parsed ?? DateTime.now();
+    }
+
+    return Goal(
+      id: id ?? (map['id']?.toString() ?? ''),
+      userId: map['userId']?.toString() ?? '',
+      title: map['title']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+      category: GoalCategory.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawCategory,
+        orElse: () => GoalCategory.personal,
       ),
-      approvedByUserId: data?['approvedByUserId'],
-      approvedByName: data?['approvedByName'],
-      approvedAt: (data?['approvedAt'] as Timestamp?)?.toDate(),
-      rejectionReason: data?['rejectionReason'],
+      priority: GoalPriority.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawPriority,
+        orElse: () => GoalPriority.medium,
+      ),
+      status: GoalStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == rawStatus ||
+            (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
+            (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
+        orElse: () => GoalStatus.notStarted,
+      ),
+      progress: (map['progress'] ?? 0) is int
+          ? (map['progress'] as int)
+          : int.tryParse(map['progress']?.toString() ?? '0') ?? 0,
+      createdAt: parseDate(map['createdAt']),
+      targetDate: parseDate(map['targetDate']),
+      points: (map['points'] ?? 0) is int
+          ? (map['points'] as int)
+          : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
+      kpa: map['kpa']?.toString().toLowerCase(),
+      evidence: List<String>.from(map['evidence'] ?? const []),
     );
   }
 
@@ -119,11 +148,7 @@ class Goal {
     DateTime? targetDate,
     int? points,
     String? kpa,
-    GoalApprovalStatus? approvalStatus,
-    String? approvedByUserId,
-    String? approvedByName,
-    DateTime? approvedAt,
-    String? rejectionReason,
+    List<String>? evidence,
   }) {
     return Goal(
       id: id ?? this.id,
@@ -138,80 +163,7 @@ class Goal {
       targetDate: targetDate ?? this.targetDate,
       points: points ?? this.points,
       kpa: kpa ?? this.kpa,
-      approvalStatus: approvalStatus ?? this.approvalStatus,
-      approvedByUserId: approvedByUserId ?? this.approvedByUserId,
-      approvedByName: approvedByName ?? this.approvedByName,
-      approvedAt: approvedAt ?? this.approvedAt,
-      rejectionReason: rejectionReason ?? this.rejectionReason,
-    );
-  }
-
-  static Goal fromMap(Map<String, dynamic> map) {
-    final rawCategory = (map['category'] ?? 'personal').toString().toLowerCase();
-    final rawPriority = (map['priority'] ?? 'medium').toString().toLowerCase();
-    final rawStatus = (map['status'] ?? 'notStarted').toString().toLowerCase();
-    final rawApproval = (map['approvalStatus'] ?? 'approved').toString().toLowerCase();
-
-    return Goal(
-      id: map['id'] ?? '',
-      userId: map['userId'] ?? '',
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      category: GoalCategory.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawCategory,
-        orElse: () => GoalCategory.personal,
-      ),
-      priority: GoalPriority.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawPriority,
-        orElse: () => GoalPriority.medium,
-      ),
-      status: GoalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawStatus ||
-            (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
-            (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
-        orElse: () => rawStatus == 'paused'
-            ? GoalStatus.paused
-            : rawStatus == 'burnout'
-                ? GoalStatus.burnout
-                : GoalStatus.notStarted,
-      ),
-      progress: (() {
-        final raw = map['progress'];
-        if (raw is int) return raw;
-        if (raw is num) return raw.round();
-        return 0;
-      })(),
-      createdAt: map['createdAt'] is DateTime
-          ? map['createdAt'] as DateTime
-          : (map['createdAt'] is Timestamp
-              ? (map['createdAt'] as Timestamp).toDate()
-              : DateTime.tryParse(map['createdAt']?.toString() ?? '') ??
-                  DateTime.now()),
-      targetDate: map['targetDate'] is DateTime
-          ? map['targetDate'] as DateTime
-          : (map['targetDate'] is Timestamp
-              ? (map['targetDate'] as Timestamp).toDate()
-              : DateTime.tryParse(map['targetDate']?.toString() ?? '') ??
-                  DateTime.now()),
-      points: (() {
-        final raw = map['points'];
-        if (raw is int) return raw;
-        if (raw is num) return raw.round();
-        return 0;
-      })(),
-      kpa: (map['kpa'] as String?)?.toLowerCase(),
-      approvalStatus: GoalApprovalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawApproval,
-        orElse: () => GoalApprovalStatus.approved,
-      ),
-      approvedByUserId: map['approvedByUserId'],
-      approvedByName: map['approvedByName'],
-      approvedAt: map['approvedAt'] is DateTime
-          ? map['approvedAt'] as DateTime
-          : (map['approvedAt'] is Timestamp
-              ? (map['approvedAt'] as Timestamp).toDate()
-              : null),
-      rejectionReason: map['rejectionReason'],
+      evidence: evidence ?? this.evidence,
     );
   }
 }

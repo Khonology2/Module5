@@ -39,7 +39,6 @@ import 'package:pdh/employee_season_challenges_screen.dart'; // Import Team Chal
 import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal Completion screen
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
-import 'package:pdh/goal_evidence_submission_screen.dart'; // Import the new GoalEvidenceSubmissionScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 
 final GlobalKey<NavigatorState> navigatorKey =
@@ -131,7 +130,11 @@ class _MyAppState extends State<MyApp> {
               '/sign_in': (context) => const LoginScreen(),
               '/my_pdp': (context) => RoleGate(
                 requiredRole: RequiredRole.employee,
-                child: const MyPdpScreen(),
+                child: MainLayout(
+                  title: 'Profile & PDP',
+                  currentRouteName: '/my_pdp',
+                  body: const MyPdpScreen(),
+                ),
               ),
               '/progress_visuals': (context) => MainLayout(
                 title: 'Progress Visuals',
@@ -143,16 +146,28 @@ class _MyAppState extends State<MyApp> {
                 child: const MyGoalWorkspaceScreen(),
               ),
               '/gamification': (context) => const GamificationScreen(),
-              '/repository_audit': (context) => const RepositoryAuditScreen(),
+              '/repository_audit': (context) => MainLayout(
+                title: 'Repository & Audit',
+                currentRouteName: '/repository_audit',
+                body: const RepositoryAuditScreen(),
+              ),
               '/alerts_nudges': (context) => const AlertsNudgesScreen(),
               '/season_challenge': (context) => const SeasonChallengeScreen(),
-              '/settings': (context) => const SettingsScreen(),
+              '/settings': (context) => MainLayout(
+                title: 'Settings & Privacy',
+                currentRouteName: '/settings',
+                body: const SettingsScreen(),
+              ),
               '/manager_review_team_dashboard': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: const ManagerReviewTeamDashboardScreen(),
               ),
               '/badges_points': (context) => const BadgesPointsScreen(),
-              '/leaderboard': (context) => const LeaderboardScreen(),
+              '/leaderboard': (context) => MainLayout(
+                title: 'LeaderBoard',
+                currentRouteName: '/leaderboard',
+                body: const LeaderboardScreen(),
+              ),
               '/manager_leaderboard': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: const ManagerLeaderboardScreen(),
@@ -253,14 +268,7 @@ class _MyAppState extends State<MyApp> {
                   ),
                 ),
               ),
-              '/goal_evidence_submission': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: MainLayout(
-                  title: 'Goal Proof',
-                  currentRouteName: '/goal_evidence_submission',
-                  body: const SubmissionScreen(),
-                ),
-              ),
+              // Goal Proof route removed
             },
             debugShowCheckedModeBanner: false,
             // Add the custom NavigatorObserver
