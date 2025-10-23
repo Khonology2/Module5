@@ -550,12 +550,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               children: [
                 Text('Team Alerts (${alerts.length})',
                     style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
-                if (alerts.any((alert) => !alert.isRead))
-                  TextButton(
-                    onPressed: () => _markAllAlertsAsRead(alerts),
-                    child: Text('Mark All Read',
-                        style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor)),
-                  ),
               ],
             ),
           ),
@@ -759,47 +753,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               ),
             ],
           ),
-          if (alert.actionText != null) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _handleAlertAction(alert, employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: alertColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: Text(alert.actionText!),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _markAlertAsRead(alert.id),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      side: BorderSide(color: AppColors.borderColor),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Mark Read'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () => _showSendNudgeDialog(employee: employee),
-                  icon: const Icon(Icons.send, size: 16),
-                  label: const Text('Nudge'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  ),
-                ),
-              ],
-            ),
-          ],
           if (alert.type == AlertType.goalApprovalRequested && alert.relatedGoalId != null) ...[
             const SizedBox(height: 12),
             Row(

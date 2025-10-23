@@ -157,12 +157,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       }
 
                       final alerts = alertsSnapshot.data ?? [];
+                      // Filter: hide overdue goal alerts in this view
+                      final filtered = alerts.where((a) => a.type != AlertType.goalOverdue).toList();
 
                       return Column(
                         children: [
-                          _buildAlertSummary(alerts),
+                          _buildAlertSummary(filtered),
                           const SizedBox(height: AppSpacing.lg),
-                          _buildAlertsList(alerts),
+                          _buildAlertsList(filtered),
                         ],
                       );
                     },
