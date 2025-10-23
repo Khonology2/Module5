@@ -30,80 +30,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   }
 
   Widget _buildProgressiveSkeleton() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildHeaderWithFilters(),
-        const SizedBox(height: 16),
-        _buildPodiumSkeleton(),
-        const SizedBox(height: 16),
-        ...List.generate(6, (i) => _buildListItemSkeleton()),
-      ],
-    );
-  }
-
-  Widget _buildPodiumSkeleton() {
-    Widget bar(double height) {
-      return Expanded(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Container(
-              height: height,
-              decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
-                border: Border.all(color: AppColors.borderColor),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 200,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          bar(70), const SizedBox(width: 8), bar(90), const SizedBox(width: 8), bar(50),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildListItemSkeleton() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.elevatedBackground,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(height: 12, width: 140, color: AppColors.elevatedBackground),
-                const SizedBox(height: 6),
-                Container(height: 10, width: 90, color: AppColors.elevatedBackground),
-              ],
-            ),
-          ),
-          Container(height: 12, width: 60, color: AppColors.elevatedBackground),
-        ],
+    return const Center(
+      child: CircularProgressIndicator(
+        color: AppColors.activeColor,
       ),
     );
   }

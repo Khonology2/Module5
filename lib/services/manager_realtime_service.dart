@@ -430,11 +430,11 @@ class ManagerRealtimeService {
         }
 
         // Build employee query; if department known, constrain to that team
-        Query query = _firestore
+        Query usersQuery = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee');
-        if (targetDepartment != null && (targetDepartment).isNotEmpty) {
-          query = query.where('department', isEqualTo: targetDepartment);
+        if (targetDepartment != null && targetDepartment.isNotEmpty) {
+          usersQuery = usersQuery.where('department', isEqualTo: targetDepartment);
         }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
@@ -550,8 +550,37 @@ class ManagerRealtimeService {
           controller.add(employeeDataList);
         }
 
-        final usersSub = query.snapshots().listen(
+        final usersSub = usersQuery.snapshots().listen(
           (snapshot) async {
+            // Emit a lightweight team list immediately to transition UI out of 'waiting'
+            try {
+              final now = DateTime.now();
+              final minimal = snapshot.docs.map((d) {
+                final profile = UserProfile.fromFirestore(d);
+                return EmployeeData(
+                  profile: profile,
+                  goals: const [],
+                  recentActivities: const [],
+                  recentAlerts: const [],
+                  completedGoalsCount: 0,
+                  overdueGoalsCount: 0,
+                  totalPoints: profile.totalPoints,
+                  lastActivity: profile.lastLoginAt ?? now.subtract(const Duration(days: 30)),
+                  avgProgress: 0.0,
+                  streakDays: 0,
+                  status: EmployeeStatus.onTrack,
+                  weeklyActivityCount: 0,
+                  engagementScore: 0.0,
+                  motivationLevel: 'N/A',
+                );
+              }).toList();
+              // Only emit if we actually have docs; otherwise let full rebuild handle empty
+              if (minimal.isNotEmpty) controller.add(minimal);
+            } catch (e) {
+              // Ignore minimal emit failures; continue with full rebuild
+            }
+
+            // Perform full enrichment and emit the computed team data
             await rebuildAndEmit(snapshot);
           },
           onError: (error) {
