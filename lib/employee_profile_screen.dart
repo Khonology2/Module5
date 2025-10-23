@@ -3,9 +3,6 @@
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
-import 'package:pdh/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:image_picker/image_picker.dart'; // Import image_picker

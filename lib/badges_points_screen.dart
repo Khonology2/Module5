@@ -1061,7 +1061,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               ),
             );
           }
-          if (onTap != null) onTap();
+          onTap();
         },
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

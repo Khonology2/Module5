@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -9,6 +10,8 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/models/goal.dart';
+import 'package:pdh/goal_detail_screen.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -571,12 +574,40 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       final navigator = Navigator.of(context);
                       final actionRoute = alert.actionRoute;
 
-
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
 
-                      // Navigate to action route if provided
-                      if (mounted && actionRoute != null) {
+                      if (!mounted) return;
+
+                      // Special handling: If the action is to view a specific goal, open GoalDetailScreen
+                      if (actionRoute == '/my_goal_workspace') {
+                        final goalId = alert.actionData != null
+                            ? (alert.actionData!['goalId'] as String?)
+                            : alert.relatedGoalId;
+                        if (goalId != null && goalId.isNotEmpty) {
+                          try {
+                            final doc = await FirebaseFirestore.instance
+                                .collection('goals')
+                                .doc(goalId)
+                                .get();
+                            if (!mounted) return;
+                            if (doc.exists) {
+                              final goal = Goal.fromFirestore(doc);
+                              navigator.push(
+                                MaterialPageRoute(
+                                  builder: (context) => GoalDetailScreen(goal: goal),
+                                ),
+                              );
+                              return;
+                            }
+                          } catch (_) {
+                            // Fallback to workspace navigation below
+                          }
+                        }
+                      }
+
+                      // Default: Navigate to the provided route if any
+                      if (actionRoute != null) {
                         navigator.pushNamed(actionRoute);
                       }
                     },
