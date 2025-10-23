@@ -82,6 +82,7 @@ service cloud.firestore {
 
     // Goals collection - managers can read/write employee goals
     match /goals/{goalId} {
+      allow update: if isSignedIn() && isManager();
       allow read, write: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||

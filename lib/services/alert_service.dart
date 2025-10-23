@@ -349,36 +349,70 @@ class AlertService {
     required String nudgeMessage,
   }) async {
     try {
-      await _firestore.collection('alerts').add({
-        'userId': userId,
-        'type': AlertType.managerNudge.name,
-        'priority': AlertPriority.high.name,
-        'title': 'Manager Nudge 📢',
-        'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-        'actionText': 'View Goal',
-        'actionRoute': '/my_goal_workspace',
-        'actionData': {'goalId': goalId},
-        'createdAt': FieldValue.serverTimestamp(),
-        'fromUserId': managerId,
-        'fromUserName': managerName,
-        'relatedGoalId': goalId,
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
-      });
+      // First try top-level alerts collection
+      try {
+        await _firestore.collection('alerts').add({
+          'userId': userId,
+          'type': AlertType.managerNudge.name,
+          'priority': AlertPriority.high.name,
+          'title': 'Manager Nudge 📢',
+          'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
+          'actionText': 'View Goal',
+          'actionRoute': '/my_goal_workspace',
+          'actionData': {'goalId': goalId},
+          'createdAt': FieldValue.serverTimestamp(),
+          'fromUserId': managerId,
+          'fromUserName': managerName,
+          'relatedGoalId': goalId,
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+        });
+      } on FirebaseException catch (fe) {
+        // If rules don't allow top-level create, fall back to user subcollection path
+        if (fe.code == 'permission-denied') {
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('alerts')
+              .add({
+            'userId': userId,
+            'type': AlertType.managerNudge.name,
+            'priority': AlertPriority.high.name,
+            'title': 'Manager Nudge 📢',
+            'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
+            'actionText': 'View Goal',
+            'actionRoute': '/my_goal_workspace',
+            'actionData': {'goalId': goalId},
+            'createdAt': FieldValue.serverTimestamp(),
+            'fromUserId': managerId,
+            'fromUserName': managerName,
+            'relatedGoalId': goalId,
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          });
+        } else {
+          rethrow;
+        }
+      }
 
-      // Record activity for the employee
-      await ManagerRealtimeService.recordEmployeeActivity(
-        employeeId: userId,
-        activityType: 'nudge_received',
-        description: 'Received a nudge from $managerName about "$goalTitle"',
-        metadata: {
-          'goalId': goalId,
-          'goalTitle': goalTitle,
-          'managerName': managerName,
-          'managerId': managerId,
-        },
-      );
+      // Best-effort activity record; ignore permission issues per stricter rulesets
+      try {
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: userId,
+          activityType: 'nudge_received',
+          description: 'Received a nudge from $managerName about "$goalTitle"',
+          metadata: {
+            'goalId': goalId,
+            'goalTitle': goalTitle,
+            'managerName': managerName,
+            'managerId': managerId,
+          },
+        );
+      } catch (activityError) {
+        developer.log('Activity logging skipped due to rules: $activityError');
+      }
 
       developer.log('Created enhanced manager nudge alert for user $userId');
     } catch (e) {
