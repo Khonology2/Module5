@@ -6,6 +6,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
@@ -146,6 +147,15 @@ class DatabaseService {
           goalTitle: (data['title'] ?? '') as String,
           approved: true,
         );
+        // Also send the employee a 'New Goal Created' alert upon approval
+        try {
+          final goal = Goal.fromMap(data, id: goalId);
+          await AlertService.createGoalAlert(
+            userId: goal.userId,
+            goal: goal,
+            type: AlertType.goalCreated,
+          );
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -274,19 +284,33 @@ class DatabaseService {
       'approvedAt': null,
       'rejectionReason': null,
     });
-    try {
-      // Notify managers for approval
-      await AlertService.createGoalApprovalRequestedAlert(
-        employeeId: goal.userId,
-        goalId: doc.id,
-        goalTitle: goal.title,
-      );
-      // Immediately check badges so 'first_goal' and creation-based badges award right away
+    // Do not auto-notify managers; require explicit submit for approval.
+    // Check badges asynchronously so we don't block UI navigation.
+    // ignore: unawaited_futures
+    Future(() async {
       try {
         await BadgeService.checkAndAwardBadges(goal.userId);
       } catch (_) {}
-    } catch (_) {}
+    });
     return doc.id;
+  }
+
+  static Future<void> requestGoalApproval({
+    required String goalId,
+    required String userId,
+    required String goalTitle,
+  }) async {
+    final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await ref.set({
+      'approvalStatus': GoalApprovalStatus.pending.name,
+      'approvalRequestedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    await AlertService.createGoalApprovalRequestedAlert(
+      employeeId: userId,
+      goalId: goalId,
+      goalTitle: goalTitle,
+    );
   }
 
   static Future<void> updateGoal(Goal goal) async {

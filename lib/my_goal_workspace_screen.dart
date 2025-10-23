@@ -8,9 +8,9 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/alert_service.dart';
+// import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
-import 'package:pdh/models/alert.dart';
+// import 'package:pdh/models/alert.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -57,6 +57,19 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Customer',
     'Financial',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Precache heavy assets to avoid initial jank/spinner when opening the workspace
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        precacheImage(const AssetImage('assets/khono_bg.png'), context);
+        precacheImage(const AssetImage('Calendar_Date_Picker/Date_Picker_White_Badge_Red.png'), context);
+        precacheImage(const AssetImage('Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png'), context);
+      } catch (_) {}
+    });
+  }
 
   Future<void> _selectDate(
     BuildContext context, {
@@ -653,31 +666,14 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       );
 
-      final goalId = await DatabaseService.createGoal(goal);
+      await DatabaseService.createGoal(goal);
 
-      // Create goal with the returned ID for alert
-      final createdGoal = goal.copyWith(id: goalId);
-
-      // Create alert for goal creation
-      await AlertService.createGoalAlert(
-        userId: user.uid,
-        goal: createdGoal,
-        type: AlertType.goalCreated,
-      );
- 
       if (mounted) {
         Navigator.of(context).pop();
       }
 
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Goal created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate back to dashboard
+        // Navigate back to dashboard immediately to minimize waiting
         navigator.pushNamedAndRemoveUntil(
           '/employee_dashboard',
           (route) => false,
