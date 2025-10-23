@@ -42,7 +42,7 @@ class ChatMessage {
 }
 
 class _TypingIndicator extends StatefulWidget {
-  const _TypingIndicator({super.key});
+  const _TypingIndicator();
 
   @override
   State<_TypingIndicator> createState() => _TypingIndicatorState();
@@ -670,7 +670,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                       .orderBy('clientAt')
                       .snapshots()
                       .map((snapshot) => snapshot.docs.map((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
+                        final data = doc.data();
                         final ts = data['timestamp'];
                         final ca = data['clientAt'];
                         DateTime dt;
