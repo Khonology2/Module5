@@ -788,29 +788,26 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildLoadingState() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(child: _skeletonBox(height: 68)),
-            const SizedBox(width: 12),
-            Expanded(child: _skeletonBox(height: 68)),
-            const SizedBox(width: 12),
-            Expanded(child: _skeletonBox(height: 68)),
+            CircularProgressIndicator(color: Color(0xFFC10D00)),
+            SizedBox(height: 12),
+            Text(
+              'Loading team data...',
+              style: TextStyle(color: Colors.white70),
+            ),
           ],
         ),
-        const SizedBox(height: 20),
-        _skeletonBox(height: 44),
-        const SizedBox(height: 16),
-        ...List.generate(
-          4,
-          (_) => Padding(
-            padding: const EdgeInsets.only(bottom: 12.0),
-            child: _skeletonBox(height: 110),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -822,11 +819,11 @@ class _ManagerReviewTeamDashboardScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
+            children: [
               Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
               SizedBox(width: 8),
               Text(
@@ -839,29 +836,20 @@ class _ManagerReviewTeamDashboardScreenState
               ),
             ],
           ),
-          const SizedBox(height: 15),
-          ...List.generate(
-            3,
-            (_) => Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: _skeletonBox(height: 56),
+          SizedBox(height: 15),
+          Center(child: CircularProgressIndicator(color: Color(0xFFC10D00))),
+          SizedBox(height: 10),
+          Center(
+            child: Text(
+              'Analyzing team performance...',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _skeletonBox({double height = 80}) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-    );
-  }
+  
 
   void _sendNudge(EmployeeData employee) {
     showDialog(

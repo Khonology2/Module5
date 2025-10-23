@@ -29,16 +29,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
   }
 
-  Widget _skeletonCard({double height = 120}) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-      ),
-    );
-  }
+  
 
   Future<void> _redirectIfManagerStandalone() async {
     try {
@@ -74,22 +65,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
-            // Progressive skeleton: render structure while waiting
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildWelcomeCard(),
-                const SizedBox(height: AppSpacing.xl),
-                _buildDailyMotivationCard(),
-                const SizedBox(height: AppSpacing.xl),
-                _skeletonCard(height: 120),
-                const SizedBox(height: AppSpacing.xl),
-                _skeletonCard(height: 140),
-                const SizedBox(height: AppSpacing.xl),
-                _skeletonCard(height: 120),
-                const SizedBox(height: AppSpacing.xl),
-                _skeletonCard(height: 100),
-              ],
+            return SizedBox(
+              height: 360,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                ),
+              ),
             );
           }
           final employees = employeesSnap.data!;
@@ -112,11 +94,29 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       _buildDailyMotivationCard(),
                       const SizedBox(height: AppSpacing.xl),
                       metricsSnap.connectionState == ConnectionState.waiting
-                          ? _skeletonCard(height: 120)
+                          ? _card(
+                              child: SizedBox(
+                                height: 120,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                                  ),
+                                ),
+                              ),
+                            )
                           : _buildKpis(metrics, employees),
                       const SizedBox(height: AppSpacing.xl),
                       metricsSnap.connectionState == ConnectionState.waiting
-                          ? _skeletonCard(height: 140)
+                          ? _card(
+                              child: SizedBox(
+                                height: 140,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                                  ),
+                                ),
+                              ),
+                            )
                           : _buildTeamHealth(metrics, employees),
                       const SizedBox(height: AppSpacing.xl),
                       _buildActivitySummary(employees),
@@ -126,7 +126,16 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       _buildTopTwoPerformers(employees),
                       const SizedBox(height: AppSpacing.xl),
                       insightsSnap.connectionState == ConnectionState.waiting
-                          ? _skeletonCard(height: 120)
+                          ? _card(
+                              child: SizedBox(
+                                height: 120,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                                  ),
+                                ),
+                              ),
+                            )
                           : _buildInsights(insights),
                       const SizedBox(height: AppSpacing.xxl),
                     ],

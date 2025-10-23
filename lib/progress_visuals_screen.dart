@@ -11,17 +11,6 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/role_service.dart';
 
-Widget _skeletonTile({double height = 110}) {
-  return Container(
-    height: height,
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.4),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-    ),
-  );
-}
-
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
 
@@ -42,30 +31,6 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     _redirectIfManagerStandalone();
     _loadUserData();
   }
-
-  // _skeletonBlock used for top-level profile skeleton placeholders
-  Widget _skeletonBlock({double height = 120}) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-    );
-  }
-
-  Widget _skeletonTile({double height = 110}) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-    );
-  }
-
 
   Future<void> _redirectIfManagerStandalone() async {
     try {
@@ -135,7 +100,11 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       stream: _getUserProfileStream(),
       builder: (context, profileSnapshot) {
         if (profileSnapshot.connectionState == ConnectionState.waiting) {
-          return _buildProfileSkeleton();
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
         }
 
         if (profileSnapshot.hasError) {
@@ -199,32 +168,6 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       },
     );
   }
-
-  Widget _buildProfileSkeleton() {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/khono_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: ListView(
-        padding: AppSpacing.screenPadding,
-        children: [
-          Container(height: 24, width: 160, color: AppColors.elevatedBackground),
-          const SizedBox(height: AppSpacing.lg),
-          _skeletonBlock(height: 120),
-          const SizedBox(height: AppSpacing.lg),
-          _skeletonBlock(height: 180),
-          const SizedBox(height: AppSpacing.lg),
-          ...List.generate(3, (_) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _skeletonBlock(height: 140),
-              )),
-        ],
-      ),
-    );
-  }
 }
 
 class ManagerProgressVisualsContent extends StatefulWidget {
@@ -284,38 +227,12 @@ class _ManagerProgressVisualsContentState
             ),
             builder: (context, teamSnapshot) {
               if (teamSnapshot.connectionState == ConnectionState.waiting) {
-                // Structured skeletons while team data loads
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: _skeletonTile(height: 110)),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(child: _skeletonTile(height: 110)),
-                      ],
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        Expanded(child: _skeletonTile(height: 110)),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(child: _skeletonTile(height: 110)),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
-                    Text(
-                      'Team Member Progress',
-                      style: AppTypography.heading3.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    ...List.generate(4, (i) => Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                          child: _skeletonTile(height: 120),
-                        )),
-                  ],
+                  ),
                 );
               }
 
@@ -401,10 +318,12 @@ class _ManagerProgressVisualsContentState
       totalProgress += employee.avgProgress;
     }
 
-    final avgProgress =
-        employees.isNotEmpty ? totalProgress / employees.length : 0.0;
-    final engagement =
-        employees.isNotEmpty ? (activeCount / employees.length) * 100 : 0.0;
+    final avgProgress = employees.isNotEmpty
+        ? totalProgress / employees.length
+        : 0.0;
+    final engagement = employees.isNotEmpty
+        ? (activeCount / employees.length) * 100
+        : 0.0;
 
     return TeamMetrics(
       totalEmployees: employees.length,
@@ -419,7 +338,6 @@ class _ManagerProgressVisualsContentState
       lastUpdated: DateTime.now(),
     );
   }
-
 
   Widget _buildFilterDropdown() {
     return Container(
@@ -1184,15 +1102,24 @@ class _ManagerProgressVisualsContentState
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (_) => GoalTrendDialog(goalId: goal.id, goalTitle: goal.title),
+                  builder: (_) =>
+                      GoalTrendDialog(goalId: goal.id, goalTitle: goal.title),
                 );
               },
-              icon: const Icon(Icons.show_chart, size: 14, color: AppColors.activeColor),
+              icon: const Icon(
+                Icons.show_chart,
+                size: 14,
+                color: AppColors.activeColor,
+              ),
               label: Text(
                 'View Trend',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.activeColor,
+                ),
               ),
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
             ),
           ),
         ],
@@ -1312,7 +1239,6 @@ class _ManagerProgressVisualsContentState
       ),
     );
   }
-
 
   void _viewEmployeeDetails(EmployeeData employee) {
     Navigator.pushNamed(
@@ -1538,7 +1464,7 @@ ${goalsDocs.map((doc) {
       ).showSnackBar(SnackBar(content: Text('Debug Error: $e')));
     }
   }
-  
+
   void _scheduleMeeting(String employeeName) {}
 }
 
@@ -1582,11 +1508,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
 
               final goals = snapshot.data ?? [];
 
-              return Column(
-                children: [
-                  _buildPersonalOverview(goals),
-                ],
-              );
+              return Column(children: [_buildPersonalOverview(goals)]);
             },
           ),
         ],
@@ -1904,13 +1826,22 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                     onPressed: () {
                       showDialog(
                         context: context,
-                        builder: (_) => GoalTrendDialog(goalId: goal.id, goalTitle: goal.title),
+                        builder: (_) => GoalTrendDialog(
+                          goalId: goal.id,
+                          goalTitle: goal.title,
+                        ),
                       );
                     },
-                    icon: const Icon(Icons.show_chart, size: 16, color: AppColors.activeColor),
+                    icon: const Icon(
+                      Icons.show_chart,
+                      size: 16,
+                      color: AppColors.activeColor,
+                    ),
                     label: Text(
                       'View Trend',
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.activeColor,
+                      ),
                     ),
                   ),
                 ),
@@ -1968,17 +1899,25 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
 class GoalTrendDialog extends StatelessWidget {
   final String goalId;
   final String goalTitle;
-  const GoalTrendDialog({super.key, required this.goalId, required this.goalTitle});
+  const GoalTrendDialog({
+    super.key,
+    required this.goalId,
+    required this.goalTitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final since = now.subtract(const Duration(days: 30));
-    final sinceKey = '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+    final sinceKey =
+        '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
     return AlertDialog(
       backgroundColor: AppColors.elevatedBackground,
       contentPadding: const EdgeInsets.all(16),
-      title: Text('Trends • $goalTitle', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+      title: Text(
+        'Trends • $goalTitle',
+        style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+      ),
       content: SizedBox(
         width: 600,
         child: StreamBuilder<QuerySnapshot>(
@@ -1991,7 +1930,10 @@ class GoalTrendDialog extends StatelessWidget {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(height: 260, child: Center(child: CircularProgressIndicator()));
+              return const SizedBox(
+                height: 260,
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
             final docs = snapshot.data?.docs ?? [];
             if (docs.isEmpty) {
@@ -2000,7 +1942,9 @@ class GoalTrendDialog extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'No daily data yet. Come back tomorrow.',
-                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               );
@@ -2009,8 +1953,12 @@ class GoalTrendDialog extends StatelessWidget {
             final remaining = <double>[];
             for (final d in docs) {
               final data = d.data() as Map<String, dynamic>;
-              progress.add(((data['progress'] ?? 0) as num).toDouble().clamp(0.0, 100.0));
-              remaining.add(((data['remaining'] ?? 0) as num).toDouble().clamp(0.0, 100.0));
+              progress.add(
+                ((data['progress'] ?? 0) as num).toDouble().clamp(0.0, 100.0),
+              );
+              remaining.add(
+                ((data['remaining'] ?? 0) as num).toDouble().clamp(0.0, 100.0),
+              );
             }
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -2045,7 +1993,11 @@ class _ChartCard extends StatelessWidget {
   final String title;
   final Color color;
   final List<double> values;
-  const _ChartCard({required this.title, required this.color, required this.values});
+  const _ChartCard({
+    required this.title,
+    required this.color,
+    required this.values,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2059,7 +2011,13 @@ class _ChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 160,
@@ -2101,7 +2059,12 @@ class _LineChartPainter extends CustomPainter {
     // Padding for axes
     const leftPad = 28.0;
     const bottomPad = 18.0;
-    final chartRect = Rect.fromLTWH(leftPad, 8, size.width - leftPad - 8, size.height - bottomPad - 8);
+    final chartRect = Rect.fromLTWH(
+      leftPad,
+      8,
+      size.width - leftPad - 8,
+      size.height - bottomPad - 8,
+    );
 
     // Background & border
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
@@ -2111,7 +2074,11 @@ class _LineChartPainter extends CustomPainter {
     final gridCount = 5;
     for (int i = 0; i <= gridCount; i++) {
       final y = chartRect.top + (chartRect.height / gridCount) * i;
-      canvas.drawLine(Offset(chartRect.left, y), Offset(chartRect.right, y), gridPaint);
+      canvas.drawLine(
+        Offset(chartRect.left, y),
+        Offset(chartRect.right, y),
+        gridPaint,
+      );
     }
 
     if (values.isEmpty) return;

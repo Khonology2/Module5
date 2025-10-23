@@ -311,7 +311,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         stream: ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return _buildProgressiveSkeleton();
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+              ),
+            );
           }
 
           if (snapshot.hasError) {
@@ -398,104 +402,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildProgressiveSkeleton() {
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/khono_bg.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: AppSpacing.screenPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Team Alerts & Nudges',
-                        style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: const Text('Send Nudge'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    Expanded(child: _skeletonStat()),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: _skeletonStat()),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: _skeletonStat()),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: _skeletonStat()),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            ),
-            height: 48,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Expanded(
-            child: ListView.builder(
-              padding: AppSpacing.screenPadding,
-              itemCount: 6,
-              itemBuilder: (_, __) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: Container(
-                  height: 96,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _skeletonStat() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        children: [
-          Container(height: 20, width: 40, color: AppColors.elevatedBackground),
-          const SizedBox(height: 8),
-          Container(height: 12, width: 80, color: AppColors.elevatedBackground),
-        ],
-      ),
-    );
-  }
+  // removed skeleton placeholders
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
     final totalAlerts = employees.fold<int>(0, (acc, emp) => acc + emp.recentAlerts.length);
