@@ -446,23 +446,61 @@ class ManagerRealtimeService {
           final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
           
           // Firestore whereIn supports up to 10 values. Fetch in batches.
+          final startDate = _getStartDateForFilter(timeFilter);
+
           Future<List<QueryDocumentSnapshot>> fetchInBatches(String collection) async {
             final results = <QueryDocumentSnapshot>[];
             for (int i = 0; i < employeeIds.length; i += 10) {
               final batch = employeeIds.sublist(i, i + 10 > employeeIds.length ? employeeIds.length : i + 10);
-              final snap = await _firestore
-                  .collection(collection)
-                  .where('userId', whereIn: batch)
-                  .get();
-              results.addAll(snap.docs);
+              Query base = _firestore.collection(collection).where('userId', whereIn: batch);
+
+              // Apply collection-specific filters to minimize data
+              try {
+                if (collection == 'activities') {
+                  // Last 30 days of activity, newest first
+                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  base = base
+                      .where('timestamp', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .orderBy('timestamp', descending: true)
+                      .limit(200);
+                } else if (collection == 'alerts') {
+                  // Only active/undismissed alerts, recent first
+                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  base = base
+                      .where('isDismissed', isEqualTo: false)
+                      .where('createdAt', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .orderBy('createdAt', descending: true)
+                      .limit(200);
+                } else if (collection == 'goals') {
+                  // Only goals created in current time window for dashboard metrics
+                  base = base
+                      .where('createdAt', isGreaterThan: Timestamp.fromDate(startDate))
+                      .limit(500);
+                }
+
+                final snap = await base.get();
+                results.addAll(snap.docs);
+              } on FirebaseException {
+                // Fallback if index missing: fetch without extra filters
+                final snap = await _firestore
+                    .collection(collection)
+                    .where('userId', whereIn: batch)
+                    .get();
+                results.addAll(snap.docs);
+              }
             }
             return results;
           }
 
-          // Batch fetch goals, activities, and alerts
-          final goalsDocs = await fetchInBatches('goals');
-          final activitiesDocs = await fetchInBatches('activities');
-          final alertsDocs = await fetchInBatches('alerts');
+          // Batch fetch goals, activities, and alerts IN PARALLEL to reduce total wait time
+          final results = await Future.wait<List<QueryDocumentSnapshot>>([
+            fetchInBatches('goals'),
+            fetchInBatches('activities'),
+            fetchInBatches('alerts'),
+          ]);
+          final goalsDocs = results[0];
+          final activitiesDocs = results[1];
+          final alertsDocs = results[2];
 
           final goalsByEmployee = <String, List<Goal>>{};
           for (var doc in goalsDocs) {

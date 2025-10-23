@@ -11,6 +11,17 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/role_service.dart';
 
+Widget _skeletonTile({double height = 110}) {
+  return Container(
+    height: height,
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+    ),
+  );
+}
+
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
 
@@ -31,6 +42,30 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     _redirectIfManagerStandalone();
     _loadUserData();
   }
+
+  // _skeletonBlock used for top-level profile skeleton placeholders
+  Widget _skeletonBlock({double height = 120}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+    );
+  }
+
+  Widget _skeletonTile({double height = 110}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+    );
+  }
+
 
   Future<void> _redirectIfManagerStandalone() async {
     try {
@@ -100,11 +135,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       stream: _getUserProfileStream(),
       builder: (context, profileSnapshot) {
         if (profileSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+          return _buildProfileSkeleton();
         }
 
         if (profileSnapshot.hasError) {
@@ -168,6 +199,32 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
       },
     );
   }
+
+  Widget _buildProfileSkeleton() {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: ListView(
+        padding: AppSpacing.screenPadding,
+        children: [
+          Container(height: 24, width: 160, color: AppColors.elevatedBackground),
+          const SizedBox(height: AppSpacing.lg),
+          _skeletonBlock(height: 120),
+          const SizedBox(height: AppSpacing.lg),
+          _skeletonBlock(height: 180),
+          const SizedBox(height: AppSpacing.lg),
+          ...List.generate(3, (_) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: _skeletonBlock(height: 140),
+              )),
+        ],
+      ),
+    );
+  }
 }
 
 class ManagerProgressVisualsContent extends StatefulWidget {
@@ -227,12 +284,38 @@ class _ManagerProgressVisualsContentState
             ),
             builder: (context, teamSnapshot) {
               if (teamSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
+                // Structured skeletons while team data loads
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _skeletonTile(height: 110)),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: _skeletonTile(height: 110)),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(child: _skeletonTile(height: 110)),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: _skeletonTile(height: 110)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    Text(
+                      'Team Member Progress',
+                      style: AppTypography.heading3.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    ...List.generate(4, (i) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: _skeletonTile(height: 120),
+                        )),
+                  ],
                 );
               }
 
