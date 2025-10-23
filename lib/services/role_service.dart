@@ -8,6 +8,7 @@ class RoleService {
   static final RoleService instance = RoleService._internal();
 
   String? _cachedRole; // 'manager' | 'employee'
+  Stream<String?>? _roleBroadcast;
 
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
@@ -21,40 +22,27 @@ class RoleService {
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
-    
-    // Create a stream that starts with cached role if available, then continues with Firestore updates
-    return Stream<String?>.multi((controller) {
-      // First, emit cached role if available
-      if (_cachedRole != null) {
-        controller.add(_cachedRole);
-      }
-      
-      // Then listen to Firestore changes
-      final subscription = FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
-          .listen(
-            (doc) {
-              final role = doc.data()?['role'] as String?;
-              _cachedRole = role; // Update cache
-              controller.add(role);
-            },
-            onError: (error) {
-              controller.addError(error);
-            },
-          );
-      
-      // Clean up subscription when stream is cancelled
-      controller.onCancel = () {
-        subscription.cancel();
-      };
-    });
+
+    // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
+    _roleBroadcast ??= FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .map((doc) {
+          final role = doc.data()?['role'] as String?;
+          _cachedRole = role;
+          return role;
+        })
+        .distinct()
+        .asBroadcastStream();
+
+    return _roleBroadcast!;
   }
 
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
+    _roleBroadcast = null;
   }
 
   // Method to ensure role is loaded and cached
