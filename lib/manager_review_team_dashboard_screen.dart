@@ -788,25 +788,29 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildLoadingState() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: const Center(
-        child: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            CircularProgressIndicator(color: Color(0xFFC10D00)),
-            SizedBox(height: 12),
-            Text(
-              'Loading team data...',
-              style: TextStyle(color: Colors.white70),
-            ),
+            Expanded(child: _skeletonBox(height: 68)),
+            const SizedBox(width: 12),
+            Expanded(child: _skeletonBox(height: 68)),
+            const SizedBox(width: 12),
+            Expanded(child: _skeletonBox(height: 68)),
           ],
         ),
-      ),
+        const SizedBox(height: 20),
+        _skeletonBox(height: 44),
+        const SizedBox(height: 16),
+        ...List.generate(
+          4,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: _skeletonBox(height: 110),
+          ),
+        ),
+      ],
     );
   }
 
@@ -818,11 +822,11 @@ class _ManagerReviewTeamDashboardScreenState
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: [
+            children: const [
               Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
               SizedBox(width: 8),
               Text(
@@ -835,16 +839,26 @@ class _ManagerReviewTeamDashboardScreenState
               ),
             ],
           ),
-          SizedBox(height: 15),
-          Center(child: CircularProgressIndicator(color: Color(0xFFC10D00))),
-          SizedBox(height: 10),
-          Center(
-            child: Text(
-              'Analyzing team performance...',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+          const SizedBox(height: 15),
+          ...List.generate(
+            3,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: _skeletonBox(height: 56),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _skeletonBox({double height = 80}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
     );
   }

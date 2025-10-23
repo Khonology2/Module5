@@ -29,6 +29,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
   }
 
+  Widget _skeletonCard({double height = 120}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+    );
+  }
+
   Future<void> _redirectIfManagerStandalone() async {
     try {
       final role = await RoleService.instance.getRole();
@@ -63,7 +74,23 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            // Progressive skeleton: render structure while waiting
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildWelcomeCard(),
+                const SizedBox(height: AppSpacing.xl),
+                _buildDailyMotivationCard(),
+                const SizedBox(height: AppSpacing.xl),
+                _skeletonCard(height: 120),
+                const SizedBox(height: AppSpacing.xl),
+                _skeletonCard(height: 140),
+                const SizedBox(height: AppSpacing.xl),
+                _skeletonCard(height: 120),
+                const SizedBox(height: AppSpacing.xl),
+                _skeletonCard(height: 100),
+              ],
+            );
           }
           final employees = employeesSnap.data!;
 
@@ -84,9 +111,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const SizedBox(height: AppSpacing.xl),
                       _buildDailyMotivationCard(),
                       const SizedBox(height: AppSpacing.xl),
-                      _buildKpis(metrics, employees),
+                      metricsSnap.connectionState == ConnectionState.waiting
+                          ? _skeletonCard(height: 120)
+                          : _buildKpis(metrics, employees),
                       const SizedBox(height: AppSpacing.xl),
-                      _buildTeamHealth(metrics, employees),
+                      metricsSnap.connectionState == ConnectionState.waiting
+                          ? _skeletonCard(height: 140)
+                          : _buildTeamHealth(metrics, employees),
                       const SizedBox(height: AppSpacing.xl),
                       _buildActivitySummary(employees),
                       const SizedBox(height: AppSpacing.xl),
@@ -94,7 +125,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       const SizedBox(height: AppSpacing.xl),
                       _buildTopTwoPerformers(employees),
                       const SizedBox(height: AppSpacing.xl),
-                      _buildInsights(insights),
+                      insightsSnap.connectionState == ConnectionState.waiting
+                          ? _skeletonCard(height: 120)
+                          : _buildInsights(insights),
                       const SizedBox(height: AppSpacing.xxl),
                     ],
                   );
