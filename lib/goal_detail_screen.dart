@@ -30,6 +30,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   late Goal currentGoal;
   bool isLoading = false;
   StreamSubscription<DocumentSnapshot>? _goalSub;
+  bool _submittingApproval = false;
 
   @override
   void initState() {
@@ -49,6 +50,36 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         });
       } catch (_) {}
     });
+  }
+
+  Future<void> _submitForApproval() async {
+    if (_submittingApproval) return;
+    setState(() { _submittingApproval = true; });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not signed in');
+      await DatabaseService.requestGoalApproval(
+        goalId: currentGoal.id,
+        userId: user.uid,
+        goalTitle: currentGoal.title,
+      );
+      if (mounted) {
+        setState(() {
+          currentGoal = currentGoal.copyWith(approvalRequestedAt: DateTime.now());
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Submitted for manager approval')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit for approval: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() { _submittingApproval = false; });
+    }
   }
 
   Widget _buildKpaSelector() {
@@ -184,13 +215,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           goalTitle: currentGoal.title,
           activityType: 'goal_started',
           description: 'Started goal',
-        );
-        
-        // Create alerts
-        await AlertService.createGoalAlert(
-          userId: user.uid,
-          goal: currentGoal.copyWith(status: GoalStatus.inProgress),
-          type: AlertType.goalCreated,
         );
         
         await AlertService.createPointsAlert(
@@ -765,9 +789,55 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       );
     }
 
-    // If not approved yet, show disabled banner
+    // If not approved yet, either allow submission or show status banner
     if (currentGoal.approvalStatus != GoalApprovalStatus.approved) {
       final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
+      final hasRequested = currentGoal.approvalRequestedAt != null;
+      if (isPending && !hasRequested) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.elevatedBackground,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.verified_outlined, color: AppColors.activeColor),
+                  const SizedBox(width: 8),
+                  Text('Submit for Approval', style: AppTypography.heading4),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your goal needs manager approval before you can start updating progress.',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _submittingApproval ? null : _submitForApproval,
+                  icon: _submittingApproval
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                      : const Icon(Icons.send),
+                  label: Text(_submittingApproval ? 'Submitting...' : 'Submit for Approval'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Otherwise show current status (pending after request, or rejected)
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(

@@ -27,6 +27,7 @@ class Goal {
   final String? approvedByUserId;
   final String? approvedByName;
   final DateTime? approvedAt;
+  final DateTime? approvalRequestedAt;
   final String? rejectionReason;
 
   const Goal({
@@ -47,6 +48,7 @@ class Goal {
     this.approvedByUserId,
     this.approvedByName,
     this.approvedAt,
+    this.approvalRequestedAt,
     this.rejectionReason,
   });
 
@@ -105,6 +107,7 @@ class Goal {
       approvedByUserId: data?['approvedByUserId']?.toString(),
       approvedByName: data?['approvedByName']?.toString(),
       approvedAt: (data?['approvedAt'] as Timestamp?)?.toDate(),
+      approvalRequestedAt: (data?['approvalRequestedAt'] as Timestamp?)?.toDate(),
       rejectionReason: data?['rejectionReason']?.toString(),
     );
   }
@@ -158,6 +161,7 @@ class Goal {
       approvedByUserId: map['approvedByUserId']?.toString(),
       approvedByName: map['approvedByName']?.toString(),
       approvedAt: map['approvedAt'] != null ? parseDate(map['approvedAt']) : null,
+      approvalRequestedAt: map['approvalRequestedAt'] != null ? parseDate(map['approvalRequestedAt']) : null,
       rejectionReason: map['rejectionReason']?.toString(),
     );
   }
@@ -180,6 +184,7 @@ class Goal {
     String? approvedByUserId,
     String? approvedByName,
     DateTime? approvedAt,
+    DateTime? approvalRequestedAt,
     String? rejectionReason,
   }) {
     return Goal(
@@ -200,6 +205,7 @@ class Goal {
       approvedByUserId: approvedByUserId ?? this.approvedByUserId,
       approvedByName: approvedByName ?? this.approvedByName,
       approvedAt: approvedAt ?? this.approvedAt,
+      approvalRequestedAt: approvalRequestedAt ?? this.approvalRequestedAt,
       rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
