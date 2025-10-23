@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/role_service.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
-  const ManagerDashboardScreen({super.key});
+  final bool embedded;
+
+  const ManagerDashboardScreen({super.key, this.embedded = false});
 
   @override
   State<ManagerDashboardScreen> createState() => _ManagerDashboardScreenState();
@@ -45,15 +52,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Manager Dashboard'),
-      ),
-      body: StreamBuilder<List<EmployeeData>>(
+    final content = SingleChildScrollView(
+      padding: AppSpacing.screenPadding,
+      child: StreamBuilder<List<EmployeeData>>(
         stream: _realtime.employeesStream(),
         builder: (context, employeesSnap) {
           if (employeesSnap.hasError) {
@@ -76,33 +77,77 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 builder: (context, insightsSnap) {
                   final insights = insightsSnap.data ?? [];
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildGreetingCard(employees),
-                        const SizedBox(height: 12),
-                        _buildKpis(metrics, employees),
-                        const SizedBox(height: 12),
-                        _buildTeamHealth(metrics, employees),
-                        const SizedBox(height: 12),
-                        _buildActivitySummary(employees),
-                        const SizedBox(height: 12),
-                        _buildSeasonProgressAlerts(),
-                        const SizedBox(height: 12),
-                        _buildTopTwoPerformers(employees),
-                        const SizedBox(height: 12),
-                        _buildInsights(insights),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildWelcomeCard(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildDailyMotivationCard(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildKpis(metrics, employees),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildTeamHealth(metrics, employees),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildActivitySummary(employees),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildSeasonProgressAlerts(),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildTopTwoPerformers(employees),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildInsights(insights),
+                      const SizedBox(height: AppSpacing.xxl),
+                    ],
                   );
                 },
               );
             },
           );
         },
+      ),
+    );
+
+    if (widget.embedded) {
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: content,
+      );
+    }
+
+    return AppScaffold(
+      title: 'Manager Dashboard',
+      showAppBar: false,
+      items: SidebarConfig.managerItems,
+      currentRouteName: '/dashboard',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await AuthService().signOut();
+        if (mounted) {
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        }
+      },
+      content: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: content,
       ),
     );
   }
@@ -120,6 +165,125 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  Widget _buildWelcomeCard() {
+    final greeting = _getTimeBasedGreeting();
+    return _card(
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.activeColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.manage_accounts, color: Colors.white),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$greeting, Manager!', style: AppTypography.heading4),
+                const SizedBox(height: 5),
+                Text(
+                  'Lead by example and help your team grow today.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDailyMotivationCard() {
+    return AppComponents.card(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [
+              AppColors.activeColor.withValues(alpha: 0.1),
+              AppColors.warningColor.withValues(alpha: 0.1),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Image.asset(
+                'Innovation_Brainstorm/innovation_brainstorm_red_badge_white.png',
+                width: 78,
+                height: 78,
+                fit: BoxFit.contain,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily Motivation',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.activeColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getDailyMotivation(),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getTimeBasedGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 17) {
+      return 'Good afternoon';
+    } else {
+      return 'Good evening';
+    }
+  }
+
+  String _getDailyMotivation() {
+    final motivations = [
+      "Great leaders inspire others to dream more, learn more, do more.",
+      "Your guidance today shapes your team's success tomorrow.",
+      "Consistency beats intensity—coach your team daily.",
+      "Empower your team; results will follow.",
+      "Small nudges create big momentum.",
+      "Celebrate progress, not just outcomes.",
+      "Lead with clarity, empathy, and action.",
+    ];
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    return motivations[dayOfYear % motivations.length];
+  }
+
   Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
     final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
     final totalEmployees = m?.totalEmployees ?? employees.length;
@@ -131,7 +295,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         m?.teamEngagement ??
         (totalEmployees > 0 ? (activeEmployees / totalEmployees) * 100 : 0.0);
 
-    return _card(
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -161,7 +325,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     final atRisk = m?.atRiskGoals ?? 0;
     final overdue = m?.overdueGoals ?? 0;
 
-    return _card(
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -227,7 +391,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         .where((e) => e.status == EmployeeStatus.atRisk)
         .length;
 
-    return _card(
+    return AppComponents.card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

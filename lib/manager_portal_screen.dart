@@ -94,7 +94,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   Widget _getBodyWidget() {
     switch (_currentRoute) {
       case '/dashboard':
-        return const ManagerDashboardScreen();
+        return const ManagerDashboardScreen(embedded: true);
       case '/my_pdp':
         return const MyPdpScreen();
       case '/team_challenges_seasons':
