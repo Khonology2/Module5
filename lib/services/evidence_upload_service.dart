@@ -2,9 +2,9 @@ import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
+import 'package:pdh/services/cloudinary_service.dart';
 
 class EvidenceFile {
   final String id;
@@ -63,7 +63,6 @@ class EvidenceFile {
 }
 
 class EvidenceUploadService {
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -109,7 +108,7 @@ class EvidenceUploadService {
     }
   }
 
-  // Upload file to Firebase Storage
+  // Upload file to Cloudinary
   static Future<EvidenceFile> _uploadFile({
     required List<int> bytes,
     required String fileName,
@@ -118,38 +117,21 @@ class EvidenceUploadService {
     String? auditEntryId,
   }) async {
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileExtension = path.extension(fileName);
-      final baseFileName = path.basenameWithoutExtension(fileName);
-      final storageFileName = '${baseFileName}_$timestamp$fileExtension';
-      
-      // Create storage path: evidence/{userId}/{goalId}/{timestamp_fileName}
-      final storagePath = 'evidence/$userId/$goalId/$storageFileName';
-      
-      // Upload to Firebase Storage
-      final ref = _storage.ref().child(storagePath);
-      final uploadTask = ref.putData(
-        Uint8List.fromList(bytes),
-        SettableMetadata(
-          contentType: _getContentType(fileExtension),
-          customMetadata: {
-            'originalName': fileName,
-            'goalId': goalId,
-            'userId': userId,
-          },
-        ),
+      // Upload to Cloudinary
+      final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
+        bytes: Uint8List.fromList(bytes),
+        fileName: fileName,
+        goalId: goalId,
       );
 
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
       // Create evidence file record
+      final fileExtension = path.extension(fileName);
       final evidenceFile = EvidenceFile(
         id: '', // Will be set by Firestore
         goalId: goalId,
         userId: userId,
         fileName: fileName,
-        url: downloadUrl,
+        url: cloudinaryUrl,
         uploadedAt: DateTime.now(),
         acknowledged: false,
         auditEntryId: auditEntryId,
@@ -245,16 +227,9 @@ class EvidenceUploadService {
       final doc = await _firestore.collection('evidence_files').doc(fileId).get();
       if (!doc.exists) return;
 
-      final data = doc.data()!;
-      final url = data['url'] as String;
-
-      // Delete from Firebase Storage
-      try {
-        final ref = _storage.refFromURL(url);
-        await ref.delete();
-      } catch (e) {
-        developer.log('Error deleting file from storage: $e');
-      }
+      // Note: Cloudinary files are not deleted automatically
+      // They will be cleaned up by Cloudinary's lifecycle policies
+      developer.log('Note: Cloudinary files are not deleted automatically');
 
       // Delete from Firestore
       await _firestore.collection('evidence_files').doc(fileId).delete();

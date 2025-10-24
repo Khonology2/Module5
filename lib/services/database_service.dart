@@ -387,6 +387,16 @@ class DatabaseService {
     }, SetOptions(merge: true));
   }
 
+  static Future<void> clearGoalEvidence({
+    required String goalId,
+  }) async {
+    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+    await goalRef.update({
+      'evidence': [],
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Future<void> updateGoalProgress(String goalId, int progress) async {
     // Gate: only allow progress on approved goals
     try {

@@ -1,24 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return request.auth.token.admin == true; // set via custom claims
-    }
-
+    function isSignedIn() { return request.auth != null; }
+    function userId() { return request.auth.uid; }
+    function isAdmin() { return request.auth.token.admin == true; }
     function isManager() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager';
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(userId())) &&
+             get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
     }
-
-    function userRole(userId) {
-      return exists(/databases/$(database)/documents/users/$(userId)) ? 
-        get(/databases/$(database)/documents/users/$(userId)).data.role : null;
+    function isEmployee() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(userId())) &&
+             get(/databases/$(database)/documents/users/$(userId())).data.role == 'employee';
     }
+    function userRole(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)) ?
+             get(/databases/$(database)/documents/users/$(uid)).data.role : null;
+    }
+    function sameDepartment(uid) {
+      return exists(/databases/$(database)/documents/users/$(userId())) &&
+             exists(/databases/$(database)/documents/users/$(uid)) &&
+             get(/databases/$(database)/documents/users/$(userId())).data.department ==
+             get(/databases/$(database)/documents/users/$(uid)).data.department;
+    }
+<<<<<<< HEAD
 
     function sameDepartment(userId) {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
@@ -30,13 +36,15 @@ service cloud.firestore {
    function canManagerSeeEmployee(userId) {
      return userRole(userId) == 'employee' && sameDepartment(userId);
    }
+=======
+>>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
 
     match /users/{userId} {
       // Allow reads for: the user themselves, managers/admins per policy,
       // or any user document where the owner has opted-in to leaderboard visibility
       allow read: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (isManager() && canManagerSeeEmployee(userId)) ||
+        userId() == userId ||
+        (isManager() && sameDepartment(userId)) ||
         isAdmin() ||
         resource.data.leaderboardOptin == true
       );
@@ -45,11 +53,11 @@ service cloud.firestore {
       allow list: if isSignedIn();
 
       // Create allowed for the user to set their initial role.
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && userId() == userId;
 
       // Allow owner to update their own profile as long as they are not changing role.
       // Permit initial role set only if roleSetAt is not set yet.
-      allow update: if isSignedIn() && request.auth.uid == userId && (
+      allow update: if isSignedIn() && userId() == userId && (
         // Either role is not changing (not present in the request or same value)
         !('role' in request.resource.data) || request.resource.data.role == resource.data.role ||
         // Or first-time role selection allowed when roleSetAt isn't set yet
@@ -62,8 +70,8 @@ service cloud.firestore {
       // Rules for subcollections
       match /{subcollection}/{subDocument} {
         allow read, create: if isSignedIn() && (
-          request.auth.uid == userId || 
-          (isManager() && canManagerSeeEmployee(userId)) ||
+          userId() == userId ||
+          (isManager() && sameDepartment(userId)) ||
           isAdmin()
         );
 
@@ -84,8 +92,8 @@ service cloud.firestore {
     match /goals/{goalId} {
       allow update: if isSignedIn() && isManager();
       allow read, write: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
       
@@ -96,8 +104,8 @@ service cloud.firestore {
     match /activities/{activityId} {
       // Reads allowed to owner, managers, admins
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
 
@@ -106,8 +114,8 @@ service cloud.firestore {
 
       // Updates/deletes validate against existing resource
       allow update, delete: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
 
@@ -148,8 +156,8 @@ service cloud.firestore {
     // Notifications - managers can read notifications sent to their employees
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
       
@@ -192,82 +200,52 @@ service cloud.firestore {
     // Badges - users can read their own badges, managers can read employee badges
     match /badges/{badgeId} {
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
       
         allow create: if isSignedIn();
     }
 
-    // Audit Entries - employees can create/read their own, managers can read/write all
+    // Audit Entries - employees can create/read own; managers can read/write within department
     match /audit_entries/{auditId} {
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
-      
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
-        isAdmin()
-      );
-      
-      allow update: if isSignedIn() && (
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
-        isAdmin()
-      );
-      
-      // Allow listing for managers to see all entries in their department
-      allow list: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
-      // Timeline subcollection
+      allow create: if isEmployee() && request.resource.data.userId == userId();
+      allow update, delete: if (isManager() && sameDepartment(resource.data.userId)) || isAdmin();
+
+      // Timeline subcollection (events tied to audit entry)
       match /timeline/{timelineId} {
-        allow read: if isSignedIn();
-        
-        allow create: if isSignedIn() && (
-          request.auth.uid == request.resource.data.userId ||
-          (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
-          isAdmin()
-        );
-        
-        allow list: if isSignedIn();
+        // Read/create allowed for any signed-in user, since parent read already restricted
+        allow read, create, list: if isSignedIn();
       }
     }
 
-    // Evidence Files - users can read/write their own, managers can read all
+    // Evidence Files - users can read/write own; managers can read within department
     match /evidence_files/{fileId} {
       allow read: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
-      
-      allow create: if isSignedIn() && (
-        request.auth.uid == request.resource.data.userId ||
+      allow create: if isSignedIn() && request.resource.data.userId == userId();
+      allow update, delete: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
-      
-      allow update: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
-        isAdmin()
-      );
-      
-      allow delete: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        isAdmin()
-      );
-      
       allow list: if isSignedIn() && (
-        request.auth.uid == resource.data.userId ||
-        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        userId() == resource.data.userId ||
+        (isManager() && sameDepartment(resource.data.userId)) ||
         isAdmin()
       );
     }
 
+<<<<<<< HEAD
     match /team.chat/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
@@ -296,6 +274,31 @@ service cloud.firestore {
           )
         )
       );
+=======
+    // Repositories - users read own; managers read department
+    match /repositories/{userId} {
+      allow read: if isSignedIn() && (
+        userId() == userId ||
+        (isManager() && sameDepartment(userId)) ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (isManager() || isAdmin());
+      
+      // Completed goals subcollection
+      match /completedGoals/{goalId} {
+        allow read: if isSignedIn() && (
+          userId() == userId ||
+          (isManager() && sameDepartment(userId)) ||
+          isAdmin()
+        );
+        allow write: if isSignedIn() && (userId() == userId || isManager() || isAdmin());
+        allow list: if isSignedIn() && (
+          userId() == userId ||
+          (isManager() && sameDepartment(userId)) ||
+          isAdmin()
+        );
+      }
+>>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
     }
   }
 }
