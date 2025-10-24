@@ -2,13 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:html' as html;
 
 import 'package:pdh/models/repository_goal.dart';
 
 class RepositoryExportService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
 
   static Future<List<RepositoryGoal>> _fetchGoals(String userId) async {
     final snap = await _firestore
@@ -51,16 +50,17 @@ class RepositoryExportService {
         );
       }
 
+      // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName =
-          'repository_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final ref = _storage.ref().child('exports/$userId/$fileName');
-      await ref.putData(
-        Uint8List.fromList(bytes),
-        SettableMetadata(contentType: 'text/csv'),
-      );
-      final url = await ref.getDownloadURL();
-      developer.log('CSV export uploaded: $url');
+      final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final blob = html.Blob([bytes], 'text/csv');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+      
+      developer.log('CSV export downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting repository CSV: $e');
       rethrow;
@@ -100,12 +100,17 @@ class RepositoryExportService {
         ].join(','));
       }
 
+      // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
       final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final ref = _storage.ref().child('exports/all/$fileName');
-      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: 'text/csv'));
-      final url = await ref.getDownloadURL();
-      developer.log('CSV export (all) uploaded: $url');
+      final blob = html.Blob([bytes], 'text/csv');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+      
+      developer.log('CSV export (all) downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting all repositories CSV: $e');
       rethrow;
@@ -137,12 +142,17 @@ class RepositoryExportService {
         buffer.writeln('');
       }
 
+      // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
       final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final ref = _storage.ref().child('exports/all/$fileName');
-      await ref.putData(Uint8List.fromList(bytes), SettableMetadata(contentType: 'application/pdf'));
-      final url = await ref.getDownloadURL();
-      developer.log('PDF export (all) uploaded: $url');
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+      
+      developer.log('PDF export (all) downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting all repositories PDF: $e');
       rethrow;
@@ -172,17 +182,17 @@ class RepositoryExportService {
         buffer.writeln('');
       }
 
-      // Store as .pdf for convenience; real PDF generation can replace this later
+      // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName =
-          'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final ref = _storage.ref().child('exports/$userId/$fileName');
-      await ref.putData(
-        Uint8List.fromList(bytes),
-        SettableMetadata(contentType: 'application/pdf'),
-      );
-      final url = await ref.getDownloadURL();
-      developer.log('PDF export (text report) uploaded: $url');
+      final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+      
+      developer.log('PDF export downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting repository PDF: $e');
       rethrow;

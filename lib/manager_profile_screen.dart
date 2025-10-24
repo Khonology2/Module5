@@ -5,11 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+// import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 import 'dart:io'; // Import for File
 
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
+import 'package:pdh/services/cloudinary_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -889,12 +890,16 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
 
     try {
-      final storageRef = FirebaseStorage.instance.ref().child('profile_photos/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await storageRef.putFile(File(pickedFile.path)); // Use File from dart:io
-      final downloadUrl = await storageRef.getDownloadURL();
+      // Upload to Cloudinary instead of Firebase Storage
+      final fileBytes = await File(pickedFile.path).readAsBytes();
+      final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
+        bytes: fileBytes,
+        fileName: 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        goalId: 'profile_photo', // Use a generic goalId for profile photos
+      );
 
       setState(() {
-        _profilePhotoUrl = downloadUrl;
+        _profilePhotoUrl = cloudinaryUrl;
       });
 
       if (!mounted) return;

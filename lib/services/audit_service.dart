@@ -158,23 +158,28 @@ class AuditService {
       query = query.orderBy('submittedDate', descending: true);
 
       return query.snapshots().map((snapshot) {
-        List<AuditEntry> entries = snapshot.docs
-            .map((doc) => AuditEntry.fromFirestore(doc))
-            .toList();
+        try {
+          List<AuditEntry> entries = snapshot.docs
+              .map((doc) => AuditEntry.fromFirestore(doc))
+              .toList();
 
-        // Apply search filter if provided
-        if (searchQuery != null && searchQuery.isNotEmpty) {
-          final lowercaseQuery = searchQuery.toLowerCase();
-          entries = entries.where((entry) {
-            return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                   entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
-                   entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
-                   entry.evidence.any((evidence) => 
-                       evidence.toLowerCase().contains(lowercaseQuery));
-          }).toList();
+          // Apply search filter if provided
+          if (searchQuery != null && searchQuery.isNotEmpty) {
+            final lowercaseQuery = searchQuery.toLowerCase();
+            entries = entries.where((entry) {
+              return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
+                     entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
+                     entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
+                     entry.evidence.any((evidence) => 
+                         evidence.toLowerCase().contains(lowercaseQuery));
+            }).toList();
+          }
+
+          return entries;
+        } catch (e) {
+          developer.log('Error processing manager audit entries: $e');
+          return <AuditEntry>[];
         }
-
-        return entries;
       }).handleError((error) {
         developer.log('Manager audit entries stream error: $error');
         return <AuditEntry>[];
@@ -344,21 +349,26 @@ class AuditService {
       query = query.orderBy('submittedDate', descending: true);
 
       return query.snapshots().map((snapshot) {
-        List<AuditEntry> entries = snapshot.docs
-            .map((doc) => AuditEntry.fromFirestore(doc))
-            .toList();
+        try {
+          List<AuditEntry> entries = snapshot.docs
+              .map((doc) => AuditEntry.fromFirestore(doc))
+              .toList();
 
-        // Apply search filter if provided
-        if (searchQuery != null && searchQuery.isNotEmpty) {
-          final lowercaseQuery = searchQuery.toLowerCase();
-          entries = entries.where((entry) {
-            return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                   entry.evidence.any((evidence) => 
-                       evidence.toLowerCase().contains(lowercaseQuery));
-          }).toList();
+          // Apply search filter if provided
+          if (searchQuery != null && searchQuery.isNotEmpty) {
+            final lowercaseQuery = searchQuery.toLowerCase();
+            entries = entries.where((entry) {
+              return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
+                     entry.evidence.any((evidence) => 
+                         evidence.toLowerCase().contains(lowercaseQuery));
+            }).toList();
+          }
+
+          return entries;
+        } catch (e) {
+          developer.log('Error processing employee audit entries: $e');
+          return <AuditEntry>[];
         }
-
-        return entries;
       }).handleError((error) {
         developer.log('Employee audit entries stream error: $error');
         return <AuditEntry>[];
