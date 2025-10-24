@@ -6,7 +6,8 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:image_picker/image_picker.dart'; // Import image_picker
-import 'package:firebase_storage/firebase_storage.dart'; // Import firebase_storage
+import 'package:pdh/services/cloudinary_service.dart';
+// import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'package:pdh/models/user_profile.dart'; // Removed unused import
 
 class EmployeeProfileScreen extends StatefulWidget {
@@ -119,14 +120,16 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     }
 
     try {
-      final String fileName = 'profile_photos/${user.uid}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
-      final UploadTask uploadTask = storageRef.putData(await image.readAsBytes());
-      final TaskSnapshot snapshot = await uploadTask.whenComplete(() {});
-      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      // Upload to Cloudinary instead of Firebase Storage
+      final fileBytes = await image.readAsBytes();
+      final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
+        bytes: fileBytes,
+        fileName: 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        goalId: 'profile_photo', // Use a generic goalId for profile photos
+      );
 
       setState(() {
-        _profilePhotoUrl = downloadUrl;
+        _profilePhotoUrl = cloudinaryUrl;
       });
 
       if (!mounted) return;

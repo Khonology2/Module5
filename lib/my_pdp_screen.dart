@@ -8,7 +8,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdh/services/storage_service.dart';
+import 'package:pdh/services/cloudinary_service.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -74,6 +74,12 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   }
 
   Future<void> _attachEvidence(BuildContext context, Goal goal) async {
+    // If evidence already exists, show what's submitted with option to change
+    if (goal.evidence.isNotEmpty) {
+      _showEvidenceManagementDialog(context, goal);
+      return;
+    }
+    
     final controller = TextEditingController();
     
     final result = await showDialog<String>(
@@ -104,19 +110,19 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                       onPressed: () async {
                         try {
                           print('Starting file picker...');
-                          final picked = await FilePicker.platform.pickFiles(
+                        final picked = await FilePicker.platform.pickFiles(
                             type: FileType.any,
-                            withData: true,
-                          );
+                          withData: true,
+                        );
                           
                           print('File picker result: ${picked?.files.length} files');
                           
-                          if (picked != null && picked.files.isNotEmpty) {
-                            final file = picked.files.first;
+                        if (picked != null && picked.files.isNotEmpty) {
+                          final file = picked.files.first;
                             print('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
                             
-                            final bytes = file.bytes;
-                            if (bytes != null) {
+                          final bytes = file.bytes;
+                          if (bytes != null) {
                               // Show loading
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
@@ -125,22 +131,31 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 ),
                               );
                               
-                              print('Starting file processing...');
+                              print('Starting Cloudinary upload...');
                               try {
-                                // For now, store file info as evidence since Firebase Storage isn't set up
-                                final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Selected on ${DateTime.now().toString().split('.')[0]}';
-                                
-                                await DatabaseService.attachGoalEvidence(
+                                // Upload to Cloudinary
+                                final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
+                                  bytes: bytes,
+                                  fileName: file.name,
                                   goalId: goal.id,
-                                  evidence: [fileInfo],
                                 );
                                 
-                                print('File info attached to goal: $fileInfo');
+                                print('Cloudinary upload successful: $cloudinaryUrl');
+                                
+                                // Store the Cloudinary URL as evidence
+                                final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
+                                
+                                await DatabaseService.attachGoalEvidence(
+                              goalId: goal.id,
+                                  evidence: [fileInfo, cloudinaryUrl],
+                                );
+                                
+                                print('File uploaded and attached to goal: $fileInfo');
                                 
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     const SnackBar(
-                                      content: Text('File selected and info saved! (Note: Firebase Storage needs to be set up for full file upload)'),
+                                      content: Text('File uploaded successfully to Cloudinary!'),
                                       backgroundColor: Colors.green,
                                     ),
                                   );
@@ -149,15 +164,36 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   setState(() {});
                                 }
                               } catch (error) {
-                                print('Error saving file info: $error');
+                                print('Error uploading to Cloudinary: $error');
                                 
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Error saving file info: $error'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
+                                // Fallback: store file info without upload
+                                try {
+                                  final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Upload failed, but file was selected';
+                                  
+                            await DatabaseService.attachGoalEvidence(
+                              goalId: goal.id,
+                                    evidence: [fileInfo],
+                            );
+                                  
+                            if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text('File selected but upload failed. File info saved: ${file.name}'),
+                                        backgroundColor: Colors.orange,
+                                      ),
+                                    );
+                              Navigator.of(ctx).pop('uploaded');
+                                    setState(() {});
+                                  }
+                                } catch (fallbackError) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $error'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
                               }
                             } else {
@@ -220,6 +256,197 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         setState(() {});
       }
     }
+  }
+
+  void _showEvidenceManagementDialog(BuildContext context, Goal goal) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2840),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            const Text(
+              'Evidence Submitted',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Evidence for: ${goal.title}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Submitted Evidence:',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...goal.evidence.map((evidence) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          evidence.startsWith('https://res.cloudinary.com/') 
+                              ? Icons.cloud_upload 
+                              : Icons.description,
+                          color: evidence.startsWith('https://res.cloudinary.com/') 
+                              ? Colors.blue 
+                              : Colors.green,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            evidence.startsWith('https://res.cloudinary.com/') 
+                                ? '📁 Cloudinary File (Click to view)'
+                                : evidence,
+                            style: TextStyle(
+                              color: evidence.startsWith('https://res.cloudinary.com/') 
+                                  ? Colors.blue 
+                                  : Colors.white70,
+                              fontSize: 12,
+                              decoration: evidence.startsWith('https://res.cloudinary.com/') 
+                                  ? TextDecoration.underline 
+                                  : null,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'What would you like to do?',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showChangeEvidenceDialog(context, goal);
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orange,
+              side: const BorderSide(color: Colors.orange),
+            ),
+            child: const Text('Change Evidence'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangeEvidenceDialog(BuildContext context, Goal goal) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2840),
+        title: const Text(
+          'Change Evidence',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Are you sure you want to change the evidence for this goal?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Current Evidence:',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...goal.evidence.map((evidence) => Text(
+                    '• ${evidence.length > 50 ? "${evidence.substring(0, 50)}..." : evidence}',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
+                  )),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              // Clear existing evidence
+              await DatabaseService.clearGoalEvidence(goalId: goal.id);
+              // Refresh the screen
+              setState(() {});
+              // Open new evidence dialog
+              _attachEvidence(context, goal);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Change Evidence'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _getContentType(String extension) {
@@ -483,26 +710,57 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 const SizedBox(height: 8),
                                 ...goal.evidence.map((evidence) => Padding(
                                   padding: const EdgeInsets.only(bottom: 4),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.description,
-                                        color: Colors.white70,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          evidence,
-                                          style: const TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
+                                  child: InkWell(
+                                    onTap: () {
+                                      // If it's a Cloudinary URL, open it
+                                      if (evidence.startsWith('https://res.cloudinary.com/')) {
+                                        // You can implement opening the URL in a browser
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('File URL: $evidence'),
+                                            duration: const Duration(seconds: 3),
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
+                                        );
+                                      }
+                                    },
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          evidence.startsWith('https://res.cloudinary.com/') 
+                                              ? Icons.cloud_upload 
+                                              : Icons.description,
+                                          color: evidence.startsWith('https://res.cloudinary.com/') 
+                                              ? Colors.blue 
+                                              : Colors.white70,
+                                          size: 14,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            evidence.startsWith('https://res.cloudinary.com/') 
+                                                ? '📁 Cloudinary File (Click to view URL)'
+                                                : evidence,
+                                            style: TextStyle(
+                                              color: evidence.startsWith('https://res.cloudinary.com/') 
+                                                  ? Colors.blue 
+                                                  : Colors.white70,
+                                              fontSize: 12,
+                                              decoration: evidence.startsWith('https://res.cloudinary.com/') 
+                                                  ? TextDecoration.underline 
+                                                  : null,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        if (evidence.startsWith('https://res.cloudinary.com/'))
+                                          const Icon(
+                                            Icons.open_in_new,
+                                            color: Colors.blue,
+                                            size: 12,
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 )),
                               ],
@@ -538,8 +796,20 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             ),
                             OutlinedButton.icon(
                               onPressed: () => _attachEvidence(context, goal),
-                              icon: const Icon(Icons.attach_file, size: 18),
-                              label: const Text('Attach evidence'),
+                              icon: Icon(
+                                goal.evidence.isNotEmpty ? Icons.check_circle : Icons.attach_file, 
+                                size: 18
+                              ),
+                              label: Text(
+                                goal.evidence.isNotEmpty ? 'Evidence submitted' : 'Attach evidence'
+                              ),
+                              style: goal.evidence.isNotEmpty 
+                                  ? OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.green.withOpacity(0.1),
+                                      foregroundColor: Colors.green,
+                                      side: const BorderSide(color: Colors.green),
+                                    )
+                                  : null,
                             ),
                             OutlinedButton.icon(
                               onPressed: () =>
