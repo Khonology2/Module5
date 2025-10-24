@@ -40,6 +40,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     } catch (e) {
       developer.log('Error starting auto-sync: $e');
     }
+    
+    // Add a timeout to prevent infinite loading
+    Future.delayed(const Duration(seconds: 15), () {
+      if (mounted) {
+        setState(() {}); // Trigger rebuild to show error if still loading
+      }
+    });
   }
 
   @override
@@ -655,15 +662,31 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
             ),
       builder: (context, snapshot) {
+        // Show loading for a maximum of 10 seconds, then show error
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: AppColors.activeColor),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: AppColors.activeColor),
+                SizedBox(height: 16),
+                Text(
+                  'Loading audit entries...',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ],
+            ),
           );
         }
 
         if (snapshot.hasError) {
           developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
-          return _buildErrorState('Failed to load audit entries. Please try again.');
+          return _buildErrorState(
+            'Failed to load audit entries. ${snapshot.error}',
+            onRetry: () {
+              setState(() {}); // Trigger rebuild
+            },
+          );
         }
 
         final entries = snapshot.data ?? [];
@@ -727,7 +750,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState(String error, {VoidCallback? onRetry}) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -760,6 +783,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
             textAlign: TextAlign.center,
           ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1246,6 +1281,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               minScore: _minScore,
             ),
             builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(color: AppColors.activeColor),
+                  ),
+                );
+              }
+              
               if (snapshot.hasError) {
                 return Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -1647,7 +1691,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 Icons.open_in_new,
                 color: AppColors.textMuted,
                 size: 16,
-              ),
+          ),
         ],
           ),
         ),
