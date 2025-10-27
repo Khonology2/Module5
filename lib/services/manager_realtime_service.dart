@@ -407,6 +407,8 @@ class ManagerRealtimeService {
   }
 
   // Stream real-time team data based on current manager
+  static const int _initialEmployeeLimit = 25; // cap initial load for performance
+
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
     TimeFilter timeFilter = TimeFilter.month,
@@ -432,9 +434,12 @@ class ManagerRealtimeService {
         // Build employee query; if department known, constrain to that team
         Query usersQuery = _firestore
             .collection('users')
-            .where('role', isEqualTo: 'employee');
+            .where('role', isEqualTo: 'employee')
+            .limit(_initialEmployeeLimit);
         if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          usersQuery = usersQuery.where('department', isEqualTo: targetDepartment);
+          usersQuery = usersQuery
+              .where('department', isEqualTo: targetDepartment)
+              .limit(_initialEmployeeLimit);
         }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {

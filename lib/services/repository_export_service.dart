@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:html' as html;
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:pdh/models/repository_goal.dart';
 
@@ -17,6 +18,177 @@ class RepositoryExportService {
         .orderBy('verifiedDate', descending: true)
         .get();
     return snap.docs.map((d) => RepositoryGoal.fromFirestore(d)).toList();
+  }
+
+  // -------------------- Manager Verified Audit Entries Export --------------------
+  static Future<String?> _getManagerDepartment() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return null;
+      final doc = await _firestore.collection('users').doc(uid).get();
+      return (doc.data() ?? const {})['department'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _fetchVerifiedAuditEntriesForDept({
+    String? department,
+    String? search,
+    String? monthFilter, // YYYY-MM
+    double? minScore,
+    int limit = 1000,
+  }) async {
+    final dept = department ?? await _getManagerDepartment();
+    if (dept == null || dept.isEmpty) return [];
+
+    Query query = _firestore
+        .collection('audit_entries')
+        .where('userDepartment', isEqualTo: dept)
+        .where('status', isEqualTo: 'verified')
+        .orderBy('submittedDate', descending: true)
+        .limit(limit);
+
+    final snap = await query.get();
+    var items = snap.docs
+        .map((d) => d.data() as Map<String, dynamic>)
+        .toList();
+
+    // Client-side filters to match UI
+    if (search != null && search.trim().isNotEmpty) {
+      final q = search.toLowerCase();
+      items = items.where((m) {
+        final goalTitle = (m['goalTitle'] ?? '').toString().toLowerCase();
+        final userName = (m['userDisplayName'] ?? '').toString().toLowerCase();
+        final dept = (m['userDepartment'] ?? '').toString().toLowerCase();
+        final evidence = (m['evidence'] as List<dynamic>? ?? [])
+            .map((e) => e.toString().toLowerCase())
+            .toList();
+        return goalTitle.contains(q) ||
+            userName.contains(q) ||
+            dept.contains(q) ||
+            evidence.any((e) => e.contains(q));
+      }).toList();
+    }
+
+    if (monthFilter != null && monthFilter.isNotEmpty) {
+      items = items.where((m) {
+        final ts = m['completedDate'] as Timestamp?;
+        final d = ts?.toDate();
+        if (d == null) return false;
+        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+        return key == monthFilter;
+      }).toList();
+    }
+
+    if (minScore != null) {
+      items = items.where((m) => ((m['score'] as num?)?.toDouble() ?? 0) >= minScore).toList();
+    }
+
+    return items;
+  }
+
+  static Future<void> exportManagerVerifiedAsCSV({
+    String? department,
+    String? search,
+    String? monthFilter,
+    double? minScore,
+  }) async {
+    try {
+      final items = await _fetchVerifiedAuditEntriesForDept(
+        department: department,
+        search: search,
+        monthFilter: monthFilter,
+        minScore: minScore,
+      );
+
+      final buffer = StringBuffer();
+      buffer.writeln(
+        'userId,userDisplayName,userDepartment,goalId,goalTitle,completedDate,submittedDate,score,acknowledgedBy,evidenceCount,comments',
+      );
+
+      for (final m in items) {
+        final completed = (m['completedDate'] as Timestamp?)?.toDate().toIso8601String() ?? '';
+        final submitted = (m['submittedDate'] as Timestamp?)?.toDate().toIso8601String() ?? '';
+        final title = (m['goalTitle'] ?? '').toString().replaceAll(',', ' ');
+        final comments = (m['comments'] ?? '').toString().replaceAll(',', ' ');
+        final evidence = (m['evidence'] as List<dynamic>? ?? []);
+        buffer.writeln([
+          m['userId'] ?? '',
+          (m['userDisplayName'] ?? '').toString().replaceAll(',', ' '),
+          (m['userDepartment'] ?? '').toString().replaceAll(',', ' '),
+          m['goalId'] ?? '',
+          title,
+          completed,
+          submitted,
+          (m['score'] as num?)?.toStringAsFixed(2) ?? '',
+          m['acknowledgedBy'] ?? '',
+          evidence.length.toString(),
+          comments,
+        ].join(','));
+      }
+
+      final bytes = utf8.encode(buffer.toString());
+      final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final blob = html.Blob([bytes], 'text/csv');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+
+      developer.log('Manager verified CSV export downloaded: $fileName');
+    } catch (e) {
+      developer.log('Error exporting manager verified CSV: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> exportManagerVerifiedAsPDF({
+    String? department,
+    String? search,
+    String? monthFilter,
+    double? minScore,
+  }) async {
+    try {
+      final items = await _fetchVerifiedAuditEntriesForDept(
+        department: department,
+        search: search,
+        monthFilter: monthFilter,
+        minScore: minScore,
+      );
+
+      final buffer = StringBuffer();
+      buffer.writeln('Personal Development Hub – Verified Evidence Report');
+      buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
+      buffer.writeln('');
+      for (final m in items) {
+        final completed = (m['completedDate'] as Timestamp?)?.toDate();
+        buffer.writeln('- ${m['goalTitle'] ?? ''}');
+        buffer.writeln('  Employee: ${(m['userDisplayName'] ?? '')} (${(m['userDepartment'] ?? '')})');
+        buffer.writeln('  Goal ID: ${(m['goalId'] ?? '')}');
+        buffer.writeln('  Completed: ${completed?.toIso8601String() ?? ''}');
+        buffer.writeln('  Score: ${(m['score'] as num?)?.toStringAsFixed(1) ?? '-'}');
+        buffer.writeln('  Verified by: ${(m['acknowledgedBy'] ?? '-')}');
+        final evidence = (m['evidence'] as List<dynamic>? ?? []);
+        buffer.writeln('  Evidence count: ${evidence.length}');
+        buffer.writeln('');
+      }
+
+      final bytes = utf8.encode(buffer.toString());
+      final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final blob = html.Blob([bytes], 'application/pdf');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+
+      developer.log('Manager verified PDF export downloaded: $fileName');
+    } catch (e) {
+      developer.log('Error exporting manager verified PDF: $e');
+      rethrow;
+    }
   }
 
   static Future<void> exportRepositoryAsCSV(String userId) async {

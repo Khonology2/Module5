@@ -167,9 +167,17 @@ class RepositoryService {
       return;
     }
     _auditVerifiedSubscription?.cancel();
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      developer.log('Repository auto-sync: no current user');
+      return;
+    }
+
+    // Only listen to verified entries for the CURRENT USER to avoid permission errors and reduce load
     _auditVerifiedSubscription = _firestore
         .collection('audit_entries')
         .where('status', isEqualTo: 'verified')
+        .where('userId', isEqualTo: currentUser.uid)
         .snapshots()
         .listen(
           (snapshot) async {

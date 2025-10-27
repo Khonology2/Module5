@@ -4,20 +4,13 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/services/storage_service.dart';
-// ignore: unused_import
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:file_picker/file_picker.dart';
-<<<<<<< HEAD
-// ignore: unused_import
-import 'package:logger/logger.dart';
-=======
 import 'package:pdh/services/cloudinary_service.dart';
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -117,153 +110,70 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-<<<<<<< HEAD
-                        final picked = await FilePicker.platform.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: [
-                            'pdf',
-                            'doc',
-                            'docx',
-                            'png',
-                            'jpg',
-                            'jpeg',
-                          ],
-                          withData: true,
-                        );
-                        if (picked != null && picked.files.isNotEmpty) {
-                          final file = picked.files.first;
-                          final bytes = file.bytes;
-                          if (bytes != null) {
-                            final ext = (file.extension ?? '').toLowerCase();
-                            String contentType = 'application/octet-stream';
-                            if (ext == 'pdf') {
-                              contentType = 'application/pdf';
-=======
                         try {
-                          print('Starting file picker...');
-                        final picked = await FilePicker.platform.pickFiles(
+                          final picked = await FilePicker.platform.pickFiles(
                             type: FileType.any,
-                          withData: true,
-                        );
-                          
-                          print('File picker result: ${picked?.files.length} files');
-                          
-                        if (picked != null && picked.files.isNotEmpty) {
-                          final file = picked.files.first;
-                            print('Selected file: ${file.name}, size: ${file.bytes?.length} bytes');
-                            
-                          final bytes = file.bytes;
-                          if (bytes != null) {
-                              // Show loading
+                            withData: true,
+                          );
+                          if (picked != null && picked.files.isNotEmpty) {
+                            final file = picked.files.first;
+                            final bytes = file.bytes;
+                            if (bytes != null) {
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
                                   content: Text('Uploading file...'),
                                   duration: Duration(seconds: 2),
                                 ),
                               );
-                              
-                              print('Starting Cloudinary upload...');
                               try {
-                                // Upload to Cloudinary
                                 final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
                                   bytes: bytes,
                                   fileName: file.name,
                                   goalId: goal.id,
                                 );
-                                
-                                print('Cloudinary upload successful: $cloudinaryUrl');
-                                
-                                // Store the Cloudinary URL as evidence
                                 final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
-                                
                                 await DatabaseService.attachGoalEvidence(
-                              goalId: goal.id,
+                                  goalId: goal.id,
                                   evidence: [fileInfo, cloudinaryUrl],
                                 );
-                                
-                                print('File uploaded and attached to goal: $fileInfo');
-                                
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     const SnackBar(
-                                      content: Text('File uploaded successfully to Cloudinary!'),
+                                      content: Text('File uploaded to Cloudinary!'),
                                       backgroundColor: Colors.green,
                                     ),
                                   );
                                   Navigator.of(ctx).pop('uploaded');
-                                  // Refresh the screen to show the new evidence
                                   setState(() {});
                                 }
-                              } catch (error) {
-                                print('Error uploading to Cloudinary: $error');
-                                
-                                // Fallback: store file info without upload
-                                try {
-                                  final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Upload failed, but file was selected';
-                                  
-                            await DatabaseService.attachGoalEvidence(
-                              goalId: goal.id,
-                                    evidence: [fileInfo],
-                            );
-                                  
-                            if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      SnackBar(
-                                        content: Text('File selected but upload failed. File info saved: ${file.name}'),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                              Navigator.of(ctx).pop('uploaded');
-                                    setState(() {});
-                                  }
-                                } catch (fallbackError) {
-                                  if (ctx.mounted) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: $error'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
+                              } catch (cloudErr) {
+                                // Do not save or mark evidence on failure; show error and keep dialog open
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Upload failed: $cloudErr'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
                                 }
                               }
                             } else {
-                              print('No file bytes available');
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
                                   content: Text('Error: No file data available'),
                                   backgroundColor: Colors.red,
                                 ),
                               );
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
                             }
-                            if (ext == 'doc') {
-                              contentType = 'application/msword';
-                            }
-                            if (ext == 'docx') {
-                              contentType =
-                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                            }
-                            if (ext == 'png') {
-                              contentType = 'image/png';
-                            }
-                            if (ext == 'jpg' || ext == 'jpeg') {
-                              contentType = 'image/jpeg';
-                            }
-
-                            final url = await StorageService.uploadEvidence(
-                              goalId: goal.id,
-                              fileName: file.name,
-                              bytes: bytes,
-                              contentType: contentType,
+                          }
+                        } catch (e) {
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Error picking file: $e'),
+                                backgroundColor: Colors.red,
+                              ),
                             );
-                            await DatabaseService.attachGoalEvidence(
-                              goalId: goal.id,
-                              evidence: [url],
-                            );
-                            if (ctx.mounted) {
-                              Navigator.of(ctx).pop('uploaded');
-                            }
                           }
                         }
                       },
@@ -303,8 +213,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     }
   }
 
-<<<<<<< HEAD
-=======
   void _showEvidenceManagementDialog(BuildContext context, Goal goal) {
     showDialog(
       context: context,
@@ -518,7 +426,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     }
   }
 
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
     // Submit to audit with any existing evidence field if present; here we just let user add a note quickly
     await AuditService.submitGoalForAudit(goal, const []);
@@ -728,8 +635,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                           minHeight: 6,
                         ),
                         const SizedBox(height: 12),
-<<<<<<< HEAD
-=======
                         
                         // Show attached evidence if any
                         if (goal.evidence.isNotEmpty) ...[
@@ -824,7 +729,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                           const SizedBox(height: 12),
                         ],
                         
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
