@@ -80,6 +80,7 @@ class EvidenceUploadService {
         allowMultiple: true,
         type: FileType.any,
         allowedExtensions: null, // Allow all file types
+        withData: true, // Ensure bytes are available on Web/Desktop
       );
 
       if (result == null || result.files.isEmpty) {

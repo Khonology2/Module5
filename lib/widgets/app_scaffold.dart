@@ -75,10 +75,7 @@ class AppScaffold extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
-              child: FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: content,
-              ),
+              child: content,
             ),
             if (topRightAction != null)
               Positioned(top: 8, right: 8, child: topRightAction!),
@@ -136,10 +133,7 @@ class AppScaffold extends StatelessWidget {
                     child: Stack(
                       children: [
                         Positioned.fill(
-                          child: FocusTraversalGroup(
-                            policy: WidgetOrderTraversalPolicy(),
-                            child: content,
-                          ),
+                          child: content,
                         ),
                         if (topRightAction != null)
                           Positioned(

@@ -9,9 +9,20 @@ class CloudinaryService {
   static const String _apiKey = '946333512921255'; // Replace with your API key
   static const String _apiSecret = '2d_4NtGANso3Cdn2X_KFDAdR-Zk'; // Replace with your API secret
   static const String _uploadPreset = 'evidence_upload'; // Replace with your upload preset
-  
-  // Base URL for Cloudinary uploads
-  static const String _uploadUrl = 'https://api.cloudinary.com/v1_1/$_cloudName/upload';
+
+  // Build the upload URL for a given Cloudinary resource type
+  static Uri _buildUploadUri(String resourceType) {
+    return Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload');
+  }
+
+  // Guess the appropriate Cloudinary resource type from the file extension
+  static String _guessResourceType(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    const imageExts = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'};
+    if (imageExts.contains(ext)) return 'image';
+    // Non-image documents (pdf, doc, docx, ppt, etc.) upload as raw
+    return 'raw';
+  }
 
   /// Upload a file to Cloudinary
   static Future<String> uploadFile({
@@ -24,8 +35,9 @@ class CloudinaryService {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Create form data
-      final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
+      // Create form data (auto-detect resource type; fallback to raw on failure)
+      final initialType = _guessResourceType(fileName);
+      var request = http.MultipartRequest('POST', _buildUploadUri(initialType));
       
       // Add file
       request.files.add(http.MultipartFile.fromBytes(
@@ -46,15 +58,33 @@ class CloudinaryService {
       request.fields['tags'] = 'evidence,goal,${user.uid}';
 
       // Send request
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
-      
+      var response = await request.send();
+      var responseBody = await response.stream.bytesToString();
+
       if (response.statusCode == 200) {
         final data = json.decode(responseBody);
         return data['secure_url'] as String;
-      } else {
-        throw Exception('Upload failed: ${response.statusCode} - $responseBody');
       }
+
+      // If Cloudinary complains about invalid image, retry as raw
+      if (response.statusCode == 400 &&
+          responseBody.toLowerCase().contains('invalid image') &&
+          initialType != 'raw') {
+        request = http.MultipartRequest('POST', _buildUploadUri('raw'))
+          ..fields['upload_preset'] = _uploadPreset
+          ..fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
+          ..fields['tags'] = 'evidence,goal,${user.uid}'
+          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+
+        response = await request.send();
+        responseBody = await response.stream.bytesToString();
+        if (response.statusCode == 200) {
+          final data = json.decode(responseBody);
+          return data['secure_url'] as String;
+        }
+      }
+
+      throw Exception('Upload failed: ${response.statusCode} - $responseBody');
     } catch (e) {
       throw Exception('Cloudinary upload error: $e');
     }
@@ -70,9 +100,10 @@ class CloudinaryService {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Create form data
-      final request = http.MultipartRequest('POST', Uri.parse(_uploadUrl));
-      
+      // Create form data (auto-detect resource type; fallback to raw on failure)
+      final initialType = _guessResourceType(fileName);
+      var request = http.MultipartRequest('POST', _buildUploadUri(initialType));
+
       // Add file
       request.files.add(http.MultipartFile.fromBytes(
         'file',
@@ -86,15 +117,33 @@ class CloudinaryService {
       request.fields['tags'] = 'evidence,goal,${user.uid}';
 
       // Send request
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
-      
+      var response = await request.send();
+      var responseBody = await response.stream.bytesToString();
+
       if (response.statusCode == 200) {
         final data = json.decode(responseBody);
         return data['secure_url'] as String;
-      } else {
-        throw Exception('Upload failed: ${response.statusCode} - $responseBody');
       }
+
+      // If Cloudinary complains about invalid image, retry as raw
+      if (response.statusCode == 400 &&
+          responseBody.toLowerCase().contains('invalid image') &&
+          initialType != 'raw') {
+        request = http.MultipartRequest('POST', _buildUploadUri('raw'))
+          ..fields['upload_preset'] = _uploadPreset
+          ..fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
+          ..fields['tags'] = 'evidence,goal,${user.uid}'
+          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+
+        response = await request.send();
+        responseBody = await response.stream.bytesToString();
+        if (response.statusCode == 200) {
+          final data = json.decode(responseBody);
+          return data['secure_url'] as String;
+        }
+      }
+
+      throw Exception('Upload failed: ${response.statusCode} - $responseBody');
     } catch (e) {
       throw Exception('Cloudinary upload error: $e');
     }

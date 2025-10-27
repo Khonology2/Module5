@@ -33,8 +33,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   double? _minScore;
 
   @override
-<<<<<<< HEAD
-=======
   void initState() {
     super.initState();
     // Ensure repository auto-sync is running to mirror verified audits
@@ -43,7 +41,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     } catch (e) {
       developer.log('Error starting auto-sync: $e');
     }
-    
+
     // Add a timeout to prevent infinite loading
     Future.delayed(const Duration(seconds: 15), () {
       if (mounted) {
@@ -53,7 +51,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   @override
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
   void dispose() {
     _searchController.dispose();
     try {
@@ -101,7 +98,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       const SizedBox(height: 16),
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
-                      _buildRepositorySection(),
+                      _buildRepositorySection(isManager: isManager),
                     ],
                   );
                 },
@@ -110,6 +107,29 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildManagerVerifiedList(List<AuditEntry> entries) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: entries.length,
+      separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final e = entries[index];
+        final d = e.completedDate;
+        final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        return ListTile(
+          leading: const Icon(Icons.verified, color: Colors.green),
+          title: Text(e.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          subtitle: Text(
+            '$date • ${e.userDisplayName} • Score: ${e.score?.toStringAsFixed(1) ?? '-'}',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          trailing: Text('${e.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+        );
+      },
     );
   }
 
@@ -377,9 +397,26 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+  Future<String?> _getManagerDept() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return null;
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      return (doc.data() ?? const {})['department'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildRoleSummaryBar({required bool isManager}) {
+    final stream = isManager
+        ? Stream.fromFuture(
+            _getManagerDept().then((dept) => AuditService.getAuditStats(department: dept)),
+          )
+        : Stream.fromFuture(AuditService.getAuditStats());
+
     return StreamBuilder<Map<String, int>>(
-      stream: Stream.fromFuture(AuditService.getAuditStats()),
+      stream: stream,
       builder: (context, snapshot) {
         final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
         
@@ -492,16 +529,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
         if (snapshot.hasError) {
           developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
-<<<<<<< HEAD
-          return _buildErrorState('Failed to load audit entries: ${snapshot.error}');
-=======
           return _buildErrorState(
             'Failed to load audit entries. ${snapshot.error}',
             onRetry: () {
               setState(() {}); // Trigger rebuild
             },
           );
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
         }
 
         final entries = snapshot.data ?? [];
@@ -554,12 +587,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-<<<<<<< HEAD
-  Widget _buildErrorState(String error) {
-=======
-
   Widget _buildErrorState(String error, {VoidCallback? onRetry}) {
->>>>>>> 38b0035042391dd2574e10d6eb0f8a94655b3008
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -1080,7 +1108,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
 
-  Widget _buildRepositorySection() {
+  Widget _buildRepositorySection({required bool isManager}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
 
@@ -1108,74 +1136,109 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
-          child: StreamBuilder<List<RepositoryGoal>>(
-            stream: RepositoryService.queryRepositoryGoals(
-              uid,
-              search: _searchQuery,
-              dateFilter: _monthFilter,
-              minScore: _minScore,
-            ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: CircularProgressIndicator(color: AppColors.activeColor),
+          child: (isManager)
+              ? StreamBuilder<List<AuditEntry>>(
+                  // Department scoping handled inside the service for the current manager
+                  stream: AuditService.getManagerAuditEntriesStream(
+                    status: 'verified',
+                    searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
                   ),
-                );
-              }
-              
-              if (snapshot.hasError) {
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Error loading repository: ${snapshot.error}',
-                    style: TextStyle(color: AppColors.dangerColor),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text('Error loading repository: ${snapshot.error}',
+                            style: TextStyle(color: AppColors.dangerColor)),
+                      );
+                    }
+                    var entries = snapshot.data ?? const <AuditEntry>[];
+                    // Client-side filters for manager team list
+                    if (_monthFilter != null && _monthFilter!.isNotEmpty) {
+                      entries = entries.where((e) {
+                        final d = e.completedDate;
+                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+                        return key == _monthFilter;
+                      }).toList();
+                    }
+                    if (_minScore != null) {
+                      entries = entries.where((e) => (e.score ?? 0) >= _minScore!).toList();
+                    }
+                    if (entries.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No verified entries found for your team.'),
+                      );
+                    }
+                    return _buildManagerVerifiedList(entries);
+                  },
+                )
+              : StreamBuilder<List<RepositoryGoal>>(
+                  stream: RepositoryService.queryRepositoryGoals(
+                    uid,
+                    search: _searchQuery,
+                    dateFilter: _monthFilter,
+                    minScore: _minScore,
                   ),
-                );
-              }
-              
-              final items = snapshot.data ?? const <RepositoryGoal>[];
-              if (items.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('No repository items found. Complete and verify some goals to see them here.'),
-                );
-              }
-
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: items.length,
-                separatorBuilder: (_, _) =>
-                    const Divider(color: AppColors.borderColor),
-                itemBuilder: (context, index) {
-                  final g = items[index];
-                  final date = g.completedDate ?? g.verifiedDate;
-                  return ListTile(
-                    leading: const Icon(
-                      Icons.check_circle_outline,
-                      color: Colors.green,
-                    ),
-                    title: Text(
-                      g.goalTitle,
-                      style: TextStyle(color: AppColors.textPrimary),
-                    ),
-                    subtitle: Text(
-                      '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
-                    trailing: Text(
-                      '${g.evidence.length} evidence',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  );
-                },
-              );
-            },
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Error loading repository: ${snapshot.error}',
+                          style: TextStyle(color: AppColors.dangerColor),
+                        ),
+                      );
+                    }
+                    final items = snapshot.data ?? const <RepositoryGoal>[];
+                    if (items.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No repository items found. Complete and verify some goals to see them here.'),
+                      );
+                    }
+                    return _buildRepositoryList(items);
+                  },
+                ),
           ),
-        ),
       ],
+    );
+  }
+
+  Widget _buildRepositoryList(List<RepositoryGoal> items) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final g = items[index];
+        final date = g.completedDate ?? g.verifiedDate;
+        return ListTile(
+          leading: const Icon(Icons.check_circle_outline, color: Colors.green),
+          title: Text(g.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          subtitle: Text(
+            '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          trailing: Text('${g.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+        );
+      },
     );
   }
 
@@ -1184,6 +1247,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   void _showExportSheet() {
     // Capture the parent ScaffoldMessenger before opening the sheet
     final messenger = ScaffoldMessenger.of(context);
+    final isManager = (RoleService.instance != null); // placeholder; use stream below
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.cardBackground,
@@ -1200,13 +1264,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 title: const Text('Export as CSV'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final uid = FirebaseAuth.instance.currentUser?.uid;
-                  if (uid == null) return;
                   try {
-                    // Fire-and-forget export to avoid keeping sheet context alive
-                    // and use parent messenger for feedback
-                    // ignore: unawaited_futures
-                    RepositoryExportService.exportRepositoryAsCSV(uid);
+                    final role = await RoleService.instance.getRole();
+                    if (role == 'manager') {
+                      await RepositoryExportService.exportManagerVerifiedAsCSV(
+                        search: _searchQuery.isEmpty ? null : _searchQuery,
+                        monthFilter: _monthFilter,
+                        minScore: _minScore,
+                      );
+                    } else {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid == null) return;
+                      await RepositoryExportService.exportRepositoryAsCSV(uid);
+                    }
                     messenger.showSnackBar(
                       const SnackBar(content: Text('Export started (CSV)')),
                     );
@@ -1222,11 +1292,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 title: const Text('Export as PDF'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final uid = FirebaseAuth.instance.currentUser?.uid;
-                  if (uid == null) return;
                   try {
-                    // ignore: unawaited_futures
-                    RepositoryExportService.exportRepositoryAsPDF(uid);
+                    final role = await RoleService.instance.getRole();
+                    if (role == 'manager') {
+                      await RepositoryExportService.exportManagerVerifiedAsPDF(
+                        search: _searchQuery.isEmpty ? null : _searchQuery,
+                        monthFilter: _monthFilter,
+                        minScore: _minScore,
+                      );
+                    } else {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid == null) return;
+                      await RepositoryExportService.exportRepositoryAsPDF(uid);
+                    }
                     messenger.showSnackBar(
                       const SnackBar(content: Text('Export started (PDF)')),
                     );

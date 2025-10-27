@@ -1,24 +1,18 @@
 package com.example.pdh
 
 import io.flutter.embedding.android.FlutterActivity
-<<<<<<< HEAD
-=======
 import io.flutter.plugin.common.MethodChannel
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
 import com.facebook.FacebookCallback
 import com.facebook.FacebookException
 import com.facebook.AccessToken
 import com.facebook.login.LoginResult
 import com.facebook.login.LoginManager
 // import com.facebook.login.widget.LoginButton // No longer needed as UI is in Flutter
-<<<<<<< HEAD
-=======
 import com.google.mlkit.nl.proofreader.Proofreading
 import com.google.mlkit.nl.proofreader.Proofreader
 import com.google.mlkit.nl.proofreader.ProofreaderOptions
 import com.google.mlkit.nl.proofreader.ProofreadingRequest
 import com.google.mlkit.nl.proofreader.ProofreadingResult
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
 import com.google.firebase.auth.FacebookAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -29,8 +23,6 @@ import android.util.Log
 import android.widget.Toast
 import android.os.Bundle
 import com.facebook.CallbackManager
-<<<<<<< HEAD
-=======
 import com.google.mlkit.nl.proofreader.FeatureStatus
 import com.google.mlkit.nl.proofreader.GenAiException
 import com.google.mlkit.nl.proofreader.DownloadCallback
@@ -38,24 +30,18 @@ import com.google.android.gms.tasks.Tasks.await
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject // Import for JSON object handling
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
 
 class MainActivity : FlutterActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var callbackManager: CallbackManager
-<<<<<<< HEAD
-=======
     private lateinit var proofreader: Proofreader
     private val CHANNEL = "com.example.khonopal/proofreading"
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // setContentView(R.layout.activity_main) // This line is likely not needed in FlutterActivity
 
-<<<<<<< HEAD
-=======
         // Set up MethodChannel
         MethodChannel(flutterEngine!!.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
             call, result ->
@@ -86,15 +72,12 @@ class MainActivity : FlutterActivity() {
             }
         }
 
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
         // Initialize Firebase Auth
         auth = FirebaseAuth.getInstance()
 
         // Initialize Facebook Login button - UI handled in Flutter
         callbackManager = CallbackManager.Factory.create()
 
-<<<<<<< HEAD
-=======
         val options = ProofreaderOptions.builder(this)
             .setInputType(ProofreaderOptions.InputType.KEYBOARD)
             .setLanguage(ProofreaderOptions.Language.ENGLISH)
@@ -103,7 +86,6 @@ class MainActivity : FlutterActivity() {
 
         // Call prepareProofreader in a coroutine
         lifecycleScope.launch { prepareProofreader() }
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
         // The following lines are removed as the Facebook Login button UI is in Flutter
         // val buttonFacebookLogin = findViewById<LoginButton>(R.id.buttonFacebookLogin)
         // buttonFacebookLogin.setReadPermissions(listOf("email", "public_profile"))
@@ -171,8 +153,6 @@ class MainActivity : FlutterActivity() {
         LoginManager.getInstance().logOut()
         updateUI(null)
     }
-<<<<<<< HEAD
-=======
 
     override fun onDestroy() {
         super.onDestroy()
@@ -233,5 +213,4 @@ class MainActivity : FlutterActivity() {
         }
         return jsonResponse.toString()
     }
->>>>>>> bc7f62408f42e40cea0e0f8310c6097320415358
 }

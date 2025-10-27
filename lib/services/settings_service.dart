@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:pdh/services/storage_service.dart';
 
 class UserSettings {
   final String userId;
@@ -425,11 +424,11 @@ class SettingsService {
         developer.log('Error deleting users/$uid: $e');
       }
 
-      // Delete user evidence from Storage (best-effort)
+      // Delete evidence files metadata for this user (best-effort)
       try {
-        await StorageService.deleteAllEvidenceForUser(uid);
+        await deleteWhere('evidence_files', 'userId');
       } catch (e) {
-        developer.log('Error deleting storage for $uid: $e');
+        developer.log('Error deleting evidence_files for $uid: $e');
       }
 
       // Clear local settings

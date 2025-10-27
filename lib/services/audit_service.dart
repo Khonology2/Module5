@@ -138,39 +138,47 @@ class AuditService {
 
   // Get audit entries stream for managers (all entries)
   static Stream<List<AuditEntry>> getManagerAuditEntriesStream({
-    String? department,
     String? status,
     String? searchQuery,
-  }) {
+  }) async* {
     try {
-      Query query = _firestore.collection('audit_entries');
-
-      // Add filters
-      if (department != null && department.isNotEmpty) {
-        query = query.where('userDepartment', isEqualTo: department);
+      final user = _auth.currentUser;
+      if (user == null) {
+        yield <AuditEntry>[];
+        return;
       }
-      
+
+      // Load manager's department to align query with Firestore security rules
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final managerDept = (userDoc.data() ?? const {})['department'] as String?;
+      if (managerDept == null || managerDept.isEmpty) {
+        yield <AuditEntry>[];
+        return;
+      }
+
+      Query query = _firestore
+          .collection('audit_entries')
+          .where('userDepartment', isEqualTo: managerDept);
+
       if (status != null && status.isNotEmpty) {
         query = query.where('status', isEqualTo: status);
       }
 
-      // Order by submission date (most recent first)
-      query = query.orderBy('submittedDate', descending: true);
+      query = query.orderBy('submittedDate', descending: true).limit(100);
 
-      return query.snapshots().map((snapshot) {
+      yield* query.snapshots().map((snapshot) {
         try {
           List<AuditEntry> entries = snapshot.docs
               .map((doc) => AuditEntry.fromFirestore(doc))
               .toList();
 
-          // Apply search filter if provided
           if (searchQuery != null && searchQuery.isNotEmpty) {
             final lowercaseQuery = searchQuery.toLowerCase();
             entries = entries.where((entry) {
               return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
                      entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
                      entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
-                     entry.evidence.any((evidence) => 
+                     entry.evidence.any((evidence) =>
                          evidence.toLowerCase().contains(lowercaseQuery));
             }).toList();
           }
@@ -186,14 +194,51 @@ class AuditService {
       });
     } catch (e) {
       developer.log('Error building manager audit entries stream: $e');
-      return Stream.value(<AuditEntry>[]);
+      yield <AuditEntry>[];
     }
   }
 
   // Get comprehensive audit statistics for managers - ALL EMPLOYEES DATA
-  static Stream<Map<String, dynamic>> getManagerAuditStatsStream() {
+  static Stream<Map<String, dynamic>> getManagerAuditStatsStream() async* {
     try {
-      return _firestore.collection('audit_entries').snapshots().map((snapshot) {
+      final user = _auth.currentUser;
+      if (user == null) {
+        yield <String, dynamic>{
+          'total': 0,
+          'pending': 0,
+          'verified': 0,
+          'rejected': 0,
+          'byDepartment': <String, Map<String, int>>{},
+          'byEmployee': <String, Map<String, int>>{},
+          'recentActivity': <Map<String, dynamic>>[],
+          'topPerformers': <Map<String, dynamic>>[],
+        };
+        return;
+      }
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final managerDept = (userDoc.data() ?? const {})['department'] as String?;
+      if (managerDept == null || managerDept.isEmpty) {
+        yield <String, dynamic>{
+          'total': 0,
+          'pending': 0,
+          'verified': 0,
+          'rejected': 0,
+          'byDepartment': <String, Map<String, int>>{},
+          'byEmployee': <String, Map<String, int>>{},
+          'recentActivity': <Map<String, dynamic>>[],
+          'topPerformers': <Map<String, dynamic>>[],
+        };
+        return;
+      }
+
+      final query = _firestore
+          .collection('audit_entries')
+          .where('userDepartment', isEqualTo: managerDept)
+          .orderBy('submittedDate', descending: true)
+          .limit(200);
+
+      yield* query.snapshots().map((snapshot) {
         final entries = snapshot.docs.map((doc) {
           try {
             return AuditEntry.fromFirestore(doc);
@@ -316,7 +361,7 @@ class AuditService {
       });
     } catch (e) {
       developer.log('Error building manager audit stats stream: $e');
-      return Stream.value(<String, dynamic>{
+      yield <String, dynamic>{
         'total': 0,
         'pending': 0,
         'verified': 0,
@@ -325,7 +370,7 @@ class AuditService {
         'byEmployee': <String, Map<String, int>>{},
         'recentActivity': <Map<String, dynamic>>[],
         'topPerformers': <Map<String, dynamic>>[],
-      });
+      };
     }
   }
 
@@ -346,7 +391,7 @@ class AuditService {
         query = query.where('status', isEqualTo: status);
       }
 
-      query = query.orderBy('submittedDate', descending: true);
+      query = query.orderBy('submittedDate', descending: true).limit(100);
 
       return query.snapshots().map((snapshot) {
         try {
