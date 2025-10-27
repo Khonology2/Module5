@@ -14,8 +14,17 @@ class RoleService {
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-    final snap = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    _cachedRole = snap.data()?['role'] as String?;
+    final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snap = await ref.get();
+    String? role = snap.data()?['role'] as String?;
+    if (role == null || role.isEmpty) {
+      // Persist a sensible default so downstream UI can proceed
+      try {
+        await ref.set({'role': 'employee'}, SetOptions(merge: true));
+        role = 'employee';
+      } catch (_) {}
+    }
+    _cachedRole = role;
     return _cachedRole;
   }
 

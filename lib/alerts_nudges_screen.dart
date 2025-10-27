@@ -12,6 +12,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/design_system/app_components.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -51,33 +52,17 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
+      content: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           physics: const AlwaysScrollableScrollPhysics(),
           child: StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
             builder: (context, roleSnapshot) {
-              final role = roleSnapshot.data;
-
-              if (role == null) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
-              }
-
+              // role stream is observed to ensure auth context is alive; defaulting prevents spinners
+              roleSnapshot.data ?? 'employee';
+              
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) {
                 return Center(

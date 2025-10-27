@@ -123,6 +123,13 @@ class _MyAppState extends State<MyApp> {
             title: 'Personal Development Hub',
             theme: AppTheme.darkTheme,
             initialRoute: '/landing',
+            builder: (context, child) {
+              if (child == null) return const SizedBox.shrink();
+              return FocusTraversalGroup(
+                policy: WidgetOrderTraversalPolicy(),
+                child: child,
+              );
+            },
             routes: {
               '/landing': (context) => const PersonalDevelopmentHubScreen(),
               '/': (context) =>

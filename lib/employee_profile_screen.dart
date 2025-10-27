@@ -227,9 +227,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: Colors.black.withOpacity(0.4),
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
@@ -248,9 +248,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: Colors.black.withOpacity(0.4),
         borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
       ),
       child: TextFormField(
         controller: controller,
@@ -295,7 +295,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           decoration: BoxDecoration(
             border: Border.all(color: Colors.white24),
             borderRadius: BorderRadius.circular(8),
-            color: Colors.black.withValues(alpha: 0.4),
+            color: Colors.black.withOpacity(0.4),
           ),
           constraints: const BoxConstraints(minHeight: 44), // min-h-[44px]
           child: Wrap(
@@ -305,7 +305,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // px-2 py-1
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
+                  color: Colors.white.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(9999), // rounded-full
                 ),
                 child: Row(

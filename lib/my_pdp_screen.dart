@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -81,9 +80,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       _showEvidenceManagementDialog(context, goal);
       return;
     }
-    
+
     final controller = TextEditingController();
-    
+
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) {
@@ -126,12 +125,14 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 ),
                               );
                               try {
-                                final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
-                                  bytes: bytes,
-                                  fileName: file.name,
-                                  goalId: goal.id,
-                                );
-                                final fileInfo = '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
+                                final cloudinaryUrl =
+                                    await CloudinaryService.uploadFileUnsigned(
+                                      bytes: bytes,
+                                      fileName: file.name,
+                                      goalId: goal.id,
+                                    );
+                                final fileInfo =
+                                    '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
                                 await DatabaseService.attachGoalEvidence(
                                   goalId: goal.id,
                                   evidence: [fileInfo, cloudinaryUrl],
@@ -139,7 +140,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 if (ctx.mounted) {
                                   ScaffoldMessenger.of(ctx).showSnackBar(
                                     const SnackBar(
-                                      content: Text('File uploaded to Cloudinary!'),
+                                      content: Text(
+                                        'File uploaded to Cloudinary!',
+                                      ),
                                       backgroundColor: Colors.green,
                                     ),
                                   );
@@ -160,7 +163,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             } else {
                               ScaffoldMessenger.of(ctx).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Error: No file data available'),
+                                  content: Text(
+                                    'Error: No file data available',
+                                  ),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -261,51 +266,59 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...goal.evidence.map((evidence) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          evidence.startsWith('https://res.cloudinary.com/') 
-                              ? Icons.cloud_upload 
-                              : Icons.description,
-                          color: evidence.startsWith('https://res.cloudinary.com/') 
-                              ? Colors.blue 
-                              : Colors.green,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            evidence.startsWith('https://res.cloudinary.com/') 
-                                ? '📁 Cloudinary File (Click to view)'
-                                : evidence,
-                            style: TextStyle(
-                              color: evidence.startsWith('https://res.cloudinary.com/') 
-                                  ? Colors.blue 
-                                  : Colors.white70,
-                              fontSize: 12,
-                              decoration: evidence.startsWith('https://res.cloudinary.com/') 
-                                  ? TextDecoration.underline 
-                                  : null,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                  ...goal.evidence.map(
+                    (evidence) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            evidence.startsWith('https://res.cloudinary.com/')
+                                ? Icons.cloud_upload
+                                : Icons.description,
+                            color:
+                                evidence.startsWith(
+                                  'https://res.cloudinary.com/',
+                                )
+                                ? Colors.blue
+                                : Colors.green,
+                            size: 16,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              evidence.startsWith('https://res.cloudinary.com/')
+                                  ? '📁 Cloudinary File (Click to view)'
+                                  : evidence,
+                              style: TextStyle(
+                                color:
+                                    evidence.startsWith(
+                                      'https://res.cloudinary.com/',
+                                    )
+                                    ? Colors.blue
+                                    : Colors.white70,
+                                fontSize: 12,
+                                decoration:
+                                    evidence.startsWith(
+                                      'https://res.cloudinary.com/',
+                                    )
+                                    ? TextDecoration.underline
+                                    : null,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
             const Text(
               'What would you like to do?',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ],
         ),
@@ -366,13 +379,15 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  ...goal.evidence.map((evidence) => Text(
-                    '• ${evidence.length > 50 ? "${evidence.substring(0, 50)}..." : evidence}',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
+                  ...goal.evidence.map(
+                    (evidence) => Text(
+                      '• ${evidence.length > 50 ? "${evidence.substring(0, 50)}..." : evidence}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
                     ),
-                  )),
+                  ),
                 ],
               ),
             ),
@@ -404,27 +419,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
   }
 
-  String _getContentType(String extension) {
-    switch (extension.toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'gif':
-        return 'image/gif';
-      case 'txt':
-        return 'text/plain';
-      default:
-        return 'application/octet-stream';
-    }
-  }
 
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
     // Submit to audit with any existing evidence field if present; here we just let user add a note quickly
@@ -445,59 +439,56 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           Navigator.of(context).pushReplacementNamed('/employee_dashboard');
         }
       },
-      child: FocusScope(
-        node: FocusScopeNode(), // Create a new FocusScopeNode
-        child: AppComponents.backgroundWithImage(
-          imagePath: 'assets/khono_bg.png',
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0), // Adjust padding as needed
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Back to portal button
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(
-                        context,
-                      ).pushReplacementNamed('/employee_dashboard');
-                    },
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    label: const Text(
-                      'Back to Portal',
-                      style: TextStyle(color: Colors.white),
-                    ),
+      child: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0), // Adjust padding as needed
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Back to portal button
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pushReplacementNamed('/employee_dashboard');
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  label: const Text(
+                    'Back to Portal',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
-                Text(
-                  'My Personal Development Plan',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              Text(
+                'My Personal Development Plan',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 20),
-                _buildExcellenceArea(
-                  title: 'Operational Excellence',
-                  expanded: _isOperationalExpanded,
-                  onToggle: (v) => setState(() => _isOperationalExpanded = v),
-                ),
-                const SizedBox(height: 20),
-                _buildExcellenceArea(
-                  title: 'Customer Excellence',
-                  expanded: _isCustomerExpanded,
-                  onToggle: (v) => setState(() => _isCustomerExpanded = v),
-                ),
-                const SizedBox(height: 20),
-                _buildExcellenceArea(
-                  title: 'Financial Excellence',
-                  expanded: _isFinancialExpanded,
-                  onToggle: (v) => setState(() => _isFinancialExpanded = v),
-                ),
-                const SizedBox(height: 80),
-              ],
-            ),
+              ),
+              const SizedBox(height: 20),
+              _buildExcellenceArea(
+                title: 'Operational Excellence',
+                expanded: _isOperationalExpanded,
+                onToggle: (v) => setState(() => _isOperationalExpanded = v),
+              ),
+              const SizedBox(height: 20),
+              _buildExcellenceArea(
+                title: 'Customer Excellence',
+                expanded: _isCustomerExpanded,
+                onToggle: (v) => setState(() => _isCustomerExpanded = v),
+              ),
+              const SizedBox(height: 20),
+              _buildExcellenceArea(
+                title: 'Financial Excellence',
+                expanded: _isFinancialExpanded,
+                onToggle: (v) => setState(() => _isFinancialExpanded = v),
+              ),
+              const SizedBox(height: 80),
+            ],
           ),
         ),
       ),
@@ -514,11 +505,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       color: Colors.transparent, // Ensure it's transparent
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: Colors.black.withOpacity(0.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Column(
           children: [
@@ -598,10 +587,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               children: goals.map((goal) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
+                    color: Colors.black.withOpacity(0.4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: Colors.white.withOpacity(0.2),
                     ),
                   ),
                   child: Padding(
@@ -635,7 +624,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                           minHeight: 6,
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Show attached evidence if any
                         if (goal.evidence.isNotEmpty) ...[
                           Container(
@@ -644,7 +633,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF2A3441),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.3),
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,67 +659,92 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                ...goal.evidence.map((evidence) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: InkWell(
-                                    onTap: () {
-                                      // If it's a Cloudinary URL, open it
-                                      if (evidence.startsWith('https://res.cloudinary.com/')) {
-                                        // You can implement opening the URL in a browser
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('File URL: $evidence'),
-                                            duration: const Duration(seconds: 3),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          evidence.startsWith('https://res.cloudinary.com/') 
-                                              ? Icons.cloud_upload 
-                                              : Icons.description,
-                                          color: evidence.startsWith('https://res.cloudinary.com/') 
-                                              ? Colors.blue 
-                                              : Colors.white70,
-                                          size: 14,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            evidence.startsWith('https://res.cloudinary.com/') 
-                                                ? '📁 Cloudinary File (Click to view URL)'
-                                                : evidence,
-                                            style: TextStyle(
-                                              color: evidence.startsWith('https://res.cloudinary.com/') 
-                                                  ? Colors.blue 
-                                                  : Colors.white70,
-                                              fontSize: 12,
-                                              decoration: evidence.startsWith('https://res.cloudinary.com/') 
-                                                  ? TextDecoration.underline 
-                                                  : null,
+                                ...goal.evidence.map(
+                                  (evidence) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: InkWell(
+                                      onTap: () {
+                                        // If it's a Cloudinary URL, open it
+                                        if (evidence.startsWith(
+                                          'https://res.cloudinary.com/',
+                                        )) {
+                                          // You can implement opening the URL in a browser
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'File URL: $evidence',
+                                              ),
+                                              duration: const Duration(
+                                                seconds: 3,
+                                              ),
                                             ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                          );
+                                        }
+                                      },
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            evidence.startsWith(
+                                                  'https://res.cloudinary.com/',
+                                                )
+                                                ? Icons.cloud_upload
+                                                : Icons.description,
+                                            color:
+                                                evidence.startsWith(
+                                                  'https://res.cloudinary.com/',
+                                                )
+                                                ? Colors.blue
+                                                : Colors.white70,
+                                            size: 14,
                                           ),
-                                        ),
-                                        if (evidence.startsWith('https://res.cloudinary.com/'))
-                                          const Icon(
-                                            Icons.open_in_new,
-                                            color: Colors.blue,
-                                            size: 12,
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              evidence.startsWith(
+                                                    'https://res.cloudinary.com/',
+                                                  )
+                                                  ? '📁 Cloudinary File (Click to view URL)'
+                                                  : evidence,
+                                              style: TextStyle(
+                                                color:
+                                                    evidence.startsWith(
+                                                      'https://res.cloudinary.com/',
+                                                    )
+                                                    ? Colors.blue
+                                                    : Colors.white70,
+                                                fontSize: 12,
+                                                decoration:
+                                                    evidence.startsWith(
+                                                      'https://res.cloudinary.com/',
+                                                    )
+                                                    ? TextDecoration.underline
+                                                    : null,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                      ],
+                                          if (evidence.startsWith(
+                                            'https://res.cloudinary.com/',
+                                          ))
+                                            const Icon(
+                                              Icons.open_in_new,
+                                              color: Colors.blue,
+                                              size: 12,
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                )),
+                                ),
                               ],
                             ),
                           ),
                           const SizedBox(height: 12),
                         ],
-                        
+
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -757,17 +773,25 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             OutlinedButton.icon(
                               onPressed: () => _attachEvidence(context, goal),
                               icon: Icon(
-                                goal.evidence.isNotEmpty ? Icons.check_circle : Icons.attach_file, 
-                                size: 18
+                                goal.evidence.isNotEmpty
+                                    ? Icons.check_circle
+                                    : Icons.attach_file,
+                                size: 18,
                               ),
                               label: Text(
-                                goal.evidence.isNotEmpty ? 'Evidence submitted' : 'Attach evidence'
+                                goal.evidence.isNotEmpty
+                                    ? 'Evidence submitted'
+                                    : 'Attach evidence',
                               ),
-                              style: goal.evidence.isNotEmpty 
+                              style: goal.evidence.isNotEmpty
                                   ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green.withOpacity(0.1),
+                                      backgroundColor: Colors.green.withOpacity(
+                                        0.1,
+                                      ),
                                       foregroundColor: Colors.green,
-                                      side: const BorderSide(color: Colors.green),
+                                      side: const BorderSide(
+                                        color: Colors.green,
+                                      ),
                                     )
                                   : null,
                             ),
