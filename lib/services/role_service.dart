@@ -10,6 +10,8 @@ class RoleService {
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
 
+  String? get cachedRole => _cachedRole;
+
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
@@ -18,13 +20,12 @@ class RoleService {
     final snap = await ref.get();
     String? role = snap.data()?['role'] as String?;
     if (role == null || role.isEmpty) {
-      // Persist a sensible default so downstream UI can proceed
       try {
         await ref.set({'role': 'employee'}, SetOptions(merge: true));
         role = 'employee';
       } catch (_) {}
     }
-    _cachedRole = role;
+    _cachedRole = role ?? 'employee';
     return _cachedRole;
   }
 
@@ -97,6 +98,10 @@ class _RoleGateState extends State<RoleGate> {
   @override
   Widget build(BuildContext context) {
     if (_isInitializing) {
+      // Do not block employee views during initial role warm-up
+      if (widget.requiredRole == RequiredRole.employee || widget.requiredRole == RequiredRole.any) {
+        return widget.child;
+      }
       return Center(
         child: CircularProgressIndicator(color: Color(0xFFC10D00)),
       );
@@ -116,12 +121,11 @@ class _RoleGateState extends State<RoleGate> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
-        final role = snapshot.data;
+        final role = snapshot.data ?? RoleService.instance.cachedRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
-        if (role == null) {
-          return Center(
-            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-          );
+        if (snapshot.hasError || role == null) {
+          if (widget.requiredRole == RequiredRole.employee) return widget.child;
+          return widget.unauthorized ?? _Unauthorized(role: role);
         }
         final ok = (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
             (widget.requiredRole == RequiredRole.employee && role == 'employee');
