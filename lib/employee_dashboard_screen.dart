@@ -220,10 +220,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               return StreamBuilder<List<Goal>>(
                 stream: _getUserGoalsStream(),
                 builder: (context, goalsSnapshot) {
-                  // Handle loading states
-                  if (profileSnapshot.connectionState ==
-                          ConnectionState.waiting ||
-                      goalsSnapshot.connectionState == ConnectionState.waiting) {
+                  // Use any available data while streams connect to avoid showing a spinner
+                  final effectiveProfile = profileSnapshot.data ?? userProfile;
+                  final effectiveGoals = goalsSnapshot.data ?? userGoals;
+                  if (effectiveProfile == null) {
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -317,9 +317,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   );
                 }
 
-                  // Update local state with stream data
-                  userProfile = profileSnapshot.data;
-                  userGoals = goalsSnapshot.data ?? [];
+                  // Update local state with latest (or fallback) data
+                  userProfile = effectiveProfile;
+                  userGoals = List<Goal>.from(effectiveGoals);
 
                   return RefreshIndicator(
                     onRefresh: () async {
