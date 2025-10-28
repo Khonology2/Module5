@@ -404,29 +404,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               }
 
                               try {
-                                // Prevent re-registration for deleted accounts
-                                final emailLower = _emailController.text.trim().toLowerCase();
-                                final blocked = await FirebaseFirestore.instance
-                                    .collection('deleted_accounts')
-                                    .where('emailLower', isEqualTo: emailLower)
-                                    .limit(1)
-                                    .get();
-                                if (blocked.docs.isNotEmpty) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('This email was permanently deleted and cannot be used to register.'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
                                 UserCredential userCredential =
                                     await FirebaseAuth.instance
                                         .createUserWithEmailAndPassword(
                                           email: _emailController.text,
                                           password: _passwordController.text,
                                         );
+                                // Post-auth blocklist check; if blocked, delete the just-created user and stop
+                                try {
+                                  final emailLower = _emailController.text.trim().toLowerCase();
+                                  final blocked = await FirebaseFirestore.instance
+                                      .collection('deleted_accounts')
+                                      .where('emailLower', isEqualTo: emailLower)
+                                      .limit(1)
+                                      .get();
+                                  if (blocked.docs.isNotEmpty) {
+                                    try { await userCredential.user?.delete(); } catch (_) {}
+                                    try { await FirebaseAuth.instance.signOut(); } catch (_) {}
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('This email was permanently deleted and cannot be used to register.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                } catch (_) {
+                                  // Ignore errors here; inability to read blocklist should not break registration
+                                }
                                 // Store additional user data in Firestore
                                 // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
                                 await DatabaseService.initializeUserData(
