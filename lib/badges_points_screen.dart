@@ -999,15 +999,42 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               isActive: isInRange(badge_model.BadgeRarity.common),
               onTap: () => _openRarityList(badge_model.BadgeRarity.common),
             ),
-          const SizedBox(height: 8),
-          Text(
-            'Start completing goals and activities to earn your first badges!',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
+            const SizedBox(height: 8),
+            _buildRarityOvalSection(
+              title: 'Rare Goals',
+              subtitle: 'Levels 6–10',
+              rarity: badge_model.BadgeRarity.rare,
+              badges: byRarity[badge_model.BadgeRarity.rare]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: isInRange(badge_model.BadgeRarity.rare),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 8),
+            _buildRarityOvalSection(
+              title: 'Epic Goals',
+              subtitle: 'Levels 11–15',
+              rarity: badge_model.BadgeRarity.epic,
+              badges: byRarity[badge_model.BadgeRarity.epic]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: isInRange(badge_model.BadgeRarity.epic),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
+            ),
+            const SizedBox(height: 8),
+            _buildRarityOvalSection(
+              title: 'Legendary Goals',
+              subtitle: 'Levels 16+',
+              rarity: badge_model.BadgeRarity.legendary,
+              badges: byRarity[badge_model.BadgeRarity.legendary]!..sort((a, b) => a.name.compareTo(b.name)),
+              isActive: isInRange(badge_model.BadgeRarity.legendary),
+              onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Start completing goals and activities to earn your first badges!',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         );
       },
     );

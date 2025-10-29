@@ -29,6 +29,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _unreadOnly = false;
   String _search = '';
   AlertPriority? _priorityFilter;
+  bool _bulkMarking = false;
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -101,6 +102,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         Wrap(spacing: 8, runSpacing: 8, children: [
                           _chip('Category', goal.category.name),
                           if (goal.kpa != null && goal.kpa!.isNotEmpty) _chip('KPA', goal.kpa!.toUpperCase()),
+                          _chip('Created', _fmtDateTime(goal.createdAt)),
                           _chip('Target', _fmtDate(goal.targetDate)),
                         ]),
                         const SizedBox(height: 12),
@@ -261,6 +263,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
+  String _fmtDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    if (difference.inDays > 0) return '${difference.inDays}d ago';
+    if (difference.inHours > 0) return '${difference.inHours}h ago';
+    if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
+    return 'Just now';
+  }
 
   Widget _chip(String label, String value) {
     return Container(
@@ -416,6 +432,29 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         'Inbox',
                         style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
                       ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _bulkMarking
+                          ? null
+                          : () async {
+                              final user = FirebaseAuth.instance.currentUser;
+                              if (user == null) return;
+                              setState(() => _bulkMarking = true);
+                              await AlertService.markAllAsRead(user.uid);
+                              if (!mounted) return;
+                              setState(() => _bulkMarking = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('All alerts marked as read')),
+                              );
+                            },
+                      icon: _bulkMarking
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.mark_email_read_outlined),
+                      label: const Text('Mark all as read'),
                     ),
                   ],
                 ),
@@ -641,6 +680,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
+              Text(
+                _getTimeAgo(alert.createdAt),
+                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested)
                 TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),

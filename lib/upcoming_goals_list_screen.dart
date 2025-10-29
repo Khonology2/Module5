@@ -22,33 +22,13 @@ class UpcomingGoalsListScreen extends StatelessWidget {
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'personal'),
-            orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-            (e) => e.name == (data['priority'] ?? 'medium'),
-            orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-            (e) => e.name == (data['status'] ?? 'notStarted'),
-            orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt:
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate:
-              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-      }).where((g) => g.status != GoalStatus.completed && g.progress < 100).toList();
+      final goals = snapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .where((g) =>
+              g.approvalStatus == GoalApprovalStatus.approved &&
+              g.status != GoalStatus.completed &&
+              g.progress < 100)
+          .toList();
 
       goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
       return goals;
@@ -167,6 +147,12 @@ class _GoalListItem extends StatelessWidget {
 
     return InkWell(
       onTap: () {
+        if (goal.approvalStatus != GoalApprovalStatus.approved) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Awaiting manager approval.')),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(
