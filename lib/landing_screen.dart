@@ -82,11 +82,12 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
         context,
         size: Size(bgWidth.toDouble(), MediaQuery.of(context).size.height),
       );
-      // Logo at a fixed reasonable size
+      // Logo: decode at device-pixel-ratio size to keep it crisp
+      final double dpr = MediaQuery.of(context).devicePixelRatio;
       precacheImage(
         const AssetImage('assets/khono.png'),
         context,
-        size: const Size(320, 160),
+        size: Size(320 * dpr, 160 * dpr),
       );
     });
   }
@@ -126,8 +127,8 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                       'assets/khono.png',
                       height: 160,
                       fit: BoxFit.contain,
-                      filterQuality: FilterQuality.low,
-                      cacheWidth: 320,
+                      filterQuality: FilterQuality.high,
+                      cacheHeight: (160 * MediaQuery.of(context).devicePixelRatio).round(),
                     ),
                   ),
                   const SizedBox(height: 24),
