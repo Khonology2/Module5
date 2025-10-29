@@ -29,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   double _passwordStrength = 0.0;
   Color _passwordStrengthColor = Colors.grey;
   String _passwordHint = '';
+  bool _isRegistering = false;
 
   late Timer _hintTimer;
 
@@ -147,6 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'assets/khono.png',
                     height: 160,
                     fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -268,70 +270,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ],
                               ),
                               child: TextButton(
-                            onPressed: () async {
+                            onPressed: _isRegistering ? null : () async {
                               if (_fullNameController.text.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Please enter your full name.',
-                                    ),
-                                  ),
-                                );
+                                await _showCenterNotice('Please enter your full name.');
                                 return;
                               }
                               if (_usernameController.text.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please enter a username.'),
-                                  ),
-                                );
+                                await _showCenterNotice('Please enter a username.');
                                 return;
                               }
                               if (_emailController.text.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please enter your email.'),
-                                  ),
-                                );
+                                await _showCenterNotice('Please enter your email.');
                                 return;
                               }
                               if (!RegExp(
                                 r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
                               ).hasMatch(_emailController.text)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Please enter a valid email address.',
-                                    ),
-                                  ),
-                                );
+                                await _showCenterNotice('Please enter a valid email address.');
                                 return;
                               }
                               if (_passwordController.text.length < 8) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Password must be at least 8 characters long.',
-                                    ),
-                                  ),
-                                );
+                                await _showCenterNotice('Password must be at least 8 characters long.');
                                 return;
                               }
                               if (_passwordController.text !=
                                   _confirmPasswordController.text) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Passwords do not match.'),
-                                  ),
-                                );
+                                await _showCenterNotice('Passwords do not match.');
                                 return;
                               }
                               if (_selectedRole == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please select a role.'),
-                                  ),
-                                );
+                                await _showCenterNotice('Please select a role.');
                                 return;
                               }
 
@@ -349,6 +317,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 return; // Stop submission; user must adjust role
                               }
 
+                              setState(() { _isRegistering = true; });
+                              _showLoadingDialog();
                               try {
                                 UserCredential userCredential =
                                     await FirebaseAuth.instance
@@ -368,11 +338,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     try { await userCredential.user?.delete(); } catch (_) {}
                                     try { await FirebaseAuth.instance.signOut(); } catch (_) {}
                                     if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('This email was permanently deleted and cannot be used to register.'),
-                                      ),
-                                    );
+                                    await _showCenterNotice('This email was permanently deleted and cannot be used to register.');
                                     return;
                                   }
                                 } catch (_) {
@@ -398,11 +364,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Registration Successful!'),
-                                  ),
-                                );
+                                Navigator.of(context, rootNavigator: true).maybePop();
+                                setState(() { _isRegistering = false; });
+                                await _showCenterNotice('Registration Successful!');
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
@@ -425,32 +389,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(message)),
-                                );
+                                Navigator.of(context, rootNavigator: true).maybePop();
+                                setState(() { _isRegistering = false; });
+                                await _showCenterNotice(message);
                               } catch (e) {
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'An unexpected error occurred: ${e.toString()}',
-                                    ),
-                                  ),
-                                );
+                                Navigator.of(context, rootNavigator: true).maybePop();
+                                setState(() { _isRegistering = false; });
+                                await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
                               }
                             },
-                                child: const Text(
-                                  'SIGN UP',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Poppins',
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
+                                child: _isRegistering
+                                    ? const SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'SIGN UP',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Poppins',
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -651,17 +620,90 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   _selectedRole = 'employee';
                 });
                 Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Continuing as Employee. You can proceed to sign up.',
-                    ),
-                  ),
+                _showCenterNotice(
+                  'Continuing as Employee. You can proceed to sign up.',
                 );
               },
               child: const Text('Continue as Employee'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCenterNotice(String message) async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFFC10D00)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLoadingDialog() {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          content: Row(
+            children: const [
+              SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Creating your account...',
+                  style: TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

@@ -147,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                     'assets/khono.png',
                     height: 160, // match Get Started page
                     fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -316,6 +317,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       ? null
                                       : () async {
                                           if (_formKey.currentState!.validate()) {
+                                            setState(() {
+                                              _isSigningIn = true;
+                                            });
                                             try {
                                               final cred = await FirebaseAuth.instance
                                                   .signInWithEmailAndPassword(
@@ -372,22 +376,16 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                     'An unknown error occurred.';
                                               }
                                               if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(content: Text(message)),
-                                              );
+                                              await _showCenterNotice(message);
                                             } catch (e) {
                                               if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'An unexpected error occurred: ${e.toString()}',
-                                                  ),
-                                                ),
-                                              );
+                                              await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() {
+                                                  _isSigningIn = false;
+                                                });
+                                              }
                                             }
                                           }
                                         },
@@ -523,22 +521,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   'Unauthorized domain. Add your host to Firebase Auth domains.';
                                             }
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(content: Text(message)),
-                                            );
+                                            await _showCenterNotice(message);
                                           } catch (e) {
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'An unexpected error occurred: ${e.toString()}',
-                                                ),
-                                              ),
-                                            );
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
                                           }
                                         },
                                   child: Row(
@@ -644,25 +630,13 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   'Unauthorized domain. Add your host to Firebase Auth domains.';
                                             }
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(content: Text(message)),
-                                            );
+                                            await _showCenterNotice(message);
                                           } catch (e) {
                                             setState(() {
                                               _isSigningIn = false;
                                             });
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'An unexpected error occurred: ${e.toString()}',
-                                                ),
-                                              ),
-                                            );
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
                                           }
                                         },
                                   child: Row(
@@ -756,22 +730,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   'Unauthorized domain. Add your host to Firebase Auth domains.';
                                             }
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(content: Text(message)),
-                                            );
+                                            await _showCenterNotice(message);
                                           } catch (e) {
                                             if (!mounted) return;
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                  'An unexpected error occurred: ${e.toString()}',
-                                                ),
-                                              ),
-                                            );
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
                                           }
                                         },
                                   child: Row(
@@ -843,6 +805,50 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showCenterNotice(String message) async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFFC10D00)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
