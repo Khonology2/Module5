@@ -1,7 +1,7 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
-import 'package:pdh/sign_in_screen.dart';
 import 'dart:async'; // For Timer
-import 'dart:ui'; // For ImageFilter
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -70,6 +70,26 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
         _currentLineIndex = (_currentLineIndex + 1) % inspirationalLines.length;
       });
     });
+
+    // Precache hero images after first frame to avoid jank on first paint
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = this.context;
+      if (!mounted) return;
+      // Background image sized to screen width to reduce decode cost
+      final int bgWidth = (MediaQuery.of(context).size.width * 1.5).toInt();
+      precacheImage(
+        const AssetImage('assets/khono_bg.png'),
+        context,
+        size: Size(bgWidth.toDouble(), MediaQuery.of(context).size.height),
+      );
+      // Logo: decode at device-pixel-ratio size to keep it crisp
+      final double dpr = MediaQuery.of(context).devicePixelRatio;
+      precacheImage(
+        const AssetImage('assets/khono.png'),
+        context,
+        size: Size(320 * dpr, 160 * dpr),
+      );
+    });
   }
 
   @override
@@ -85,102 +105,83 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
         children: [
           // Background image
           Positioned.fill(
-            child: Image.asset(
-              'assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png',
-              fit: BoxFit.cover,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+              child: Image.asset(
+                'assets/khono_bg.png',
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.low,
+                cacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
+              ),
             ),
           ),
-          // Overlay for subtle gradient effect and content
-          Positioned.fill( // Ensure the overlay covers the whole screen
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 2.0, sigmaY: 2.0), // Apply blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // Subtle semi-transparent overlay
-                      Color(0x88040610), // Subtle semi-transparent overlay
-                    ],
-                    stops: [0.0, 1.0],
+          // Content overlay
+          Positioned.fill(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo - Centered
+                  Center(
+                    child: Image.asset(
+                      'assets/khono.png',
+                      height: 160,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-                    children: [
-                      const Text(
-                        'Personal Development Hub',
+                  const SizedBox(height: 24),
+                  // Tagline - Centered
+                  const Center(
+                    child: Text(
+                      'Your Growth Journey, Simplified',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFC10D00),
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Inspirational message - Centered
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Text(
+                        inspirationalLines[_currentLineIndex],
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 32, // Larger font size for prominence
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFC7E3FF),
-                          letterSpacing: 1.8,
+                          fontSize: 20,
+                          color: Colors.white.withAlpha(204),
                         ),
                       ),
-                      const SizedBox(height: 30), // Spacing below the app name
-                      SizedBox(
-                        height: 50, // Fixed height for animated text
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 800),
-                          transitionBuilder: (Widget child, Animation<double> animation) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            );
-                          },
-                          child: Text(
-                            inspirationalLines[_currentLineIndex],
-                            key: ValueKey<int>(_currentLineIndex), // Key for animation
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: Color(0xFF8B9FB7),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 50), // Spacing below animated text
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent, // Make button background transparent
-                          elevation: 0, // Remove shadow
-                          padding: EdgeInsets.zero, // Remove default padding
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: Container(
-                          width: 200, // Adjust width as needed
-                          height: 50, // Adjust height as needed
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'Go to Sign In',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 50), // Spacing from the bottom
-                    ],
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 24),
+                  // Button - Centered
+                  Center(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/sign_in');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFC10D00), // Use the new red color
+                        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                        shape: const StadiumBorder(), // Changed to StadiumBorder
+                      ),
+                      child: const Text(
+                        'GET STARTED',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
