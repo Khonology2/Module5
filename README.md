@@ -72,7 +72,7 @@ Ensure you have Flutter installed. If not, follow the official Flutter installat
       assets:
         - assets/
         - assets/fonts/poppins/
-        - assets/Send_Paper Plane/
+        - assets/Send_Paper_Plane/
         - assets/videos/
         - assets/AI_Red.png
         - assets/Chatbot_BG.png
@@ -85,7 +85,7 @@ Ensure you have Flutter installed. If not, follow the official Flutter installat
         - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_0e1e972b-4933-4004-94fa-23e1d21d8be7.png
         - assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png
         - assets/videos/chat_bot_animation-vmake.mp4
-        - assets/Send_Paper Plane/Send_Plane_Red Badge_White.png
+        - assets/Send_Paper_Plane/Send_Plane_Red Badge_White.png
         - assets/20250919_1708_Futuristic Red Tech Design_remix_01k5h86tdef65aerhqpqthxd5d.png
     ```
 
@@ -179,10 +179,18 @@ flutter run
 
 ![AI Chatbot - Initial Greeting](flutter_15.png)
 
-### AI Chatbot - Mode Selection
+## Development Guidelines
 
-![AI Chatbot - Mode Selection](flutter_16.png)
+- Zero lint errors: run `dart analyze` before committing.
+- Assets naming: avoid spaces in filenames and folder names; use underscores `_` instead. After any rename, update all references and ensure the path is declared in `flutter.assets` in `pubspec.yaml`. Size images appropriately for their placement.
 
-### AI Chatbot - Proofreading Toggle
+## Surf-Push Workflow
 
-![AI Chatbot - Proofreading Toggle](flutter_17.png)
+- In chat, send `surf-push` to generate a single combined commit message for all current changes, then commit and push to the current branch.
+
+## Recent UI Updates
+
+- Team Chats: added back button in header using `Navigator.maybePop()`.
+- Settings & Privacy: replaced generic icons with branded assets; moved Update Profile into Job Title field; added asset-based prefix icons.
+- Landing: crisper logo via devicePixelRatio-aware precache and high filter quality.
+- Leaderboard: replaced deprecated color API usages and polished error container styling.
