@@ -48,7 +48,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Profile_White.png',
       red:   'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'Profile & PDP',
+      label: 'Profile',
       route: '/my_pdp',
     ),
     itemWithAssets(
@@ -78,7 +78,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
       red:   'assets/Khonodemy Icons/Leaderboard_Red.png',
-      label: 'LeaderBoard',
+      label: 'Leaderboard',
       route: '/leaderboard',
     ),
     itemWithAssets(
@@ -132,7 +132,7 @@ class SidebarConfig {
     ),
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/LeaderBoard_White.png'),
-      label: 'LeaderBoard.',
+      label: 'Leaderboard.',
       route: '/leaderboard',
     ),
     SidebarItem(
