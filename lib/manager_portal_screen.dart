@@ -40,7 +40,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     ),
     const SidebarItem(
       icon: Icons.person,
-      label: 'Profile & PDP',
+      label: 'Profile',
       route: '/my_pdp',
     ), // Re-using MyPdpScreen for manager profile view
     

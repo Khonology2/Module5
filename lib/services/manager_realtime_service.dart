@@ -407,7 +407,7 @@ class ManagerRealtimeService {
   }
 
   // Stream real-time team data based on current manager
-  static const int _initialEmployeeLimit = 25; // cap initial load for performance
+  static const int _initialEmployeeLimit = 12; // lower cap for faster first paint; lazy-enrich later
 
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,

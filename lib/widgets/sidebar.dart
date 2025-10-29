@@ -118,7 +118,9 @@ class ResponsiveSidebar extends StatelessWidget {
                     child: Image.asset(
                       'assets/khonodemy-sidebar-logo-red.png',
                       fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
+                      filterQuality: FilterQuality.low,
+                      // Scale decode near the rendered size for perf
+                      cacheWidth: 300,
                       errorBuilder: (context, error, stack) =>
                           const SizedBox.shrink(),
                     ),
@@ -287,7 +289,8 @@ class _NavTileState extends State<_NavTile> {
           fit: BoxFit.contain,
           child: Image.asset(
             path,
-            filterQuality: FilterQuality.high,
+            filterQuality: FilterQuality.low,
+            cacheWidth: 48,
           ),
         ),
       );
