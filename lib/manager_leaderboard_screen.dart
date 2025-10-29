@@ -21,6 +21,7 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   UserProfile? _manager;
   LeaderboardMetric _metric = LeaderboardMetric.points;
+  List<EmployeeData> _lastTeam = const [];
 
   @override
   void initState() {
@@ -29,13 +30,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     _loadManagerProfile();
   }
 
-  Widget _buildProgressiveSkeleton() {
-    return const Center(
-      child: CircularProgressIndicator(
-        color: AppColors.activeColor,
-      ),
-    );
-  }
+  
 
   Widget _buildEmptyState() {
     return Column(
@@ -104,91 +99,102 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = _manager == null
-        ? _buildProgressiveSkeleton()
-        : StreamBuilder<List<EmployeeData>>(
-            stream: ManagerRealtimeService.getTeamDataStream(
-              department: _manager!.department.isEmpty
-                  ? null
-                  : _manager!.department,
-              timeFilter: TimeFilter.month,
-            ),
-            builder: (context, snapshot) {
-              final isLoading = snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData;
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: AppColors.dangerColor,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Failed to load leaderboard',
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${snapshot.error}',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+    final String? dept = (_manager == null || _manager!.department.isEmpty)
+        ? null
+        : _manager!.department;
+
+    final content = StreamBuilder<List<EmployeeData>>(
+      stream: ManagerRealtimeService.getTeamDataStream(
+        department: dept,
+        timeFilter: TimeFilter.month,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.dangerColor,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Failed to load leaderboard',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${snapshot.error}',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
                   ),
-                );
-              }
-              // Build items from realtime employee data, filter to opted-in
-              final team = (snapshot.data ?? const <EmployeeData>[])
-                  .where((e) => e.profile.leaderboardOptin == true)
-                  .toList();
-
-              // Sort by metric
-              team.sort((a, b) {
-                switch (_metric) {
-                  case LeaderboardMetric.points:
-                    return b.totalPoints.compareTo(a.totalPoints);
-                  case LeaderboardMetric.streaks:
-                    return b.streakDays.compareTo(a.streakDays);
-                  case LeaderboardMetric.progress:
-                    return b.avgProgress.compareTo(a.avgProgress);
-                }
-              });
-
-              if (isLoading) {
-                return _buildProgressiveSkeleton();
-              }
-
-              if (team.isEmpty) {
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildHeaderWithFilters(),
-                    const SizedBox(height: 16),
-                    _buildEmptyState(),
-                  ],
-                );
-              }
-
-              // Build podium for top 3
-              final top = team.take(3).toList();
-              final rest = team.skip(3).toList();
-
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _buildHeaderWithFilters(),
-                  const SizedBox(height: 16),
-                  if (top.isNotEmpty) _buildPodium(top),
-                  const SizedBox(height: 16),
-                  ...rest.map((e) => _buildListItem(e)),
-                ],
-              );
-            },
+                ),
+              ],
+            ),
           );
+        }
+
+        // Prefer live data, otherwise show last cached team to avoid spinners
+        final raw = snapshot.data ?? _lastTeam;
+        var team = raw.where((e) => e.profile.leaderboardOptin == true).toList();
+
+        // Sort by metric
+        team.sort((a, b) {
+          switch (_metric) {
+            case LeaderboardMetric.points:
+              return b.totalPoints.compareTo(a.totalPoints);
+            case LeaderboardMetric.streaks:
+              return b.streakDays.compareTo(a.streakDays);
+            case LeaderboardMetric.progress:
+              return b.avgProgress.compareTo(a.avgProgress);
+          }
+        });
+
+        // Update cache when we have any data
+        if (team.isNotEmpty) {
+          _lastTeam = team;
+        }
+
+        if (team.isEmpty && (snapshot.connectionState == ConnectionState.waiting)) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildHeaderWithFilters(),
+              const SizedBox(height: 16),
+              _buildEmptyState(),
+            ],
+          );
+        }
+
+        if (team.isEmpty) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildHeaderWithFilters(),
+              const SizedBox(height: 16),
+              _buildEmptyState(),
+            ],
+          );
+        }
+
+        // Build podium for top 3
+        final top = team.take(3).toList();
+        final rest = team.skip(3).toList();
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _buildHeaderWithFilters(),
+            const SizedBox(height: 16),
+            if (top.isNotEmpty) _buildPodium(top),
+            const SizedBox(height: 16),
+            ...rest.map((e) => _buildListItem(e)),
+          ],
+        );
+      },
+    );
 
     if (widget.embedded) {
       return content;

@@ -220,10 +220,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               return StreamBuilder<List<Goal>>(
                 stream: _getUserGoalsStream(),
                 builder: (context, goalsSnapshot) {
-                  // Handle loading states
-                  if (profileSnapshot.connectionState ==
-                          ConnectionState.waiting ||
-                      goalsSnapshot.connectionState == ConnectionState.waiting) {
+                  // Use any available data while streams connect to avoid showing a spinner
+                  final effectiveProfile = profileSnapshot.data ?? userProfile;
+                  final effectiveGoals = goalsSnapshot.data ?? userGoals;
+                  if (effectiveProfile == null) {
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -317,9 +317,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   );
                 }
 
-                  // Update local state with stream data
-                  userProfile = profileSnapshot.data;
-                  userGoals = goalsSnapshot.data ?? [];
+                  // Update local state with latest (or fallback) data
+                  userProfile = effectiveProfile;
+                  userGoals = List<Goal>.from(effectiveGoals);
 
                   return RefreshIndicator(
                     onRefresh: () async {
@@ -376,9 +376,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
+          color: Colors.black.withOpacity(0.4),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -498,8 +498,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              AppColors.activeColor.withValues(alpha: 0.1),
-              AppColors.warningColor.withValues(alpha: 0.1),
+              AppColors.activeColor.withOpacity(0.1),
+              AppColors.warningColor.withOpacity(0.1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -1010,12 +1010,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   decoration: BoxDecoration(
                     color: _getPriorityColor(
                       goal.priority,
-                    ).withValues(alpha: 0.1),
+                    ).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _getPriorityColor(
                         goal.priority,
-                      ).withValues(alpha: 0.3),
+                      ).withOpacity(0.3),
                     ),
                   ),
                   child: Text(

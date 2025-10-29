@@ -34,9 +34,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   };
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
   UserProfile? _currentUser;
-  bool _isLoading = true;
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
+  List<Map<String, dynamic>> _lastLeaderboardData = [];
 
   @override
   void initState() {
@@ -63,23 +63,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         if (mounted) {
           setState(() {
             _currentUser = userProfile;
-            _isLoading = false;
           });
         }
       } catch (e) {
         developer.log('Error loading current user: $e');
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
     } else {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      // No authenticated user; nothing to load for currentUser
     }
   }
 
@@ -264,27 +254,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       child: StreamBuilder<String?>(
           stream: RoleService.instance.roleStream(),
           builder: (context, roleSnapshot) {
-            final role = roleSnapshot.data;
-            if (role == null || _isLoading) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.activeColor),
-              );
-            }
+            final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
 
             final isManager = role == 'manager';
 
             return StreamBuilder<QuerySnapshot>(
               stream: _buildQuery(userRole: role).snapshots(),
               builder: (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
-                if (leaderboardSnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.activeColor,
-                    ),
-                  );
-                }
-
                 if (leaderboardSnapshot.hasError) {
                   developer.log(
                     'Leaderboard error: ${leaderboardSnapshot.error}',
@@ -295,18 +271,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   return _buildErrorState();
                 }
 
-                if (leaderboardSnapshot.hasData) {
-                  developer.log('Received ${leaderboardSnapshot.data!.docs.length} documents from Firestore');
-                }
-
                 List<Map<String, dynamic>> leaderboardData;
                 try {
-                  leaderboardData = leaderboardSnapshot.hasData
-                      ? _processLeaderboardData(
-                          leaderboardSnapshot.data!.docs.toList(),
-                          userRole: role,
-                        )
-                      : <Map<String, dynamic>>[];
+                  final docs = leaderboardSnapshot.hasData
+                      ? leaderboardSnapshot.data!.docs.toList()
+                      : const <QueryDocumentSnapshot>[];
+                  if (docs.isNotEmpty) {
+                    leaderboardData = _processLeaderboardData(docs, userRole: role);
+                    _lastLeaderboardData = leaderboardData;
+                  } else {
+                    leaderboardData = _lastLeaderboardData;
+                  }
                 } catch (e) {
                   developer.log('Error processing leaderboard data: $e');
                   return _buildErrorState();
