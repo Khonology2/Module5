@@ -44,7 +44,7 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.person_outline,
-            text: 'Profile & PDP.',
+            text: 'Profile.',
             route: '/my_pdp',
             isSelected: currentRoute == '/my_pdp',
           ),
@@ -86,7 +86,7 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.leaderboard,
-            text: 'LeaderBoard.',
+            text: 'Leaderboard.',
             route: '/leaderboard',
             isSelected: currentRoute == '/leaderboard',
           ),
