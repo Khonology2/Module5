@@ -783,10 +783,8 @@ class SeasonService {
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
-      // Update user's total points
-      await _firestore.collection('users').doc(userId).update({
-        'totalPoints': FieldValue.increment(points),
-      });
+      // Do NOT update global user points for season goals.
+      // Points are awarded within the season participation via milestone completion.
 
       // Update season milestone progress if this is a challenge goal
       if (challengeId != null && seasonId != null) {
@@ -847,10 +845,10 @@ class SeasonService {
       final batch = _firestore.batch();
       final seasonRef = _firestore.collection('seasons').doc(seasonId);
 
-      // Mark all milestones for this challenge as completed
+      // Mark all milestones for this challenge as completed (flat keys by milestone id)
       for (final milestone in challenge.milestones) {
         batch.update(seasonRef, {
-          'participations.$userId.milestoneProgress.$challengeId.${milestone.id}':
+          'participations.$userId.milestoneProgress.${milestone.id}':
               MilestoneStatus.completed.name,
         });
       }
@@ -1122,11 +1120,11 @@ class SeasonService {
               ),
               SeasonMilestone(
                 id: 'collab_milestone_2',
-                title: 'Team Meetings',
-                description: 'Participate in 3 team meetings',
+                title: 'Collaboration Progress 75%',
+                description: 'Reach 75% progress on the collaboration goal',
                 points: 25,
                 challengeId: 'collab_goal_1',
-                criteria: {'meetings': 3},
+                criteria: {'progress': 75},
               ),
               SeasonMilestone(
                 id: 'collab_milestone_3',
