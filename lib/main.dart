@@ -469,16 +469,22 @@ class _TeamChatButtonState extends State<TeamChatButton> {
     return Positioned(
       bottom: 90,
       right: 20,
-      child: FloatingActionButton(
-        onPressed: () {
+      child: GestureDetector(
+        onTap: () {
           navigatorKey.currentState!.pushNamed('/team_chats');
         },
-        backgroundColor: Colors.white,
-        shape: const CircleBorder(),
-        child: const Icon(
-          Icons.forum,
-          color: Color(0xFFC10D00),
-          size: 28,
+        child: SizedBox(
+          width: 56.0,
+          height: 56.0,
+          child: Center(
+            child: Image.asset(
+              'assets/Team_Meeting/Team.png',
+              width: 44.0,
+              height: 44.0,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
         ),
       ),
     );
