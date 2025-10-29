@@ -1,4 +1,5 @@
-# Khono - Demy Personal Development Hub
+# Khononology - Personal Development Hub
+Developers: Nkosinathi Radebe, Sipho Masango & Thembelihle Zulu.
 
 A Flutter application designed to help users achieve their personal development goals through organization, knowledge acquisition, and mindful habits.
 
