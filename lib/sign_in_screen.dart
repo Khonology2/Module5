@@ -147,6 +147,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                     'assets/khono.png',
                     height: 160, // match Get Started page
                     fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 const SizedBox(height: 24),
