@@ -148,6 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     'assets/khono.png',
                     height: 160,
                     fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
                 const SizedBox(height: 24),
