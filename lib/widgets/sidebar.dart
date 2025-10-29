@@ -44,7 +44,7 @@ class ResponsiveSidebar extends StatelessWidget {
           child: Column(
             children: [
               _buildHeader(context, effectiveCollapsed),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: AppSpacing.xs),
               Expanded(
                 child: ListView(
                   padding: AppSpacing.sidebarContentPadding,
@@ -98,7 +98,7 @@ class ResponsiveSidebar extends StatelessWidget {
           builder: (context, constraints) {
             final double availableWidth = constraints.maxWidth;
             // Target widths for collapsed/expanded
-            final double targetWidth = collapsed ? 48.0 : 150.0;
+            final double targetWidth = collapsed ? 56.0 : 160.0;
             // Keep some horizontal padding headroom to avoid overflow during animations
             final double clampedWidth = math.max(
               24.0,
@@ -110,13 +110,13 @@ class ResponsiveSidebar extends StatelessWidget {
               children: [
                 SizedBox(
                   width: clampedWidth,
-                  height: 60,
+                  height: 64,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 220),
                     curve: Curves.easeInOut,
                     alignment: Alignment.center,
                     child: Image.asset(
-                      'assets/khonodemy-sidebar-logo-red.png',
+                      'assets/Red_Khono_Discs.png',
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.low,
                       // Scale decode near the rendered size for perf
