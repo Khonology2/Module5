@@ -138,6 +138,16 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                   side: BorderSide(color: AppColors.warningColor),
                 ),
               ),
+              if (season.status == SeasonStatus.active)
+                OutlinedButton.icon(
+                  onPressed: () => _onDeleteSeason(season),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete Season'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.dangerColor,
+                    side: BorderSide(color: AppColors.dangerColor),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -291,6 +301,34 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           ),
         );
       }
+    }
+  }
+
+  Future<void> _onDeleteSeason(Season season) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Season?'),
+        content: const Text('This will delete the season and notify all participants. This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await SeasonService.deleteSeasonAndNotify(season.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Season deleted and participants notified'), backgroundColor: AppColors.successColor),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete season: $e'), backgroundColor: AppColors.dangerColor),
+      );
     }
   }
 

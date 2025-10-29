@@ -595,7 +595,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
                       // Default: Navigate to the provided route if any
                       if (actionRoute != null) {
-                        navigator.pushNamed(actionRoute);
+                        var route = actionRoute;
+                        if (route == '/team_challenges_seasons') {
+                          route = '/season_challenges';
+                        }
+                        navigator.pushNamed(route);
                       }
                     },
                     style: ElevatedButton.styleFrom(

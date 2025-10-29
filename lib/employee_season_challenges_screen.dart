@@ -6,6 +6,8 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/models/goal.dart';
 
 class EmployeeSeasonChallengesScreen extends StatefulWidget {
   const EmployeeSeasonChallengesScreen({super.key});
@@ -713,13 +715,51 @@ class _EmployeeSeasonChallengesScreenState
     }
   }
 
-  void _viewSeasonDetails(Season season) {
-    // Navigate to season details screen
-    Navigator.pushNamed(
-      context,
-      '/season_details',
-      arguments: {'seasonId': season.id},
-    );
+  Future<void> _viewSeasonDetails(Season season) async {
+    if (_currentUserId == null) return;
+    try {
+      // Load this user's goals for the season
+      final snap = await FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: _currentUserId)
+          .where('seasonId', isEqualTo: season.id)
+          .where('isSeasonGoal', isEqualTo: true)
+          .get();
+
+      if (snap.docs.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No season goals found for "${season.title}" yet.'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+        return;
+      }
+
+      // Prefer the first non-completed goal, else the first one
+      final docs = snap.docs;
+      var selected = docs.first;
+      for (final d in docs) {
+        final status = (d.data()['status'] ?? 'notStarted').toString();
+        if (status != 'completed') { selected = d; break; }
+      }
+
+      final goal = Goal.fromFirestore(selected);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open goal details: $e'),
+          backgroundColor: AppColors.dangerColor,
+        ),
+      );
+    }
   }
 
   void _viewSeasonCelebration(Season season) {
