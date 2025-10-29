@@ -139,7 +139,7 @@ class AlertService {
   }) async {
     final title = approved ? 'Goal Approved ✅' : 'Goal Rejected ❌';
     final msg = approved
-        ? 'Your goal "$goalTitle" has been approved.'
+        ? 'Your goal "$goalTitle" has been approved. You can start working on your goal.'
         : 'Your goal "$goalTitle" was rejected${reason != null && reason.isNotEmpty ? ': $reason' : '.'}';
 
     final alert = Alert(
@@ -151,6 +151,7 @@ class AlertService {
       message: msg,
       actionText: 'View Goal',
       actionRoute: '/my_goal_workspace',
+      actionData: {'goalId': goalId},
       createdAt: DateTime.now(),
       relatedGoalId: goalId,
       expiresAt: DateTime.now().add(const Duration(days: 14)),
@@ -472,7 +473,35 @@ class AlertService {
         
         // Sort in memory to avoid index requirements
         alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return alerts.take(50).toList();
+
+        // Deduplicate by a stable composite key to avoid doubles in UI
+        final seen = <String>{};
+        final deduped = <Alert>[];
+        String keyFor(Alert a) {
+          switch (a.type) {
+            case AlertType.goalDueSoon:
+            case AlertType.goalOverdue:
+            case AlertType.inactivity:
+            case AlertType.goalApprovalRequested:
+            case AlertType.goalApprovalApproved:
+            case AlertType.goalApprovalRejected:
+            case AlertType.teamGoalAvailable:
+            case AlertType.employeeJoinedTeamGoal:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}';
+            case AlertType.managerNudge:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
+            default:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
+          }
+        }
+        for (final a in alerts) {
+          final key = keyFor(a);
+          if (seen.add(key)) {
+            deduped.add(a);
+          }
+        }
+
+        return deduped.take(50).toList();
       } catch (e) {
         developer.log('Error processing alerts: $e');
         return <Alert>[];
@@ -701,7 +730,18 @@ class AlertService {
               ? DateTime.now().difference(lastActivityDate).inDays
               : 999;
           if (daysSinceActivity >= 5) {
-            await createGoalAlert(userId: user.uid, goal: goal, type: AlertType.inactivity);
+            // Avoid creating duplicate inactivity alerts for the same goal
+            final existingInactivity = await _firestore
+                .collection('alerts')
+                .where('userId', isEqualTo: user.uid)
+                .where('type', isEqualTo: AlertType.inactivity.name)
+                .where('relatedGoalId', isEqualTo: goal.id)
+                .where('isDismissed', isEqualTo: false)
+                .get();
+
+            if (existingInactivity.docs.isEmpty) {
+              await createGoalAlert(userId: user.uid, goal: goal, type: AlertType.inactivity);
+            }
           }
         }
       }

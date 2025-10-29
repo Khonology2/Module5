@@ -285,6 +285,17 @@ class DatabaseService {
       'rejectionReason': null,
     });
     // Do not auto-notify managers; require explicit submit for approval.
+    // Auto-request approval asynchronously to avoid blocking UI navigation
+    // ignore: unawaited_futures
+    Future(() async {
+      try {
+        await requestGoalApproval(
+          goalId: doc.id,
+          userId: goal.userId,
+          goalTitle: goal.title,
+        );
+      } catch (_) {}
+    });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
     Future(() async {
