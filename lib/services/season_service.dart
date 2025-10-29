@@ -76,6 +76,63 @@ class SeasonService {
       developer.log('Error creating season: $e');
       rethrow;
     }
+
+  }
+
+  static Future<void> deleteSeasonAndNotify(String seasonId) async {
+    try {
+      final season = await getSeason(seasonId);
+      if (season == null) {
+        throw Exception('Season not found');
+      }
+
+      final participantIds = List<String>.from(season.participantIds);
+
+      for (final userId in participantIds) {
+        try {
+          await _firestore.collection('alerts').add({
+            'userId': userId,
+            'type': AlertType.seasonCompleted.name,
+            'priority': AlertPriority.medium.name,
+            'title': 'Season Deleted',
+            'message': 'The season "${season.title}" has been deleted by your manager.',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'isDismissed': false,
+            'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+            'metadata': {
+              'seasonId': season.id,
+              'seasonTitle': season.title,
+              'action': 'deleted',
+            },
+          });
+        } catch (_) {}
+      }
+
+      await _firestore.collection('seasons').doc(seasonId).delete();
+
+      try {
+        await _firestore.collection('alerts').add({
+          'userId': season.createdBy,
+          'type': AlertType.seasonCompleted.name,
+          'priority': AlertPriority.medium.name,
+          'title': 'Season Deleted',
+          'message': 'You deleted the season "${season.title}". Participants were notified.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          'metadata': {
+            'seasonId': season.id,
+            'seasonTitle': season.title,
+            'action': 'deleted',
+          },
+        });
+      } catch (_) {}
+    } catch (e) {
+      developer.log('Error deleting season: $e');
+      rethrow;
+    }
   }
 
   // Normalize milestone status to completed boolean (handles enum or string)
@@ -1218,7 +1275,7 @@ class SeasonService {
           'title': 'New Season Started! 🎉',
           'message': 'A new "$title" season on theme "$theme" has started. Join and earn points!',
           'actionText': 'View Seasons',
-          'actionRoute': '/team_challenges_seasons',
+          'actionRoute': '/season_challenges',
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
           'isDismissed': false,
@@ -1261,6 +1318,8 @@ class SeasonService {
           'seasonId': season.id,
           'challengeId': challenge.id,
           'createdByName': userName,
+          // Pre-approve season goals so employees can start/update immediately
+          'approvalStatus': 'approved',
         });
       }
     } catch (e) {

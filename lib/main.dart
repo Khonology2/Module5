@@ -65,6 +65,32 @@ void main() async {
       // Non-web or older SDKs will ignore
     }
   }
+  // Global error handling: prevent web inspector from crashing on Diagnostics
+  // and show a simple fallback widget instead of a blank white screen.
+  FlutterError.onError = (FlutterErrorDetails details) {
+    // Log to console
+    debugPrint('FlutterError: \\n${details.exceptionAsString()}');
+    if (details.stack != null) {
+      debugPrint(details.stack.toString());
+    }
+    // Fallback to default behavior
+    FlutterError.presentError(details);
+  };
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.white,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'An error occurred. Please refresh or try again.',
+            style: const TextStyle(color: Colors.black87),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  };
   runApp(const MyApp());
 }
 
