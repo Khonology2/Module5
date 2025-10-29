@@ -248,10 +248,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      isManager ? Icons.manage_accounts : Icons.person,
-                color: AppColors.activeColor,
-                size: 20,
+                    Image.asset(
+                      'assets/Account_User_Profile/Profile.png',
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.contain,
                     ),
               const SizedBox(width: 8),
                     Text(
@@ -313,51 +314,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: _displayNameController,
           label: 'Display Name',
           icon: Icons.badge_outlined,
+          assetIconPath: 'assets/Data_Approval/Approval_WhiteBadge_Red.png',
         ),
         const SizedBox(height: 16),
         _buildTextField(
                 controller: _photoUrlController,
           label: 'Photo URL',
           icon: Icons.image_outlined,
+          assetIconPath: 'assets/Graphic_Image Placeholder/Image_White_Badge_Red.png',
         ),
         const SizedBox(height: 16),
         _buildTextField(
           controller: _departmentController,
           label: 'Department',
           icon: Icons.business_outlined,
+          assetIconPath: 'assets/Office_Workplace/White Badge_Red.png',
         ),
         const SizedBox(height: 16),
         _buildTextField(
           controller: _jobTitleController,
           label: 'Job Title',
           icon: Icons.work_outline,
-              ),
-              const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
+          suffix: IconButton(
             onPressed: _isLoading ? null : _updateProfile,
-            icon: _isLoading 
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.save),
-            label: Text(_isLoading ? 'Updating...' : 'Update Profile'),
-                style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.activeColor,
-                  foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            icon: Image.asset(
+              'assets/Project Management/Management_White Badge_Red.png',
+              width: 18,
+              height: 18,
+              fit: BoxFit.contain,
             ),
+            tooltip: 'Update Profile',
           ),
-        ),
+              ),
       ],
     );
   }
@@ -650,6 +638,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    String? assetIconPath,
+    Widget? suffix,
     TextInputType? keyboardType,
     bool readOnly = false,
   }) {
@@ -660,7 +650,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(color: AppColors.textMuted),
-        prefixIcon: Icon(icon, color: AppColors.textMuted),
+        prefixIcon: assetIconPath != null
+            ? Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Image.asset(
+                  assetIconPath,
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                ),
+              )
+            : Icon(icon, color: AppColors.textMuted),
+        suffixIcon: suffix,
         filled: true,
         fillColor: Colors.black.withValues(alpha: 0.4),
         enabledBorder: OutlineInputBorder(

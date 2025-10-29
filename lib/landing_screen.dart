@@ -128,7 +128,6 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                       height: 160,
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
-                      cacheHeight: (160 * MediaQuery.of(context).devicePixelRatio).round(),
                     ),
                   ),
                   const SizedBox(height: 24),
