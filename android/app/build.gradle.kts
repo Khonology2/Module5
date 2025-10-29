@@ -27,7 +27,7 @@ android {
         applicationId = "com.example.pdh"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -47,10 +47,18 @@ flutter {
 }
 
 dependencies {
+    // Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.2.0"))
+
+    // Firebase Authentication
     implementation("com.google.firebase:firebase-auth")
+
+    // Facebook SDK
+    implementation("com.facebook.android:facebook-login:latest.release")
     implementation("com.google.android.gms:play-services-auth:21.4.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.activity:activity-ktx:1.9.0")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation("com.google.mlkit:genai-proofreading:1.0.0-beta1")
 }

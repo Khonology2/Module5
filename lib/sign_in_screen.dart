@@ -1,7 +1,12 @@
+// ignore_for_file: use_build_context_synchronously, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
-import 'package:google_sign_in/google_sign_in.dart'; // Import Google Sign-In
+import 'package:pdh/services/role_service.dart'; // Add RoleService import
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:pdh/services/badge_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -35,22 +40,83 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
-  final _phoneController = TextEditingController();
-  String? _verificationId;
-  bool _codeSent = false;
   bool _isSigningIn = false;
+
+  final microsoftProvider = MicrosoftAuthProvider();
+  final githubProvider = GithubAuthProvider();
+
+  // Using FirebaseAuth OAuth providers across platforms
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _phoneController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // Helper function to handle post-login navigation
+  Future<void> _handlePostLoginNavigation(BuildContext context) async {
+    if (!context.mounted) return;
+
+    try {
+      // Get user's role from database and ensure it's cached
+      final role = await RoleService.instance.getRole(refresh: true);
+
+      if (!context.mounted) return;
+
+      String? currentRole = role;
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null && currentRole == null) {
+        // User is authenticated but has no role yet, assign default 'employee' role
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+          {'role': 'employee'},
+          SetOptions(merge: true), // Merge with existing data
+        );
+        currentRole = 'employee'; // Update currentRole to employee
+        // Refresh the cached role in RoleService
+        await RoleService.instance.getRole(refresh: true);
+      }
+
+      if (!context.mounted) return;
+
+      // Before navigating, ensure badges are up to date for this session
+      if (user != null) {
+        await BadgeService.checkAndAwardBadges(user.uid);
+      }
+
+      // User already has a role, redirect to appropriate portal
+      if (currentRole == 'manager') {
+        Navigator.pushReplacementNamed(context, '/manager_portal');
+      } else if (currentRole == 'employee') {
+        // Route employees directly to the dashboard
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      } else {
+        // Unknown role or no role selected, redirect to sign in as fallback
+        Navigator.pushReplacementNamed(
+          context,
+          '/employee_dashboard',
+        ); // Default to employee dashboard
+      }
+    } catch (e) {
+      // If there's an error getting the role, redirect to sign in as fallback
+      if (!context.mounted) return;
+      Navigator.pushReplacementNamed(
+        context,
+        '/employee_dashboard',
+      ); // Default to employee dashboard
+    }
   }
 
   @override
@@ -58,444 +124,683 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background image
+          // Dark galaxy swirl background
           Positioned.fill(
-            child: Image.asset(
-              'assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_1b482d56-7423-46ca-8b2d-ea094e0e91f6.png',
-              fit: BoxFit.cover,
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Colors.black.withValues(alpha: 0.3),
+                BlendMode.darken,
+              ),
+              child: Image.asset(
+                'assets/khono_bg.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
-          // Overlay for gradient effect and content (optional, can be removed if not desired)
-          Positioned.fill( // Ensure the overlay covers the whole screen
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0), // Apply stronger blur effect
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.center,
-                    radius: 1.2,
-                    colors: [
-                      Color(0x880A0F1F), // More opaque semi-transparent overlay
-                      Color(0x88040610), // More opaque semi-transparent overlay
-                    ],
-                    stops: [0.0, 1.0],
+          // Main content with standalone top logo
+          Positioned.fill(
+            child: Column(
+              children: [
+                const SizedBox(height: 48),
+                Center(
+                  child: Image.asset(
+                    'assets/khono.png',
+                    height: 160, // match Get Started page
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
                 ),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Welcome Back!',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFC7E3FF),
-                            ),
-                          ),
-                          const SizedBox(height: 50),
-                          // Email Address
-                          const Text(
-                            'Email Address',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-                              child: TextFormField(
-                                controller: _emailController,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(25), // Semi-transparent white for blurred effect
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Password',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-                              child: TextFormField(
-                                controller: _passwordController,
-                                obscureText: true,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(25), // Semi-transparent white for blurred effect
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your password';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn ? null : () async {
-                                if (_formKey.currentState!.validate()) {
-                                  try {
-                                    await FirebaseAuth.instance.signInWithEmailAndPassword(
-                                      email: _emailController.text,
-                                      password: _passwordController.text,
-                                    );
-                                    if (!mounted) return;
-                                    Navigator.pushReplacementNamed(context, '/dashboard');
-                                  } on FirebaseAuthException catch (e) {
-                                    String message;
-                                    if (e.code == 'user-not-found') {
-                                      message = 'No user found for that email.';
-                                    } else if (e.code == 'wrong-password') {
-                                      message = 'Wrong password provided for that user.';
-                                    } else {
-                                      message = e.message ?? 'An unknown error occurred.';
-                                    }
-                                    if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(message)),
-                                    );
-                                  } catch (e) {
-                                    if (!mounted) return; // Guard against context use after async gap
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-                                    );
-                                  }
-                                }
-                              },
-                              child: const Text(
-                                'Sign In',
+                const SizedBox(height: 24),
+                Expanded(
+                  child: Form(
+                    key: _formKey,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Welcome Back headline
+                              const Text(
+                                'Welcome Back',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
                                   color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Poppins',
+                                  letterSpacing: -0.5,
                                 ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 20), // Add spacing after Sign In button
-                          // Phone Number Input
-                          const Text(
-                            'Phone Number (for SMS verification)',
-                            style: TextStyle(
-                              color: Color(0xFFC7E3FF),
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-                              child: TextFormField(
-                                controller: _phoneController,
-                                keyboardType: TextInputType.phone,
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: Colors.white.withAlpha(25),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                ),
-                                style: const TextStyle(color: Colors.white),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your phone number';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF6B4EE8), Color(0xFF48A6ED)],
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                              ),
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn ? null : () async {
-                                if (_formKey.currentState!.validate()) {
-                                  _verifyPhoneNumber();
-                                }
-                              },
-                              child: const Text(
-                                'Send Code',
+                              const SizedBox(height: 8),
+                              // Subtitle
+                              Text(
+                                'Sign in to continue your growth journey',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontFamily: 'Poppins',
                                 ),
                               ),
-                            ),
-                          ),
-                          if (_codeSent) ...[
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Verification Code',
-                              style: TextStyle(
-                                color: Color(0xFFC7E3FF),
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: BackdropFilter(
-                                filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
-                                child: TextFormField(
-                                  keyboardType: TextInputType.number,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: Colors.white.withAlpha(25),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                      borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  ),
-                                  style: const TextStyle(color: Colors.white),
-                                  onChanged: (value) {
-                                    if (value.length == 6 && _verificationId != null) {
-                                      _signInWithPhoneAuthCredential(
-                                        PhoneAuthProvider.credential(
-                                          verificationId: _verificationId!,
-                                          smsCode: value,
+                              const SizedBox(height: 40),
+                              // Email input field
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                  child: TextFormField(
+                                    controller: _emailController,
+                                    keyboardType: TextInputType.emailAddress,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.black.withOpacity(0.3),
+                                      hintText: 'Email',
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1.0,
                                         ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFC10D00),
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 16,
+                                      ),
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter your email';
+                                      }
+                                      final emailPattern = RegExp(
+                                        r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
                                       );
-                                    }
-                                  },
+                                      if (!emailPattern.hasMatch(value)) {
+                                        return 'Please enter a valid email';
+                                      }
+                                      return null;
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: Colors.white, // Google button background color
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn ? null : () async {
-                                try {
-                                  GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-                                  if (googleUser == null) return; // User cancelled sign-in
-
-                                  GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-                                  AuthCredential credential = GoogleAuthProvider.credential(
-                                    accessToken: googleAuth.accessToken,
-                                    idToken: googleAuth.idToken,
-                                  );
-
-                                  await FirebaseAuth.instance.signInWithCredential(credential);
-                                  if (!mounted) return;
-                                  Navigator.pushReplacementNamed(context, '/dashboard');
-                                } on FirebaseAuthException catch (e) {
-                                  String message = e.message ?? 'Google Sign-In failed.';
-                                  if (!mounted) return; // Guard against context use after async gap
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                } catch (e) {
-                                  if (!mounted) return; // Guard against context use after async gap
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-                                  );
-                                }
-                              },
-                              child: Row(
+                              const SizedBox(height: 20),
+                              // Password input field
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                  child: TextFormField(
+                                    controller: _passwordController,
+                                    obscureText: true,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.black.withOpacity(0.3),
+                                      hintText: 'Password',
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFC10D00),
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 16,
+                                      ),
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter your password';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              // Primary Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  color: const Color(0xFFC10D00),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFC10D00).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          if (_formKey.currentState!.validate()) {
+                                            setState(() {
+                                              _isSigningIn = true;
+                                            });
+                                            try {
+                                              final cred = await FirebaseAuth.instance
+                                                  .signInWithEmailAndPassword(
+                                                    email: _emailController.text,
+                                                    password:
+                                                        _passwordController.text,
+                                                  );
+                                              // Store lastLoginAt and record daily login activity
+                                              final user = cred.user;
+                                              if (user != null) {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .set({
+                                                      'lastLoginAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                                // Also record a light-weight daily activity for streaks
+                                                try {
+                                                  await FirebaseFirestore.instance
+                                                      .collection('users')
+                                                      .doc(user.uid)
+                                                      .collection('daily_activities')
+                                                      .doc(
+                                                        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                      )
+                                                      .set({
+                                                        'date':
+                                                            FieldValue.serverTimestamp(),
+                                                        'activities':
+                                                            FieldValue.arrayUnion([
+                                                              'login',
+                                                            ]),
+                                                        'createdAt':
+                                                            FieldValue.serverTimestamp(),
+                                                      }, SetOptions(merge: true));
+                                                } catch (_) {}
+                                              }
+                                              if (!mounted) return;
+                                              await _handlePostLoginNavigation(
+                                                context,
+                                              );
+                                            } on FirebaseAuthException catch (e) {
+                                              String message;
+                                              if (e.code == 'user-not-found') {
+                                                message =
+                                                    'No user found for that email.';
+                                              } else if (e.code == 'wrong-password') {
+                                                message =
+                                                    'Wrong password provided for that user.';
+                                              } else {
+                                                message =
+                                                    e.message ??
+                                                    'An unknown error occurred.';
+                                              }
+                                              if (!mounted) return;
+                                              await _showCenterNotice(message);
+                                            } catch (e) {
+                                              if (!mounted) return;
+                                              await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                            } finally {
+                                              if (mounted) {
+                                                setState(() {
+                                                  _isSigningIn = false;
+                                                });
+                                              }
+                                            }
+                                          }
+                                        },
+                                  child: _isSigningIn
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'SIGN IN',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Poppins',
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              // Divider with "or" text
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Text(
+                                      'or',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 14,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 30),
+                              // Google Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(
+                                                    GoogleAuthProvider(),
+                                                  );
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(
+                                                    GoogleAuthProvider(),
+                                                  );
+                                            }
+                                            // Store lastLoginAt and record daily login activity
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                  }, SetOptions(merge: true));
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection('daily_activities')
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion([
+                                                            'login',
+                                                          ]),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(context);
+                                          } on FirebaseAuthException catch (e) {
+                                            String message =
+                                                e.message ?? 'Google Sign-In failed.';
+                                            if (e.code == 'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                          }
+                                        },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/Google_Icon.png',
+                                        height: 20.0,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with Google',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Microsoft Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            setState(() {
+                                              _isSigningIn = true;
+                                            });
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(microsoftProvider);
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(
+                                                    microsoftProvider,
+                                                  );
+                                            }
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                  }, SetOptions(merge: true));
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection('daily_activities')
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion([
+                                                            'login',
+                                                          ]),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(context);
+                                          } on FirebaseAuthException catch (e) {
+                                            setState(() {
+                                              _isSigningIn = false;
+                                            });
+                                            String message =
+                                                e.message ??
+                                                'Microsoft Sign-In failed.';
+                                            if (e.code == 'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            setState(() {
+                                              _isSigningIn = false;
+                                            });
+                                            if (!mounted) return;
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                          }
+                                        },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset('assets/mslogo.png', height: 20.0),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with Microsoft',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // GitHub Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(githubProvider);
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(githubProvider);
+                                            }
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                  }, SetOptions(merge: true));
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection('daily_activities')
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion([
+                                                            'login',
+                                                          ]),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(context);
+                                          } on FirebaseAuthException catch (e) {
+                                            String message =
+                                                e.message ?? 'GitHub Sign-In failed.';
+                                            if (e.code == 'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                          }
+                                        },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/github_icon_2.png',
+                                        height: 20.0,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with GitHub',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              // Register link
+                              Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Image.asset(
-                                    'assets/goog.jpeg', // Use the new Google logo asset
-                                    height: 24.0,
+                                  Text(
+                                    "Don't have an account? ",
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 14,
+                                      fontFamily: 'Poppins',
+                                    ),
                                   ),
-                                  const SizedBox(width: 10),
-                                  const Flexible( // Wrap text with Flexible to prevent overflow
-                                    child: Text(
-                                      'Sign in with Google',
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, '/register');
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                              child: const Text(
+                                'SIGN UP',
                                       style: TextStyle(
-                                        color: Colors.black,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFC10D00),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Poppins',
+                                        decoration: TextDecoration.underline,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Microsoft Sign-In Button
-                          Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: Colors.blue, // Microsoft button background color
-                            ),
-                            child: TextButton(
-                              onPressed: _isSigningIn ? null : () async {
-                                try {
-                                  setState(() {
-                                    _isSigningIn = true;
-                                  });
-                                  final microsoftProvider = MicrosoftAuthProvider();
-                                  await FirebaseAuth.instance.signInWithProvider(microsoftProvider);
-                                  if (!mounted) return;
-                                  Navigator.pushReplacementNamed(context, '/dashboard');
-                                } on FirebaseAuthException catch (e) {
-                                  setState(() {
-                                    _isSigningIn = false;
-                                  });
-                                  String message = e.message ?? 'Microsoft Sign-In failed.';
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                } catch (e) {
-                                  setState(() {
-                                    _isSigningIn = false;
-                                  });
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-                                  );
-                                }
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Image.asset(
-                                    'assets/soft_2.png', // Microsoft logo asset
-                                    height: 24.0,
-                                  ),
-                                  // const SizedBox(width: 10),
-                                  // const Flexible(
-                                  //   child: Text(
-                                  //     'Sign in with Microsoft',
-                                  //     style: TextStyle(
-                                  //       color: Colors.white,
-                                  //       fontSize: 18,
-                                  //       fontWeight: FontWeight.bold,
-                                  //     ),
-                                  //   ),
-                                  // ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                "Don't have your account yet?",
-                                style: TextStyle(
-                                  color: Color(0xFF8B9FB7),
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/register');
-                                },
-                                child: const Text(
-                                  'Register Now?',
-                                  style: TextStyle(
-                                    color: Color(0xFF48A6ED),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
+                              const SizedBox(height: 20),
                             ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -503,85 +808,47 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  void _verifyPhoneNumber() async {
-    setState(() {
-      _isSigningIn = true;
-    });
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: _phoneController.text,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        await _signInWithPhoneAuthCredential(credential);
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        setState(() {
-          _isSigningIn = false;
-        });
-        String message;
-        if (e.code == 'invalid-phone-number') {
-          message = 'The provided phone number is not valid.';
-        } else if (e.code == 'too-many-requests') {
-          message = 'Too many requests. Please try again later.';
-        } else if (e.code == 'missing-activity-for-recaptcha') {
-          message = 'reCAPTCHA verification attempted with null Activity';
-        } else {
-          message = e.message ?? 'An unknown error occurred.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+  Future<void> _showCenterNotice(String message) async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFFC10D00)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
+            ),
+          ],
         );
       },
-      codeSent: (String verificationId, int? resendToken) async {
-        setState(() {
-          _verificationId = verificationId;
-          _codeSent = true;
-          _isSigningIn = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification code sent!')),
-        );
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        _verificationId = verificationId;
-        setState(() {
-          _isSigningIn = false;
-        });
-      },
-      timeout: const Duration(seconds: 60),
     );
-  }
-
-  Future<void> _signInWithPhoneAuthCredential(PhoneAuthCredential credential) async {
-    setState(() {
-      _isSigningIn = true;
-    });
-    try {
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    } on FirebaseAuthException catch (e) {
-      setState(() {
-        _isSigningIn = false;
-      });
-      String message;
-      if (e.code == 'invalid-verification-code') {
-        message = 'The verification code entered was invalid.';
-      } else if (e.code == 'invalid-credential') {
-        message = 'The credential is invalid.';
-      } else {
-        message = e.message ?? 'An unknown error occurred.';
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (e) {
-      setState(() {
-        _isSigningIn = false;
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
-      );
-    }
   }
 }

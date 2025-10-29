@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // Import for ImageFilter
-import 'package:pdh/app_drawer.dart'; // Import the new AppDrawer
+import 'package:pdh/employee_drawer.dart'; // Import the EmployeeDrawer
 import 'package:pdh/bottom_nav_bar.dart'; // Import the new AppBottomNavBar
 
 class SeasonChallengeScreen extends StatefulWidget { // Changed to StatefulWidget
@@ -65,13 +65,13 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
         targetRoute = '/settings';
         break;
       default:
-        targetRoute = '/dashboard'; // Default to dashboard (or appropriate fallback)
+        targetRoute = '/my_pdp'; // Default to my_pdp (or appropriate fallback)
     }
     if (ModalRoute.of(context)?.settings.name != targetRoute) {
       Navigator.pushNamedAndRemoveUntil(
         context,
         targetRoute,
-        (Route<dynamic> route) => route.settings.name == '/dashboard' || route.isFirst, // Keep dashboard or first route
+        (Route<dynamic> route) => route.settings.name == '/my_pdp' || route.isFirst, // Keep my_pdp or first route
       );
     }
   }
@@ -86,14 +86,14 @@ class _SeasonChallengeScreenState extends State<SeasonChallengeScreen> {
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
       ),
-      drawer: const AppDrawer(), // Use the new AppDrawer widget
+      drawer: const EmployeeDrawer(), // Use the EmployeeDrawer widget
       body: Stack(
         children: [
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage('assets/hillyxyz_Generate_a_background_image_for_a_personal_development_app._Theme_7058e6a9-bc4e-49a4-836d-7344ed124d1f.png'),
+                  image: AssetImage('assets/khono_bg.png'),
                   fit: BoxFit.cover,
                 ),
               ),
