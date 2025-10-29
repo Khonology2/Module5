@@ -185,10 +185,6 @@ flutter run
 - Zero lint errors: run `dart analyze` before committing.
 - Assets naming: avoid spaces in filenames and folder names; use underscores `_` instead. After any rename, update all references and ensure the path is declared in `flutter.assets` in `pubspec.yaml`. Size images appropriately for their placement.
 
-## Surf-Push Workflow
-
-- In chat, send `surf-push` to generate a single combined commit message for all current changes, then commit and push to the current branch.
-
 ## Recent UI Updates
 
 - Team Chats: added back button in header using `Navigator.maybePop()`.
