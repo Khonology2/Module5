@@ -31,6 +31,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool isLoading = false;
   StreamSubscription<DocumentSnapshot>? _goalSub;
   bool _submittingApproval = false;
+  bool _isSeasonGoal = false;
 
   @override
   void initState() {
@@ -47,6 +48,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         final updated = Goal.fromFirestore(doc);
         setState(() {
           currentGoal = updated;
+          final data = doc.data();
+          _isSeasonGoal = (data?['isSeasonGoal'] == true);
         });
       } catch (_) {}
     });
@@ -483,7 +486,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildApprovalNotice() {
-    if (currentGoal.approvalStatus == GoalApprovalStatus.approved) {
+    if (_isSeasonGoal || currentGoal.approvalStatus == GoalApprovalStatus.approved) {
       return const SizedBox.shrink();
     }
     final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
@@ -725,7 +728,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed && currentGoal.approvalStatus == GoalApprovalStatus.approved) ...[
+          if (currentGoal.status != GoalStatus.completed && (currentGoal.approvalStatus == GoalApprovalStatus.approved || _isSeasonGoal)) ...[
             Text(
               'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
@@ -805,7 +808,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
 
     // If not approved yet, either allow submission or show status banner
-    if (currentGoal.approvalStatus != GoalApprovalStatus.approved) {
+    if (!_isSeasonGoal && currentGoal.approvalStatus != GoalApprovalStatus.approved) {
       final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
       final hasRequested = currentGoal.approvalRequestedAt != null;
       // Permanently hide the submit-for-approval UI (auto-request happens on create)

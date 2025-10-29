@@ -412,8 +412,10 @@ class DatabaseService {
     // Gate: only allow progress on approved goals
     try {
       final meta = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
-      final ap = (meta.data()?['approvalStatus'] ?? 'pending').toString();
-      if (ap != GoalApprovalStatus.approved.name) {
+      final data = meta.data();
+      final bool isSeason = (data?['isSeasonGoal'] == true);
+      final ap = (data?['approvalStatus'] ?? 'pending').toString();
+      if (!isSeason && ap != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
       }
     } catch (e) {
@@ -589,8 +591,10 @@ class DatabaseService {
   static Future<void> startGoal(String goalId, String userId) async {
     // Gate: only allow start on approved goals
     final snap = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
-    final ap = (snap.data()?['approvalStatus'] ?? 'pending').toString();
-    if (ap != GoalApprovalStatus.approved.name) {
+    final dataStart = snap.data();
+    final bool isSeasonStart = (dataStart?['isSeasonGoal'] == true);
+    final ap = (dataStart?['approvalStatus'] ?? 'pending').toString();
+    if (!isSeasonStart && ap != GoalApprovalStatus.approved.name) {
       throw Exception('Goal is not approved yet');
     }
     final batch = FirebaseFirestore.instance.batch();
@@ -645,8 +649,9 @@ class DatabaseService {
         throw Exception('Goal not found');
       }
       final data = snap.data() as Map<String, dynamic>;
+      final bool isSeasonComplete = (data['isSeasonGoal'] == true);
       final approval = (data['approvalStatus'] ?? 'pending').toString();
-      if (approval != GoalApprovalStatus.approved.name) {
+      if (!isSeasonComplete && approval != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
       }
       final status = (data['status'] ?? 'notStarted').toString();
