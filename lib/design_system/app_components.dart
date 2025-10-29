@@ -28,10 +28,10 @@ class AppComponents {
       child: Container(
         padding: padding ?? AppSpacing.cardPadding,
         decoration: BoxDecoration(
-          color: backgroundColor ?? Colors.black.withValues(alpha: 0.4),
+          color: backgroundColor ?? Colors.black.withOpacity(0.4),
           borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
-            color: (borderColor ?? Colors.white.withValues(alpha: 0.2)),
+            color: (borderColor ?? Colors.white.withOpacity(0.2)),
             width: borderWidth == 0.0 ? 1.0 : borderWidth,
           ),
           boxShadow: boxShadow,
@@ -343,7 +343,7 @@ class AppComponents {
         LinearProgressIndicator(
           value: value,
           backgroundColor:
-              backgroundColor ?? Colors.grey.withValues(alpha: 0.3),
+              backgroundColor ?? Colors.grey.withOpacity(0.3),
           valueColor: AlwaysStoppedAnimation<Color>(
             valueColor ?? AppColors.activeColor,
           ),
@@ -370,31 +370,48 @@ class AppComponents {
       final double height = constraints.hasBoundedHeight
           ? constraints.maxHeight
           : MediaQuery.of(context).size.height;
-      return SizedBox(
-        width: width,
-        height: height,
-        child: Stack(
-      children: [
-        // Background image
-        Positioned.fill(child: Image.asset(imagePath, fit: BoxFit.cover)),
-        // Overlay with blur and gradient
-        Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.center,
-                  radius: 1.2,
-                  colors: gradientColors ?? AppColors.radialGradientColors,
-                  stops: gradientStops ?? AppColors.radialGradientStops,
+      return RepaintBoundary(
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            children: [
+              // Background image
+              Positioned.fill(
+                child: Image.asset(imagePath, fit: BoxFit.cover),
+              ),
+              // Overlay with blur and gradient (must be clipped for BackdropFilter)
+              Positioned.fill(
+                child: ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 1.2,
+                          colors: gradientColors ?? AppColors.radialGradientColors,
+                          stops: gradientStops ?? AppColors.radialGradientStops,
+                        ),
+                      ),
+                      child: Builder(
+                        builder: (context) {
+                          final dir = Directionality.maybeOf(context) ?? TextDirection.ltr;
+                          return Directionality(
+                            textDirection: dir,
+                            child: FocusTraversalGroup(
+                              policy: WidgetOrderTraversalPolicy(),
+                              child: child,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              child: child,
-            ),
+            ],
           ),
-        ),
-      ],
         ),
       );
     });

@@ -65,7 +65,7 @@ service cloud.firestore {
         );
 
         // Allow user to update their own daily activity tracking entries
-        allow update: if isSignedIn() && request.auth.uid == userId && subcollection == 'daily_activities';
+        allow update: if isSignedIn() && request.auth.uid == userId && (subcollection == 'daily_activities' || subcollection == 'badges');
 
         // Allow managers to create alerts, nudges for their employees
         allow create: if isManager() && userRole(userId) == 'employee' && 
@@ -283,6 +283,11 @@ service cloud.firestore {
           )
         )
       );
+    }
+
+    // Deleted accounts blocklist - allow reads for signed-in users only
+    match /deleted_accounts/{docId} {
+      allow read: if isSignedIn();
     }
   }
 }
