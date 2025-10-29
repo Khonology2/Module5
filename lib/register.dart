@@ -24,61 +24,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  String? _selectedRole; // New: Variable to store selected role
-  // Removed unused _formKey
-  // Removed unused _passwordStrength
-  // Removed unused _passwordStrengthColor
+  String? _selectedRole;
 
-  double _passwordStrength =
-      0.0; // New: To store password strength (0.0 to 1.0)
-  Color _passwordStrengthColor =
-      Colors.grey; // New: To store the color of the strength meter
-  String _passwordHint =
-      ''; // New: To store the hint text for password requirements
+  double _passwordStrength = 0.0;
+  Color _passwordStrengthColor = Colors.grey;
+  String _passwordHint = '';
 
-  List<String> _fullNameHints = [];
-  List<String> _usernameHints = [];
-  List<String> _emailHints = [];
-  List<String> _passwordHints = [];
-  List<String> _confirmPasswordHints = [];
-
-  int _currentHintIndex = 0;
   late Timer _hintTimer;
 
   @override
   void initState() {
     super.initState();
-    _fullNameHints = List.generate(
-      20,
-      (index) => 'Enter your full name ${index + 1}',
-    );
-    _usernameHints = List.generate(
-      20,
-      (index) => 'Choose a username ${index + 1}',
-    );
-    _emailHints = List.generate(
-      20,
-      (index) => 'Your email address ${index + 1}',
-    );
-    _passwordHints = List.generate(
-      20,
-      (index) => 'Create a password ${index + 1}',
-    );
-    _confirmPasswordHints = List.generate(
-      20,
-      (index) => 'Confirm your password ${index + 1}',
-    );
-
-    _hintTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      setState(() {
-        _currentHintIndex = (_currentHintIndex + 1) % 20;
-      });
-    });
+    // Timer retained to keep structure minimal though hints are static now
+    _hintTimer = Timer(const Duration(milliseconds: 1), () {});
   }
 
   @override
   void dispose() {
-    _hintTimer.cancel();
+    try { _hintTimer.cancel(); } catch (_) {}
     // Clean up the controllers when the widget is disposed.
     _fullNameController.dispose();
     _usernameController.dispose();
@@ -161,11 +124,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     return Scaffold(
-      extendBody:
-          true, // Allows the body to extend behind the bottom navigation bar
       body: Stack(
         children: [
-          // Background image
           Positioned.fill(
             child: ColorFiltered(
               colorFilter: ColorFilter.mode(
@@ -178,150 +138,136 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-          // Overlay for subtle gradient effect and content
           Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                // No longer applying gradient colors or blur
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 40.0,
-                    right: 40.0,
-                    top: 80.0,
-                    bottom: 40.0,
-                  ), // Adjust padding for better layout
-                  child: Form(
-                    // Removed key: _formKey
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment
-                          .start, // Align content to the start (top)
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start, // Left-align text labels
-                      children: [
-                        const Text(
-                          'Create Your Account',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 50), // Space after title
-                        // Full Name
-                        _buildFieldLabel('Full Name'),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: _fullNameController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your full name';
-                            }
-                            return null;
-                          },
-                          hintText: _fullNameHints[_currentHintIndex],
-                        ),
-                        const SizedBox(height: 20),
-                        // Username
-                        _buildFieldLabel('Username'),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: _usernameController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a username';
-                            }
-                            return null;
-                          },
-                          hintText: _usernameHints[_currentHintIndex],
-                        ),
-                        const SizedBox(height: 20),
-                        // Email Address
-                        _buildFieldLabel('Email Address'),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: _emailController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your email';
-                            }
-                            if (!RegExp(
-                              r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-                            ).hasMatch(value)) {
-                              return 'Please enter a valid email';
-                            }
-                            return null;
-                          },
-                          hintText: _emailHints[_currentHintIndex],
-                        ),
-                        const SizedBox(height: 20),
-                        // Password
-                        _buildFieldLabel('Password'),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.length < 8) {
-                              return 'Password must be at least 8 characters long';
-                            }
-                            return null;
-                          },
-                          hintText: _passwordHints[_currentHintIndex],
-                          onChanged: _updatePasswordStrength,
-                        ),
-                        const SizedBox(
-                          height: 5,
-                        ), // Added space for strength meter
-                        LinearProgressIndicator(
-                          value: _passwordStrength,
-                          backgroundColor: Colors.grey[300],
-                          color: _passwordStrengthColor,
-                          minHeight: 5,
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          _passwordHint,
-                          style: TextStyle(
-                            color: _passwordStrengthColor,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        // Confirm Password
-                        _buildFieldLabel('Confirm Password'),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: _confirmPasswordController,
-                          obscureText: true,
-                          validator: (value) {
-                            if (value != _passwordController.text) {
-                              return 'Passwords do not match';
-                            }
-                            return null;
-                          },
-                          hintText: _confirmPasswordHints[_currentHintIndex],
-                        ),
-                        const SizedBox(height: 20),
-                        // Role Selection Dropdown
-                        _buildFieldLabel('Role'),
-                        const SizedBox(height: 8),
-                        _buildRoleDropdown(),
-                        const SizedBox(height: 30),
-                        // Sign Up Button
-                        Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: ShapeDecoration(
-                            shape: const StadiumBorder(),
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFC10D00), Color(0xFFC10D00)],
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
+            child: Column(
+              children: [
+                const SizedBox(height: 48),
+                Center(
+                  child: Image.asset(
+                    'assets/khono.png',
+                    height: 160,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 500),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Create Your Account',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontFamily: 'Poppins',
+                                letterSpacing: -0.5,
+                              ),
                             ),
-                          ),
-                          child: TextButton(
+                            const SizedBox(height: 40),
+                            _buildTextField(
+                              controller: _fullNameController,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your full name';
+                                }
+                                return null;
+                              },
+                              hintText: 'Full name',
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              controller: _usernameController,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter a username';
+                                }
+                                return null;
+                              },
+                              hintText: 'Username',
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              controller: _emailController,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!RegExp(
+                                  r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                                ).hasMatch(value)) {
+                                  return 'Please enter a valid email';
+                                }
+                                return null;
+                              },
+                              hintText: 'Email',
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              validator: (value) {
+                                if (value == null || value.length < 8) {
+                                  return 'Password must be at least 8 characters long';
+                                }
+                                return null;
+                              },
+                              hintText: 'Password',
+                              onChanged: _updatePasswordStrength,
+                            ),
+                            const SizedBox(height: 6),
+                            LinearProgressIndicator(
+                              value: _passwordStrength,
+                              backgroundColor: Colors.white24,
+                              color: _passwordStrengthColor,
+                              minHeight: 5,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _passwordHint,
+                              style: TextStyle(
+                                color: _passwordStrengthColor,
+                                fontSize: 12,
+                                fontFamily: 'Poppins',
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildTextField(
+                              controller: _confirmPasswordController,
+                              obscureText: true,
+                              validator: (value) {
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match';
+                                }
+                                return null;
+                              },
+                              hintText: 'Confirm password',
+                            ),
+                            const SizedBox(height: 20),
+                            _buildRoleDropdown(),
+                            const SizedBox(height: 30),
+                            Container(
+                              width: double.infinity,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                color: const Color(0xFFC10D00),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFC10D00).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: TextButton(
                             onPressed: () async {
                               if (_fullNameController.text.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -495,21 +441,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 );
                               }
                             },
-                            child: const Text(
-                              'SIGN UP',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                                child: const Text(
+                                  'SIGN UP',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Poppins',
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Already have an account? ',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 14,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pushReplacementNamed(context, '/sign_in');
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'SIGN IN',
+                                    style: TextStyle(
+                                      color: Color(0xFFC10D00),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Poppins',
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -528,18 +512,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   InputDecoration _inputDecoration() {
     return InputDecoration(
       filled: true,
-      fillColor: Colors.white.withAlpha(
-        25,
-      ), // Semi-transparent white for blurred effect
+      fillColor: Colors.black.withOpacity(0.3),
+      hintStyle: const TextStyle(
+        color: Colors.white70,
+        fontSize: 16,
+        fontFamily: 'Poppins',
+      ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.0,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFFC7E3FF), width: 1.0),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Color(0xFFC10D00),
+          width: 2.0,
+        ),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
   }
 
@@ -552,19 +545,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String hintText, // Add hintText parameter
   }) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
         child: TextFormField(
           controller: controller,
           obscureText: obscureText,
           decoration: _inputDecoration().copyWith(
-            hintText: hintText, // Use the dynamic hintText
-            hintStyle: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-            ), // Hint text style
+            hintText: hintText,
           ),
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontFamily: 'Poppins',
+          ),
           validator: validator,
           onChanged: onChanged,
         ),
@@ -574,14 +568,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildRoleDropdown() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5.0, sigmaY: 5.0),
+        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
         child: DropdownButtonFormField<String>(
           value: _selectedRole,
           decoration: _inputDecoration().copyWith(
             hintText: 'Select your role',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
           ),
           dropdownColor: const Color(
             0x880A0F1F,

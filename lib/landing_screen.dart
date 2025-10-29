@@ -70,6 +70,25 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
         _currentLineIndex = (_currentLineIndex + 1) % inspirationalLines.length;
       });
     });
+
+    // Precache hero images after first frame to avoid jank on first paint
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = this.context;
+      if (!mounted) return;
+      // Background image sized to screen width to reduce decode cost
+      final int bgWidth = (MediaQuery.of(context).size.width * 1.5).toInt();
+      precacheImage(
+        const AssetImage('assets/khono_bg.png'),
+        context,
+        size: Size(bgWidth.toDouble(), MediaQuery.of(context).size.height),
+      );
+      // Logo at a fixed reasonable size
+      precacheImage(
+        const AssetImage('assets/khono.png'),
+        context,
+        size: const Size(320, 160),
+      );
+    });
   }
 
   @override
@@ -90,6 +109,8 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
               child: Image.asset(
                 'assets/khono_bg.png',
                 fit: BoxFit.cover,
+                filterQuality: FilterQuality.low,
+                cacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
               ),
             ),
           ),
@@ -105,6 +126,8 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                       'assets/khono.png',
                       height: 160,
                       fit: BoxFit.contain,
+                      filterQuality: FilterQuality.low,
+                      cacheWidth: 320,
                     ),
                   ),
                   const SizedBox(height: 24),
