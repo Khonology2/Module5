@@ -102,10 +102,9 @@ class EmployeeData {
               map['profile'] ?? {},
               id: map['profile']?['uid'] ?? id,
             ),
-      goals:
-          (map['goals'] as List<dynamic>? ?? [])
-                  .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
-                  .toList(),
+      goals: (map['goals'] as List<dynamic>? ?? [])
+          .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
+          .toList(),
       recentActivities: (map['recentActivities'] as List<dynamic>? ?? [])
           .map(
             (a) =>
@@ -429,16 +428,19 @@ class ManagerRealtimeService {
           targetDepartment = managerDoc.data()?['department'] as String?;
         }
 
-        // Build employee query; if department known, constrain to that team
+        // If no department is set for this manager, do not run a broad query
+        // because Firestore rules require department scoping for managers.
+        if (targetDepartment == null || targetDepartment.isEmpty) {
+          controller.add(const <EmployeeData>[]);
+          return;
+        }
+
+        // Build employee query constrained to the manager's department
         Query usersQuery = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee')
+            .where('department', isEqualTo: targetDepartment)
             .limit(_initialEmployeeLimit);
-        if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          usersQuery = usersQuery
-              .where('department', isEqualTo: targetDepartment)
-              .limit(_initialEmployeeLimit);
-        }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
           if (usersSnapshot.docs.isEmpty) {
@@ -447,37 +449,57 @@ class ManagerRealtimeService {
           }
 
           final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
-          
+
           // Firestore whereIn supports up to 10 values. Fetch in batches.
           final startDate = _getStartDateForFilter(timeFilter);
 
-          Future<List<QueryDocumentSnapshot>> fetchInBatches(String collection) async {
+          Future<List<QueryDocumentSnapshot>> fetchInBatches(
+            String collection,
+          ) async {
             final results = <QueryDocumentSnapshot>[];
             for (int i = 0; i < employeeIds.length; i += 10) {
-              final batch = employeeIds.sublist(i, i + 10 > employeeIds.length ? employeeIds.length : i + 10);
-              Query base = _firestore.collection(collection).where('userId', whereIn: batch);
+              final batch = employeeIds.sublist(
+                i,
+                i + 10 > employeeIds.length ? employeeIds.length : i + 10,
+              );
+              Query base = _firestore
+                  .collection(collection)
+                  .where('userId', whereIn: batch);
 
               // Apply collection-specific filters to minimize data
               try {
                 if (collection == 'activities') {
                   // Last 30 days of activity, newest first
-                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  final thirtyDaysAgo = DateTime.now().subtract(
+                    const Duration(days: 30),
+                  );
                   base = base
-                      .where('timestamp', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .where(
+                        'timestamp',
+                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                      )
                       .orderBy('timestamp', descending: true)
                       .limit(200);
                 } else if (collection == 'alerts') {
                   // Only active/undismissed alerts, recent first
-                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  final thirtyDaysAgo = DateTime.now().subtract(
+                    const Duration(days: 30),
+                  );
                   base = base
                       .where('isDismissed', isEqualTo: false)
-                      .where('createdAt', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .where(
+                        'createdAt',
+                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                      )
                       .orderBy('createdAt', descending: true)
                       .limit(200);
                 } else if (collection == 'goals') {
                   // Only goals created in current time window for dashboard metrics
                   base = base
-                      .where('createdAt', isGreaterThan: Timestamp.fromDate(startDate))
+                      .where(
+                        'createdAt',
+                        isGreaterThan: Timestamp.fromDate(startDate),
+                      )
                       .limit(500);
                 }
 
@@ -514,7 +536,9 @@ class ManagerRealtimeService {
           final activitiesByEmployee = <String, List<EmployeeActivity>>{};
           for (var doc in activitiesDocs) {
             final activity = EmployeeActivity.fromFirestore(doc);
-            activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
+            activitiesByEmployee
+                .putIfAbsent(activity.userId, () => [])
+                .add(activity);
           }
 
           final alertsByEmployee = <String, List<Alert>>{};
@@ -530,7 +554,9 @@ class ManagerRealtimeService {
             final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
             final activeAlerts = rawAlerts.where((a) {
               if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
+                return false;
+              }
               return true;
             }).toList();
             final employeeData = await _buildEmployeeData(
@@ -568,7 +594,9 @@ class ManagerRealtimeService {
                   completedGoalsCount: 0,
                   overdueGoalsCount: 0,
                   totalPoints: profile.totalPoints,
-                  lastActivity: profile.lastLoginAt ?? now.subtract(const Duration(days: 30)),
+                  lastActivity:
+                      profile.lastLoginAt ??
+                      now.subtract(const Duration(days: 30)),
                   avgProgress: 0.0,
                   streakDays: 0,
                   status: EmployeeStatus.onTrack,
@@ -778,24 +806,28 @@ class ManagerRealtimeService {
           .where((g) => g.createdAt.isAfter(startDate))
           .toList();
 
-      final completedGoals =
-          allEmployeeGoals.where((g) => g.status == GoalStatus.completed).length;
+      final completedGoals = allEmployeeGoals
+          .where((g) => g.status == GoalStatus.completed)
+          .length;
       final overdueGoals = allEmployeeGoals
-          .where((g) =>
-              g.status != GoalStatus.completed &&
-              g.targetDate.isBefore(DateTime.now()))
+          .where(
+            (g) =>
+                g.status != GoalStatus.completed &&
+                g.targetDate.isBefore(DateTime.now()),
+          )
           .length;
 
       final avgProgress = allEmployeeGoals.isNotEmpty
           ? allEmployeeGoals.map((g) => g.progress).fold(0.0, (a, b) => a + b) /
-              allEmployeeGoals.length
+                allEmployeeGoals.length
           : 0.0;
 
       allEmployeeActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       final lastActivity = allEmployeeActivities.isNotEmpty
           ? allEmployeeActivities.first.timestamp
-          : (profile.lastLoginAt ?? DateTime.now().subtract(const Duration(days: 30)));
+          : (profile.lastLoginAt ??
+                DateTime.now().subtract(const Duration(days: 30)));
 
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
       final recentDocs = allEmployeeActivities
@@ -893,7 +925,9 @@ class ManagerRealtimeService {
   }
 
   // Calculate streak days from activity documents
-  static int _calculateStreakDaysFromActivities(List<EmployeeActivity> activities) {
+  static int _calculateStreakDaysFromActivities(
+    List<EmployeeActivity> activities,
+  ) {
     if (activities.isEmpty) return 0;
 
     final now = DateTime.now();
