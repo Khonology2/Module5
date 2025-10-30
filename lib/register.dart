@@ -25,6 +25,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String? _selectedRole;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   double _passwordStrength = 0.0;
   Color _passwordStrengthColor = Colors.grey;
@@ -212,17 +214,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               hintText: 'Email',
                             ),
                             const SizedBox(height: 20),
-                            _buildTextField(
-                              controller: _passwordController,
-                              obscureText: true,
-                              validator: (value) {
-                                if (value == null || value.length < 8) {
-                                  return 'Password must be at least 8 characters long';
-                                }
-                                return null;
-                              },
-                              hintText: 'Password',
-                              onChanged: _updatePasswordStrength,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                child: TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  decoration: _inputDecoration().copyWith(
+                                    hintText: 'Password',
+                                    suffixIcon: IconButton(
+                                      icon: Image.asset(
+                                        'assets/Concentration_Key_Focus/eye.png',
+                                        width: 22,
+                                        height: 22,
+                                        filterQuality: FilterQuality.high,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.length < 8) {
+                                      return 'Password must be at least 8 characters long';
+                                    }
+                                    return null;
+                                  },
+                                  onChanged: _updatePasswordStrength,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 6),
                             LinearProgressIndicator(
@@ -241,16 +269,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            _buildTextField(
-                              controller: _confirmPasswordController,
-                              obscureText: true,
-                              validator: (value) {
-                                if (value != _passwordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
-                              hintText: 'Confirm password',
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                child: TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _obscureConfirmPassword,
+                                  decoration: _inputDecoration().copyWith(
+                                    hintText: 'Confirm password',
+                                    suffixIcon: IconButton(
+                                      icon: Image.asset(
+                                        'assets/Concentration_Key_Focus/eye.png',
+                                        width: 22,
+                                        height: 22,
+                                        filterQuality: FilterQuality.high,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscureConfirmPassword = !_obscureConfirmPassword;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  validator: (value) {
+                                    if (value != _passwordController.text) {
+                                      return 'Passwords do not match';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 20),
                             _buildRoleDropdown(),
