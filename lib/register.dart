@@ -129,6 +129,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       body: Stack(
         children: [
+          // Back to Sign In button (top-left)
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, top: 8),
+                child: Material(
+                  color: Colors.black.withOpacity(0.35),
+                  borderRadius: BorderRadius.circular(24),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () {
+                      Navigator.pushReplacementNamed(context, '/sign_in');
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.arrow_back, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           Positioned.fill(
             child: ColorFiltered(
               colorFilter: ColorFilter.mode(
