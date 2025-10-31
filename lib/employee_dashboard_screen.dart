@@ -867,6 +867,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         userGoals
             .where(
               (goal) =>
+                  goal.approvalStatus == GoalApprovalStatus.approved &&
                   goal.status != GoalStatus.completed && goal.progress < 100,
             )
             .toList()
@@ -983,6 +984,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     return InkWell(
       onTap: () {
+        if (goal.approvalStatus != GoalApprovalStatus.approved) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Awaiting manager approval.')),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
