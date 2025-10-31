@@ -46,6 +46,7 @@ flutter:
   assets:
     - assets/
     - assets/Account_User_Profile/
+    - assets/Data_Approval/
     - assets/Innovation_Brainstorm/
     - assets/Approved_Tick/
     - assets/Brand/
@@ -64,10 +65,12 @@ flutter:
     - assets/Like_Thumbs_Up/
     - assets/Office_Workplace/
     - assets/Internet_Web_Browser/
-    - assets/Khonodemy Icons/
+    - assets/Khonodemy_Icons/
     - assets/Send_Paper_Plane/
-
-
+    - "assets/Graphic_Image_Placeholder/"
+    - "assets/Project_Management/"
+    - assets/Team_Meeting/Team.png
+    - assets/Concentration_Key_Focus/eye.png
 
   fonts:
     - family: Poppins

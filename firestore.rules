@@ -96,6 +96,11 @@ service cloud.firestore {
         allow update: if isManager() && userRole(userId) == 'employee' && 
           sameDepartment(userId) && (subcollection == 'goals' || subcollection == 'activities');
       }
+      allow read, write: if true;
+    }
+
+    match /onboarding/{uid} {
+      allow read, write: if true;
     }
 
     // Goals collection - managers can read/write employee goals
