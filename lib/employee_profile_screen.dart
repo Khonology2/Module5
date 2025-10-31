@@ -260,9 +260,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         style: TextStyle(color: readOnly ? Colors.white54 : Colors.white), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.white30), // Adjust hint color
+          hintStyle: const TextStyle(color: Color(0xFFC10D00)), // match manager red hint
+          filled: true,
+          fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // px-4 py-2
-          enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(8.0)),
+          enabledBorder: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(8.0)),
           focusedBorder: OutlineInputBorder(
             borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
             borderRadius: BorderRadius.circular(8.0),
@@ -350,19 +352,27 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       body: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
                   child: Center(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto
-                      constraints: const BoxConstraints(maxWidth: 900), // max-width-900px
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto
+              constraints: const BoxConstraints(maxWidth: 1000), // match manager profile width
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(12.0),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.2),
+                ),
+              ),
+              padding: const EdgeInsets.all(40.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                           Text(
                             'My Profile',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 30, // 3xl
+                              fontSize: 32, // match manager
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -694,18 +704,19 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              ElevatedButton(
+                              TextButton(
                                 onPressed: () {
-                                  Navigator.of(context).pop(); // Assuming this cancels and goes back
+                                  Navigator.of(context).pop();
                                 },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Color.fromARGB(25, 255, 255, 255),
+                                style: TextButton.styleFrom(
                                   foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
                                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: const BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                                  ),
                                 ),
-                                child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                                child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
                               ),
                               const SizedBox(width: 16),
                               ElevatedButton(
@@ -718,7 +729,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                 ),
-                                child: const Text('Save Profile', style: TextStyle(fontSize: 14)),
+                                child: const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.w600)),
                               ),
                             ],
                           ),
