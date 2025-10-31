@@ -346,10 +346,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
       ),
       body: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
@@ -371,7 +367,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                           Text(
-                            'My Profile',
+                            'Profile',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 32, // match manager
