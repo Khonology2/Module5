@@ -526,7 +526,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Padding(
                 padding: const EdgeInsets.only(left: 8, top: 8),
                 child: Material(
-                  color: Colors.black.withOpacity(0.35),
+                  color: Colors.transparent,
                   borderRadius: BorderRadius.circular(24),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(24),
@@ -535,7 +535,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                     child: const Padding(
                       padding: EdgeInsets.all(8.0),
-                      child: Icon(Icons.arrow_back, color: Colors.white),
+                      child: Icon(
+                        Icons.arrow_back,
+                        color: Color(0xFFC10D00),
+                      ),
                     ),
                   ),
                 ),
