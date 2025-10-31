@@ -17,11 +17,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
-  late final TextEditingController _displayNameController;
-  late final TextEditingController _photoUrlController;
   late final TextEditingController _resetEmailController;
-  late final TextEditingController _departmentController;
-  late final TextEditingController _jobTitleController;
   
   bool _isLoading = false;
   UserSettings? _currentSettings;
@@ -34,11 +30,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _initializeControllers() {
-    // Initialize controllers with empty values to prevent null errors
-    _displayNameController = TextEditingController(text: '');
-    _photoUrlController = TextEditingController(text: '');
-    _departmentController = TextEditingController(text: '');
-    _jobTitleController = TextEditingController(text: '');
     _resetEmailController = TextEditingController(text: '');
   }
 
@@ -49,8 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (mounted) {
           try {
             _resetEmailController.text = user.email ?? '';
-      _displayNameController.text = user.displayName ?? '';
-      _photoUrlController.text = user.photoURL ?? '';
           } catch (e) {
             developer.log('Error loading current user: $e');
           }
@@ -62,11 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     try {
-      _displayNameController.dispose();
-      _photoUrlController.dispose();
       _resetEmailController.dispose();
-      _departmentController.dispose();
-      _jobTitleController.dispose();
     } catch (e) {
       developer.log('Error disposing controllers: $e');
     }
@@ -102,7 +87,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final settings = settingsSnapshot.data;
               if (settings != null && _currentSettings != settings && mounted) {
                 _currentSettings = settings;
-                _updateControllers(settings);
               }
 
               return StreamBuilder<String?>(
@@ -115,8 +99,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeader(isManager),
-                      const SizedBox(height: 24),
-                      _buildProfileSection(),
                       const SizedBox(height: 24),
                       _buildPrivacySection(settings),
                       const SizedBox(height: 24),
@@ -140,26 +122,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-  }
-
-  void _updateControllers(UserSettings settings) {
-    // Only update controllers if they're mounted and not disposed
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          try {
-            _displayNameController.text = settings.displayName;
-            _photoUrlController.text = settings.photoURL ?? '';
-            _departmentController.text = settings.department ?? '';
-            _jobTitleController.text = settings.jobTitle ?? '';
-          } catch (e) {
-            developer.log('Error updating controllers: $e');
-            // Reinitialize controllers if they became null
-            _initializeControllers();
-          }
-        }
-      });
-    }
   }
 
   Widget _buildErrorState(String error) {
@@ -305,51 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildProfileSection() {
-    return _buildSectionCard(
-      title: 'Profile Information',
-      icon: Icons.person_outline,
-      children: [
-        _buildTextField(
-          controller: _displayNameController,
-          label: 'Display Name',
-          icon: Icons.badge_outlined,
-          assetIconPath: 'assets/Data_Approval/Approval_WhiteBadge_Red.png',
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-                controller: _photoUrlController,
-          label: 'Photo URL',
-          icon: Icons.image_outlined,
-          assetIconPath: 'assets/Graphic_Image Placeholder/Image_White_Badge_Red.png',
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _departmentController,
-          label: 'Department',
-          icon: Icons.business_outlined,
-          assetIconPath: 'assets/Office_Workplace/White Badge_Red.png',
-        ),
-        const SizedBox(height: 16),
-        _buildTextField(
-          controller: _jobTitleController,
-          label: 'Job Title',
-          icon: Icons.work_outline,
-          suffix: IconButton(
-            onPressed: _isLoading ? null : _updateProfile,
-            icon: Image.asset(
-              'assets/Project Management/Management_White Badge_Red.png',
-              width: 18,
-              height: 18,
-              fit: BoxFit.contain,
-            ),
-            tooltip: 'Update Profile',
-          ),
-              ),
-      ],
-    );
-  }
-
+  
   Widget _buildPrivacySection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
 
@@ -793,46 +711,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Action methods
-  Future<void> _updateProfile() async {
-    if (!mounted) return;
-    
-    setState(() => _isLoading = true);
-    try {
-      // Safely get text from controllers
-      final displayName = _displayNameController.text;
-      final photoURL = _photoUrlController.text.isEmpty ? null : _photoUrlController.text;
-      final department = _departmentController.text.isEmpty ? null : _departmentController.text;
-      final jobTitle = _jobTitleController.text.isEmpty ? null : _jobTitleController.text;
-      
-      await SettingsService.updateProfile(
-        displayName: displayName,
-        photoURL: photoURL,
-        department: department,
-        jobTitle: jobTitle,
-      );
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Profile updated successfully!'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating profile: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   Future<void> _updateSetting(String key, dynamic value) async {
     setState(() => _isLoading = true);
     try {

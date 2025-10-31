@@ -12,6 +12,7 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/models/goal.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -25,12 +26,16 @@ class ManagerDashboardScreen extends StatefulWidget {
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
+  late final Stream<List<EmployeeData>> _employeesStream;
+  late final Stream<List<TeamInsight>> _insightsStream;
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
     _loadManagerName();
+    _employeesStream = _realtime.employeesStream();
+    _insightsStream = _realtime.teamInsightsStream();
   }
 
   Future<void> _loadManagerName() async {
@@ -83,7 +88,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     final content = SingleChildScrollView(
       padding: AppSpacing.screenPadding,
       child: StreamBuilder<List<EmployeeData>>(
-        stream: _realtime.employeesStream(),
+        stream: _employeesStream,
         builder: (context, employeesSnap) {
           if (employeesSnap.hasError) {
             return Center(
@@ -102,71 +107,45 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           }
           final employees = employeesSnap.data!;
 
-          return StreamBuilder<TeamMetrics?>(
-            stream: _realtime.teamMetricsStream(),
-            builder: (context, metricsSnap) {
-              final metrics = metricsSnap.data;
+          // Compute metrics locally to avoid adding another Firestore listener
+          final metrics = _computeTeamMetrics(employees);
 
-              return StreamBuilder<List<TeamInsight>>(
-                stream: _realtime.teamInsightsStream(),
-                builder: (context, insightsSnap) {
-                  final insights = insightsSnap.data ?? [];
+          return StreamBuilder<List<TeamInsight>>(
+            stream: _insightsStream,
+            builder: (context, insightsSnap) {
+              final insights = insightsSnap.data ?? [];
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildWelcomeCard(),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildDailyMotivationCard(),
-                      const SizedBox(height: AppSpacing.xl),
-                      metricsSnap.connectionState == ConnectionState.waiting
-                          ? _card(
-                              child: SizedBox(
-                                height: 120,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                                  ),
-                                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildWelcomeCard(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildDailyMotivationCard(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildKpis(metrics, employees),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildTeamHealth(metrics, employees),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildActivitySummary(employees),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSeasonProgressAlerts(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildTopTwoPerformers(employees),
+                  const SizedBox(height: AppSpacing.xl),
+                  insightsSnap.connectionState == ConnectionState.waiting
+                      ? _card(
+                          child: SizedBox(
+                            height: 120,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
                               ),
-                            )
-                          : _buildKpis(metrics, employees),
-                      const SizedBox(height: AppSpacing.xl),
-                      metricsSnap.connectionState == ConnectionState.waiting
-                          ? _card(
-                              child: SizedBox(
-                                height: 140,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                                  ),
-                                ),
-                              ),
-                            )
-                          : _buildTeamHealth(metrics, employees),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildActivitySummary(employees),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildSeasonProgressAlerts(),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildTopTwoPerformers(employees),
-                      const SizedBox(height: AppSpacing.xl),
-                      insightsSnap.connectionState == ConnectionState.waiting
-                          ? _card(
-                              child: SizedBox(
-                                height: 120,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                                  ),
-                                ),
-                              ),
-                            )
-                          : _buildInsights(insights),
-                      const SizedBox(height: AppSpacing.xxl),
-                    ],
-                  );
-                },
+                            ),
+                          ),
+                        )
+                      : _buildInsights(insights),
+                  const SizedBox(height: AppSpacing.xxl),
+                ],
               );
             },
           );
@@ -351,6 +330,48 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     ];
     final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
     return motivations[dayOfYear % motivations.length];
+  }
+
+  TeamMetrics _computeTeamMetrics(List<EmployeeData> employees) {
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+    final totalEmployees = employees.length;
+    final activeEmployees =
+        employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
+    final avgProgress = totalEmployees > 0
+        ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) / totalEmployees
+        : 0.0;
+    final engagement = totalEmployees > 0
+        ? (activeEmployees / totalEmployees) * 100.0
+        : 0.0;
+
+    int onTrack = 0;
+    int atRisk = 0;
+    int overdue = employees.fold<int>(0, (acc, e) => acc + e.overdueGoalsCount);
+    for (final e in employees) {
+      for (final g in e.goals) {
+        if (g.status != GoalStatus.completed && g.targetDate.isAfter(now)) {
+          if (g.progress >= 30) {
+            onTrack++;
+          } else {
+            atRisk++;
+          }
+        }
+      }
+    }
+
+    return TeamMetrics(
+      totalEmployees: totalEmployees,
+      activeEmployees: activeEmployees,
+      onTrackGoals: onTrack,
+      atRiskGoals: atRisk,
+      overdueGoals: overdue,
+      avgTeamProgress: avgProgress,
+      teamEngagement: engagement,
+      totalPointsEarned: employees.fold<int>(0, (acc, e) => acc + e.totalPoints),
+      goalsCompleted: employees.fold<int>(0, (acc, e) => acc + e.completedGoalsCount),
+      lastUpdated: DateTime.now(),
+    );
   }
 
   Widget _buildKpis(TeamMetrics? m, List<EmployeeData> employees) {
