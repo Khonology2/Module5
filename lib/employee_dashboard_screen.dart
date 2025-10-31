@@ -93,6 +93,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Future<void> _loadUserData() async {
     try {
+      if (!mounted) return;
       setState(() {
         isLoading = true;
         error = null;
@@ -103,6 +104,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         final profile = await DatabaseService.getUserProfile(user.uid);
         final goals = await DatabaseService.getUserGoals(user.uid);
 
+        if (!mounted) return;
         setState(() {
           userProfile = profile;
           userGoals = goals;
@@ -110,6 +112,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         error = e.toString();
         isLoading = false;

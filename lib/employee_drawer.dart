@@ -44,7 +44,7 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.person_outline,
-            text: 'Profile & PDP.',
+            text: 'Profile.',
             route: '/my_pdp',
             isSelected: currentRoute == '/my_pdp',
           ),
@@ -86,7 +86,7 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.leaderboard,
-            text: 'LeaderBoard.',
+            text: 'Leaderboard.',
             route: '/leaderboard',
             isSelected: currentRoute == '/leaderboard',
           ),
@@ -166,11 +166,7 @@ class EmployeeDrawer extends StatelessWidget {
                 '/manager_review_team_dashboard',
               };
               if (blocked.contains(route)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Access restricted to managers'),
-                  ),
-                );
+                _showCenterNotice(context, 'Access restricted to managers');
                 return;
               }
               Navigator.pushNamed(context, route);
@@ -194,6 +190,40 @@ class EmployeeDrawer extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+  
+  void _showCenterNotice(BuildContext context, String message) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.lock_outline, color: Color(0xFFC10D00)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins'),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+            ),
+          ],
+        );
+      },
     );
   }
 }

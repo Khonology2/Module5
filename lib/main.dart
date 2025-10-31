@@ -165,7 +165,7 @@ class _MyAppState extends State<MyApp> {
               '/my_pdp': (context) => RoleGate(
                 requiredRole: RequiredRole.employee,
                 child: MainLayout(
-                  title: 'Profile & PDP',
+                  title: 'Profile',
                   currentRouteName: '/my_pdp',
                   body: const MyPdpScreen(),
                 ),
@@ -198,7 +198,7 @@ class _MyAppState extends State<MyApp> {
               ),
               '/badges_points': (context) => const BadgesPointsScreen(),
               '/leaderboard': (context) => MainLayout(
-                title: 'LeaderBoard',
+                title: 'Leaderboard',
                 currentRouteName: '/leaderboard',
                 body: const LeaderboardScreen(),
               ),
@@ -364,6 +364,16 @@ class _GlobalChatbotWrapper extends StatefulWidget {
 
 class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
   @override
+  void initState() {
+    super.initState();
+    // Precache common icons/images once after first frame to reduce jank on first open
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      precacheImage(const AssetImage('assets/AI_Red.png'), context, size: const Size(40, 40));
+      precacheImage(const AssetImage('assets/khonodemy-sidebar-logo-red.png'), context, size: const Size(300, 60));
+    });
+  }
+  @override
   Widget build(BuildContext context) {
     return Stack(
       textDirection: TextDirection.ltr,
@@ -485,16 +495,22 @@ class _TeamChatButtonState extends State<TeamChatButton> {
     return Positioned(
       bottom: 90,
       right: 20,
-      child: FloatingActionButton(
-        onPressed: () {
+      child: GestureDetector(
+        onTap: () {
           navigatorKey.currentState!.pushNamed('/team_chats');
         },
-        backgroundColor: Colors.white,
-        shape: const CircleBorder(),
-        child: const Icon(
-          Icons.forum,
-          color: Color(0xFFC10D00),
-          size: 28,
+        child: SizedBox(
+          width: 56.0,
+          height: 56.0,
+          child: Center(
+            child: Image.asset(
+              'assets/Team_Meeting/Team.png',
+              width: 44.0,
+              height: 44.0,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
         ),
       ),
     );
