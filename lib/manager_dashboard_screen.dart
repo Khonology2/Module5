@@ -10,6 +10,8 @@ import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -22,11 +24,35 @@ class ManagerDashboardScreen extends StatefulWidget {
 
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
+  String _managerName = 'Manager';
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
+    _loadManagerName();
+  }
+
+  Future<void> _loadManagerName() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      String name = 'Manager';
+      if (user != null) {
+        final profile = await DatabaseService.getUserProfile(user.uid);
+        final display = profile.displayName.trim();
+        if (display.isNotEmpty) {
+          name = display.split(' ').first;
+        } else if ((user.displayName ?? '').isNotEmpty) {
+          name = user.displayName!.split(' ').first;
+        } else if ((user.email ?? '').isNotEmpty) {
+          name = user.email!.split('@').first;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _managerName = name;
+      });
+    } catch (_) {}
   }
 
   
@@ -209,6 +235,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   Widget _buildWelcomeCard() {
     final greeting = _getTimeBasedGreeting();
+    final name = _managerName;
     return _card(
       child: Row(
         children: [
@@ -226,7 +253,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$greeting, Manager!', style: AppTypography.heading4),
+                Text('$greeting, $name!', style: AppTypography.heading4),
                 const SizedBox(height: 5),
                 Text(
                   'Lead by example and help your team grow today.',
@@ -515,9 +542,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   String _timeGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning, Manager';
-    if (hour < 17) return 'Good afternoon, Manager';
-    return 'Good evening, Manager';
+    final name = _managerName;
+    if (hour < 12) return 'Good morning, $name';
+    if (hour < 17) return 'Good afternoon, $name';
+    return 'Good evening, $name';
   }
 
   Widget _buildTopTwoPerformers(List<EmployeeData> employees) {
