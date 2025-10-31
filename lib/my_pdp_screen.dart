@@ -19,6 +19,70 @@ class MyPdpScreen extends StatefulWidget {
   State<MyPdpScreen> createState() => _MyPdpScreenState();
 }
 
+Future<void> _showCenterNotice(BuildContext context, String message) async {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogContext) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF0E1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline, color: Color(0xFFC10D00)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins'),
+              ),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF0E1A2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      content: Row(
+        children: [
+          const SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _MyPdpScreenState extends State<MyPdpScreen> {
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
@@ -65,13 +129,23 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   }
 
   Future<void> _quickIncrementSession(Goal goal) async {
-    final next = (goal.progress + 10).clamp(0, 100);
-    await DatabaseService.updateGoalProgress(goal.id, next);
+    try {
+      final next = (goal.progress + 10).clamp(0, 100);
+      await DatabaseService.updateGoalProgress(goal.id, next);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) await _showCenterNotice(context, e.toString());
+    }
   }
 
   Future<void> _markModuleComplete(Goal goal) async {
-    final next = (goal.progress + 25).clamp(0, 100);
-    await DatabaseService.updateGoalProgress(goal.id, next);
+    try {
+      final next = (goal.progress + 25).clamp(0, 100);
+      await DatabaseService.updateGoalProgress(goal.id, next);
+      if (mounted) setState(() {});
+    } catch (e) {
+      if (mounted) await _showCenterNotice(context, e.toString());
+    }
   }
 
   Future<void> _attachEvidence(BuildContext context, Goal goal) async {
@@ -118,12 +192,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             final file = picked.files.first;
                             final bytes = file.bytes;
                             if (bytes != null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Uploading file...'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
+                              _showLoadingDialog(ctx, message: 'Uploading file...');
                               try {
                                 final cloudinaryUrl =
                                     await CloudinaryService.uploadFileUnsigned(
@@ -132,53 +201,30 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                       goalId: goal.id,
                                     );
                                 final fileInfo =
-                                    '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
+                                    '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB)';
                                 await DatabaseService.attachGoalEvidence(
                                   goalId: goal.id,
                                   evidence: [fileInfo, cloudinaryUrl],
                                 );
                                 if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'File uploaded to Cloudinary!',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
+                                  Navigator.of(ctx, rootNavigator: true).maybePop();
                                   Navigator.of(ctx).pop('uploaded');
                                   setState(() {});
                                 }
                               } catch (cloudErr) {
                                 // Do not save or mark evidence on failure; show error and keep dialog open
                                 if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Upload failed: $cloudErr'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
+                                  Navigator.of(ctx, rootNavigator: true).maybePop();
+                                  await _showCenterNotice(ctx, 'Upload failed: $cloudErr');
                                 }
                               }
                             } else {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Error: No file data available',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
+                              await _showCenterNotice(ctx, 'Error: No file data available');
                             }
                           }
                         } catch (e) {
                           if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(
-                                content: Text('Error picking file: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            await _showCenterNotice(ctx, 'Error picking file: $e');
                           }
                         }
                       },
@@ -211,9 +257,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Evidence added')));
+        await _showCenterNotice(context, 'Evidence added');
       }
     }
   }
@@ -421,12 +465,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
 
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
-    // Submit to audit with any existing evidence field if present; here we just let user add a note quickly
-    await AuditService.submitGoalForAudit(goal, const []);
+    // Submit to audit along with attached evidence so managers can review
+    await AuditService.submitGoalForAudit(goal, goal.evidence);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Acknowledgement requested')),
-      );
+      await _showCenterNotice(context, 'Acknowledgement requested');
     }
   }
 
@@ -669,18 +711,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                           'https://res.cloudinary.com/',
                                         )) {
                                           // You can implement opening the URL in a browser
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'File URL: $evidence',
-                                              ),
-                                              duration: const Duration(
-                                                seconds: 3,
-                                              ),
-                                            ),
-                                          );
+                                          _showCenterNotice(context, 'File URL: $evidence');
                                         }
                                       },
                                       child: Row(

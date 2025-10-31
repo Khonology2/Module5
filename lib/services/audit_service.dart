@@ -149,16 +149,9 @@ class AuditService {
       }
 
       // Load manager's department to align query with Firestore security rules
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      final managerDept = (userDoc.data() ?? const {})['department'] as String?;
-      if (managerDept == null || managerDept.isEmpty) {
-        yield <AuditEntry>[];
-        return;
-      }
-
-      Query query = _firestore
-          .collection('audit_entries')
-          .where('userDepartment', isEqualTo: managerDept);
+      // Previously we scoped by manager department, which hid entries when
+      // employee profiles lacked a department. We now show all entries.
+      Query query = _firestore.collection('audit_entries');
 
       if (status != null && status.isNotEmpty) {
         query = query.where('status', isEqualTo: status);

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -81,67 +80,46 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
       content: Column(
         children: [
           Expanded(
-            child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
                   .collection('users')
-                  .doc(FirebaseAuth.instance.currentUser?.uid)
-                  .get(),
-              builder: (context, managerSnap) {
-                if (managerSnap.connectionState == ConnectionState.waiting) {
+                  .where('role', isEqualTo: 'employee')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (managerSnap.hasError) {
-                  return Center(child: Text('Error: ${managerSnap.error}'));
+
+                final employees = snapshot.data?.docs ?? [];
+
+                if (employees.isEmpty) {
+                  return const Center(child: Text('No employees found.'));
                 }
 
-                final managerDept = managerSnap.data?.data()?['department'] as String?;
-                if (managerDept == null || managerDept.isEmpty) {
-                  return const Center(child: Text('Set your department to view your employees.'));
-                }
+                return ListView.builder(
+                  itemCount: employees.length,
+                  itemBuilder: (context, index) {
+                    final employee = employees[index].data() as Map<String, dynamic>;
+                    final employeeId = employees[index].id;
+                    final employeeName = employee['displayName'] ?? 'Unknown Employee';
 
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .where('role', isEqualTo: 'employee')
-                      .where('department', isEqualTo: managerDept)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Error: ${snapshot.error}'));
-                    }
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final employees = snapshot.data?.docs ?? [];
-
-                    if (employees.isEmpty) {
-                      return const Center(child: Text('No employees found.'));
-                    }
-
-                    return ListView.builder(
-                      itemCount: employees.length,
-                      itemBuilder: (context, index) {
-                        final employee = employees[index].data() as Map<String, dynamic>;
-                        final employeeId = employees[index].id;
-                        final employeeName = employee['displayName'] ?? 'Unknown Employee';
-
-                        return CheckboxListTile(
-                          title: Text(employeeName, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
-                          value: _selectedEmployeeIds.contains(employeeId),
-                          onChanged: (bool? selected) {
-                            setState(() {
-                              if (selected == true) {
-                                _selectedEmployeeIds.add(employeeId);
-                              } else {
-                                _selectedEmployeeIds.remove(employeeId);
-                              }
-                            });
-                          },
-                          checkColor: AppColors.textPrimary, // Color of the tick
-                          activeColor: AppColors.activeColor, // Color when checked
-                        );
+                    return CheckboxListTile(
+                      title: Text(employeeName, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
+                      value: _selectedEmployeeIds.contains(employeeId),
+                      onChanged: (bool? selected) {
+                        setState(() {
+                          if (selected == true) {
+                            _selectedEmployeeIds.add(employeeId);
+                          } else {
+                            _selectedEmployeeIds.remove(employeeId);
+                          }
+                        });
                       },
+                      checkColor: AppColors.textPrimary, // Color of the tick
+                      activeColor: AppColors.activeColor, // Color when checked
                     );
                   },
                 );
