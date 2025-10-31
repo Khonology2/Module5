@@ -157,15 +157,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 // Centered back button image under logo
                 Center(
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(100),
+                    borderRadius: BorderRadius.circular(24),
                     onTap: () {
                       Navigator.pushReplacementNamed(context, '/sign_in');
                     },
-                    child: Image.asset(
-                      'assets/TikTok Social/BackButton-Red.png',
-                      height: 48,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Center(
+                        child: Image.asset(
+                          'assets/BackButton-Red.png',
+                          width: 24,
+                          height: 24,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
                     ),
                   ),
                 ),
