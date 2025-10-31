@@ -1722,6 +1722,7 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     final now = DateTime.now();
     final daysUntilDeadline = goal.targetDate.difference(now).inDays;
     final progress = goal.progress / 100.0;
+    final createdText = _fmtDateTime(goal.createdAt);
 
     String deadlineText;
     Color deadlineColor;
@@ -1812,6 +1813,20 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                   deadlineText,
                   style: AppTypography.bodySmall.copyWith(color: deadlineColor),
                 ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Color(0xFF9E9E9E)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Created $createdText',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
@@ -1893,6 +1908,12 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _fmtDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
   }
 }
 

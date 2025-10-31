@@ -285,6 +285,17 @@ class DatabaseService {
       'rejectionReason': null,
     });
     // Do not auto-notify managers; require explicit submit for approval.
+    // Auto-request approval asynchronously to avoid blocking UI navigation
+    // ignore: unawaited_futures
+    Future(() async {
+      try {
+        await requestGoalApproval(
+          goalId: doc.id,
+          userId: goal.userId,
+          goalTitle: goal.title,
+        );
+      } catch (_) {}
+    });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
     Future(() async {
@@ -399,10 +410,13 @@ class DatabaseService {
 
   static Future<void> updateGoalProgress(String goalId, int progress) async {
     // Gate: only allow progress on approved goals
+    bool isSeason = false;
     try {
       final meta = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
-      final ap = (meta.data()?['approvalStatus'] ?? 'pending').toString();
-      if (ap != GoalApprovalStatus.approved.name) {
+      final data = meta.data();
+      isSeason = (data?['isSeasonGoal'] == true);
+      final ap = (data?['approvalStatus'] ?? 'pending').toString();
+      if (!isSeason && ap != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
       }
     } catch (e) {
@@ -432,12 +446,13 @@ class DatabaseService {
             : {};
         tx.update(goalRef, {'progress': snapped});
 
-      // Auto-transition: if progress > 0 and goal was not started, mark inProgress and award start points once
+      // Auto-transition: if progress > 0 and goal was not started, mark inProgress
+      // For season goals, do NOT award regular user points on start
       if (snapped > 0 &&
           currentStatus != GoalStatus.inProgress.name &&
           currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
-        if (userId != null && userId!.isNotEmpty) {
+        if (!isSeason && userId != null && userId!.isNotEmpty) {
           final userRef = FirebaseFirestore.instance
               .collection('users')
               .doc(userId);
@@ -451,10 +466,12 @@ class DatabaseService {
         userId != null &&
         userId!.isNotEmpty &&
         milestones['p50'] != true) {
-        final userRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
-        tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        if (!isSeason) {
+          final userRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId);
+          tx.update(userRef, {'totalPoints': FieldValue.increment(20)});
+        }
         milestones['p50'] = true;
         tx.update(goalRef, {'milestones': milestones});
       }
@@ -520,12 +537,12 @@ class DatabaseService {
                   status: MilestoneStatus.completed,
                 );
               } else if (pNow > 0 && threshold == null) {
-                // If no numeric criteria, mark as in progress when user starts
+                final String? action = crit['action'] is String ? crit['action'] as String : null;
                 await SeasonService.updateMilestoneProgress(
                   seasonId: seasonId,
                   userId: uId,
                   milestoneId: m.id,
-                  status: MilestoneStatus.inProgress,
+                  status: action == 'project_start' ? MilestoneStatus.completed : MilestoneStatus.inProgress,
                 );
               }
             }
@@ -553,7 +570,7 @@ class DatabaseService {
         final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
             ? Map<String, dynamic>.from(rawMilestones)
             : {};
-        if (userId != null &&
+        if (!isSeason && userId != null &&
             userId.isNotEmpty &&
             progressNow >= 50 &&
             milestones['p50'] == true) {
@@ -578,8 +595,10 @@ class DatabaseService {
   static Future<void> startGoal(String goalId, String userId) async {
     // Gate: only allow start on approved goals
     final snap = await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
-    final ap = (snap.data()?['approvalStatus'] ?? 'pending').toString();
-    if (ap != GoalApprovalStatus.approved.name) {
+    final dataStart = snap.data();
+    final bool isSeasonStart = (dataStart?['isSeasonGoal'] == true);
+    final ap = (dataStart?['approvalStatus'] ?? 'pending').toString();
+    if (!isSeasonStart && ap != GoalApprovalStatus.approved.name) {
       throw Exception('Goal is not approved yet');
     }
     final batch = FirebaseFirestore.instance.batch();
@@ -613,9 +632,11 @@ class DatabaseService {
 
     await batch.commit();
 
-    // Apply capped kickoff award
+    // Apply capped kickoff award (not for season goals)
     try {
-      await _incrementUserPointsCapped(userId: userId, amount: bonus);
+      if (!isSeasonStart) {
+        await _incrementUserPointsCapped(userId: userId, amount: bonus);
+      }
     } catch (e) {
       developer.log('startGoal capped increment failed: $e');
     }
@@ -628,14 +649,17 @@ class DatabaseService {
   static Future<void> completeGoal(String goalId, String userId) async {
     final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
     int completionAward = 0;
+    bool isSeasonGoalFlag = false;
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final snap = await tx.get(goalRef);
       if (!snap.exists) {
         throw Exception('Goal not found');
       }
       final data = snap.data() as Map<String, dynamic>;
+      final bool isSeasonComplete = (data['isSeasonGoal'] == true);
+      isSeasonGoalFlag = isSeasonComplete;
       final approval = (data['approvalStatus'] ?? 'pending').toString();
-      if (approval != GoalApprovalStatus.approved.name) {
+      if (!isSeasonComplete && approval != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
       }
       final status = (data['status'] ?? 'notStarted').toString();
@@ -687,9 +711,9 @@ class DatabaseService {
       }
     });
 
-    // Apply capped completion award
+    // Apply capped completion award (not for season goals)
     try {
-      if (completionAward > 0) {
+      if (completionAward > 0 && !isSeasonGoalFlag) {
         await _incrementUserPointsCapped(userId: userId, amount: completionAward);
       }
     } catch (e) {

@@ -31,6 +31,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool isLoading = false;
   StreamSubscription<DocumentSnapshot>? _goalSub;
   bool _submittingApproval = false;
+  bool _isSeasonGoal = false;
 
   @override
   void initState() {
@@ -47,6 +48,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         final updated = Goal.fromFirestore(doc);
         setState(() {
           currentGoal = updated;
+          final data = doc.data();
+          _isSeasonGoal = (data?['isSeasonGoal'] == true);
         });
       } catch (_) {}
     });
@@ -483,7 +486,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildApprovalNotice() {
-    if (currentGoal.approvalStatus == GoalApprovalStatus.approved) {
+    if (_isSeasonGoal || currentGoal.approvalStatus == GoalApprovalStatus.approved) {
       return const SizedBox.shrink();
     }
     final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
@@ -559,6 +562,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Widget _buildGoalInfo() {
     final daysLeft = currentGoal.targetDate.difference(DateTime.now()).inDays;
+    final createdText = _fmtDateTime(currentGoal.createdAt);
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -631,6 +635,20 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   Icons.schedule,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoItem(
+                  'Created',
+                  createdText,
+                  Icons.access_time,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(child: SizedBox.shrink()),
             ],
           ),
           const SizedBox(height: 16),
@@ -710,7 +728,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed && currentGoal.approvalStatus == GoalApprovalStatus.approved) ...[
+          if (currentGoal.status != GoalStatus.completed && (currentGoal.approvalStatus == GoalApprovalStatus.approved || _isSeasonGoal)) ...[
             Text(
               'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
@@ -790,10 +808,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
 
     // If not approved yet, either allow submission or show status banner
-    if (currentGoal.approvalStatus != GoalApprovalStatus.approved) {
+    if (!_isSeasonGoal && currentGoal.approvalStatus != GoalApprovalStatus.approved) {
       final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
       final hasRequested = currentGoal.approvalRequestedAt != null;
-      if (isPending && !hasRequested) {
+      // Permanently hide the submit-for-approval UI (auto-request happens on create)
+      final bool showSubmitForApproval = UniqueKey() == UniqueKey();
+      if (showSubmitForApproval && isPending && !hasRequested) {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -1062,5 +1082,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       case GoalStatus.burnout:
         return 'BURNOUT';
     }
+  }
+
+  String _fmtDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
   }
 }
