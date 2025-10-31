@@ -319,10 +319,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
       ),
       body: Stack(
         children: [
@@ -354,7 +350,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'My Profile',
+                      'Profile',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 32.0,
