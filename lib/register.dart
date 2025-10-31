@@ -153,6 +153,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     filterQuality: FilterQuality.high,
                   ),
                 ),
+                const SizedBox(height: 12),
+                // Centered back button image under logo
+                Center(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(100),
+                    onTap: () {
+                      Navigator.pushReplacementNamed(context, '/sign_in');
+                    },
+                    child: Image.asset(
+                      'assets/TikTok Social/BackButton-Red.png',
+                      height: 48,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: Center(
@@ -519,32 +535,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ),
           ),
-          // Back to Sign In button (always on top)
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8, top: 8),
-                child: Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(24),
-                    onTap: () {
-                      Navigator.pushReplacementNamed(context, '/sign_in');
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Icon(
-                        Icons.arrow_back,
-                        color: Color(0xFFC10D00),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          
         ],
       ),
     );
