@@ -212,30 +212,35 @@ class AuditService {
       });
     }
 
-    return Stream.fromFuture(
-      _firestore.collection('users').doc(user.uid).get(),
-    ).asyncExpand((userDoc) {
-      final managerDept = (userDoc.data() ?? const {})['department'] as String?;
-      if (managerDept == null || managerDept.isEmpty) {
-        return Stream.value(<String, dynamic>{
-          'total': 0,
-          'pending': 0,
-          'verified': 0,
-          'rejected': 0,
-          'byDepartment': <String, Map<String, int>>{},
-          'byEmployee': <String, Map<String, int>>{},
-          'recentActivity': <Map<String, dynamic>>[],
-          'topPerformers': <Map<String, dynamic>>[],
-        });
-      }
+    // Emit initial empty stats immediately, then switch to realtime stream
+    final emptyStats = <String, dynamic>{
+      'total': 0,
+      'pending': 0,
+      'verified': 0,
+      'rejected': 0,
+      'byDepartment': <String, Map<String, int>>{},
+      'byEmployee': <String, Map<String, int>>{},
+      'recentActivity': <Map<String, dynamic>>[],
+      'topPerformers': <Map<String, dynamic>>[],
+    };
 
-      final query = _firestore
-          .collection('audit_entries')
-          .where('userDepartment', isEqualTo: managerDept)
-          .orderBy('submittedDate', descending: true)
-          .limit(200);
+    // Emit empty stats immediately, then follow with realtime updates
+    return Stream.value(emptyStats).followedBy(
+      Stream.fromFuture(
+        _firestore.collection('users').doc(user.uid).get(),
+      ).asyncExpand((userDoc) {
+        final managerDept = (userDoc.data() ?? const {})['department'] as String?;
+        if (managerDept == null || managerDept.isEmpty) {
+          return Stream.value(emptyStats);
+        }
 
-      return query.snapshots().map((snapshot) {
+        final query = _firestore
+            .collection('audit_entries')
+            .where('userDepartment', isEqualTo: managerDept)
+            .orderBy('submittedDate', descending: true)
+            .limit(200);
+
+        return query.snapshots().map((snapshot) {
         final entries = snapshot.docs.map((doc) {
           try {
             return AuditEntry.fromFirestore(doc);
@@ -345,30 +350,12 @@ class AuditService {
         return stats;
       }).handleError((error, stackTrace) {
         developer.log('Manager audit stats stream error: $error', error: error, stackTrace: stackTrace);
-        return <String, dynamic>{
-          'total': 0,
-          'pending': 0,
-          'verified': 0,
-          'rejected': 0,
-          'byDepartment': <String, Map<String, int>>{},
-          'byEmployee': <String, Map<String, int>>{},
-          'recentActivity': <Map<String, dynamic>>[],
-          'topPerformers': <Map<String, dynamic>>[],
-        };
+        return emptyStats;
       });
     }).handleError((error, stackTrace) {
       developer.log('Error building manager audit stats stream: $error', error: error, stackTrace: stackTrace);
-      return Stream.value(<String, dynamic>{
-        'total': 0,
-        'pending': 0,
-        'verified': 0,
-        'rejected': 0,
-        'byDepartment': <String, Map<String, int>>{},
-        'byEmployee': <String, Map<String, int>>{},
-        'recentActivity': <Map<String, dynamic>>[],
-        'topPerformers': <Map<String, dynamic>>[],
-      });
-    });
+      return Stream.value(emptyStats);
+    }).cast<Map<String, dynamic>>().distinct();
   }
 
   // Get audit entries stream for employees (their own entries)
