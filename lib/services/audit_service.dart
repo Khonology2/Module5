@@ -11,6 +11,22 @@ class AuditService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Check if a goal has already been submitted for audit
+  static Future<bool> hasGoalBeenSubmittedForAudit(String goalId, String userId) async {
+    try {
+      final existingEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: userId)
+          .where('goalId', isEqualTo: goalId)
+          .limit(1)
+          .get();
+      return existingEntries.docs.isNotEmpty;
+    } catch (e) {
+      developer.log('Error checking if goal submitted for audit: $e');
+      return false; // Return false on error to allow retry
+    }
+  }
+
   // Submit a completed goal for audit
   static Future<void> submitGoalForAudit(Goal goal, List<String> evidence) async {
     try {
