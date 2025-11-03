@@ -79,7 +79,7 @@ class AuditService {
     }
   }
 
-  // Get audit entries stream for managers (all entries)
+  // Get audit entries stream for managers (all entries from their department)
   static Stream<List<AuditEntry>> getManagerAuditEntriesStream({
     String? status,
     String? searchQuery,
@@ -90,51 +90,64 @@ class AuditService {
     }
 
     try {
-      Query query = _firestore.collection('audit_entries');
-
-      if (status != null && status.isNotEmpty) {
-        query = query.where('status', isEqualTo: status);
-      }
-
-      query = query.orderBy('submittedDate', descending: true).limit(100);
-
-      // Emit empty list immediately, then switch to Firestore realtime stream
-      return Stream.value(<AuditEntry>[]).asyncExpand((_) {
-        return query.snapshots().map((snapshot) {
-        try {
-          List<AuditEntry> entries = snapshot.docs
-              .map((doc) {
-                try {
-                  return AuditEntry.fromFirestore(doc);
-                } catch (e) {
-                  developer.log('Error parsing audit entry ${doc.id}: $e');
-                  return null;
-                }
-              })
-              .where((entry) => entry != null)
-              .cast<AuditEntry>()
-              .toList();
-
-          if (searchQuery != null && searchQuery.isNotEmpty) {
-            final lowercaseQuery = searchQuery.toLowerCase();
-            entries = entries.where((entry) {
-              return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                     entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
-                     entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
-                     entry.evidence.any((evidence) =>
-                         evidence.toLowerCase().contains(lowercaseQuery));
-            }).toList();
-          }
-
-          return entries;
-        } catch (e) {
-          developer.log('Error processing manager audit entries: $e');
-          return <AuditEntry>[];
+      // Emit empty list immediately, then fetch manager's department and filter
+      return Stream.value(<AuditEntry>[]).asyncExpand((_) async* {
+        // Get manager's department
+        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        final managerDept = (userDoc.data() ?? const {})['department'] as String?;
+        
+        if (managerDept == null || managerDept.isEmpty) {
+          yield <AuditEntry>[];
+          return;
         }
-      }).handleError((error, stackTrace) {
-        developer.log('Manager audit entries stream error: $error', error: error, stackTrace: stackTrace);
-        return <AuditEntry>[];
-      });
+
+        // Build query with department filter
+        Query query = _firestore
+            .collection('audit_entries')
+            .where('userDepartment', isEqualTo: managerDept);
+
+        if (status != null && status.isNotEmpty) {
+          query = query.where('status', isEqualTo: status);
+        }
+
+        query = query.orderBy('submittedDate', descending: true).limit(100);
+
+        // Emit empty list immediately, then switch to Firestore realtime stream
+        yield* query.snapshots().map((snapshot) {
+          try {
+            List<AuditEntry> entries = snapshot.docs
+                .map((doc) {
+                  try {
+                    return AuditEntry.fromFirestore(doc);
+                  } catch (e) {
+                    developer.log('Error parsing audit entry ${doc.id}: $e');
+                    return null;
+                  }
+                })
+                .where((entry) => entry != null)
+                .cast<AuditEntry>()
+                .toList();
+
+            if (searchQuery != null && searchQuery.isNotEmpty) {
+              final lowercaseQuery = searchQuery.toLowerCase();
+              entries = entries.where((entry) {
+                return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
+                       entry.userDisplayName.toLowerCase().contains(lowercaseQuery) ||
+                       entry.userDepartment.toLowerCase().contains(lowercaseQuery) ||
+                       entry.evidence.any((evidence) =>
+                           evidence.toLowerCase().contains(lowercaseQuery));
+              }).toList();
+            }
+
+            return entries;
+          } catch (e) {
+            developer.log('Error processing manager audit entries: $e');
+            return <AuditEntry>[];
+          }
+        }).handleError((error, stackTrace) {
+          developer.log('Manager audit entries stream error: $error', error: error, stackTrace: stackTrace);
+          return <AuditEntry>[];
+        });
       });
     } catch (e) {
       developer.log('Error building manager audit entries stream: $e');
