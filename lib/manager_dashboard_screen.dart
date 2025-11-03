@@ -538,6 +538,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildGreetingCard(List<EmployeeData> employees) {
     final greeting = _timeGreeting();
     final teamSize = employees.length;

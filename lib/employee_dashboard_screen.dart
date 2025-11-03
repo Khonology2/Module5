@@ -379,9 +379,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -501,8 +501,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              AppColors.activeColor.withOpacity(0.1),
-              AppColors.warningColor.withOpacity(0.1),
+              AppColors.activeColor.withValues(alpha: 0.1),
+              AppColors.warningColor.withValues(alpha: 0.1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -1020,12 +1020,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   decoration: BoxDecoration(
                     color: _getPriorityColor(
                       goal.priority,
-                    ).withOpacity(0.1),
+                    ).withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _getPriorityColor(
                         goal.priority,
-                      ).withOpacity(0.3),
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
