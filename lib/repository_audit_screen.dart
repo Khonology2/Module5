@@ -509,20 +509,31 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
             ),
       builder: (context, snapshot) {
-        // Show loading for a maximum of 10 seconds, then show error
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: AppColors.activeColor),
-                SizedBox(height: 16),
-                Text(
-                  'Loading audit entries...',
-                  style: TextStyle(color: AppColors.textMuted),
+        // Show loading only if we're truly waiting AND haven't received any data yet
+        // This prevents infinite loading when stream hasn't emitted yet but will emit soon
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          // Only show loading for a short time, then assume empty
+          return FutureBuilder<bool>(
+            future: Future.delayed(const Duration(milliseconds: 500), () => true),
+            builder: (context, timeoutSnapshot) {
+              if (timeoutSnapshot.hasData && snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                // After timeout, show empty state instead of infinite loading
+                return _buildEmptyState();
+              }
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.activeColor),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading audit entries...',
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           );
         }
 
