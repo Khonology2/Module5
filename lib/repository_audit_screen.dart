@@ -6,7 +6,6 @@ import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
-import 'package:pdh/models/audit_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
@@ -459,14 +458,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   .where('userDepartment', isEqualTo: dept)
                   .snapshots()
                   .map((snapshot) {
-                final entries = snapshot.docs.map((doc) {
+                final entries = <AuditEntry>[];
+                for (final doc in snapshot.docs) {
                   try {
-                    return AuditEntry.fromFirestore(doc);
+                    entries.add(AuditEntry.fromFirestore(doc));
                   } catch (e) {
                     developer.log('Error parsing audit entry ${doc.id}: $e');
-                    return null;
                   }
-                }).where((e) => e != null).cast<AuditEntry>().toList();
+                }
 
                 return <String, int>{
                   'total': entries.length,
