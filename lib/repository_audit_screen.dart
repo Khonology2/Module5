@@ -6,6 +6,7 @@ import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/audit_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
@@ -41,12 +42,42 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       developer.log('Error starting auto-sync: $e');
     }
 
+    // Backfill existing verified entries when screen loads
+    _backfillVerifiedEntries();
+
     // Add a timeout to prevent infinite loading
     Future.delayed(const Duration(seconds: 15), () {
       if (mounted) {
         setState(() {}); // Trigger rebuild to show error if still loading
       }
     });
+  }
+
+  Future<void> _backfillVerifiedEntries() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Check role from stream or user profile
+      final roleDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final role = (roleDoc.data() ?? const {})['role'] as String?;
+      
+      if (role == 'manager') {
+        // For managers: backfill all verified entries in their department
+        final department = (roleDoc.data() ?? const {})['department'] as String?;
+        if (department != null && department.isNotEmpty) {
+          await RepositoryService.backfillVerifiedEntriesForDepartment(department);
+        }
+      } else {
+        // For employees: backfill their own verified entries
+        await RepositoryService.backfillVerifiedEntriesForUser(user.uid);
+      }
+    } catch (e) {
+      developer.log('Error backfilling verified entries: $e', name: 'RepositoryAuditScreen');
+    }
   }
 
   @override
@@ -408,11 +439,54 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildRoleSummaryBar({required bool isManager}) {
+    // Use realtime streams for persistent and consistent counts
+    final emptyStats = <String, int>{
+      'total': 0,
+      'verified': 0,
+      'pending': 0,
+      'rejected': 0,
+    };
+
     final stream = isManager
-        ? Stream.fromFuture(
-            _getManagerDept().then((dept) => AuditService.getAuditStats(department: dept)),
-          )
-        : Stream.fromFuture(AuditService.getAuditStats());
+        ? Stream.value(emptyStats).asyncExpand((_) {
+            return Stream.fromFuture(_getManagerDept()).asyncExpand((dept) {
+              if (dept == null || dept.isEmpty) {
+                return Stream.value(emptyStats);
+              }
+              // Create a realtime stream from audit entries for the department
+              return FirebaseFirestore.instance
+                  .collection('audit_entries')
+                  .where('userDepartment', isEqualTo: dept)
+                  .snapshots()
+                  .map((snapshot) {
+                final entries = snapshot.docs.map((doc) {
+                  try {
+                    return AuditEntry.fromFirestore(doc);
+                  } catch (e) {
+                    developer.log('Error parsing audit entry ${doc.id}: $e');
+                    return null;
+                  }
+                }).where((e) => e != null).cast<AuditEntry>().toList();
+
+                return <String, int>{
+                  'total': entries.length,
+                  'verified': entries.where((e) => e.status == 'verified').length,
+                  'pending': entries.where((e) => e.status == 'pending').length,
+                  'rejected': entries.where((e) => e.status == 'rejected').length,
+                };
+              });
+            });
+          })
+        : Stream.value(emptyStats).asyncExpand((_) {
+            return AuditService.getEmployeeAuditEntriesStream().map((entries) {
+              return <String, int>{
+                'total': entries.length,
+                'verified': entries.where((e) => e.status == 'verified').length,
+                'pending': entries.where((e) => e.status == 'pending').length,
+                'rejected': entries.where((e) => e.status == 'rejected').length,
+              };
+            });
+          });
 
     return StreamBuilder<Map<String, int>>(
       stream: stream,
@@ -1147,14 +1221,54 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           child: (isManager)
-              ? StreamBuilder<List<AuditEntry>>(
-                  // Department scoping handled inside the service for the current manager
-                  stream: AuditService.getManagerAuditEntriesStream(
-                    status: 'verified',
-                    searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
-                  ),
+              ? StreamBuilder<List<RepositoryGoal>>(
+                  // Use repository goals stream which shows all synced verified goals
+                  stream: Stream.value(<RepositoryGoal>[]).asyncExpand((_) {
+                    return Stream.fromFuture(
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
+                          .get(),
+                    ).asyncExpand((userDoc) {
+                      final department = (userDoc.data() ?? const {})['department'] as String?;
+                      if (department == null || department.isEmpty) {
+                        return Stream.value(<RepositoryGoal>[]);
+                      }
+                      return RepositoryService.getAllRepositoryGoalsStream(department: department);
+                    });
+                  }).map((goals) {
+                    // Apply filters
+                    Iterable<RepositoryGoal> filtered = goals;
+
+                    if (_searchQuery.isNotEmpty) {
+                      final q = _searchQuery.toLowerCase();
+                      filtered = filtered.where((g) =>
+                          g.goalTitle.toLowerCase().contains(q) ||
+                          g.evidence.any((e) => e.toLowerCase().contains(q)));
+                    }
+
+                    if (_monthFilter != null && _monthFilter!.isNotEmpty) {
+                      filtered = filtered.where((g) {
+                        final d = g.completedDate;
+                        if (d == null) return false;
+                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+                        return key == _monthFilter;
+                      });
+                    }
+
+                    if (_minScore != null) {
+                      filtered = filtered.where((g) => (g.score ?? 0) >= _minScore!);
+                    }
+
+                    return filtered.toList()
+                      ..sort((a, b) {
+                        final ad = a.verifiedDate ?? a.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                        final bd = b.verifiedDate ?? b.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                        return bd.compareTo(ad);
+                      });
+                  }),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
+                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
@@ -1169,25 +1283,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                             style: TextStyle(color: AppColors.dangerColor)),
                       );
                     }
-                    var entries = snapshot.data ?? const <AuditEntry>[];
-                    // Client-side filters for manager team list
-                    if (_monthFilter != null && _monthFilter!.isNotEmpty) {
-                      entries = entries.where((e) {
-                        final d = e.completedDate;
-                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
-                        return key == _monthFilter;
-                      }).toList();
-                    }
-                    if (_minScore != null) {
-                      entries = entries.where((e) => (e.score ?? 0) >= _minScore!).toList();
-                    }
-                    if (entries.isEmpty) {
+                    final goals = snapshot.data ?? const <RepositoryGoal>[];
+                    if (goals.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(16.0),
-                        child: Text('No verified entries found for your team.'),
+                        child: Text('No verified entries found for your team. Previously acknowledged entries should appear here.'),
                       );
                     }
-                    return _buildManagerVerifiedList(entries);
+                    return _buildRepositoryList(goals);
                   },
                 )
               : StreamBuilder<List<RepositoryGoal>>(
