@@ -19,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   late final TextEditingController _resetEmailController;
   
+  
   bool _isLoading = false;
   UserSettings? _currentSettings;
 
@@ -267,7 +268,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  
   Widget _buildPrivacySection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
 
@@ -711,6 +711,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // Action methods
+
   Future<void> _updateSetting(String key, dynamic value) async {
     setState(() => _isLoading = true);
     try {

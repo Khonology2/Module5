@@ -183,6 +183,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       print('Saving profile...');
       await DatabaseService.updateUserProfile(existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
+        email: _workEmailController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
         department: _departmentController.text.trim(),
         phoneNumber: _phoneNumberController.text.trim(),
@@ -201,6 +202,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         badgeName: _badgeNameController.text.trim(),
         celebrationConsent: _celebrationConsent ?? 'private',
       ));
+      await _loadUserProfile();
       _showProfileSavedDialog();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -344,10 +346,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
       ),
       body: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
@@ -369,7 +367,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                           Text(
-                            'My Profile',
+                            'Profile',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 32, // match manager
