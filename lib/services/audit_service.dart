@@ -445,6 +445,12 @@ class AuditService {
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
 
+      // Get the entry before updating to sync to repository
+      final entryDoc = await _firestore.collection('audit_entries').doc(entryId).get();
+      if (!entryDoc.exists) throw Exception('Audit entry not found');
+      
+      final entry = AuditEntry.fromFirestore(entryDoc);
+      
       await _firestore.collection('audit_entries').doc(entryId).update({
         'status': 'verified',
         'score': score,
@@ -453,6 +459,30 @@ class AuditService {
         'acknowledgedById': user.uid,
         'verifiedDate': Timestamp.now(),
       });
+
+      // Immediately sync verified entry to employee's repository
+      try {
+        final updatedEntry = AuditEntry(
+          id: entry.id,
+          userId: entry.userId,
+          goalId: entry.goalId,
+          goalTitle: entry.goalTitle,
+          completedDate: entry.completedDate,
+          submittedDate: entry.submittedDate,
+          status: 'verified',
+          evidence: entry.evidence,
+          acknowledgedBy: userData['displayName'] ?? user.displayName ?? 'Manager',
+          acknowledgedById: user.uid,
+          score: score,
+          comments: comments,
+          userDisplayName: entry.userDisplayName,
+          userDepartment: entry.userDepartment,
+        );
+        await RepositoryService.addVerifiedGoalToRepository(updatedEntry);
+      } catch (e) {
+        developer.log('Failed to sync verified entry to repository: $e');
+        // Don't throw - verification succeeded even if repository sync fails
+      }
 
       // Log timeline event: verification
       try {
