@@ -135,7 +135,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
         _badgeNameController.text = userProfile.badgeName;
         _celebrationConsent = userProfile.celebrationConsent;
-        _profilePhotoUrl = userProfile.profilePhotoUrl;
+        _profilePhotoUrl = (userProfile.profilePhotoUrl != null && userProfile.profilePhotoUrl!.isNotEmpty)
+            ? userProfile.profilePhotoUrl
+            : null;
         // Ensure UserProfile is recognized as used here.
       });
     } catch (e) {
@@ -387,7 +389,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                                 borderRadius: BorderRadius.circular(40),
                               ),
                               child: ClipOval(
-                                child: _profilePhotoUrl != null
+                                child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
                                     ? Image.network(
                                         _profilePhotoUrl!,
                                         fit: BoxFit.cover,
@@ -897,6 +899,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       setState(() {
         _profilePhotoUrl = cloudinaryUrl;
       });
+      // Update Firebase Auth user photoURL for global usage
+      await user.updatePhotoURL(cloudinaryUrl);
+      await user.reload();
+      await _saveProfile();
 
       if (!mounted) return;
       _showAlertDialog('Success', 'Profile photo uploaded successfully!');
