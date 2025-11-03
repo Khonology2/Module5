@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -224,139 +225,152 @@ class AuditService {
       'topPerformers': <Map<String, dynamic>>[],
     };
 
-    // Emit empty stats immediately, then follow with realtime updates
-    return Stream.value(emptyStats).followedBy(
-      Stream.fromFuture(
-        _firestore.collection('users').doc(user.uid).get(),
-      ).asyncExpand((userDoc) {
-        final managerDept = (userDoc.data() ?? const {})['department'] as String?;
-        if (managerDept == null || managerDept.isEmpty) {
-          return Stream.value(emptyStats);
-        }
+    // Use StreamController to emit initial value immediately
+    final controller = StreamController<Map<String, dynamic>>();
+    
+    // Emit empty stats immediately
+    controller.add(emptyStats);
 
-        final query = _firestore
-            .collection('audit_entries')
-            .where('userDepartment', isEqualTo: managerDept)
-            .orderBy('submittedDate', descending: true)
-            .limit(200);
+    // Then fetch user and set up realtime stream
+    _firestore.collection('users').doc(user.uid).get().then((userDoc) {
+      final managerDept = (userDoc.data() ?? const {})['department'] as String?;
+      if (managerDept == null || managerDept.isEmpty) {
+        controller.add(emptyStats);
+        return;
+      }
 
-        return query.snapshots().map((snapshot) {
-        final entries = snapshot.docs.map((doc) {
+      final query = _firestore
+          .collection('audit_entries')
+          .where('userDepartment', isEqualTo: managerDept)
+          .orderBy('submittedDate', descending: true)
+          .limit(200);
+
+      query.snapshots().listen(
+        (snapshot) {
           try {
-            return AuditEntry.fromFirestore(doc);
+            final entries = snapshot.docs.map((doc) {
+              try {
+                return AuditEntry.fromFirestore(doc);
+              } catch (e) {
+                developer.log('Error parsing audit entry ${doc.id}: $e');
+                return null;
+              }
+            }).where((entry) => entry != null).cast<AuditEntry>().toList();
+            
+            final stats = <String, dynamic>{
+              'total': entries.length,
+              'pending': entries.where((e) => e.status == 'pending').length,
+              'verified': entries.where((e) => e.status == 'verified').length,
+              'rejected': entries.where((e) => e.status == 'rejected').length,
+              'byDepartment': <String, Map<String, int>>{},
+              'byEmployee': <String, Map<String, int>>{},
+              'recentActivity': <Map<String, dynamic>>[],
+              'topPerformers': <Map<String, dynamic>>[],
+            };
+
+            // Group by department
+            final departmentGroups = <String, List<AuditEntry>>{};
+            for (final entry in entries) {
+              departmentGroups.putIfAbsent(entry.userDepartment, () => []).add(entry);
+            }
+            
+            for (final dept in departmentGroups.keys) {
+              final deptEntries = departmentGroups[dept]!;
+              stats['byDepartment'][dept] = {
+                'total': deptEntries.length,
+                'pending': deptEntries.where((e) => e.status == 'pending').length,
+                'verified': deptEntries.where((e) => e.status == 'verified').length,
+                'rejected': deptEntries.where((e) => e.status == 'rejected').length,
+              };
+            }
+
+            // Group by employee
+            final employeeGroups = <String, List<AuditEntry>>{};
+            for (final entry in entries) {
+              employeeGroups.putIfAbsent(entry.userId, () => []).add(entry);
+            }
+            
+            for (final empId in employeeGroups.keys) {
+              final empEntries = employeeGroups[empId]!;
+              final empName = empEntries.first.userDisplayName;
+              final empDept = empEntries.first.userDepartment;
+              final verifiedCount = empEntries.where((e) => e.status == 'verified').length;
+              final totalScore = empEntries
+                  .where((e) => e.score != null)
+                  .fold(0.0, (acc, e) => acc + e.score!);
+              final avgScore = verifiedCount > 0 ? totalScore / verifiedCount : 0.0;
+              
+              stats['byEmployee'][empName] = {
+                'total': empEntries.length,
+                'pending': empEntries.where((e) => e.status == 'pending').length,
+                'verified': verifiedCount,
+                'rejected': empEntries.where((e) => e.status == 'rejected').length,
+                'department': empDept,
+                'averageScore': avgScore,
+                'userId': empId,
+              };
+            }
+
+            // Recent activity
+            final recentEntries = entries.take(10).map((entry) => {
+              'goalTitle': entry.goalTitle,
+              'employeeName': entry.userDisplayName,
+              'department': entry.userDepartment,
+              'status': entry.status,
+              'submittedDate': entry.submittedDate.toIso8601String(),
+              'score': entry.score,
+            }).toList();
+            stats['recentActivity'] = recentEntries;
+
+            // Top performers
+            final employeePerformance = <String, Map<String, dynamic>>{};
+            for (final empId in employeeGroups.keys) {
+              final empEntries = employeeGroups[empId]!;
+              final verifiedEntries = empEntries.where((e) => e.status == 'verified').toList();
+              final totalScore = verifiedEntries
+                  .where((e) => e.score != null)
+                  .fold(0.0, (acc, e) => acc + e.score!);
+              final avgScore = verifiedEntries.isNotEmpty && verifiedEntries.any((e) => e.score != null) 
+                  ? totalScore / verifiedEntries.where((e) => e.score != null).length 
+                  : 0.0;
+              
+              employeePerformance[empId] = {
+                'name': empEntries.first.userDisplayName,
+                'department': empEntries.first.userDepartment,
+                'verifiedGoals': verifiedEntries.length,
+                'averageScore': avgScore,
+                'totalScore': totalScore,
+                'userId': empId,
+              };
+            }
+            
+            final sortedPerformers = employeePerformance.values.toList()
+              ..sort((a, b) {
+                final goalComparison = (b['verifiedGoals'] as int).compareTo(a['verifiedGoals'] as int);
+                if (goalComparison != 0) return goalComparison;
+                return (b['averageScore'] as double).compareTo(a['averageScore'] as double);
+              });
+            
+            stats['topPerformers'] = sortedPerformers.take(10).toList();
+
+            controller.add(stats);
           } catch (e) {
-            developer.log('Error parsing audit entry ${doc.id}: $e');
-            return null;
+            developer.log('Error processing audit stats: $e');
+            controller.add(emptyStats);
           }
-        }).where((entry) => entry != null).cast<AuditEntry>().toList();
-        
-        final stats = <String, dynamic>{
-          'total': entries.length,
-          'pending': entries.where((e) => e.status == 'pending').length,
-          'verified': entries.where((e) => e.status == 'verified').length,
-          'rejected': entries.where((e) => e.status == 'rejected').length,
-          'byDepartment': <String, Map<String, int>>{},
-          'byEmployee': <String, Map<String, int>>{},
-          'recentActivity': <Map<String, dynamic>>[],
-          'topPerformers': <Map<String, dynamic>>[],
-        };
-
-        // Group by department - ALL DEPARTMENTS
-        final departmentGroups = <String, List<AuditEntry>>{};
-        for (final entry in entries) {
-          departmentGroups.putIfAbsent(entry.userDepartment, () => []).add(entry);
-        }
-        
-        for (final dept in departmentGroups.keys) {
-          final deptEntries = departmentGroups[dept]!;
-          stats['byDepartment'][dept] = {
-            'total': deptEntries.length,
-            'pending': deptEntries.where((e) => e.status == 'pending').length,
-            'verified': deptEntries.where((e) => e.status == 'verified').length,
-            'rejected': deptEntries.where((e) => e.status == 'rejected').length,
-          };
-        }
-
-        // Group by employee - ALL EMPLOYEES
-        final employeeGroups = <String, List<AuditEntry>>{};
-        for (final entry in entries) {
-          employeeGroups.putIfAbsent(entry.userId, () => []).add(entry);
-        }
-        
-        for (final empId in employeeGroups.keys) {
-          final empEntries = employeeGroups[empId]!;
-          final empName = empEntries.first.userDisplayName;
-          final empDept = empEntries.first.userDepartment;
-          final verifiedCount = empEntries.where((e) => e.status == 'verified').length;
-          final totalScore = empEntries
-              .where((e) => e.score != null)
-              .fold(0.0, (acc, e) => acc + e.score!);
-          final avgScore = verifiedCount > 0 ? totalScore / verifiedCount : 0.0;
-          
-          stats['byEmployee'][empName] = {
-            'total': empEntries.length,
-            'pending': empEntries.where((e) => e.status == 'pending').length,
-            'verified': verifiedCount,
-            'rejected': empEntries.where((e) => e.status == 'rejected').length,
-            'department': empDept,
-            'averageScore': avgScore,
-            'userId': empId,
-          };
-        }
-
-        // Recent activity - ALL EMPLOYEES
-        final recentEntries = entries.take(10).map((entry) => {
-          'goalTitle': entry.goalTitle,
-          'employeeName': entry.userDisplayName,
-          'department': entry.userDepartment,
-          'status': entry.status,
-          'submittedDate': entry.submittedDate.toIso8601String(),
-          'score': entry.score,
-        }).toList();
-        stats['recentActivity'] = recentEntries;
-
-        // Top performers - ALL EMPLOYEES ranked by verified goals and scores
-        final employeePerformance = <String, Map<String, dynamic>>{};
-        for (final empId in employeeGroups.keys) {
-          final empEntries = employeeGroups[empId]!;
-          final verifiedEntries = empEntries.where((e) => e.status == 'verified').toList();
-          final totalScore = verifiedEntries
-              .where((e) => e.score != null)
-              .fold(0.0, (acc, e) => acc + e.score!);
-          final avgScore = verifiedEntries.isNotEmpty && verifiedEntries.any((e) => e.score != null) 
-              ? totalScore / verifiedEntries.where((e) => e.score != null).length 
-              : 0.0;
-          
-          employeePerformance[empId] = {
-            'name': empEntries.first.userDisplayName,
-            'department': empEntries.first.userDepartment,
-            'verifiedGoals': verifiedEntries.length,
-            'averageScore': avgScore,
-            'totalScore': totalScore,
-            'userId': empId,
-          };
-        }
-        
-        // Sort by verified goals count, then by average score
-        final sortedPerformers = employeePerformance.values.toList()
-          ..sort((a, b) {
-            final goalComparison = (b['verifiedGoals'] as int).compareTo(a['verifiedGoals'] as int);
-            if (goalComparison != 0) return goalComparison;
-            return (b['averageScore'] as double).compareTo(a['averageScore'] as double);
-          });
-        
-        stats['topPerformers'] = sortedPerformers.take(10).toList();
-
-        return stats;
-      }).handleError((error, stackTrace) {
-        developer.log('Manager audit stats stream error: $error', error: error, stackTrace: stackTrace);
-        return emptyStats;
-      });
-      }),
-    ).handleError((error, stackTrace) {
+        },
+        onError: (error, stackTrace) {
+          developer.log('Manager audit stats stream error: $error', error: error, stackTrace: stackTrace);
+          controller.add(emptyStats);
+        },
+        cancelOnError: false,
+      );
+    }).catchError((error, stackTrace) {
       developer.log('Error building manager audit stats stream: $error', error: error, stackTrace: stackTrace);
-      return Stream.value(emptyStats);
-    }).cast<Map<String, dynamic>>().distinct();
+      controller.add(emptyStats);
+    });
+
+    return controller.stream.distinct();
   }
 
   // Get audit entries stream for employees (their own entries)
