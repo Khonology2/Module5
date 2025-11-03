@@ -156,7 +156,9 @@ class AuditService {
 
       query = query.orderBy('submittedDate', descending: true).limit(100);
 
-      return query.snapshots().map((snapshot) {
+      // Emit empty list immediately, then switch to Firestore realtime stream
+      return Stream.value(<AuditEntry>[]).asyncExpand((_) {
+        return query.snapshots().map((snapshot) {
         try {
           List<AuditEntry> entries = snapshot.docs
               .map((doc) {
@@ -190,6 +192,7 @@ class AuditService {
       }).handleError((error, stackTrace) {
         developer.log('Manager audit entries stream error: $error', error: error, stackTrace: stackTrace);
         return <AuditEntry>[];
+      });
       });
     } catch (e) {
       developer.log('Error building manager audit entries stream: $e');
