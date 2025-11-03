@@ -140,17 +140,13 @@ class AuditService {
   static Stream<List<AuditEntry>> getManagerAuditEntriesStream({
     String? status,
     String? searchQuery,
-  }) async* {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        yield <AuditEntry>[];
-        return;
-      }
+  }) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return Stream.value(<AuditEntry>[]);
+    }
 
-      // Load manager's department to align query with Firestore security rules
-      // Previously we scoped by manager department, which hid entries when
-      // employee profiles lacked a department. We now show all entries.
+    try {
       Query query = _firestore.collection('audit_entries');
 
       if (status != null && status.isNotEmpty) {
@@ -159,10 +155,19 @@ class AuditService {
 
       query = query.orderBy('submittedDate', descending: true).limit(100);
 
-      yield* query.snapshots().map((snapshot) {
+      return query.snapshots().map((snapshot) {
         try {
           List<AuditEntry> entries = snapshot.docs
-              .map((doc) => AuditEntry.fromFirestore(doc))
+              .map((doc) {
+                try {
+                  return AuditEntry.fromFirestore(doc);
+                } catch (e) {
+                  developer.log('Error parsing audit entry ${doc.id}: $e');
+                  return null;
+                }
+              })
+              .where((entry) => entry != null)
+              .cast<AuditEntry>()
               .toList();
 
           if (searchQuery != null && searchQuery.isNotEmpty) {
@@ -181,38 +186,38 @@ class AuditService {
           developer.log('Error processing manager audit entries: $e');
           return <AuditEntry>[];
         }
-      }).handleError((error) {
-        developer.log('Manager audit entries stream error: $error');
+      }).handleError((error, stackTrace) {
+        developer.log('Manager audit entries stream error: $error', error: error, stackTrace: stackTrace);
         return <AuditEntry>[];
       });
     } catch (e) {
       developer.log('Error building manager audit entries stream: $e');
-      yield <AuditEntry>[];
+      return Stream.value(<AuditEntry>[]);
     }
   }
 
   // Get comprehensive audit statistics for managers - ALL EMPLOYEES DATA
-  static Stream<Map<String, dynamic>> getManagerAuditStatsStream() async* {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        yield <String, dynamic>{
-          'total': 0,
-          'pending': 0,
-          'verified': 0,
-          'rejected': 0,
-          'byDepartment': <String, Map<String, int>>{},
-          'byEmployee': <String, Map<String, int>>{},
-          'recentActivity': <Map<String, dynamic>>[],
-          'topPerformers': <Map<String, dynamic>>[],
-        };
-        return;
-      }
+  static Stream<Map<String, dynamic>> getManagerAuditStatsStream() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return Stream.value(<String, dynamic>{
+        'total': 0,
+        'pending': 0,
+        'verified': 0,
+        'rejected': 0,
+        'byDepartment': <String, Map<String, int>>{},
+        'byEmployee': <String, Map<String, int>>{},
+        'recentActivity': <Map<String, dynamic>>[],
+        'topPerformers': <Map<String, dynamic>>[],
+      });
+    }
 
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    return Stream.fromFuture(
+      _firestore.collection('users').doc(user.uid).get(),
+    ).asyncExpand((userDoc) {
       final managerDept = (userDoc.data() ?? const {})['department'] as String?;
       if (managerDept == null || managerDept.isEmpty) {
-        yield <String, dynamic>{
+        return Stream.value(<String, dynamic>{
           'total': 0,
           'pending': 0,
           'verified': 0,
@@ -221,8 +226,7 @@ class AuditService {
           'byEmployee': <String, Map<String, int>>{},
           'recentActivity': <Map<String, dynamic>>[],
           'topPerformers': <Map<String, dynamic>>[],
-        };
-        return;
+        });
       }
 
       final query = _firestore
@@ -231,7 +235,7 @@ class AuditService {
           .orderBy('submittedDate', descending: true)
           .limit(200);
 
-      yield* query.snapshots().map((snapshot) {
+      return query.snapshots().map((snapshot) {
         final entries = snapshot.docs.map((doc) {
           try {
             return AuditEntry.fromFirestore(doc);
@@ -339,8 +343,8 @@ class AuditService {
         stats['topPerformers'] = sortedPerformers.take(10).toList();
 
         return stats;
-      }).handleError((error) {
-        developer.log('Manager audit stats stream error: $error');
+      }).handleError((error, stackTrace) {
+        developer.log('Manager audit stats stream error: $error', error: error, stackTrace: stackTrace);
         return <String, dynamic>{
           'total': 0,
           'pending': 0,
@@ -352,9 +356,9 @@ class AuditService {
           'topPerformers': <Map<String, dynamic>>[],
         };
       });
-    } catch (e) {
-      developer.log('Error building manager audit stats stream: $e');
-      yield <String, dynamic>{
+    }).handleError((error, stackTrace) {
+      developer.log('Error building manager audit stats stream: $error', error: error, stackTrace: stackTrace);
+      return Stream.value(<String, dynamic>{
         'total': 0,
         'pending': 0,
         'verified': 0,
@@ -363,8 +367,8 @@ class AuditService {
         'byEmployee': <String, Map<String, int>>{},
         'recentActivity': <Map<String, dynamic>>[],
         'topPerformers': <Map<String, dynamic>>[],
-      };
-    }
+      });
+    });
   }
 
   // Get audit entries stream for employees (their own entries)
@@ -389,7 +393,16 @@ class AuditService {
       return query.snapshots().map((snapshot) {
         try {
           List<AuditEntry> entries = snapshot.docs
-              .map((doc) => AuditEntry.fromFirestore(doc))
+              .map((doc) {
+                try {
+                  return AuditEntry.fromFirestore(doc);
+                } catch (e) {
+                  developer.log('Error parsing audit entry ${doc.id}: $e');
+                  return null;
+                }
+              })
+              .where((entry) => entry != null)
+              .cast<AuditEntry>()
               .toList();
 
           // Apply search filter if provided
@@ -407,8 +420,8 @@ class AuditService {
           developer.log('Error processing employee audit entries: $e');
           return <AuditEntry>[];
         }
-      }).handleError((error) {
-        developer.log('Employee audit entries stream error: $error');
+      }).handleError((error, stackTrace) {
+        developer.log('Employee audit entries stream error: $error', error: error, stackTrace: stackTrace);
         return <AuditEntry>[];
       });
     } catch (e) {
