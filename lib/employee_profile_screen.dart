@@ -76,7 +76,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
         _badgeNameController.text = userProfile.badgeName;
         _celebrationConsent = userProfile.celebrationConsent;
-        _profilePhotoUrl = userProfile.profilePhotoUrl; // Load existing photo URL
+        _profilePhotoUrl = (userProfile.profilePhotoUrl != null && userProfile.profilePhotoUrl!.isNotEmpty)
+            ? userProfile.profilePhotoUrl
+            : null; // Normalize empty to null
       });
     } catch (e) {
       if (!mounted) return;
@@ -131,11 +133,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       setState(() {
         _profilePhotoUrl = cloudinaryUrl;
       });
+      // Update Firebase Auth user photoURL for global usage
+      await user.updatePhotoURL(cloudinaryUrl);
+      await user.reload();
+      await _saveProfile();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo uploaded successfully!')),
-      );
+      _showProfileSavedDialog();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -439,7 +443,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                           shape: BoxShape.circle,
                                         ),
                                         child: ClipOval(
-                                          child: _profilePhotoUrl != null
+                                          child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
                                               ? Image.network(
                                                   _profilePhotoUrl!,
                                                   fit: BoxFit.cover,
