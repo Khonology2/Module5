@@ -352,7 +352,8 @@ class AuditService {
         developer.log('Manager audit stats stream error: $error', error: error, stackTrace: stackTrace);
         return emptyStats;
       });
-    }).handleError((error, stackTrace) {
+      }),
+    ).handleError((error, stackTrace) {
       developer.log('Error building manager audit stats stream: $error', error: error, stackTrace: stackTrace);
       return Stream.value(emptyStats);
     }).cast<Map<String, dynamic>>().distinct();
