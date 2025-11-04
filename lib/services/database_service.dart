@@ -396,6 +396,46 @@ class DatabaseService {
       'evidence': FieldValue.arrayUnion(evidence),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // After attaching evidence: if this is a non-season goal at >=90% and in progress, set to 100% and complete
+    try {
+      final doc = await goalRef.get();
+      final data = doc.data();
+      if (data != null) {
+        final bool isSeason = (data['isSeasonGoal'] == true);
+        if (!isSeason) {
+          final String status = (data['status'] ?? 'notStarted').toString();
+          final dynamic pRaw = data['progress'];
+          final int pNow = pRaw is int ? pRaw : (pRaw is num ? pRaw.round() : 0);
+          final String? userId = data['userId'] as String?;
+          if (status == GoalStatus.inProgress.name && pNow >= 90 && userId != null && userId.isNotEmpty) {
+            // Ensure 100% before completing
+            if (pNow < 100) {
+              await goalRef.update({'progress': 100});
+            }
+            await completeGoal(goalId, userId);
+            // Notify user: completion and points (UI expectation is +100)
+            try {
+              final goal = Goal.fromFirestore(doc);
+              await AlertService.createGoalAlert(
+                userId: userId,
+                goal: goal.copyWith(status: GoalStatus.completed, progress: 100),
+                type: AlertType.goalCompleted,
+              );
+              await AlertService.createPointsAlert(
+                userId: userId,
+                pointsEarned: 100,
+                reason: 'completing "${goal.title}"',
+              );
+            } catch (e) {
+              developer.log('attachGoalEvidence completion alerts failed: $e');
+            }
+          }
+        }
+      }
+    } catch (e) {
+      developer.log('attachGoalEvidence post-update completion attempt failed: $e');
+    }
   }
 
   static Future<void> clearGoalEvidence({
@@ -428,6 +468,9 @@ class DatabaseService {
     final goals = FirebaseFirestore.instance.collection('goals');
     final goalRef = goals.doc(goalId);
     String? userId;
+    bool evidenceExists = false;
+    int appliedProgress = snapped;
+    bool wasInProgress = false;
     
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -444,11 +487,22 @@ class DatabaseService {
         final Map<String, dynamic> milestones = rawMilestones is Map<String, dynamic>
             ? Map<String, dynamic>.from(rawMilestones)
             : {};
-        tx.update(goalRef, {'progress': snapped});
+        // Enforce: without evidence, cap progress at 90% for non-season goals
+        final List<dynamic> evList = (data['evidence'] is List)
+            ? List<dynamic>.from(data['evidence'] as List)
+            : <dynamic>[];
+        evidenceExists = evList.isNotEmpty;
+        int toApply = snapped;
+        if (!isSeason && !evidenceExists && snapped > 90) {
+          toApply = 90;
+        }
+        tx.update(goalRef, {'progress': toApply});
+        appliedProgress = toApply;
+        wasInProgress = (currentStatus == GoalStatus.inProgress.name);
 
       // Auto-transition: if progress > 0 and goal was not started, mark inProgress
       // For season goals, do NOT award regular user points on start
-      if (snapped > 0 &&
+      if (toApply > 0 &&
           currentStatus != GoalStatus.inProgress.name &&
           currentStatus != GoalStatus.completed.name) {
         tx.update(goalRef, {'status': GoalStatus.inProgress.name});
@@ -461,7 +515,7 @@ class DatabaseService {
       }
 
       // Milestone: First time crossing/reaching 50% → award +20 points and mark milestone
-      final crossed50 = previousProgress < 50 && snapped >= 50;
+      final crossed50 = previousProgress < 50 && toApply >= 50;
       if (crossed50 &&
         userId != null &&
         userId!.isNotEmpty &&
@@ -478,6 +532,15 @@ class DatabaseService {
     });
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
+    }
+
+    // If we successfully reached 100% with evidence on a non-season goal, auto-complete it
+    try {
+      if (!isSeason && evidenceExists && appliedProgress == 100 && userId != null && userId!.isNotEmpty && wasInProgress) {
+        await completeGoal(goalId, userId!);
+      }
+    } catch (e) {
+      developer.log('updateGoalProgress auto-complete failed: $e');
     }
 
     // Record daily activity for streak tracking when making progress
@@ -661,6 +724,14 @@ class DatabaseService {
       final approval = (data['approvalStatus'] ?? 'pending').toString();
       if (!isSeasonComplete && approval != GoalApprovalStatus.approved.name) {
         throw Exception('Goal is not approved yet');
+      }
+      // Enforce: non-season goals must have evidence before completion
+      if (!isSeasonComplete) {
+        final ev = data['evidence'];
+        final bool hasEvidence = (ev is List && ev.isNotEmpty);
+        if (!hasEvidence) {
+          throw Exception('Please submit evidence before completing this goal.');
+        }
       }
       final status = (data['status'] ?? 'notStarted').toString();
       final progress = (data['progress'] ?? 0) as int;

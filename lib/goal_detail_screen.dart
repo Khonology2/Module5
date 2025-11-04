@@ -740,7 +740,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               spacing: 8,
               runSpacing: 8,
               children: List.generate(10, (i) => (i + 1) * 10).map((progress) {
-                final isDisabled = progress <= currentGoal.progress;
+                final bool overEvidenceCap = (!_isSeasonGoal && currentGoal.evidence.isEmpty && progress > 90);
+                final isDisabled = progress <= currentGoal.progress || overEvidenceCap;
                 return ElevatedButton(
                   onPressed: isDisabled ? null : () => _updateProgress(progress),
                   style: ElevatedButton.styleFrom(
@@ -754,7 +755,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 );
               }).toList(),
             ),
-            if (currentGoal.progress >= 90 && currentGoal.progress < 100) ...[
+            if (currentGoal.progress >= 90 && currentGoal.progress < 100 && (_isSeasonGoal || currentGoal.evidence.isNotEmpty)) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -768,6 +769,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
+              ),
+            ],
+            if (!_isSeasonGoal && currentGoal.progress >= 90 && currentGoal.progress < 100 && currentGoal.evidence.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Submit evidence to unlock the final 10% and complete.',
+                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ],
@@ -916,7 +924,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ] else if (currentGoal.status == GoalStatus.inProgress) ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: (isLoading || currentGoal.progress < 90) ? null : _completeGoal,
+              onPressed: (isLoading || currentGoal.progress < 100 || (!_isSeasonGoal && currentGoal.evidence.isEmpty)) ? null : _completeGoal,
               icon: isLoading 
                   ? const SizedBox(
                       width: 16,
