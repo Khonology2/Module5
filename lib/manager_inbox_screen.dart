@@ -468,8 +468,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               stream: AlertService.getManagerInboxStream(
                 managerId: user.uid,
                 personal: _personal,
-                // Treat generic alerts as default (null)
-                typeFilter: _typeFilter == 'alert' ? null : _typeFilter,
+                // Apply the selected type filter directly ('alert' | 'nudge' | 'approval_request' | null)
+                typeFilter: _typeFilter,
                 limit: 200,
               ),
               builder: (context, snapshot) {

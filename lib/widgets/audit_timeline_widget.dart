@@ -49,14 +49,14 @@ class AuditTimelineWidget extends StatelessWidget {
         return ListView.separated(
           shrinkWrap: true,
           itemCount: events.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final event = events[index];
             final color = _colorForType(context, event.eventType);
             final icon = _iconForType(event.eventType);
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: color.withOpacity(0.15),
+                backgroundColor: color.withValues(alpha:0.15),
                 child: Icon(icon, color: color),
               ),
               title: Text(event.description),

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -343,9 +345,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
+        color: Colors.black.withValues(alpha:0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.2)),
       ),
       child: DropdownButton<TimeFilter>(
         value: currentTimeFilter,
@@ -511,9 +513,9 @@ class _ManagerProgressVisualsContentState
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
+        color: Colors.black.withValues(alpha:0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,7 +557,7 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  // ignore: unused_element
+  
   Widget _buildInsightCard(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
@@ -735,9 +737,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.4),
+        color: Colors.black.withValues(alpha:0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        border: Border.all(color: statusColor.withValues(alpha:0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -746,7 +748,7 @@ class _ManagerProgressVisualsContentState
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: statusColor.withOpacity(0.1),
+                backgroundColor: statusColor.withValues(alpha:0.1),
                 child: Text(
                   employee.profile.displayName.isNotEmpty
                       ? employee.profile.displayName[0].toUpperCase()
@@ -789,10 +791,10 @@ class _ManagerProgressVisualsContentState
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: statusColor.withOpacity(0.3),
+                        color: statusColor.withValues(alpha:0.3),
                       ),
                     ),
                     child: Row(
@@ -817,10 +819,10 @@ class _ManagerProgressVisualsContentState
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: activeStatusColor.withOpacity(0.1),
+                      color: activeStatusColor.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: activeStatusColor.withOpacity(0.3),
+                        color: activeStatusColor.withValues(alpha:0.3),
                       ),
                     ),
                     child: Row(
@@ -892,7 +894,7 @@ class _ManagerProgressVisualsContentState
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.textSecondary.withOpacity(0.05),
+              color: AppColors.textSecondary.withValues(alpha:0.05),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(

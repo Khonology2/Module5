@@ -228,7 +228,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           decoration: BoxDecoration(
             color: isMine
                 ? const Color(0xFFC10D00)
-                : Colors.grey[700]!.withOpacity(0.7),
+                : Colors.grey[700]!.withValues(alpha:0.7),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(16),
               topRight: const Radius.circular(16),
@@ -237,7 +237,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha:0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -252,7 +252,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha:0.15),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white24, width: 0.5),
                   ),
@@ -345,7 +345,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: mine ? Colors.white.withOpacity(0.15) : Colors.black.withOpacity(0.2),
+                            color: mine ? Colors.white.withValues(alpha:0.15) : Colors.black.withValues(alpha:0.2),
                             borderRadius: BorderRadius.circular(12),
                             border: mine ? Border.all(color: Colors.white24) : null,
                           ),
@@ -841,7 +841,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                             margin: const EdgeInsets.only(right: 8, bottom: 8),
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.35),
+                              color: Colors.black.withValues(alpha:0.35),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.white24, width: 0.5),
                             ),
@@ -889,7 +889,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                               hintText: 'Type your message...',
                               hintStyle: const TextStyle(color: Colors.grey),
                               filled: true,
-                              fillColor: Colors.black.withOpacity(0.5),
+                              fillColor: Colors.black.withValues(alpha:0.5),
                               contentPadding: const EdgeInsets.symmetric(
                                   vertical: 10, horizontal: 16),
                               border: OutlineInputBorder(

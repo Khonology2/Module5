@@ -145,7 +145,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: entries.length,
-      separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+      separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
       itemBuilder: (context, index) {
         final e = entries[index];
         final d = e.completedDate;
@@ -1338,7 +1338,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+      separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
       itemBuilder: (context, index) {
         final g = items[index];
         final date = g.completedDate ?? g.verifiedDate;
@@ -1360,6 +1360,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   void _showExportSheet() {
     // Capture the parent ScaffoldMessenger before opening the sheet
     final messenger = ScaffoldMessenger.of(context);
+    // ignore: unnecessary_null_comparison, unused_local_variable
     final isManager = (RoleService.instance != null); // placeholder; use stream below
     showModalBottomSheet(
       context: context,

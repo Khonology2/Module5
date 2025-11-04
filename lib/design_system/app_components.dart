@@ -28,10 +28,10 @@ class AppComponents {
       child: Container(
         padding: padding ?? AppSpacing.cardPadding,
         decoration: BoxDecoration(
-          color: backgroundColor ?? Colors.black.withOpacity(0.4),
+          color: backgroundColor ?? Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(borderRadius),
           border: Border.all(
-            color: (borderColor ?? Colors.white.withOpacity(0.2)),
+            color: (borderColor ?? Colors.white.withValues(alpha: 0.2)),
             width: borderWidth == 0.0 ? 1.0 : borderWidth,
           ),
           boxShadow: boxShadow,
@@ -343,7 +343,7 @@ class AppComponents {
         LinearProgressIndicator(
           value: value,
           backgroundColor:
-              backgroundColor ?? Colors.grey.withOpacity(0.3),
+              backgroundColor ?? Colors.grey.withValues(alpha: 0.3),
           valueColor: AlwaysStoppedAnimation<Color>(
             valueColor ?? AppColors.activeColor,
           ),

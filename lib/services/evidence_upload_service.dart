@@ -168,6 +168,7 @@ class EvidenceUploadService {
   }
 
   // Get content type based on file extension
+  // ignore: unused_element
   static String _getContentType(String extension) {
     switch (extension.toLowerCase()) {
       case '.pdf':
