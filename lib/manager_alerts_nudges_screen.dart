@@ -38,6 +38,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   // SMART rubric state per goalId
   // ignore: unused_field
   final  _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
+  // ignore: unused_field
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
 
@@ -183,7 +184,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     return ListView.separated(
       padding: AppSpacing.screenPadding,
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
       itemBuilder: (context, index) {
         final emp = items[index]['employee'] as EmployeeData;
         final g = items[index]['goal'] as Goal;

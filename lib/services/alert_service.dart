@@ -511,7 +511,6 @@ class AlertService {
       return <Alert>[];
     });
   }
-
   /// Stream alerts for the manager inbox with optional filters.
   /// - personal: when true, returns the manager's own alerts.
   /// - typeFilter: 'nudge' maps to AlertType.managerNudge, 'approval_request' maps to AlertType.goalApprovalRequested, null means no type filter.
@@ -528,9 +527,23 @@ class AlertService {
     return baseStream.map((alerts) {
       List<Alert> items = List<Alert>.from(alerts);
 
+      // Team-only alert types (manager-facing team insights)
+      final Set<AlertType> teamOnly = {
+        AlertType.teamGoalAvailable,
+        AlertType.employeeJoinedTeamGoal,
+        AlertType.seasonJoined,
+        AlertType.seasonProgressUpdate,
+        AlertType.seasonCompleted,
+      };
+
       if (typeFilter != null) {
         items = items.where((a) {
           switch (typeFilter) {
+            case 'alert':
+              // Show generic alerts only (exclude nudges, approvals, and team-only types)
+              return a.type != AlertType.managerNudge &&
+                     a.type != AlertType.goalApprovalRequested &&
+                     !teamOnly.contains(a.type);
             case 'nudge':
               return a.type == AlertType.managerNudge;
             case 'approval_request':
@@ -539,6 +552,11 @@ class AlertService {
               return true;
           }
         }).toList();
+      }
+
+      // Default behavior: in personal inbox, hide team-only alerts
+      if (personal) {
+        items = items.where((a) => !teamOnly.contains(a.type)).toList();
       }
 
       // Already sorted in getUserAlertsStream; just apply the limit override if larger than default 50
