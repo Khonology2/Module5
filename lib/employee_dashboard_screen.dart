@@ -423,18 +423,37 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       motivationalMessage = 'Time to wrap up and reflect on your progress!';
     }
 
+    // Determine avatar photo URL: prefer Firestore profile; only fall back to Auth if profile is not yet loaded
+    final authUserForAvatar = FirebaseAuth.instance.currentUser;
+    String photoUrl = '';
+    if (userProfile == null) {
+      photoUrl = (authUserForAvatar?.photoURL ?? '');
+    } else {
+      final p = userProfile!.profilePhotoUrl ?? '';
+      photoUrl = p.isNotEmpty ? p : '';
+    }
+
     return AppComponents.accentCard(
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 30, // Keep radius 30 for the outer circle
-            backgroundColor: AppColors.activeColor,
-            // Always display the custom profile image
-            backgroundImage: const AssetImage(
-              'assets/Account_User_Profile/Profile.png',
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+              color: Colors.black.withOpacity(0.15),
             ),
-            // Removed the conditional child icon to prevent double icons
+            child: ClipOval(
+              child: photoUrl.isNotEmpty
+                  ? Image.network(
+                      photoUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white, size: 36),
+                    )
+                  : const Icon(Icons.person, color: Colors.white, size: 36),
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(

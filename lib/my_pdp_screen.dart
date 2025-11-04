@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 // Drawer removed in favor of persistent sidebar
@@ -465,10 +466,36 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
 
 
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
-    // Submit to audit along with attached evidence so managers can review
-    await AuditService.submitGoalForAudit(goal, goal.evidence);
-    if (mounted) {
-      await _showCenterNotice(context, 'Acknowledgement requested');
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (mounted) {
+          await _showCenterNotice(context, 'Please sign in to request acknowledgement');
+        }
+        return;
+      }
+
+      // Check if already submitted
+      final alreadySubmitted = await AuditService.hasGoalBeenSubmittedForAudit(goal.id, user.uid);
+      if (alreadySubmitted) {
+        if (mounted) {
+          await _showCenterNotice(context, 'This goal has already been submitted for acknowledgement');
+        }
+        return;
+      }
+
+      // Submit to audit along with attached evidence so managers can review
+      await AuditService.submitGoalForAudit(goal, goal.evidence);
+      if (mounted) {
+        await _showCenterNotice(context, 'Acknowledgement requested');
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString().contains('already been submitted')
+            ? 'This goal has already been submitted for acknowledgement'
+            : 'Failed to request acknowledgement. Please try again.';
+        await _showCenterNotice(context, errorMessage);
+      }
     }
   }
 
@@ -826,11 +853,34 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     )
                                   : null,
                             ),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  _requestManagerAcknowledgement(goal),
-                              icon: const Icon(Icons.verified_user, size: 18),
-                              label: const Text('Request acknowledgement'),
+                            StreamBuilder<List<AuditEntry>>(
+                              stream: AuditService.getEmployeeAuditEntriesStream(),
+                              builder: (context, auditSnapshot) {
+                                final hasAuditEntry = auditSnapshot.hasData &&
+                                    auditSnapshot.data!.any((entry) => entry.goalId == goal.id);
+                                
+                                return OutlinedButton.icon(
+                                  onPressed: hasAuditEntry
+                                      ? null
+                                      : () => _requestManagerAcknowledgement(goal),
+                                  icon: Icon(
+                                    hasAuditEntry ? Icons.check_circle : Icons.verified_user,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    hasAuditEntry
+                                        ? 'Acknowledgement requested'
+                                        : 'Request acknowledgement',
+                                  ),
+                                  style: hasAuditEntry
+                                      ? OutlinedButton.styleFrom(
+                                          backgroundColor: Colors.orange.withOpacity(0.1),
+                                          foregroundColor: Colors.orange,
+                                          side: const BorderSide(color: Colors.orange),
+                                        )
+                                      : null,
+                                );
+                              },
                             ),
                           ],
                         ),

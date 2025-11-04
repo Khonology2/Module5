@@ -217,4 +217,52 @@ class RepositoryService {
     _syncActive = false;
   }
 
+  // Backfill existing verified entries to repository (for employees)
+  // This ensures previously verified entries are synced even if auto-sync missed them
+  static Future<void> backfillVerifiedEntriesForUser(String userId) async {
+    try {
+      final verifiedEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'verified')
+          .get();
+
+      for (final doc in verifiedEntries.docs) {
+        try {
+          final entry = AuditEntry.fromFirestore(doc);
+          await addVerifiedGoalToRepository(entry);
+        } catch (e) {
+          developer.log('Error backfilling entry ${doc.id}: $e');
+        }
+      }
+      developer.log('Backfilled ${verifiedEntries.docs.length} verified entries for user $userId');
+    } catch (e) {
+      developer.log('Error backfilling verified entries: $e');
+    }
+  }
+
+  // Backfill all verified entries for manager's department
+  static Future<void> backfillVerifiedEntriesForDepartment(String department) async {
+    try {
+      final verifiedEntries = await _firestore
+          .collection('audit_entries')
+          .where('userDepartment', isEqualTo: department)
+          .where('status', isEqualTo: 'verified')
+          .limit(500) // Limit to prevent timeout
+          .get();
+
+      for (final doc in verifiedEntries.docs) {
+        try {
+          final entry = AuditEntry.fromFirestore(doc);
+          await addVerifiedGoalToRepository(entry);
+        } catch (e) {
+          developer.log('Error backfilling entry ${doc.id}: $e');
+        }
+      }
+      developer.log('Backfilled ${verifiedEntries.docs.length} verified entries for department $department');
+    } catch (e) {
+      developer.log('Error backfilling verified entries for department: $e');
+    }
+  }
+
 }
