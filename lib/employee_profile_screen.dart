@@ -51,6 +51,34 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     _loadUserProfile();
   }
 
+  Future<void> _removeProfilePhoto() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to remove your photo.')),
+      );
+      return;
+    }
+    try {
+      setState(() {
+        _profilePhotoUrl = '';
+      });
+      await user.updatePhotoURL(null);
+      await user.reload();
+      await _saveProfile(
+        showDialog: true,
+        successTitle: 'Photo Removed',
+        successMessage: 'Your profile photo has been removed.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove photo: ${e.toString()}')),
+      );
+    }
+  }
+
   Future<void> _loadUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return; // User not logged in
@@ -76,7 +104,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
         _badgeNameController.text = userProfile.badgeName;
         _celebrationConsent = userProfile.celebrationConsent;
-        _profilePhotoUrl = userProfile.profilePhotoUrl; // Load existing photo URL
+        _profilePhotoUrl = (userProfile.profilePhotoUrl != null && userProfile.profilePhotoUrl!.isNotEmpty)
+            ? userProfile.profilePhotoUrl
+            : null; // Normalize empty to null
       });
     } catch (e) {
       if (!mounted) return;
@@ -131,11 +161,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       setState(() {
         _profilePhotoUrl = cloudinaryUrl;
       });
+      // Update Firebase Auth user photoURL for global usage
+      await user.updatePhotoURL(cloudinaryUrl);
+      await user.reload();
+      await _saveProfile();
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo uploaded successfully!')),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,14 +174,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     }
   }
 
-  void _showProfileSavedDialog() {
+  void _showProfileSavedDialog({String title = 'Profile Saved', String message = 'Your profile has been saved successfully!'}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2C3E50), // Matches dark-card-2
-          title: const Text('Profile Saved', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: const Text('Your profile has been saved successfully!', style: TextStyle(color: Colors.white70)),
+          title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text(message, style: const TextStyle(color: Colors.white70)),
           actions: <Widget>[
             TextButton(
               style: TextButton.styleFrom(backgroundColor: const Color(0xFFC10D00)), // Matches primary-red
@@ -166,7 +196,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     );
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _saveProfile({bool showDialog = true, String? successTitle, String? successMessage}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -183,6 +213,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       print('Saving profile...');
       await DatabaseService.updateUserProfile(existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
+        email: _workEmailController.text.trim(),
         jobTitle: _jobTitleController.text.trim(),
         department: _departmentController.text.trim(),
         phoneNumber: _phoneNumberController.text.trim(),
@@ -201,7 +232,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         badgeName: _badgeNameController.text.trim(),
         celebrationConsent: _celebrationConsent ?? 'private',
       ));
-      _showProfileSavedDialog();
+      await _loadUserProfile();
+      if (showDialog) {
+        _showProfileSavedDialog(
+          title: successTitle ?? 'Profile Saved',
+          message: successMessage ?? 'Your profile has been saved successfully!',
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save profile: ${e.toString()}')),
@@ -344,10 +381,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
       ),
       body: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
@@ -369,7 +402,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                           Text(
-                            'My Profile',
+                            'Profile',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 32, // match manager
@@ -441,17 +474,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                           shape: BoxShape.circle,
                                         ),
                                         child: ClipOval(
-                                          child: _profilePhotoUrl != null
+                                          child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
                                               ? Image.network(
                                                   _profilePhotoUrl!,
                                                   fit: BoxFit.cover,
                                                   errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white70, size: 40),
                                                 )
-                                              : Image.network(
-                                                  'https://placehold.co/80x80/2C3E50/C10D00?text=P', // Placeholder image
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white70, size: 40), // Fallback icon
-                                                ),
+                                              : const Icon(Icons.person, color: Colors.white70, size: 40),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
@@ -460,16 +489,26 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                                         children: [
                                           _buildInputLabel('Profile Photo'),
                                           const SizedBox(height: 8),
-                                          ElevatedButton(
-                                            onPressed: _pickAndUploadImage,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Color.fromARGB(25, 255, 255, 255), // hover:bg-white/10
-                                              foregroundColor: Colors.white, // text-white/90
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                              side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)), // border border-white/20
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // px-4 py-2
-                                            ),
-                                            child: const Text('Upload Photo', style: TextStyle(fontSize: 14)), // text-sm
+                                          Row(
+                                            children: [
+                                              ElevatedButton(
+                                                onPressed: _pickAndUploadImage,
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Color.fromARGB(25, 255, 255, 255), // hover:bg-white/10
+                                                  foregroundColor: Colors.white, // text-white/90
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                  side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)), // border border-white/20
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), // px-4 py-2
+                                                ),
+                                                child: const Text('Upload Photo', style: TextStyle(fontSize: 14)), // text-sm
+                                              ),
+                                              const SizedBox(width: 8),
+                                              if ((_profilePhotoUrl ?? '').isNotEmpty)
+                                                TextButton(
+                                                  onPressed: _removeProfilePhoto,
+                                                  child: const Text('Remove Photo'),
+                                                ),
+                                            ],
                                           ),
                                         ],
                                       ),

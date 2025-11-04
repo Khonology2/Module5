@@ -360,8 +360,12 @@ class ManagerRealtimeService {
       if (kDebugMode) {
         debugPrint('teamMetricsStream FirebaseException: $e\n$st');
       }
-      // Do not throw into UI stream on web; emit null so UI shows placeholders
-      yield null;
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Firestore error (${e.code}). Check rules/auth: ${e.message ?? ''}',
+      );
     }
   }
 
@@ -381,8 +385,11 @@ class ManagerRealtimeService {
       if (kDebugMode) {
         debugPrint('teamInsightsStream FirebaseException: $e\n$st');
       }
-      // Emit empty list on error instead of throwing to avoid inspector issues on web
-      yield const <TeamInsight>[];
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message: 'Firestore error (${e.code}). Ensure rules/auth are correct.',
+      );
     }
   }
 
@@ -410,14 +417,9 @@ class ManagerRealtimeService {
       try {
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser == null) {
-          // Do not error the stream; emit empty and return
-          controller.add(const <EmployeeData>[]);
+          controller.addError('No authenticated user');
           return;
         }
-
-        // Emit immediately to break UI out of loading state while we fetch
-        // users and related documents. Subsequent emits will replace this.
-        controller.add(const <EmployeeData>[]);
 
         // Get the manager's department if not specified
         String? targetDepartment = department;
@@ -483,7 +485,7 @@ class ManagerRealtimeService {
 
                 final snap = await base.get();
                 results.addAll(snap.docs);
-              } catch (_) {
+              } on FirebaseException {
                 // Fallback if index missing: fetch without extra filters
                 final snap = await _firestore
                     .collection(collection)
@@ -577,8 +579,8 @@ class ManagerRealtimeService {
                   motivationLevel: 'N/A',
                 );
               }).toList();
-              // Always emit minimal (including empty) to exit loading state quickly
-              controller.add(minimal);
+              // Only emit if we actually have docs; otherwise let full rebuild handle empty
+              if (minimal.isNotEmpty) controller.add(minimal);
             } catch (e) {
               // Ignore minimal emit failures; continue with full rebuild
             }
@@ -588,8 +590,7 @@ class ManagerRealtimeService {
           },
           onError: (error) {
             developer.log('Error in team data stream: $error');
-            // Avoid propagating errors to UI stream; emit empty
-            controller.add(const <EmployeeData>[]);
+            controller.addError(error);
           },
         );
 
@@ -598,8 +599,7 @@ class ManagerRealtimeService {
         };
       } catch (e) {
         developer.log('Error setting up team data stream: $e');
-        // Emit empty on setup error
-        controller.add(const <EmployeeData>[]);
+        controller.addError(e);
       }
     });
   }
