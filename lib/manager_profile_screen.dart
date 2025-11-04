@@ -122,12 +122,18 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _departmentController.text = userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
-        _skills.addAll(userProfile.skills);
-        _developmentAreas.addAll(userProfile.developmentAreas);
+        _skills
+          ..clear()
+          ..addAll(userProfile.skills);
+        _developmentAreas
+          ..clear()
+          ..addAll(userProfile.developmentAreas);
         _careerAspirationsController.text = userProfile.careerAspirations;
         _currentProjectsController.text = userProfile.currentProjects;
         _selectedLearningStyle = userProfile.learningStyle.isNotEmpty ? userProfile.learningStyle : null;
-        _preferredDevActivities.addAll(userProfile.preferredDevActivities);
+        _preferredDevActivities
+          ..clear()
+          ..addAll(userProfile.preferredDevActivities);
         _shortGoalsController.text = userProfile.shortGoals;
         _longGoalsController.text = userProfile.longGoals;
         _notificationFrequency = userProfile.notificationFrequency;
@@ -305,6 +311,17 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
 
     try {
+      // Flush any pending tag input values so they are included even if Enter wasn't pressed
+      final pendingSkill = _skillsInputController.text.trim();
+      if (pendingSkill.isNotEmpty && !_skills.contains(pendingSkill)) {
+        _skills.add(pendingSkill);
+        _skillsInputController.clear();
+      }
+      final pendingDev = _developmentInputController.text.trim();
+      if (pendingDev.isNotEmpty && !_developmentAreas.contains(pendingDev)) {
+        _developmentAreas.add(pendingDev);
+        _developmentInputController.clear();
+      }
       // Fetch the existing user profile to preserve immutable fields
       final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
 

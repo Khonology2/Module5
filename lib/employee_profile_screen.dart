@@ -91,12 +91,18 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         _departmentController.text = userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
-        _skills.addAll(userProfile.skills);
-        _developmentAreas.addAll(userProfile.developmentAreas);
+        _skills
+          ..clear()
+          ..addAll(userProfile.skills);
+        _developmentAreas
+          ..clear()
+          ..addAll(userProfile.developmentAreas);
         _careerAspirationsController.text = userProfile.careerAspirations;
         _currentProjectsController.text = userProfile.currentProjects;
         _learningStyle = userProfile.learningStyle.isNotEmpty ? userProfile.learningStyle : null;
-        _preferredDevActivities.addAll(userProfile.preferredDevActivities);
+        _preferredDevActivities
+          ..clear()
+          ..addAll(userProfile.preferredDevActivities);
         _shortGoalsController.text = userProfile.shortGoals;
         _longGoalsController.text = userProfile.longGoals;
         _notificationFrequency = userProfile.notificationFrequency;
@@ -282,6 +288,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     TextInputType? keyboardType,
     bool readOnly = false,
     int maxLines = 1,
+    TextInputAction? textInputAction,
+    void Function(String)? onSubmitted,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -294,6 +302,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         readOnly: readOnly,
         keyboardType: keyboardType,
         maxLines: maxLines,
+        textInputAction: textInputAction,
+        onFieldSubmitted: onSubmitted,
         style: TextStyle(color: readOnly ? Colors.white54 : Colors.white), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
@@ -327,6 +337,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           controller: controller,
           hintText: hintText,
           keyboardType: TextInputType.text,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) {
+            final tag = value.trim();
+            if (tag.isEmpty) return;
+            if (!tagsList.contains(tag)) {
+              onTagAdded(tag);
+            }
+          },
         ),
         const SizedBox(height: 8),
         Container(

@@ -179,6 +179,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           }
         });
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send: $e')),
         );
@@ -484,6 +485,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         tx.update(docRef, {'reactions': cleaned});
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to react: $e')));
     }
   }
@@ -516,6 +518,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         'editedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to edit: $e')));
     }
   }
