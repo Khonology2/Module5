@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -239,8 +241,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     height: 72,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
-                      color: Colors.black.withOpacity(0.15),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2),
+                      color: Colors.black.withValues(alpha: 0.15),
                     ),
                     child: ClipOval(
                       child: ((_currentProfilePhotoUrl ?? '').isNotEmpty)

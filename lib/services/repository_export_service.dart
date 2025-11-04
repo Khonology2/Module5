@@ -1,9 +1,8 @@
 // ignore_for_file: unused_local_variable
 
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:pdh/models/repository_goal.dart';
@@ -129,14 +128,13 @@ class RepositoryExportService {
         ].join(','));
       }
 
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:text/csv;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
 
       developer.log('Manager verified CSV export downloaded: $fileName');
     } catch (e) {
@@ -170,20 +168,20 @@ class RepositoryExportService {
         buffer.writeln('  Goal ID: ${(m['goalId'] ?? '')}');
         buffer.writeln('  Completed: ${completed?.toIso8601String() ?? ''}');
         buffer.writeln('  Score: ${(m['score'] as num?)?.toStringAsFixed(1) ?? '-'}');
-        buffer.writeln('  Verified by: ${(m['acknowledgedBy'] ?? '-')}');
+        buffer.writeln('  Verified by: ${(m['acknowledgedBy'] ?? '-') }');
         final evidence = (m['evidence'] as List<dynamic>? ?? []);
         buffer.writeln('  Evidence count: ${evidence.length}');
         buffer.writeln('');
       }
 
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:application/pdf;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
+      // No revoke needed for data: URLs
 
       developer.log('Manager verified PDF export downloaded: $fileName');
     } catch (e) {
@@ -224,14 +222,14 @@ class RepositoryExportService {
       }
 
       // Direct download instead of Firebase Storage
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:text/csv;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
+      // No revoke needed for data: URLs
       
       developer.log('CSV export downloaded: $fileName');
     } catch (e) {
@@ -274,14 +272,14 @@ class RepositoryExportService {
       }
 
       // Direct download instead of Firebase Storage
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:text/csv;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
+      // No revoke needed for data: URLs
       
       developer.log('CSV export (all) downloaded: $fileName');
     } catch (e) {
@@ -316,14 +314,14 @@ class RepositoryExportService {
       }
 
       // Direct download instead of Firebase Storage
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:application/pdf;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
+      // No revoke needed for data: URLs
       
       developer.log('PDF export (all) downloaded: $fileName');
     } catch (e) {
@@ -356,14 +354,14 @@ class RepositoryExportService {
       }
 
       // Direct download instead of Firebase Storage
-      final bytes = utf8.encode(buffer.toString());
+      final content = buffer.toString();
       final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
+      final dataUrl = 'data:application/pdf;charset=utf-8,${Uri.encodeComponent(content)}';
+      final anchor = web.document.createElement('a') as web.HTMLAnchorElement;
+      anchor.href = dataUrl;
+      anchor.download = fileName;
+      anchor.click();
+      // No revoke needed for data: URLs
       
       developer.log('PDF export downloaded: $fileName');
     } catch (e) {

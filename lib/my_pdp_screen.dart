@@ -874,7 +874,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   ),
                                   style: hasAuditEntry
                                       ? OutlinedButton.styleFrom(
-                                          backgroundColor: Colors.orange.withOpacity(0.1),
+                                          backgroundColor: Colors.orange.withValues(alpha: 0.1),
                                           foregroundColor: Colors.orange,
                                           side: const BorderSide(color: Colors.orange),
                                         )
