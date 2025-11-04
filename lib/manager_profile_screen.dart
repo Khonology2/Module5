@@ -6,7 +6,7 @@ import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
-import 'dart:io'; // Import for File
+// import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
@@ -273,7 +273,31 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _removeProfilePhoto() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      _showAlertDialog('Error', 'You must be logged in to remove your photo.');
+      return;
+    }
+    try {
+      setState(() {
+        _profilePhotoUrl = '';
+      });
+      await user.updatePhotoURL(null);
+      await user.reload();
+      await _saveProfile(
+        showDialog: true,
+        successTitle: 'Photo Removed',
+        successMessage: 'Your profile photo has been removed.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showAlertDialog('Error', 'Failed to remove photo: ${e.toString()}');
+    }
+  }
+
+  Future<void> _saveProfile({bool showDialog = true, String? successTitle, String? successMessage}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       _showAlertDialog('Error', 'You must be logged in to save your profile.');
@@ -307,7 +331,12 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       );
 
       await DatabaseService.updateUserProfile(updatedProfile);
-      _showAlertDialog('Profile Saved', 'Your manager profile has been saved successfully!');
+      if (showDialog) {
+        _showAlertDialog(
+          successTitle ?? 'Profile Saved',
+          successMessage ?? 'Your manager profile has been saved successfully!',
+        );
+      }
     } catch (e) {
       _showAlertDialog('Error', 'Failed to save profile: ${e.toString()}');
     }
@@ -404,15 +433,25 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                               children: [
                                 const Text('Profile Photo', style: TextStyle(fontSize: 14, color: Colors.white70)),
                                 const SizedBox(height: 4.0),
-                                ElevatedButton(
-                                  onPressed: _pickAndUploadImage,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white10,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  child: const Text('Upload Photo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                Row(
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: _pickAndUploadImage,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white10,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      child: const Text('Upload Photo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if ((_profilePhotoUrl ?? '').isNotEmpty)
+                                      TextButton(
+                                        onPressed: _removeProfilePhoto,
+                                        child: const Text('Remove Photo'),
+                                      ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -888,8 +927,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
 
     try {
-      // Upload to Cloudinary instead of Firebase Storage
-      final fileBytes = await File(pickedFile.path).readAsBytes();
+      // Upload to Cloudinary instead of Firebase Storage (use XFile for web compatibility)
+      final fileBytes = await pickedFile.readAsBytes();
       final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
         bytes: fileBytes,
         fileName: 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
@@ -903,9 +942,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       await user.updatePhotoURL(cloudinaryUrl);
       await user.reload();
       await _saveProfile();
-
-      if (!mounted) return;
-      _showAlertDialog('Success', 'Profile photo uploaded successfully!');
     } catch (e) {
       if (!mounted) return;
       _showAlertDialog('Error', 'Failed to upload photo: ${e.toString()}');
