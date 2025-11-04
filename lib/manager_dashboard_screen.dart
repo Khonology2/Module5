@@ -5,6 +5,8 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
@@ -28,6 +30,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
   late final Stream<List<TeamInsight>> _insightsStream;
+  String? _currentProfilePhotoUrl;
 
   @override
   void initState() {
@@ -118,7 +121,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildWelcomeCard(),
+                  StreamBuilder<UserProfile?>(
+                    stream: _getManagerProfileStream(),
+                    builder: (context, profileSnap) {
+                      return _buildWelcomeCard();
+                    },
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildDailyMotivationCard(),
                   const SizedBox(height: AppSpacing.xl),
@@ -214,25 +222,49 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
 
   Widget _buildWelcomeCard() {
     final greeting = _getTimeBasedGreeting();
-    final name = _managerName;
     return _card(
       child: Row(
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: AppColors.activeColor,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.manage_accounts, color: Colors.white),
+          Builder(
+            builder: (context) {
+              // Determine name and photo URL with fallbacks
+              final authUser = FirebaseAuth.instance.currentUser;
+              final String name = (context.findAncestorStateOfType<_ManagerDashboardScreenState>()?.mounted ?? false)
+                  ? _managerName
+                  : _managerName;
+              return Row(
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+                      color: Colors.black.withOpacity(0.15),
+                    ),
+                    child: ClipOval(
+                      child: ((_currentProfilePhotoUrl ?? '').isNotEmpty)
+                          ? Image.network(
+                              _currentProfilePhotoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white, size: 36),
+                            )
+                          : const Icon(Icons.person, color: Colors.white, size: 36),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  // Name and greeting next to avatar
+                  // Expanded is added by parent
+                ],
+              );
+            },
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$greeting, $name!', style: AppTypography.heading4),
+                Text('$greeting, ${_resolveManagerName()}!', style: AppTypography.heading4),
                 const SizedBox(height: 5),
                 Text(
                   'Lead by example and help your team grow today.',
@@ -330,6 +362,36 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     ];
     final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
     return motivations[dayOfYear % motivations.length];
+  }
+
+  Stream<UserProfile?> _getManagerProfileStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(null);
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final profile = UserProfile.fromFirestore(doc);
+          _currentProfilePhotoUrl = (profile.profilePhotoUrl != null && profile.profilePhotoUrl!.isNotEmpty)
+              ? profile.profilePhotoUrl
+              : null;
+          return profile;
+        });
+  }
+
+  String _resolveManagerName() {
+    // Prefer the loaded manager name if available
+    if (_managerName.isNotEmpty && _managerName != 'Manager') {
+      return _managerName.split(' ').first;
+    }
+    final authUser = FirebaseAuth.instance.currentUser;
+    final display = (authUser?.displayName ?? '').trim();
+    if (display.isNotEmpty) return display.split(' ').first;
+    final email = (authUser?.email ?? '').trim();
+    if (email.isNotEmpty) return email.split('@').first;
+    return 'Manager';
   }
 
   TeamMetrics _computeTeamMetrics(List<EmployeeData> employees) {
