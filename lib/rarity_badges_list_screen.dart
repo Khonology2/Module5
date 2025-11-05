@@ -8,10 +8,12 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/services/role_service.dart';
 
 class RarityBadgesListScreen extends StatelessWidget {
   final badge_model.BadgeRarity rarity;
-  const RarityBadgesListScreen({super.key, required this.rarity});
+  final bool useManagerSidebar;
+  const RarityBadgesListScreen({super.key, required this.rarity, this.useManagerSidebar = false});
 
   String _titleForRarity(badge_model.BadgeRarity r) {
     switch (r) {
@@ -55,11 +57,27 @@ class RarityBadgesListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (useManagerSidebar) {
+      return _buildScaffold(context, true, user);
+    }
+    return StreamBuilder<String?>
+      (
+      stream: RoleService.instance.roleStream(),
+      initialData: useManagerSidebar ? 'manager' : RoleService.instance.cachedRole,
+      builder: (context, snap) {
+        final roleRaw = snap.data ?? (useManagerSidebar ? 'manager' : RoleService.instance.cachedRole) ?? '';
+        final isManager = (roleRaw as String).toLowerCase() == 'manager';
+        return _buildScaffold(context, isManager, user);
+      },
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, bool isManager, User? user) {
     return AppScaffold(
       title: _titleForRarity(rarity),
       showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/rarity_badges_list',
+      items: isManager ? SidebarConfig.getItemsForRole('manager') : SidebarConfig.employeeItems,
+      currentRouteName: isManager ? '/manager_badges_points' : '/badges_points',
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) Navigator.pushNamed(context, route);
@@ -139,7 +157,7 @@ class RarityBadgesListScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                   Expanded(
                     child: StreamBuilder<List<badge_model.Badge>>(
-                      stream: BadgeService.getUserBadgesStream(user.uid),
+                      stream: user == null ? const Stream.empty() : BadgeService.getUserBadgesStream(user.uid),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(
@@ -164,7 +182,7 @@ class RarityBadgesListScreen extends StatelessWidget {
                         }
                         return ListView.separated(
                           itemCount: filtered.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final badge = filtered[index];
                             final color = _colorForRarity(rarity);
@@ -199,9 +217,9 @@ class RarityBadgesListScreen extends StatelessWidget {
                                     ),
                                   ),
                                   if (badge.isEarned)
-                                    Icon(Icons.check_circle, color: AppColors.successColor)
+                                    const Icon(Icons.check_circle, color: AppColors.successColor)
                                   else
-                                    Icon(Icons.lock_outline, color: AppColors.textSecondary),
+                                    const Icon(Icons.lock_outline, color: AppColors.textSecondary),
                                 ],
                               ),
                             );

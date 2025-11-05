@@ -597,26 +597,31 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       }
     });
 
-    return AppScaffold(
-      title: 'Badges & Points',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/badges_points',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: FocusTraversalGroup(
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, snap) {
+        final role = (snap.data ?? RoleService.instance.cachedRole ?? 'employee').toLowerCase();
+        final isManager = role == 'manager';
+        return AppScaffold(
+          title: 'Badges & Points',
+          showAppBar: false,
+          embedded: widget.embedded,
+          items: isManager ? SidebarConfig.getItemsForRole('manager') : SidebarConfig.employeeItems,
+          currentRouteName: isManager ? '/manager_badges_points' : '/badges_points',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            final navigator = Navigator.of(context);
+            await AuthService().signOut();
+            if (mounted) {
+              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            }
+          },
+          content: FocusTraversalGroup(
         policy: WidgetOrderTraversalPolicy(),
         child: Container(
           width: double.infinity,
@@ -660,6 +665,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           ),
         ),
       ),
+        );
+      },
     );
   }
 
@@ -1088,7 +1095,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               ),
             );
           }
-          onTap();
+          _showRarityDialog(
+            title: title,
+            subtitle: subtitle,
+            rarity: rarity,
+            earned: earnedCount,
+            total: total,
+            badges: list,
+          );
         },
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1153,11 +1167,161 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   }
 
   void _openRarityList(badge_model.BadgeRarity rarity) {
+    final role = RoleService.instance.cachedRole;
+    final isManager = (role ?? '').toLowerCase() == 'manager';
+    final forceManagerSidebar = widget.embedded || isManager;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RarityBadgesListScreen(rarity: rarity),
+        builder: (_) => RarityBadgesListScreen(
+          rarity: rarity,
+          useManagerSidebar: forceManagerSidebar,
+        ),
       ),
+    );
+  }
+
+  void _showRarityDialog({
+    required String title,
+    required String subtitle,
+    required badge_model.BadgeRarity rarity,
+    required int earned,
+    required int total,
+    required List<badge_model.Badge> badges,
+  }) {
+    final Color accent = _getBadgeRarityColor(rarity);
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final progress = total == 0 ? 0.0 : (earned / total).clamp(0.0, 1.0);
+        return Dialog(
+          backgroundColor: const Color(0xFF1B2431),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(360.0, 800.0);
+              return SizedBox(
+                width: 520,
+                height: maxHeight,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: accent.withValues(alpha: 0.6)),
+                      ),
+                      child: Icon(Icons.workspace_premium, color: accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+                          const SizedBox(height: 2),
+                          Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Progress', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: Colors.white.withValues(alpha: 0.15),
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('$earned / $total badges', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                    Text('${(progress * 100).toStringAsFixed(0)}%', style: AppTypography.bodySmall.copyWith(color: accent, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Inline list of badges in this rarity
+                Text('Badges in this group', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: badges.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final b = badges[index];
+                      final earnedBadge = b.isEarned;
+                      final borderColor = earnedBadge ? accent : AppColors.borderColor;
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.elevatedBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor.withValues(alpha: earnedBadge ? 0.8 : 0.6), width: earnedBadge ? 2 : 1),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: accent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: accent.withValues(alpha: 0.6)),
+                              ),
+                              child: Icon(Icons.workspace_premium, color: accent),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(b.name, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 2),
+                                  Text(b.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                                ],
+                              ),
+                            ),
+                            earnedBadge
+                                ? const Icon(Icons.check_circle, color: AppColors.successColor)
+                                : const Icon(Icons.lock_outline, color: AppColors.textSecondary),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Close', style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
