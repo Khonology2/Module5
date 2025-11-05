@@ -131,6 +131,11 @@ class SidebarConfig {
       route: '/alerts_nudges',
     ),
     SidebarItem(
+      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Badges&Points_White.png'),
+      label: 'Badges & Points',
+      route: '/manager_badges_points',
+    ),
+    SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/LeaderBoard_White.png'),
       label: 'Leaderboard.',
       route: '/leaderboard',

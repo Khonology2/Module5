@@ -107,7 +107,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerInboxScreen(embedded: true);
       case '/alerts_nudges':
         return const AlertsNudgesScreen(embedded: true);
-      case '/badges_points':
+    case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
         return const LeaderboardScreen();
