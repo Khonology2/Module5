@@ -3,29 +3,66 @@
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 
-// The main entry point for the Flutter application.
-// void main() {
-//   runApp(const MyApp());
-// }
+// Typewriter effect widget
+class TypewriterText extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+  final Duration speed;
+  final TextAlign textAlign;
 
-// A StatelessWidget that sets up the MaterialApp.
-// class MyApp extends StatelessWidget {
-//   const MyApp({super.key});
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       title: 'Personal Development Hub',
-//       theme: ThemeData(
-//         brightness: Brightness.dark,
-//         primarySwatch: Colors.blue,
-//         fontFamily: 'Inter',
-//       ),
-//       home: const PersonalDevelopmentHubScreen(),
-//       debugShowCheckedModeBanner: false,
-//     );
-//   }
-// }
+  const TypewriterText({
+    super.key,
+    required this.text,
+    this.style,
+    this.speed = const Duration(milliseconds: 50),
+    this.textAlign = TextAlign.left,
+  });
+
+  @override
+  State<TypewriterText> createState() => _TypewriterTextState();
+}
+
+class _TypewriterTextState extends State<TypewriterText> {
+  String _displayText = '';
+  Timer? _timer;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTyping();
+  }
+
+  void _startTyping() {
+    _displayText = '';
+    _currentIndex = 0;
+    _timer = Timer.periodic(widget.speed, (timer) {
+      if (_currentIndex < widget.text.length) {
+        setState(() {
+          _displayText += widget.text[_currentIndex];
+          _currentIndex++;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _displayText,
+      textAlign: widget.textAlign,
+      style: widget.style,
+    );
+  }
+}
 
 // The main screen widget for the Personal Development Hub.
 class PersonalDevelopmentHubScreen extends StatefulWidget {
@@ -35,10 +72,13 @@ class PersonalDevelopmentHubScreen extends StatefulWidget {
   State<PersonalDevelopmentHubScreen> createState() => _PersonalDevelopmentHubScreenState();
 }
 
-class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> {
+class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> with SingleTickerProviderStateMixin {
   late List<String> inspirationalLines;
   int _currentLineIndex = 0;
   late Timer _timer;
+  late AnimationController _logoAnimationController;
+  late Animation<double> _logoSlideAnimation;
+  late Animation<double> _logoFadeAnimation;
 
   @override
   void initState() {
@@ -71,6 +111,33 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
       });
     });
 
+    // Initialize logo animation controller
+    _logoAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    // Create slide animation (from -100 to 0)
+    _logoSlideAnimation = Tween<double>(
+      begin: -100.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _logoAnimationController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    // Create fade animation (from 0 to 1)
+    _logoFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _logoAnimationController,
+      curve: Curves.easeIn,
+    ));
+
+    // Start logo animation
+    _logoAnimationController.forward();
+
     // Precache hero images after first frame to avoid jank on first paint
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final context = this.context;
@@ -95,6 +162,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
   @override
   void dispose() {
     _timer.cancel();
+    _logoAnimationController.dispose();
     super.dispose();
   }
 
@@ -121,27 +189,37 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo - Centered
-                  Center(
-                    child: Image.asset(
-                      'assets/khono.png',
-                      height: 160,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                    ),
+                  // Logo - Centered with slide-in animation
+                  AnimatedBuilder(
+                    animation: _logoAnimationController,
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(0, _logoSlideAnimation.value),
+                        child: Opacity(
+                          opacity: _logoFadeAnimation.value,
+                          child: Image.asset(
+                            'assets/khono.png',
+                            height: 160,
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.high,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
-                  // Tagline - Centered
-                  const Center(
-                    child: Text(
-                      'Your Growth Journey, Simplified',
+                  // Tagline - Centered with typewriter effect
+                  Center(
+                    child: TypewriterText(
+                      text: 'Your Growth Journey, Simplified',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFFC10D00),
                         fontFamily: 'Poppins',
                       ),
+                      speed: const Duration(milliseconds: 50),
                     ),
                   ),
                   const SizedBox(height: 12),
