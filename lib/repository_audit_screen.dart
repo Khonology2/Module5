@@ -1,0 +1,2010 @@
+// ignore_for_file: unused_import, unused_element
+
+import 'dart:developer' as developer;
+import 'dart:convert' as convert;
+import 'package:web/web.dart' as web;
+import 'package:flutter/material.dart';
+import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/audit_entry.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/repository_service.dart';
+import 'package:pdh/models/repository_goal.dart';
+import 'package:pdh/services/repository_export_service.dart';
+import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/services/timeline_service.dart';
+import 'package:pdh/models/audit_timeline_event.dart';
+import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/evidence_upload_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class RepositoryAuditScreen extends StatefulWidget {
+  const RepositoryAuditScreen({super.key});
+
+  @override
+  State<RepositoryAuditScreen> createState() => _RepositoryAuditScreenState();
+}
+
+class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String? _statusFilter;
+  String? _monthFilter; // YYYY-MM
+  double? _minScore;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure repository auto-sync is running to mirror verified audits
+    try {
+      RepositoryService.startAutoSync();
+    } catch (e) {
+      developer.log('Error starting auto-sync: $e');
+    }
+
+    // Backfill existing verified entries when screen loads
+    _backfillVerifiedEntries();
+
+    // Add a timeout to prevent infinite loading
+    Future.delayed(const Duration(seconds: 15), () {
+      if (mounted) {
+        setState(() {}); // Trigger rebuild to show error if still loading
+      }
+    });
+  }
+
+  Future<void> _backfillVerifiedEntries() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Check role from stream or user profile
+      final roleDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final role = (roleDoc.data() ?? const {})['role'] as String?;
+      
+      if (role == 'manager') {
+        // For managers: backfill all verified entries in their department
+        final department = (roleDoc.data() ?? const {})['department'] as String?;
+        if (department != null && department.isNotEmpty) {
+          await RepositoryService.backfillVerifiedEntriesForDepartment(department);
+        }
+      } else {
+        // For employees: backfill their own verified entries
+        await RepositoryService.backfillVerifiedEntriesForUser(user.uid);
+      }
+    } catch (e) {
+      developer.log('Error backfilling verified entries: $e', name: 'RepositoryAuditScreen');
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    try {
+      RepositoryService.stopAutoSync();
+    } catch (e) {
+      developer.log('Error stopping auto-sync: $e');
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Repository & Audit',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildSearchAndFilters(),
+              const SizedBox(height: 25),
+              _buildHeader(),
+              StreamBuilder<String?>(
+                stream: RoleService.instance.roleStream(),
+                builder: (context, roleSnapshot) {
+                  final isManager = roleSnapshot.data == 'manager';
+                  return Column(
+                    children: [
+                      _buildRoleSummaryBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      _buildAuditEntriesList(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildRepositorySection(isManager: isManager),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManagerVerifiedList(List<AuditEntry> entries) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: entries.length,
+      separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final e = entries[index];
+        final d = e.completedDate;
+        final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        return ListTile(
+          leading: const Icon(Icons.verified, color: Colors.green),
+          title: Text(e.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          subtitle: Text(
+            '$date • ${e.userDisplayName} • Score: ${e.score?.toStringAsFixed(1) ?? '-'}',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          trailing: Text('${e.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    return Column(
+      children: [
+        TextField(
+          controller: _searchController,
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value;
+            });
+          },
+          decoration: InputDecoration(
+            hintText: 'Search completed goals, audit logs...',
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
+            filled: true,
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(15.0)),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(15.0)),
+              borderSide: BorderSide(color: AppColors.activeColor),
+            ),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          ),
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 12),
+        // Use responsive layout with proper constraints
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWideScreen = constraints.maxWidth > 600;
+            
+            if (isWideScreen) {
+              // Wide screen: use Row with Expanded
+              return Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _statusFilter,
+                      decoration: InputDecoration(
+                        labelText: 'Filter by Status',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      dropdownColor: Colors.black.withValues(alpha: 0.9),
+                      style: TextStyle(color: AppColors.textPrimary),
+                      items: const [
+                        DropdownMenuItem(value: null, child: Text('All Statuses')),
+                        DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                        DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _statusFilter = value;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Month (YYYY-MM)',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      style: TextStyle(color: AppColors.textPrimary),
+                      onChanged: (v) => setState(() => _monthFilter = v.trim()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 120,
+                    child: TextFormField(
+                      decoration: InputDecoration(
+                        labelText: 'Min Score',
+                        labelStyle: TextStyle(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(color: AppColors.textPrimary),
+                      onChanged: (v) =>
+                          setState(() => _minScore = double.tryParse(v)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
+                        _statusFilter = null;
+                        _monthFilter = null;
+                        _minScore = null;
+                      });
+                    },
+                    icon: Icon(Icons.clear, color: AppColors.textMuted),
+                    tooltip: 'Clear filters',
+                  ),
+                ],
+              );
+            } else {
+              // Narrow screen: stack controls vertically
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _statusFilter,
+                    decoration: InputDecoration(
+                      labelText: 'Filter by Status',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    dropdownColor: Colors.black.withValues(alpha: 0.9),
+                    style: TextStyle(color: AppColors.textPrimary),
+                    items: const [
+                      DropdownMenuItem(value: null, child: Text('All Statuses')),
+                      DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                      DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _statusFilter = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Month (YYYY-MM)',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    style: TextStyle(color: AppColors.textPrimary),
+                    onChanged: (v) => setState(() => _monthFilter = v.trim()),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Min Score',
+                      labelStyle: TextStyle(color: AppColors.textMuted),
+                      filled: true,
+                      fillColor: Colors.black.withValues(alpha: 0.4),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.activeColor),
+                      ),
+                      isDense: true,
+                    ),
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: AppColors.textPrimary),
+                    onChanged: (v) => setState(() => _minScore = double.tryParse(v)),
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _statusFilter = null;
+                          _monthFilter = null;
+                          _minScore = null;
+                        });
+                      },
+                      icon: Icon(Icons.clear, color: AppColors.textMuted),
+                      tooltip: 'Clear filters',
+                    ),
+                  ),
+                ],
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            'Completed Goals Archive',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+            IconButton(
+              tooltip: 'Export',
+              onPressed: _showExportSheet,
+              icon: const Icon(Icons.ios_share),
+              color: AppColors.textPrimary,
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _getManagerDept() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return null;
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      return (doc.data() ?? const {})['department'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildRoleSummaryBar({required bool isManager}) {
+    // Use realtime streams for persistent and consistent counts
+    final emptyStats = <String, int>{
+      'total': 0,
+      'verified': 0,
+      'pending': 0,
+      'rejected': 0,
+    };
+
+    final stream = isManager
+        ? Stream.value(emptyStats).asyncExpand((_) {
+            return Stream.fromFuture(_getManagerDept()).asyncExpand((dept) {
+              if (dept == null || dept.isEmpty) {
+                return Stream.value(emptyStats);
+              }
+              // Create a realtime stream from audit entries for the department
+              return FirebaseFirestore.instance
+                  .collection('audit_entries')
+                  .where('userDepartment', isEqualTo: dept)
+                  .snapshots()
+                  .map((snapshot) {
+                final entries = <AuditEntry>[];
+                for (final doc in snapshot.docs) {
+                  try {
+                    entries.add(AuditEntry.fromFirestore(doc));
+                  } catch (e) {
+                    developer.log('Error parsing audit entry ${doc.id}: $e');
+                  }
+                }
+
+                return <String, int>{
+                  'total': entries.length,
+                  'verified': entries.where((e) => e.status == 'verified').length,
+                  'pending': entries.where((e) => e.status == 'pending').length,
+                  'rejected': entries.where((e) => e.status == 'rejected').length,
+                };
+              });
+            });
+          })
+        : Stream.value(emptyStats).asyncExpand((_) {
+            return AuditService.getEmployeeAuditEntriesStream().map((entries) {
+              return <String, int>{
+                'total': entries.length,
+                'verified': entries.where((e) => e.status == 'verified').length,
+                'pending': entries.where((e) => e.status == 'pending').length,
+                'rejected': entries.where((e) => e.status == 'rejected').length,
+              };
+            });
+          });
+
+    return StreamBuilder<Map<String, int>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
+        
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isManager ? Icons.manage_accounts : Icons.person,
+                    color: AppColors.textPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        'My Goals Progress',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildStatusChip('Verified', stats['verified'] ?? 0, AppColors.successColor),
+                  _buildStatusChip('Pending', stats['pending'] ?? 0, AppColors.warningColor),
+                    _buildStatusChip('Rejected', stats['rejected'] ?? 0, AppColors.dangerColor),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusChip(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$label $count',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditEntriesList({required bool isManager}) {
+    return StreamBuilder<List<AuditEntry>>(
+      stream: isManager
+          ? AuditService.getManagerAuditEntriesStream(
+              status: _statusFilter,
+              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            )
+          : AuditService.getEmployeeAuditEntriesStream(
+              status: _statusFilter,
+              searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+            ),
+      builder: (context, snapshot) {
+        // Show loading only if we're truly waiting AND haven't received any data yet
+        // This prevents infinite loading when stream hasn't emitted yet but will emit soon
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          // Only show loading for a short time, then assume empty
+          return FutureBuilder<bool>(
+            future: Future.delayed(const Duration(milliseconds: 500), () => true),
+            builder: (context, timeoutSnapshot) {
+              if (timeoutSnapshot.hasData && snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                // After timeout, show empty state instead of infinite loading
+                return _buildEmptyState();
+              }
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.activeColor),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading audit entries...',
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        }
+
+        if (snapshot.hasError) {
+          developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
+          return _buildErrorState(
+            'Failed to load audit entries. ${snapshot.error}',
+            onRetry: () {
+              setState(() {}); // Trigger rebuild
+            },
+          );
+        }
+
+        final entries = snapshot.data ?? [];
+
+        if (entries.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        return Column(
+          children: entries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.archive_outlined,
+            color: AppColors.textMuted,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No audit entries found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Complete some goals to see them here for audit',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error, {VoidCallback? onRetry}) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: AppColors.dangerColor,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Error Loading Data',
+            style: TextStyle(
+              color: AppColors.dangerColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error,
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuditEntryCard(AuditEntry entry, bool isManager) {
+    Color statusColor;
+    switch (entry.status) {
+      case 'verified':
+        statusColor = AppColors.successColor;
+        break;
+      case 'pending':
+        statusColor = AppColors.warningColor;
+        break;
+      case 'rejected':
+        statusColor = AppColors.dangerColor;
+        break;
+      default:
+        statusColor = AppColors.textMuted;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  entry.goalTitle,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor),
+                ),
+                child: Text(
+                  entry.status.toUpperCase(),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Completed: ${_formatDate(entry.completedDate)}',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              ),
+              if (isManager) ...[
+                const SizedBox(width: 16),
+                Text(
+                  'By: ${entry.userDisplayName}',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  entry.userDepartment,
+                  style: TextStyle(color: AppColors.activeColor, fontSize: 14),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Evidence & Documentation:',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...entry.evidence.map((evidence) => _buildEvidenceItem(evidence)),
+
+          if (isManager && entry.status == 'pending') ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showVerifyDialog(entry),
+                    icon: const Icon(Icons.verified, size: 16),
+                    label: const Text('Verify'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.successColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showRejectDialog(entry),
+                    icon: const Icon(Icons.comment, size: 16),
+                    label: const Text('Request Changes'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.dangerColor,
+                      side: BorderSide(color: AppColors.dangerColor),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          if (entry.acknowledgedBy != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.successColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+            Row(
+              children: [
+                      Icon(Icons.verified_user, color: AppColors.successColor, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                        'Verified by ${entry.acknowledgedBy}',
+                    style: TextStyle(
+                      color: AppColors.successColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (entry.score != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.warningColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Score: ${entry.score!.toStringAsFixed(1)}/10',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (entry.comments != null && entry.comments!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      'Manager Feedback:',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.comments!,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          if (entry.rejectionReason != null && entry.rejectionReason!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.dangerColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.dangerColor.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning, color: AppColors.dangerColor, size: 20),
+                      const SizedBox(width: 8),
+                  Text(
+                        'Changes Requested',
+                    style: TextStyle(
+                      color: AppColors.dangerColor,
+                          fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Reason: ${entry.rejectionReason}',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
+          Text(
+            'Timeline',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.elevatedBackground,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: StreamBuilder<List<AuditTimelineEvent>>(
+              stream: TimelineService.getTimelineStream(entry.id),
+              builder: (context, snapshot) {
+                final events = snapshot.data ?? const <AuditTimelineEvent>[];
+                if (events.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Text('No timeline events yet'),
+                  );
+                }
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: events.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final ev = events[index];
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(
+                        ev.eventType == 'submission'
+                            ? Icons.outbox
+                            : ev.eventType == 'verification'
+                                ? Icons.verified
+                                : Icons.edit_note,
+                        color: AppColors.textMuted,
+                      ),
+                      title: Text(
+                        ev.description,
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                      ),
+                      subtitle: Text(
+                        '${ev.actorName} • ${_formatDate(ev.timestamp)}',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _showVerifyDialog(AuditEntry entry) {
+    final scoreController = TextEditingController();
+    final commentsController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          'Verify Goal',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: scoreController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Score (1.0 - 5.0)',
+                labelStyle: TextStyle(color: AppColors.textMuted),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
+                ),
+              ),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: commentsController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Comments (optional)',
+                labelStyle: TextStyle(color: AppColors.textMuted),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
+                ),
+              ),
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              final score = double.tryParse(scoreController.text);
+              if (score != null && score >= 1.0 && score <= 5.0) {
+                try {
+                  await AuditService.verifyAuditEntry(
+                    entry.id,
+                    score,
+                    commentsController.text.isEmpty ? null : commentsController.text,
+                  );
+                  if (mounted) navigator.pop();
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error verifying entry: $e')),
+                    );
+                  }
+                }
+              } else {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid score between 1.0 and 5.0')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.successColor,
+            ),
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectDialog(AuditEntry entry) {
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          'Request Changes',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: TextField(
+          controller: reasonController,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Reason for changes',
+            labelStyle: TextStyle(color: AppColors.textMuted),
+            filled: true,
+            fillColor: Colors.black.withValues(alpha: 0.4),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.dangerColor),
+            ),
+          ),
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              if (reasonController.text.isNotEmpty) {
+                try {
+                  await AuditService.requestChanges(entry.id, reasonController.text);
+                  if (mounted) navigator.pop();
+                } catch (e) {
+                  if (mounted) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text('Error requesting changes: $e')),
+                    );
+                  }
+                }
+              } else {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('Please provide a reason for the changes')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.dangerColor,
+            ),
+            child: const Text('Request Changes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildRepositorySection({required bool isManager}) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.cloud_done_outlined, color: AppColors.textPrimary),
+            const SizedBox(width: 8),
+            Text(
+              'Repository Results',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: (isManager)
+              ? StreamBuilder<List<RepositoryGoal>>(
+                  // Use repository goals stream which shows all synced verified goals
+                  stream: Stream.value(<RepositoryGoal>[]).asyncExpand((_) {
+                    return Stream.fromFuture(
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
+                          .get(),
+                    ).asyncExpand((userDoc) {
+                      final department = (userDoc.data() ?? const {})['department'] as String?;
+                      if (department == null || department.isEmpty) {
+                        return Stream.value(<RepositoryGoal>[]);
+                      }
+                      return RepositoryService.getAllRepositoryGoalsStream(department: department);
+                    });
+                  }).map((goals) {
+                    // Apply filters
+                    Iterable<RepositoryGoal> filtered = goals;
+
+                    if (_searchQuery.isNotEmpty) {
+                      final q = _searchQuery.toLowerCase();
+                      filtered = filtered.where((g) =>
+                          g.goalTitle.toLowerCase().contains(q) ||
+                          g.evidence.any((e) => e.toLowerCase().contains(q)));
+                    }
+
+                    if (_monthFilter != null && _monthFilter!.isNotEmpty) {
+                      filtered = filtered.where((g) {
+                        final d = g.completedDate;
+                        if (d == null) return false;
+                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+                        return key == _monthFilter;
+                      });
+                    }
+
+                    if (_minScore != null) {
+                      filtered = filtered.where((g) => (g.score ?? 0) >= _minScore!);
+                    }
+
+                    return filtered.toList()
+                      ..sort((a, b) {
+                        final ad = a.verifiedDate ?? a.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                        final bd = b.verifiedDate ?? b.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                        return bd.compareTo(ad);
+                      });
+                  }),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text('Error loading repository: ${snapshot.error}',
+                            style: TextStyle(color: AppColors.dangerColor)),
+                      );
+                    }
+                    final goals = snapshot.data ?? const <RepositoryGoal>[];
+                    if (goals.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No verified entries found for your team. Previously acknowledged entries should appear here.'),
+                      );
+                    }
+                    return _buildRepositoryList(goals);
+                  },
+                )
+              : StreamBuilder<List<RepositoryGoal>>(
+                  stream: RepositoryService.queryRepositoryGoals(
+                    uid,
+                    search: _searchQuery,
+                    dateFilter: _monthFilter,
+                    minScore: _minScore,
+                  ),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          'Error loading repository: ${snapshot.error}',
+                          style: TextStyle(color: AppColors.dangerColor),
+                        ),
+                      );
+                    }
+                    final items = snapshot.data ?? const <RepositoryGoal>[];
+                    if (items.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Text('No repository items found. Complete and verify some goals to see them here.'),
+                      );
+                    }
+                    return _buildRepositoryList(items);
+                  },
+                ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRepositoryList(List<RepositoryGoal> items) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final g = items[index];
+        final date = g.completedDate ?? g.verifiedDate;
+        return ListTile(
+          leading: const Icon(Icons.check_circle_outline, color: Colors.green),
+          title: Text(g.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          subtitle: Text(
+            '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+          trailing: Text('${g.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+        );
+      },
+    );
+  }
+
+  // (Manager section removed per request; employee-focused for now)
+
+  void _showExportSheet() {
+    // Capture the parent ScaffoldMessenger before opening the sheet
+    final messenger = ScaffoldMessenger.of(context);
+    // ignore: unnecessary_null_comparison, unused_local_variable
+    final isManager = (RoleService.instance != null); // placeholder; use stream below
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.table_chart),
+                title: const Text('Export as CSV'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  try {
+                    final role = await RoleService.instance.getRole();
+                    if (role == 'manager') {
+                      await RepositoryExportService.exportManagerVerifiedAsCSV(
+                        search: _searchQuery.isEmpty ? null : _searchQuery,
+                        monthFilter: _monthFilter,
+                        minScore: _minScore,
+                      );
+                    } else {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid == null) return;
+                      await RepositoryExportService.exportRepositoryAsCSV(uid);
+                    }
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Export started (CSV)')),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf),
+                title: const Text('Export as PDF'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  try {
+                    final role = await RoleService.instance.getRole();
+                    if (role == 'manager') {
+                      await RepositoryExportService.exportManagerVerifiedAsPDF(
+                        search: _searchQuery.isEmpty ? null : _searchQuery,
+                        monthFilter: _monthFilter,
+                        minScore: _minScore,
+                      );
+                    } else {
+                      final uid = FirebaseAuth.instance.currentUser?.uid;
+                      if (uid == null) return;
+                      await RepositoryExportService.exportRepositoryAsPDF(uid);
+                    }
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Export started (PDF)')),
+                    );
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper widget to build individual evidence items.
+  Widget _buildEvidenceItem(String text) {
+    IconData icon;
+    if (text.toLowerCase().contains('report') ||
+        text.toLowerCase().contains('document') ||
+        text.toLowerCase().contains('files')) {
+      icon = Icons.description;
+    } else if (text.toLowerCase().contains('link') ||
+        text.toLowerCase().contains('repository')) {
+      icon = Icons.link;
+    } else {
+      icon = Icons.attachment;
+    }
+
+    final isUrl = text.startsWith('http://') || text.startsWith('https://');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: InkWell(
+        onTap: () => _openEvidence(text),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.elevatedBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.borderColor),
+          ),
+      child: Row(
+        children: [
+              Icon(icon, color: AppColors.activeColor, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                    color: isUrl ? AppColors.activeColor : AppColors.textSecondary,
+                fontSize: 14,
+                    decoration: isUrl ? TextDecoration.underline : null,
+              ),
+            ),
+          ),
+              Icon(
+                Icons.open_in_new,
+                color: AppColors.textMuted,
+                size: 16,
+          ),
+        ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  void _openEvidence(String evidence) {
+    final isUrl = evidence.startsWith('http://') || evidence.startsWith('https://');
+    
+    if (isUrl) {
+      // For URLs, show a dialog with option to open externally
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Evidence Link',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This evidence is a web link:',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              SelectableText(
+                evidence,
+                style: TextStyle(
+                  color: AppColors.activeColor,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'To view this evidence, copy the link and open it in your browser.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Copy to clipboard functionality could be added here
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Link copied to clipboard')),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+              ),
+              child: const Text('Copy Link'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // For text evidence, show in a dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Evidence Details',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              evidence,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  
+
+  void _showGoalSubmissionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          'Submit Goal for Audit',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Select a completed goal to submit for manager review:',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            FutureBuilder<List<Goal>>(
+              future: _getCompletedGoals(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.activeColor),
+                  );
+                }
+                
+                if (snapshot.hasError) {
+                  return Text(
+                    'Error loading goals: ${snapshot.error}',
+                    style: TextStyle(color: AppColors.dangerColor),
+                  );
+                }
+                
+                final goals = snapshot.data ?? [];
+                if (goals.isEmpty) {
+                  return Text(
+                    'No completed goals found. Complete some goals first.',
+                    style: TextStyle(color: AppColors.textMuted),
+                  );
+                }
+                
+                return SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: goals.length,
+                    itemBuilder: (context, index) {
+                      final goal = goals[index];
+                      return ListTile(
+                        title: Text(
+                          goal.title,
+                          style: TextStyle(color: AppColors.textPrimary),
+                        ),
+                        subtitle: Text(
+                          goal.description,
+                          style: TextStyle(color: AppColors.textSecondary),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: ElevatedButton(
+                          onPressed: () => _showEvidenceAttachmentDialog(goal),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.activeColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Submit'),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<List<Goal>> _getCompletedGoals() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return [];
+      
+      final snapshot = await FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'completed')
+          .get();
+      
+      return snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+    } catch (e) {
+      developer.log('Error loading completed goals: $e');
+      return [];
+    }
+  }
+
+  void _showEvidenceAttachmentDialog(Goal goal) {
+    final evidenceController = TextEditingController();
+    final evidenceList = <String>[];
+    final uploadedFiles = <EvidenceFile>[];
+    bool isUploading = false;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Attach Evidence for: ${goal.title}',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Add evidence to support your goal completion:',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                
+                // Text evidence input
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: evidenceController,
+                        decoration: InputDecoration(
+                          hintText: 'Enter evidence (URL, description, etc.)',
+                          hintStyle: TextStyle(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: AppColors.elevatedBackground,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        style: TextStyle(color: AppColors.textPrimary),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        if (evidenceController.text.trim().isNotEmpty) {
+                          setState(() {
+                            evidenceList.add(evidenceController.text.trim());
+                            evidenceController.clear();
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.add),
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // File upload button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isUploading
+                        ? null
+                        : () async {
+                            setState(() => isUploading = true);
+                            try {
+                              final files = await _uploadFiles(goal.id);
+                              setState(() {
+                                uploadedFiles.addAll(files);
+                                isUploading = false;
+                              });
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${files.length} file(s) uploaded successfully'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setState(() => isUploading = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error uploading files: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: isUploading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file),
+                    label: Text(isUploading ? 'Uploading...' : 'Upload Files'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.warningColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                
+                // Display uploaded files
+                if (uploadedFiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Uploaded Files:',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.elevatedBackground,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: ListView.builder(
+                      itemCount: uploadedFiles.length,
+                      itemBuilder: (context, index) {
+                        final file = uploadedFiles[index];
+                        return ListTile(
+                          leading: Icon(
+                            _getFileIcon(file.fileType),
+                            color: AppColors.activeColor,
+                          ),
+                          title: Text(
+                            file.fileName,
+                            style: TextStyle(color: AppColors.textPrimary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${(file.fileSize / 1024).toStringAsFixed(1)} KB',
+                            style: TextStyle(color: AppColors.textMuted),
+                          ),
+                          trailing: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                uploadedFiles.removeAt(index);
+                              });
+                            },
+                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                
+                // Display text evidence
+                if (evidenceList.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Text Evidence:',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: AppColors.elevatedBackground,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: ListView.builder(
+                      itemCount: evidenceList.length,
+                      itemBuilder: (context, index) {
+                        final evidence = evidenceList[index];
+                        return ListTile(
+                          leading: const Icon(Icons.text_fields, color: AppColors.activeColor),
+                          title: Text(
+                            evidence,
+                            style: TextStyle(color: AppColors.textPrimary),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                evidenceList.removeAt(index);
+                              });
+                            },
+                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: (evidenceList.isEmpty && uploadedFiles.isEmpty)
+                  ? null
+                  : () => _submitGoalForAuditWithFiles(goal, evidenceList, uploadedFiles),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Submit for Audit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<List<EvidenceFile>> _uploadFiles(String goalId) async {
+    final files = await EvidenceUploadService.pickAndUploadFiles(goalId: goalId);
+    return files;
+  }
+
+  IconData _getFileIcon(String fileType) {
+    switch (fileType.toLowerCase()) {
+      case '.pdf':
+        return Icons.picture_as_pdf;
+      case '.doc':
+      case '.docx':
+        return Icons.description;
+      case '.xls':
+      case '.xlsx':
+        return Icons.table_chart;
+      case '.ppt':
+      case '.pptx':
+        return Icons.slideshow;
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.gif':
+        return Icons.image;
+      case '.txt':
+        return Icons.text_snippet;
+      case '.zip':
+        return Icons.archive;
+      default:
+        return Icons.attach_file;
+    }
+  }
+
+  
+
+  Future<void> _submitGoalForAuditWithFiles(Goal goal, List<String> textEvidence, List<EvidenceFile> uploadedFiles) async {
+    try {
+      // Combine text evidence with file URLs
+      final allEvidence = <String>[];
+      allEvidence.addAll(textEvidence);
+      allEvidence.addAll(uploadedFiles.map((file) => file.url));
+      
+      // Submit goal for audit
+      await AuditService.submitGoalForAudit(goal, allEvidence);
+      
+      // Update uploaded files with audit entry ID (we'll need to get this from the audit service)
+      // For now, we'll just submit the goal and the files will be linked by goal ID
+      
+      if (mounted) {
+        Navigator.pop(context); // Close evidence dialog
+        Navigator.pop(context); // Close goal selection dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Goal submitted for audit with ${uploadedFiles.length} file(s) and ${textEvidence.length} text evidence!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      developer.log('Error submitting goal for audit with files: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting goal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'verified':
+        return AppColors.successColor;
+      case 'pending':
+        return AppColors.warningColor;
+      case 'rejected':
+        return AppColors.dangerColor;
+      default:
+        return AppColors.textMuted;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'verified':
+        return Icons.check_circle;
+      case 'pending':
+        return Icons.schedule;
+      case 'rejected':
+        return Icons.cancel;
+      default:
+        return Icons.help;
+    }
+  }
+}
