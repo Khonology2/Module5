@@ -143,12 +143,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        // First, retroactively award badges and update level based on existing accomplishments
-        await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(user.uid);
-
-        // Then ensure badge progress is up to date for this user
-        await BadgeService.checkAndAwardBadges(user.uid);
-
+        // Load profile data first for immediate display
         final profile = await DatabaseService.getUserProfile(user.uid);
         final leaderboardData = await BadgeService.getLeaderboard();
         final rank = await BadgeService.getUserRank(user.uid);
@@ -176,9 +171,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           }
         }
 
-        // Check for newly earned badges
-        await _checkForNewBadges(user.uid);
-
+        // Update UI immediately with profile data
         if (mounted) {
           setState(() {
             userProfile = profile;
@@ -190,6 +183,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             _previousPoints = profile.totalPoints;
           });
         }
+
+        // Run badge checks in background (non-blocking)
+        // This ensures UI is displayed immediately while badges are updated
+        _updateBadgesInBackground(user.uid);
       } catch (e) {
         developer.log('Error loading data: $e', name: 'BadgesPointsScreen');
         // Set safe default values on error
@@ -203,6 +200,51 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           });
         }
       }
+    }
+  }
+
+  // Run badge updates in the background without blocking UI
+  Future<void> _updateBadgesInBackground(String userId) async {
+    try {
+      // Run badge checks sequentially (retroactive first, then current checks)
+      // These operations can be slow, so we run them in background after UI loads
+      await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
+      await BadgeService.checkAndAwardBadges(userId);
+
+      // Check for newly earned badges after updates
+      await _checkForNewBadges(userId);
+
+      // Reload profile and rank to get updated values if they changed
+      if (mounted) {
+        final updatedProfile = await DatabaseService.getUserProfile(userId);
+        final updatedRank = await BadgeService.getUserRank(userId);
+        if (mounted) {
+          setState(() {
+            // Update profile if values changed
+            final levelChanged = updatedProfile.level != userProfile?.level;
+            final pointsChanged = updatedProfile.totalPoints != userProfile?.totalPoints;
+            final rankChanged = updatedRank != userRank;
+            
+            if (levelChanged || pointsChanged || rankChanged) {
+              userProfile = updatedProfile;
+              if (rankChanged) {
+                userRank = updatedRank > 0 ? updatedRank : 1;
+              }
+              
+              // Check for level up after badge updates
+              if (levelChanged && updatedProfile.level > _previousLevel) {
+                _previousLevel = updatedProfile.level;
+                _showLevelUpAnimation();
+              }
+              _previousLevel = updatedProfile.level;
+              _previousPoints = updatedProfile.totalPoints;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      developer.log('Error updating badges in background: $e', name: 'BadgesPointsScreen');
+      // Silently fail - UI is already displayed with initial data
     }
   }
 

@@ -26,6 +26,7 @@ import 'package:pdh/manager_inbox_screen.dart';
 import 'package:pdh/manager_badges_points_screen.dart';
 import 'package:pdh/employee_profile_detail_screen.dart';
 import 'package:pdh/employee_profile_screen.dart';
+import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
@@ -178,6 +179,10 @@ class _MyAppState extends State<MyApp> {
                   currentRouteName: '/my_profile',
                   body: const EmployeeProfileScreen(embedded: true),
                 ),
+              ),
+              '/manager_profile': (context) => RoleGate(
+                requiredRole: RequiredRole.manager,
+                child: const ManagerProfileScreen(),
               ),
               '/progress_visuals': (context) => MainLayout(
                 title: 'Progress Visuals',
@@ -427,6 +432,7 @@ class _ChatbotButtonState extends State<ChatbotButton> {
       '/dashboard',
       '/my_pdp',
       '/my_profile',
+      '/manager_profile',
       '/my_goal_workspace',
       '/progress_visuals',
       '/alerts_nudges',
@@ -482,6 +488,7 @@ class _TeamChatButtonState extends State<TeamChatButton> {
       '/dashboard',
       '/my_pdp',
       '/my_profile',
+      '/manager_profile',
       '/my_goal_workspace',
       '/progress_visuals',
       '/alerts_nudges',

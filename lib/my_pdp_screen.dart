@@ -515,22 +515,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back to portal button
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pushReplacementNamed('/employee_dashboard');
-                  },
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  label: const Text(
-                    'Back to Portal',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
               Text(
                 'My Personal Development Plan',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
