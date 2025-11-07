@@ -57,11 +57,205 @@ class _TypewriterTextState extends State<TypewriterText> {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      _displayText,
-      textAlign: widget.textAlign,
-      style: widget.style,
+    return Text(_displayText, textAlign: widget.textAlign, style: widget.style);
+  }
+}
+
+// Animated Button with Hover Scale and Shimmer Effect
+class AnimatedGetStartedButton extends StatefulWidget {
+  final VoidCallback onPressed;
+  final String text;
+
+  const AnimatedGetStartedButton({
+    super.key,
+    required this.onPressed,
+    required this.text,
+  });
+
+  @override
+  State<AnimatedGetStartedButton> createState() =>
+      _AnimatedGetStartedButtonState();
+}
+
+class _AnimatedGetStartedButtonState extends State<AnimatedGetStartedButton>
+    with TickerProviderStateMixin {
+  late AnimationController _shimmerController;
+  late AnimationController _scaleController;
+  late Animation<double> _shimmerAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Shimmer animation controller
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
     );
+    _shimmerAnimation = Tween<double>(begin: -2.0, end: 2.0).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.linear),
+    );
+    _shimmerController.repeat();
+
+    // Scale animation controller
+    _scaleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(CurvedAnimation(parent: _scaleController, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _shimmerController.dispose();
+    _scaleController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    _scaleController.forward();
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    _scaleController.reverse();
+    widget.onPressed();
+  }
+
+  void _handleTapCancel() {
+    _scaleController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (event) {
+        _scaleController.forward();
+      },
+      onExit: (event) {
+        _scaleController.reverse();
+      },
+      child: GestureDetector(
+        onTapDown: _handleTapDown,
+        onTapUp: _handleTapUp,
+        onTapCancel: _handleTapCancel,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_shimmerController, _scaleController]),
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: Container(
+                decoration: ShapeDecoration(
+                  shape: const StadiumBorder(),
+                  color: const Color(0xFFC10D00),
+                  shadows: [
+                    BoxShadow(
+                      color: const Color(0xFFC10D00).withOpacity(0.4),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Shimmer effect
+                    Positioned.fill(
+                      child: ClipPath(
+                        clipper: StadiumClipper(),
+                        child: CustomPaint(
+                          painter: ShimmerPainter(
+                            shimmerPosition: _shimmerAnimation.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Button content
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 15,
+                      ),
+                      child: Center(
+                        child: Text(
+                          widget.text,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontFamily: 'Poppins',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// Clipper for StadiumBorder shape
+class StadiumClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    final radius = size.height / 2;
+    path.addRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Radius.circular(radius),
+      ),
+    );
+    return path;
+  }
+
+  @override
+  bool shouldReclip(StadiumClipper oldClipper) => false;
+}
+
+// Shimmer painter for the button
+class ShimmerPainter extends CustomPainter {
+  final double shimmerPosition;
+
+  ShimmerPainter({required this.shimmerPosition});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
+    // Create shimmer gradient
+    final gradient = LinearGradient(
+      begin: Alignment(-1.0 + shimmerPosition, 0),
+      end: Alignment(1.0 + shimmerPosition, 0),
+      colors: [
+        Colors.transparent,
+        Colors.white.withOpacity(0.3),
+        Colors.white.withOpacity(0.5),
+        Colors.white.withOpacity(0.3),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+    );
+
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..blendMode = BlendMode.overlay;
+
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(ShimmerPainter oldDelegate) {
+    return oldDelegate.shimmerPosition != shimmerPosition;
   }
 }
 
@@ -74,7 +268,7 @@ class RotatingGradientPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    
+
     // Create rotating gradient
     final gradient = SweepGradient(
       center: Alignment.center,
@@ -108,24 +302,27 @@ class PersonalDevelopmentHubScreen extends StatefulWidget {
   const PersonalDevelopmentHubScreen({super.key});
 
   @override
-  State<PersonalDevelopmentHubScreen> createState() => _PersonalDevelopmentHubScreenState();
+  State<PersonalDevelopmentHubScreen> createState() =>
+      _PersonalDevelopmentHubScreenState();
 }
 
-class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> with TickerProviderStateMixin {
+class _PersonalDevelopmentHubScreenState
+    extends State<PersonalDevelopmentHubScreen>
+    with TickerProviderStateMixin {
   late List<String> inspirationalLines;
   int _currentLineIndex = 0;
   late Timer _timer;
   late AnimationController _logoAnimationController;
   late Animation<double> _logoSlideAnimation;
   late Animation<double> _logoFadeAnimation;
-  
+
   // Background animation controllers
   late AnimationController _kenBurnsController;
   late AnimationController _gradientController;
   late AnimationController _parallaxController;
   late AnimationController _glowController;
   late AnimationController _particleController;
-  
+
   // Background animations
   late Animation<double> _kenBurnsScale;
   late Animation<Offset> _kenBurnsOffset;
@@ -171,22 +368,17 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
     );
 
     // Create slide animation (from -100 to 0)
-    _logoSlideAnimation = Tween<double>(
-      begin: -100.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _logoAnimationController,
-      curve: Curves.easeOutCubic,
-    ));
+    _logoSlideAnimation = Tween<double>(begin: -100.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _logoAnimationController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
 
     // Create fade animation (from 0 to 1)
-    _logoFadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _logoAnimationController,
-      curve: Curves.easeIn,
-    ));
+    _logoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoAnimationController, curve: Curves.easeIn),
+    );
 
     // Start logo animation
     _logoAnimationController.forward();
@@ -201,20 +393,32 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
       CurvedAnimation(parent: _kenBurnsController, curve: Curves.easeInOut),
     );
     // Reduced offset movement significantly to prevent white edges
-    _kenBurnsOffset = TweenSequence<Offset>([
-      TweenSequenceItem(
-        tween: Tween<Offset>(begin: Offset.zero, end: const Offset(0.015, 0.01)),
-        weight: 1,
-      ),
-      TweenSequenceItem(
-        tween: Tween<Offset>(begin: const Offset(0.015, 0.01), end: const Offset(-0.01, 0.015)),
-        weight: 1,
-      ),
-      TweenSequenceItem(
-        tween: Tween<Offset>(begin: const Offset(-0.01, 0.015), end: Offset.zero),
-        weight: 1,
-      ),
-    ]).animate(CurvedAnimation(parent: _kenBurnsController, curve: Curves.easeInOut));
+    _kenBurnsOffset =
+        TweenSequence<Offset>([
+          TweenSequenceItem(
+            tween: Tween<Offset>(
+              begin: Offset.zero,
+              end: const Offset(0.015, 0.01),
+            ),
+            weight: 1,
+          ),
+          TweenSequenceItem(
+            tween: Tween<Offset>(
+              begin: const Offset(0.015, 0.01),
+              end: const Offset(-0.01, 0.015),
+            ),
+            weight: 1,
+          ),
+          TweenSequenceItem(
+            tween: Tween<Offset>(
+              begin: const Offset(-0.01, 0.015),
+              end: Offset.zero,
+            ),
+            weight: 1,
+          ),
+        ]).animate(
+          CurvedAnimation(parent: _kenBurnsController, curve: Curves.easeInOut),
+        );
     _kenBurnsController.repeat(reverse: true);
 
     // Initialize Animated Gradient Overlay (rotating gradient)
@@ -290,7 +494,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    
+
     return Scaffold(
       body: Stack(
         children: [
@@ -308,11 +512,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                 return Stack(
                   children: [
                     // Dark background to prevent white edges
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black,
-                      ),
-                    ),
+                    Positioned.fill(child: Container(color: Colors.black)),
                     // 1. Ken Burns Effect - Slow zoom and pan (clipped to prevent white edges)
                     Positioned.fill(
                       child: ClipRect(
@@ -336,7 +536,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         ),
                       ),
                     ),
-                    
+
                     // 2. Animated Gradient Overlay - Rotating gradient
                     Positioned.fill(
                       child: CustomPaint(
@@ -345,13 +545,14 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         ),
                       ),
                     ),
-                    
+
                     // 3. Parallax Floating Effect
                     Positioned.fill(
                       child: Transform.translate(
                         offset: Offset(
                           0,
-                          math.sin(_parallaxController.value * 2 * math.pi) * _parallaxOffset.value,
+                          math.sin(_parallaxController.value * 2 * math.pi) *
+                              _parallaxOffset.value,
                         ),
                         child: Container(
                           decoration: BoxDecoration(
@@ -367,7 +568,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         ),
                       ),
                     ),
-                    
+
                     // 4. Pulsing Glow Effect
                     Positioned.fill(
                       child: Container(
@@ -376,22 +577,26 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                             center: Alignment.center,
                             radius: 1.2,
                             colors: [
-                              const Color(0xFFC10D00).withOpacity(_glowOpacity.value * 0.3),
+                              const Color(
+                                0xFFC10D00,
+                              ).withOpacity(_glowOpacity.value * 0.3),
                               Colors.transparent,
                             ],
                           ),
                         ),
                       ),
                     ),
-                    
+
                     // 5. Particle Effects - Floating particles
                     ...List.generate(20, (index) {
-                      final progress = (_particleController.value + (index / 20)) % 1.0;
+                      final progress =
+                          (_particleController.value + (index / 20)) % 1.0;
                       final x = (index * 37.5) % screenSize.width;
                       final y = screenSize.height * (1 - progress);
                       final opacity = math.sin(progress * math.pi);
-                      final size = 2.0 + (math.sin(progress * 2 * math.pi) * 1.5);
-                      
+                      final size =
+                          2.0 + (math.sin(progress * 2 * math.pi) * 1.5);
+
                       return Positioned(
                         left: x,
                         top: y,
@@ -415,7 +620,7 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         ),
                       );
                     }),
-                    
+
                     // Dark overlay on top
                     Positioned.fill(
                       child: ColorFiltered(
@@ -486,25 +691,13 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                     ),
                   ),
                   const SizedBox(height: 24),
-                  // Button - Centered
+                  // Button - Centered with Hover Scale and Shimmer Effects
                   Center(
-                    child: ElevatedButton(
+                    child: AnimatedGetStartedButton(
                       onPressed: () {
                         Navigator.pushNamed(context, '/sign_in');
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFC10D00), // Use the new red color
-                        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                        shape: const StadiumBorder(), // Changed to StadiumBorder
-                      ),
-                      child: const Text(
-                        'GET STARTED',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      text: 'GET STARTED',
                     ),
                   ),
                 ],
