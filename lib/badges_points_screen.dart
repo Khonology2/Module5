@@ -1261,10 +1261,17 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                 Expanded(
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: badges.length,
+                    itemCount: (() {
+                      return badges.length;
+                    })(),
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
-                      final b = badges[index];
+                      final sorted = [...badges]
+                        ..sort((a, b) {
+                          if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1; // earned first
+                          return a.name.compareTo(b.name);
+                        });
+                      final b = sorted[index];
                       final earnedBadge = b.isEarned;
                       final borderColor = earnedBadge ? accent : AppColors.borderColor;
                       return Container(
