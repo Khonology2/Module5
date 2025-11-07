@@ -48,6 +48,12 @@ class AuditService {
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final userData = userDoc.data() ?? {};
 
+      // Validate department before allowing submission (backend safety check)
+      final department = (userData['department'] as String?)?.trim() ?? '';
+      if (department.isEmpty || department.toLowerCase() == 'unknown') {
+        throw Exception('Department information is required. Please update your profile before submitting.');
+      }
+
       final auditEntry = AuditEntry(
         id: '', // Will be set by Firestore
         userId: user.uid,
@@ -58,7 +64,7 @@ class AuditService {
         status: 'pending',
         evidence: evidence,
         userDisplayName: userData['displayName'] ?? user.displayName ?? 'Unknown User',
-        userDepartment: userData['department'] ?? 'Unknown',
+        userDepartment: department, // Use validated department
       );
 
       final ref = await _firestore.collection('audit_entries').add(auditEntry.toFirestore());
@@ -86,6 +92,7 @@ class AuditService {
   }) {
     final user = _auth.currentUser;
     if (user == null) {
+      developer.log('Manager audit entries: No current user', name: 'AuditService');
       return Stream.value(<AuditEntry>[]);
     }
 
@@ -96,7 +103,16 @@ class AuditService {
         final userDoc = await _firestore.collection('users').doc(user.uid).get();
         final managerDept = (userDoc.data() ?? const {})['department'] as String?;
         
+        developer.log(
+          'Manager audit entries: Manager department = "$managerDept", Status filter = "$status"',
+          name: 'AuditService',
+        );
+        
         if (managerDept == null || managerDept.isEmpty) {
+          developer.log(
+            'Manager audit entries: Manager department is missing or empty. Cannot fetch entries.',
+            name: 'AuditService',
+          );
           yield <AuditEntry>[];
           return;
         }
@@ -110,17 +126,29 @@ class AuditService {
           query = query.where('status', isEqualTo: status);
         }
 
+        // Note: This query requires a Firestore composite index if filtering by status
+        // Index: audit_entries: userDepartment (ASC), status (ASC), submittedDate (DESC)
         query = query.orderBy('submittedDate', descending: true).limit(100);
 
         // Emit empty list immediately, then switch to Firestore realtime stream
         yield* query.snapshots().map((snapshot) {
           try {
+            developer.log(
+              'Manager audit entries: Found ${snapshot.docs.length} entries for department "$managerDept"',
+              name: 'AuditService',
+            );
+            
             List<AuditEntry> entries = snapshot.docs
                 .map((doc) {
                   try {
-                    return AuditEntry.fromFirestore(doc);
+                    final entry = AuditEntry.fromFirestore(doc);
+                    developer.log(
+                      'Manager audit entries: Entry ${doc.id} - User: ${entry.userDisplayName}, Dept: ${entry.userDepartment}, Status: ${entry.status}',
+                      name: 'AuditService',
+                    );
+                    return entry;
                   } catch (e) {
-                    developer.log('Error parsing audit entry ${doc.id}: $e');
+                    developer.log('Error parsing audit entry ${doc.id}: $e', name: 'AuditService');
                     return null;
                   }
                 })
@@ -141,16 +169,37 @@ class AuditService {
 
             return entries;
           } catch (e) {
-            developer.log('Error processing manager audit entries: $e');
+            developer.log('Error processing manager audit entries: $e', name: 'AuditService');
+            // Check if it's an index error
+            if (e.toString().contains('index') || e.toString().contains('composite')) {
+              developer.log(
+                'Manager audit entries: Firestore composite index may be missing. '
+                'Required index: audit_entries collection, fields: userDepartment (ASC), status (ASC), submittedDate (DESC)',
+                name: 'AuditService',
+              );
+            }
             return <AuditEntry>[];
           }
         }).handleError((error, stackTrace) {
-          developer.log('Manager audit entries stream error: $error', error: error, stackTrace: stackTrace);
+          developer.log(
+            'Manager audit entries stream error: $error',
+            name: 'AuditService',
+            error: error,
+            stackTrace: stackTrace,
+          );
+          // Check if it's an index error
+          if (error.toString().contains('index') || error.toString().contains('composite')) {
+            developer.log(
+              'Manager audit entries: Firestore composite index may be missing. '
+              'Check Firebase Console -> Firestore -> Indexes and create the required composite index.',
+              name: 'AuditService',
+            );
+          }
           return <AuditEntry>[];
         });
       });
     } catch (e) {
-      developer.log('Error building manager audit entries stream: $e');
+      developer.log('Error building manager audit entries stream: $e', name: 'AuditService');
       return Stream.value(<AuditEntry>[]);
     }
   }
@@ -337,27 +386,49 @@ class AuditService {
     String? searchQuery,
   }) {
     final user = _auth.currentUser;
-    if (user == null) return Stream.value([]);
+    if (user == null) {
+      developer.log('Employee audit entries: No current user', name: 'AuditService');
+      return Stream.value(<AuditEntry>[]);
+    }
 
     try {
       Query query = _firestore
           .collection('audit_entries')
           .where('userId', isEqualTo: user.uid);
 
+      // Build query - if status filter is provided, use it; otherwise get all statuses
       if (status != null && status.isNotEmpty) {
+        // Note: This requires a composite index: audit_entries: userId (ASC), status (ASC), submittedDate (DESC)
         query = query.where('status', isEqualTo: status);
+        query = query.orderBy('submittedDate', descending: true).limit(100);
+      } else {
+        // No status filter - just order by submittedDate
+        query = query.orderBy('submittedDate', descending: true).limit(100);
       }
 
-      query = query.orderBy('submittedDate', descending: true).limit(100);
+      developer.log(
+        'Employee audit entries: Querying for userId=${user.uid}, status=$status',
+        name: 'AuditService',
+      );
 
       return query.snapshots().map((snapshot) {
         try {
+          developer.log(
+            'Employee audit entries: Received ${snapshot.docs.length} documents',
+            name: 'AuditService',
+          );
+          
           List<AuditEntry> entries = snapshot.docs
               .map((doc) {
                 try {
-                  return AuditEntry.fromFirestore(doc);
+                  final entry = AuditEntry.fromFirestore(doc);
+                  developer.log(
+                    'Employee audit entries: Entry ${doc.id} - Status: ${entry.status}, Goal: ${entry.goalTitle}',
+                    name: 'AuditService',
+                  );
+                  return entry;
                 } catch (e) {
-                  developer.log('Error parsing audit entry ${doc.id}: $e');
+                  developer.log('Error parsing audit entry ${doc.id}: $e', name: 'AuditService');
                   return null;
                 }
               })
@@ -375,17 +446,43 @@ class AuditService {
             }).toList();
           }
 
+          developer.log(
+            'Employee audit entries: Returning ${entries.length} entries after filtering',
+            name: 'AuditService',
+          );
+
           return entries;
         } catch (e) {
-          developer.log('Error processing employee audit entries: $e');
+          developer.log('Error processing employee audit entries: $e', name: 'AuditService');
+          // Check if it's an index error
+          if (e.toString().contains('index') || e.toString().contains('composite')) {
+            developer.log(
+              'Employee audit entries: Firestore composite index may be missing. '
+              'Required index: audit_entries collection, fields: userId (ASC), status (ASC), submittedDate (DESC)',
+              name: 'AuditService',
+            );
+          }
           return <AuditEntry>[];
         }
       }).handleError((error, stackTrace) {
-        developer.log('Employee audit entries stream error: $error', error: error, stackTrace: stackTrace);
+        developer.log(
+          'Employee audit entries stream error: $error',
+          name: 'AuditService',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        // Check if it's an index error
+        if (error.toString().contains('index') || error.toString().contains('composite')) {
+          developer.log(
+            'Employee audit entries: Firestore composite index may be missing. '
+            'Check Firebase Console -> Firestore -> Indexes and create the required composite index.',
+            name: 'AuditService',
+          );
+        }
         return <AuditEntry>[];
       });
     } catch (e) {
-      developer.log('Error building employee audit entries stream: $e');
+      developer.log('Error building employee audit entries stream: $e', name: 'AuditService');
       return Stream.value(<AuditEntry>[]);
     }
   }

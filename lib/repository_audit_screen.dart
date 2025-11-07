@@ -402,28 +402,41 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Text(
-            'Completed Goals Archive',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final isManager = roleSnapshot.data == 'manager';
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'Completed Goals Archive',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
+            if (isManager)
+              IconButton(
+                tooltip: 'Diagnostic Info',
+                onPressed: _showDiagnosticInfo,
+                icon: const Icon(Icons.info_outline),
+                color: AppColors.warningColor,
+              ),
             IconButton(
               tooltip: 'Export',
               onPressed: _showExportSheet,
               icon: const Icon(Icons.ios_share),
               color: AppColors.textPrimary,
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -432,9 +445,203 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return null;
       final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
-      return (doc.data() ?? const {})['department'] as String?;
-    } catch (_) {
+      final dept = (doc.data() ?? const {})['department'] as String?;
+      developer.log(
+        'Manager department check: uid=$uid, department="$dept"',
+        name: 'RepositoryAuditScreen',
+      );
+      return dept;
+    } catch (e) {
+      developer.log('Error getting manager department: $e', name: 'RepositoryAuditScreen');
       return null;
+    }
+  }
+
+  // Diagnostic method to check all audit entries and their departments
+  Future<void> _showDiagnosticInfo() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Get manager's department
+      final managerDept = await _getManagerDept();
+      
+      // Get ALL audit entries (no filter) to see what's actually in the database
+      final allEntriesSnapshot = await FirebaseFirestore.instance
+          .collection('audit_entries')
+          .get();
+
+      final allEntries = allEntriesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'userDepartment': data['userDepartment'] ?? 'NOT SET',
+          'userId': data['userId'] ?? 'NOT SET',
+          'userDisplayName': data['userDisplayName'] ?? 'NOT SET',
+          'status': data['status'] ?? 'NOT SET',
+          'goalTitle': data['goalTitle'] ?? 'NOT SET',
+        };
+      }).toList();
+
+      // Group by department
+      final byDept = <String, List<Map<String, dynamic>>>{};
+      for (final entry in allEntries) {
+        final dept = entry['userDepartment'] as String;
+        byDept.putIfAbsent(dept, () => []).add(entry);
+      }
+
+      if (!mounted) return;
+      
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            'Diagnostic Information',
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manager Department:',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  managerDept ?? 'NOT SET',
+                  style: TextStyle(
+                    color: managerDept == null || managerDept.isEmpty
+                        ? AppColors.dangerColor
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Total Audit Entries: ${allEntries.length}',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Entries by Department:',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...byDept.entries.map((entry) {
+                  final dept = entry.key;
+                  final entries = entry.value;
+                  final matches = dept == managerDept;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: matches
+                          ? AppColors.successColor.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.4),
+                      border: Border.all(
+                        color: matches
+                            ? AppColors.successColor
+                            : AppColors.borderColor,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Department: "$dept"',
+                              style: TextStyle(
+                                color: matches
+                                    ? AppColors.successColor
+                                    : AppColors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (matches) ...[
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.check_circle,
+                                color: AppColors.successColor,
+                                size: 16,
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Count: ${entries.length}',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        ...entries.take(3).map((e) => Padding(
+                              padding: const EdgeInsets.only(left: 8, top: 4),
+                              child: Text(
+                                '• ${e['userDisplayName']} - ${e['goalTitle']} (${e['status']})',
+                                style: TextStyle(
+                                  color: AppColors.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            )),
+                        if (entries.length > 3)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, top: 4),
+                            child: Text(
+                              '... and ${entries.length - 3} more',
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+                if (managerDept != null && managerDept.isNotEmpty && !byDept.containsKey(managerDept))
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.warningColor.withValues(alpha: 0.1),
+                      border: Border.all(color: AppColors.warningColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '⚠️ No entries found for manager department "$managerDept"',
+                      style: TextStyle(color: AppColors.warningColor),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      developer.log('Error showing diagnostic info: $e', name: 'RepositoryAuditScreen');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading diagnostic info: $e')),
+        );
+      }
     }
   }
 
@@ -478,13 +685,31 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             });
           })
         : Stream.value(emptyStats).asyncExpand((_) {
-            return AuditService.getEmployeeAuditEntriesStream().map((entries) {
+            // Get all entries without status filter for accurate counts
+            return AuditService.getEmployeeAuditEntriesStream(
+              status: null, // Get all statuses for accurate counts
+            ).map((entries) {
+              developer.log(
+                'Employee summary: Total entries=${entries.length}, '
+                'Pending=${entries.where((e) => e.status == 'pending').length}, '
+                'Verified=${entries.where((e) => e.status == 'verified').length}, '
+                'Rejected=${entries.where((e) => e.status == 'rejected').length}',
+                name: 'RepositoryAuditScreen',
+              );
               return <String, int>{
                 'total': entries.length,
                 'verified': entries.where((e) => e.status == 'verified').length,
                 'pending': entries.where((e) => e.status == 'pending').length,
                 'rejected': entries.where((e) => e.status == 'rejected').length,
               };
+            }).handleError((error, stackTrace) {
+              developer.log(
+                'Error in employee audit entries stream: $error',
+                name: 'RepositoryAuditScreen',
+                error: error,
+                stackTrace: stackTrace,
+              );
+              return emptyStats;
             });
           });
 
@@ -592,20 +817,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             builder: (context, timeoutSnapshot) {
               if (timeoutSnapshot.hasData && snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                 // After timeout, show empty state instead of infinite loading
-                return _buildEmptyState();
+                return _buildEmptyState(isManager: isManager);
               }
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: AppColors.activeColor),
-                    SizedBox(height: 16),
-                    Text(
-                      'Loading audit entries...',
-                      style: TextStyle(color: AppColors.textMuted),
-                    ),
-                  ],
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: AppColors.activeColor),
+                SizedBox(height: 16),
+                Text(
+                  'Loading audit entries...',
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
+              ],
+            ),
               );
             },
           );
@@ -624,7 +849,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         final entries = snapshot.data ?? [];
 
         if (entries.isEmpty) {
-          return _buildEmptyState();
+          return _buildEmptyState(isManager: isManager);
         }
 
         return Column(
@@ -634,40 +859,89 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.archive_outlined,
-            color: AppColors.textMuted,
-            size: 48,
+  Widget _buildEmptyState({bool isManager = false}) {
+    return FutureBuilder<String?>(
+      future: isManager ? _getManagerDept() : Future.value(null),
+      builder: (context, deptSnapshot) {
+        final managerDept = deptSnapshot.data;
+        final hasDept = managerDept != null && managerDept.isNotEmpty;
+        
+        return Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No audit entries found',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Column(
+            children: [
+              Icon(
+                Icons.archive_outlined,
+                color: AppColors.textMuted,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No audit entries found',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (isManager && !hasDept) ...[
+                Text(
+                  'Your department is not set. Please update your profile to view employee submissions.',
+                  style: TextStyle(
+                    color: AppColors.warningColor,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/settings');
+                  },
+                  icon: const Icon(Icons.settings, size: 18),
+                  label: const Text('Go to Settings'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ] else if (isManager && hasDept) ...[
+                Text(
+                  'No employee submissions found for your department ($managerDept).',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Employees must submit goals for audit to appear here.',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ] else ...[
+                Text(
+                  'Complete some goals to see them here for audit',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Complete some goals to see them here for audit',
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1766,6 +2040,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                     backgroundColor: Colors.green,
                                   ),
                                 );
+                                // Close dialog automatically after successful upload
+                                Navigator.of(context).pop();
                               }
                             } catch (e) {
                               setState(() => isUploading = false);
@@ -1944,10 +2220,64 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
+  // Ensure user's department is set; otherwise block submission and prompt to update profile
+  Future<bool> _ensureDepartmentIsSet() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return false;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = userDoc.data() ?? const <String, dynamic>{};
+      final department = (data['department'] as String?)?.trim();
+      final hasDept = department != null && department.isNotEmpty && department.toLowerCase() != 'unknown';
+
+      if (!hasDept) {
+        if (!mounted) return false;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: Text('Department Required', style: TextStyle(color: AppColors.textPrimary)),
+            content: Text(
+              'Your department information is missing. Please update your profile before submitting.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Try navigate to settings where profile can be updated
+                  if (mounted) {
+                    Navigator.pushNamed(context, '/settings');
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.activeColor, foregroundColor: Colors.white),
+                child: const Text('Go to Settings'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      // If we cannot validate, be safe and block submission
+      return false;
+    }
+  }
+
   
 
   Future<void> _submitGoalForAuditWithFiles(Goal goal, List<String> textEvidence, List<EvidenceFile> uploadedFiles) async {
     try {
+      // Ensure the user has a department set before allowing submission
+      final proceed = await _ensureDepartmentIsSet();
+      if (!proceed) {
+        return; // User has been informed; do not proceed
+      }
       // Combine text evidence with file URLs
       final allEvidence = <String>[];
       allEvidence.addAll(textEvidence);
