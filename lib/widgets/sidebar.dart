@@ -67,7 +67,7 @@ class ResponsiveSidebar extends StatelessWidget {
               ),
               _NavTile(
                 icon: Icons.exit_to_app,
-                label: 'Exit.',
+                label: 'Exit',
                 route: '__logout__',
                 isActive: false,
                 collapsed: effectiveCollapsed,
