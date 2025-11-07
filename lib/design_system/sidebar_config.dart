@@ -48,8 +48,14 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Profile_White.png',
       red:   'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'Profile',
+      label: 'MyPdp',
       route: '/my_pdp',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red:   'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'My Profile',
+      route: '/my_profile',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
@@ -113,7 +119,7 @@ class SidebarConfig {
     // Team Challenges & Seasons → /team_challenges_seasons
     SidebarItem(
       icon: Icons.emoji_events,
-      label: 'Team Challenges & Seasons',
+      label: 'Team Challenges',
       route: '/team_challenges_seasons',
     ),
     // Progress Visuals → /progress_visuals

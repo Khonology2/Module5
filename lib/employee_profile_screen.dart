@@ -11,7 +11,9 @@ import 'package:pdh/services/cloudinary_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed unused import
 
 class EmployeeProfileScreen extends StatefulWidget {
-  const EmployeeProfileScreen({super.key});
+  const EmployeeProfileScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<EmployeeProfileScreen> createState() => _EmployeeProfileScreenState();
@@ -391,20 +393,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-                  child: Center(
+  Widget _buildProfileContent() {
+    return Center(
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 32.0), // 2rem auto
               constraints: const BoxConstraints(maxWidth: 1000), // match manager profile width
@@ -761,21 +751,23 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: const BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                              if (!widget.embedded) ...[
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: const BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                                    ),
                                   ),
+                                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
                                 ),
-                                child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
-                              ),
-                              const SizedBox(width: 16),
+                                const SizedBox(width: 16),
+                              ],
                               ElevatedButton(
                                 onPressed: () {
                                   _saveProfile();
@@ -793,7 +785,29 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                         ],
                       ),
                     ),
-                  ),
+                  );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.embedded) {
+      // When embedded in MainLayout, return just the content without Scaffold/AppBar/background
+      return _buildProfileContent();
+    }
+    
+    // Standalone mode with full Scaffold
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
+          child: _buildProfileContent(),
         ),
       ),
     );

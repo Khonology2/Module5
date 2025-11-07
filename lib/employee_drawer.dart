@@ -108,7 +108,7 @@ class EmployeeDrawer extends StatelessWidget {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.exit_to_app, color: Colors.red),
-            title: const Text('Exit.', style: TextStyle(color: Colors.red)),
+            title: const Text('Exit', style: TextStyle(color: Colors.red)),
             onTap: () async {
               Navigator.pop(context);
               await FirebaseAuth.instance.signOut();
