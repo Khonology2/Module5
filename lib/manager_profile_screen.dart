@@ -49,7 +49,9 @@ class MyApp extends StatelessWidget {
 }
 
 class ManagerProfileScreen extends StatefulWidget {
-  const ManagerProfileScreen({super.key});
+  const ManagerProfileScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<ManagerProfileScreen> createState() => _ManagerProfileScreenState();
@@ -361,9 +363,204 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+            ),
+          ),
+          padding: const EdgeInsets.all(40.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Profile',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8.0),
+              const Text(
+                'These fields allow you to set up your identity, preferences, and development context.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14.0, color: Colors.white70),
+              ),
+              const SizedBox(height: 40.0),
+
+              // Basic Information Section
+              _buildCardSection(
+                title: 'Basic Information',
+                children: [
+                  _buildTextField(controller: _fullNameController, hintText: 'Enter your full name'),
+                  _buildTextField(controller: _jobTitleController, hintText: 'Job Title / Role'),
+                  _buildTextField(controller: _departmentController, hintText: 'Department / Team'),
+                  _buildTextField(controller: TextEditingController(text: 'M-123456'), hintText: 'Employee ID', readOnly: true, color: Colors.white10),
+                  _buildTextField(controller: _workEmailController, hintText: 'Work Email', keyboardType: TextInputType.emailAddress),
+                  _buildTextField(controller: _phoneNumberController, hintText: 'Phone Number (optional)', keyboardType: TextInputType.phone),
+                  const SizedBox(height: 16.0),
+                  Row(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                        child: ClipOval(
+                          child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
+                              ? Image.network(
+                                  _profilePhotoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 40, color: Colors.white54),
+                                )
+                              : const Icon(Icons.person, size: 40, color: Colors.white54),
+                        ),
+                      ),
+                      const SizedBox(width: 16.0),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Profile Photo', style: TextStyle(fontSize: 14, color: Colors.white70)),
+                          const SizedBox(height: 4.0),
+                          Row(
+                            children: [
+                              ElevatedButton(
+                                onPressed: _pickAndUploadImage,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white10,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Text('Upload Photo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              ),
+                              const SizedBox(width: 8),
+                              if ((_profilePhotoUrl ?? '').isNotEmpty)
+                                TextButton(
+                                  onPressed: _removeProfilePhoto,
+                                  child: const Text('Remove Photo'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // Development & Skills Context Section
+              _buildCardSection(
+                title: 'Development & Skills Context',
+                children: [
+                  _buildTaggableInput(
+                    label: 'Current Skills / Strengths (taggable list)',
+                    controller: _skillsInputController,
+                    list: _skills,
+                    onAdd: () => _addTag(_skillsInputController, _skills),
+                  ),
+                  _buildTaggableInput(
+                    label: 'Areas for Development (self-identified growth areas)',
+                    controller: _developmentInputController,
+                    list: _developmentAreas,
+                    onAdd: () => _addTag(_developmentInputController, _developmentAreas),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildActionButton(
+                    text: '✨ Generate Personalized Development Plan ✨',
+                    onPressed: _generateDevelopmentPlan,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextArea(controller: _careerAspirationsController, hintText: 'Career Aspirations / Future Role'),
+                  _buildTextArea(controller: _currentProjectsController, hintText: 'Current Projects / Focus Areas (optional)'),
+                ],
+              ),
+
+              // Goal & Learning Preferences Section
+              _buildCardSection(
+                title: 'Goal & Learning Preferences',
+                children: [
+                  _buildLearningStyleDropdown(),
+                  _buildPreferredDevActivitiesCheckboxes(),
+                  const SizedBox(height: 16),
+                  _buildTextArea(controller: _shortGoalsController, hintText: 'Short-Term Goals (next 3–6 months)'),
+                  _buildTextArea(controller: _longGoalsController, hintText: 'Long-Term Goals (1–3 years)'),
+                  _buildActionButton(
+                    text: '✨ Draft Motivational Message ✨',
+                    onPressed: _draftMotivationalMessage,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildNotificationPreferencesDropdown(),
+                  _buildGoalVisibilityRadios(),
+                ],
+              ),
+
+              // Gamification & Motivation Section
+              _buildCardSection(
+                title: 'Gamification & Motivation',
+                children: [
+                  _buildLeaderboardOptInRadios(),
+                  _buildTextField(controller: _badgeNameController, hintText: 'Preferred Badge Display Name'),
+                  _buildCelebrationConsentRadios(),
+                ],
+              ),
+
+              // Action Buttons
+              const SizedBox(height: 32.0),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (!widget.embedded)
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                        ),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  if (!widget.embedded) const SizedBox(width: 16),
+                  ElevatedButton(
+                    onPressed: _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (widget.embedded) {
+      return content;
+    }
+
     return Scaffold(
-      backgroundColor: Colors.transparent, // Set Scaffold background to transparent
-      extendBodyBehindAppBar: true, // Extend the body behind the AppBar
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -380,194 +577,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               ),
             ),
           ),
-          // Main content container
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 1000),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12.0),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                ),
-                padding: const EdgeInsets.all(40.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'Profile',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 32.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8.0),
-                    const Text(
-                      'These fields allow you to set up your identity, preferences, and development context.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14.0, color: Colors.white70),
-                    ),
-                    const SizedBox(height: 40.0),
-
-                    // Basic Information Section
-                    _buildCardSection(
-                      title: 'Basic Information',
-                      children: [
-                        _buildTextField(controller: _fullNameController, hintText: 'Enter your full name'),
-                        _buildTextField(controller: _jobTitleController, hintText: 'Job Title / Role'),
-                        _buildTextField(controller: _departmentController, hintText: 'Department / Team'),
-                        _buildTextField(controller: TextEditingController(text: 'M-123456'), hintText: 'Employee ID', readOnly: true, color: Colors.white10),
-                        _buildTextField(controller: _workEmailController, hintText: 'Work Email', keyboardType: TextInputType.emailAddress),
-                        _buildTextField(controller: _phoneNumberController, hintText: 'Phone Number (optional)', keyboardType: TextInputType.phone),
-                        const SizedBox(height: 16.0),
-                        Row(
-                          children: [
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white10,
-                                borderRadius: BorderRadius.circular(40),
-                              ),
-                              child: ClipOval(
-                                child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
-                                    ? Image.network(
-                                        _profilePhotoUrl!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 40, color: Colors.white54),
-                                      )
-                                    : const Icon(Icons.person, size: 40, color: Colors.white54),
-                              ),
-                            ),
-                            const SizedBox(width: 16.0),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Profile Photo', style: TextStyle(fontSize: 14, color: Colors.white70)),
-                                const SizedBox(height: 4.0),
-                                Row(
-                                  children: [
-                                    ElevatedButton(
-                                      onPressed: _pickAndUploadImage,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.white10,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      child: const Text('Upload Photo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    if ((_profilePhotoUrl ?? '').isNotEmpty)
-                                      TextButton(
-                                        onPressed: _removeProfilePhoto,
-                                        child: const Text('Remove Photo'),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-
-                    // Development & Skills Context Section
-                    _buildCardSection(
-                      title: 'Development & Skills Context',
-                      children: [
-                        _buildTaggableInput(
-                          label: 'Current Skills / Strengths (taggable list)',
-                          controller: _skillsInputController,
-                          list: _skills,
-                          onAdd: () => _addTag(_skillsInputController, _skills),
-                        ),
-                        _buildTaggableInput(
-                          label: 'Areas for Development (self-identified growth areas)',
-                          controller: _developmentInputController,
-                          list: _developmentAreas,
-                          onAdd: () => _addTag(_developmentInputController, _developmentAreas),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildActionButton(
-                          text: '✨ Generate Personalized Development Plan ✨',
-                          onPressed: _generateDevelopmentPlan,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextArea(controller: _careerAspirationsController, hintText: 'Career Aspirations / Future Role'),
-                        _buildTextArea(controller: _currentProjectsController, hintText: 'Current Projects / Focus Areas (optional)'),
-                      ],
-                    ),
-
-                    // Goal & Learning Preferences Section
-                    _buildCardSection(
-                      title: 'Goal & Learning Preferences',
-                      children: [
-                        _buildLearningStyleDropdown(),
-                        _buildPreferredDevActivitiesCheckboxes(), // Use a new widget for checkboxes
-                        const SizedBox(height: 16),
-                        _buildTextArea(controller: _shortGoalsController, hintText: 'Short-Term Goals (next 3–6 months)'),
-                        _buildTextArea(controller: _longGoalsController, hintText: 'Long-Term Goals (1–3 years)'),
-                        _buildActionButton(
-                          text: '✨ Draft Motivational Message ✨',
-                          onPressed: _draftMotivationalMessage,
-                        ),
-                        const SizedBox(height: 16),
-                        _buildNotificationPreferencesDropdown(), // Use a new widget for dropdown
-                        _buildGoalVisibilityRadios(), // Use a new widget for radio buttons
-                      ],
-                    ),
-
-                    // Gamification & Motivation Section
-                    _buildCardSection(
-                      title: 'Gamification & Motivation',
-                      children: [
-                        _buildLeaderboardOptInRadios(), // Use a new widget for radio buttons
-                        _buildTextField(controller: _badgeNameController, hintText: 'Preferred Badge Display Name'),
-                        _buildCelebrationConsentRadios(), // Use a new widget for radio buttons
-                      ],
-                    ),
-
-                    // Action Buttons
-                    const SizedBox(height: 32.0),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () {},
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
-                            ),
-                          ),
-                          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                        const SizedBox(width: 16),
-                        ElevatedButton(
-                          onPressed: _saveProfile, // Call the _saveProfile method
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFC10D00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          child: const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          content,
         ],
       ),
     );

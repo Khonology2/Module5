@@ -110,11 +110,16 @@ class SidebarConfig {
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    // Profile → /my_pdp
+    // MyPdp → /my_pdp
     SidebarItem(
       icon: Icons.person,
-      label: 'Profile',
+      label: 'MyPdp',
       route: '/my_pdp',
+    ),
+    SidebarItem(
+      icon: Icons.manage_accounts,
+      label: 'My Profile',
+      route: '/manager_profile',
     ),
     // Team Challenges & Seasons → /team_challenges_seasons
     SidebarItem(

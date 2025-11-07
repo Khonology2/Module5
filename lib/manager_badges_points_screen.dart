@@ -342,9 +342,13 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         child: StreamBuilder(
           stream: _buildManagerMetricsStream(manager.uid),
           builder: (context, AsyncSnapshot<_ManagerMetrics> snapshot) {
+            // Run badge evaluation in background (non-blocking) after first build
             if (_didEval != true) {
               _didEval = true;
-              ManagerBadgeEvaluator.evaluate(manager.uid);
+              // Don't await - let it run in background while UI displays
+              ManagerBadgeEvaluator.evaluate(manager.uid).catchError((e) {
+                developer.log('Error evaluating badges in background: $e');
+              });
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());

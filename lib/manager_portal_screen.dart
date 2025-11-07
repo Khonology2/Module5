@@ -39,6 +39,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerDashboardScreen(embedded: true);
       case '/my_pdp':
         return const MyPdpScreen();
+      case '/manager_profile':
+        return const ManagerProfileScreen(embedded: true);
       case '/team_challenges_seasons':
         return const TeamChallengesSeasonsScreen();
       case '/progress_visuals':
@@ -156,32 +158,23 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     } else if (user?.email != null && user!.email!.isNotEmpty) {
       userName = user.email!.split('@').first;
     }
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.person, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            userName,
+            style: AppTypography.bodySmall.copyWith(color: Colors.white),
+          ),
+        ],
       ),
     );
   }
