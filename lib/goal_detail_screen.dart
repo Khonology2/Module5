@@ -11,6 +11,7 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/alert.dart';
 
@@ -428,54 +429,61 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Goal Details',
-      showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/goal_detail',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        await AuthService().signOut();
-        if (!context.mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/sign_in',
-          (route) => false,
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        return AppScaffold(
+          title: 'Goal Details',
+          showAppBar: false,
+          items: items,
+          currentRouteName: '/goal_detail',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            await AuthService().signOut();
+            if (!context.mounted) return;
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/sign_in',
+              (route) => false,
+            );
+          },
+          content: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/khono_bg.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: AppSpacing.screenPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildApprovalNotice(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildGoalInfo(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildProgressSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildActionButtons(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildMilestoneTracker(),
+                ],
+              ),
+            ),
+          ),
         );
       },
-      content: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildApprovalNotice(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildGoalInfo(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildProgressSection(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildActionButtons(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildMilestoneTracker(),
-            ],
-          ),
-        ),
-      ),
     );
   }
 

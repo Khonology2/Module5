@@ -20,6 +20,7 @@ import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
@@ -31,65 +32,6 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
-
-  final List<SidebarItem> _managerSidebarItems = [
-    const SidebarItem(
-      icon: Icons.dashboard,
-      label: 'Dashboard',
-      route: '/dashboard',
-    ),
-    const SidebarItem(
-      icon: Icons.person,
-      label: 'Profile',
-      route: '/my_pdp',
-    ), // Re-using MyPdpScreen for manager profile view
-    
-    const SidebarItem(
-      icon: Icons.emoji_events,
-      label: 'Team Challenges & Seasons',
-      route: '/team_challenges_seasons',
-    ), // Team Challenges & Growth Seasons
-    const SidebarItem(
-      icon: Icons.bar_chart,
-      label: 'Progress Visuals',
-      route: '/progress_visuals',
-    ),
-    const SidebarItem(
-      icon: Icons.message_outlined,
-      label: 'Team Alerts & Nudges',
-      route: '/manager_alerts_nudges',
-    ),
-    const SidebarItem(
-      icon: Icons.inbox_outlined,
-      label: 'Inbox',
-      route: '/manager_inbox',
-    ),
-    const SidebarItem(
-      icon: Icons.workspace_premium,
-      label: 'Badges & Points',
-      route: '/badges_points',
-    ),
-    const SidebarItem(
-      icon: Icons.leaderboard,
-      label: 'Leaderboard',
-      route: '/manager_leaderboard',
-    ),
-    const SidebarItem(
-      icon: Icons.folder_open,
-      label: 'Repository & Audit',
-      route: '/repository_audit',
-    ),
-    const SidebarItem(
-      icon: Icons.settings,
-      label: 'Settings & Privacy',
-      route: '/settings',
-    ),
-    const SidebarItem(
-      icon: Icons.groups,
-      label: 'Review Team',
-      route: '/manager_review_team_dashboard',
-    ),
-  ];
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -189,7 +131,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
               child: Row(
                 children: [
                   ResponsiveSidebar(
-                    items: _managerSidebarItems,
+                    items: SidebarConfig.managerItems,
                     onNavigate: _onNavigate,
                     currentRouteName: _currentRoute,
                     onLogout: _onLogout,

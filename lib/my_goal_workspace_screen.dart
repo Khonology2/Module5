@@ -11,6 +11,7 @@ import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
 // import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/role_service.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -110,139 +111,146 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Goal Workspace',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/my_goal_workspace',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: AppComponents.backgroundWithImage(
-        imagePath:
-            'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Create Personal Development Goal',
-                style: AppTypography.heading2.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        return AppScaffold(
+          title: 'Goal Workspace',
+          showAppBar: false,
+          embedded: widget.embedded,
+          items: items,
+          currentRouteName: '/my_goal_workspace',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            final navigator = Navigator.of(context);
+            await AuthService().signOut();
+            if (mounted) {
+              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            }
+          },
+          content: AppComponents.backgroundWithImage(
+            imagePath:
+                'assets/khono_bg.png',
+            child: SingleChildScrollView(
+              padding: AppSpacing.screenPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Create Personal Development Goal',
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Goal Information'),
+                  _buildSectionCard(children: [
+                    _buildTextField(
+                      controller: _goalTitleController,
+                      hintText: 'Enter your development goal title',
+                    ),
+                    _buildTextField(
+                      controller: _goalDescriptionController,
+                      hintText: 'Describe your goal in detail...',
+                      maxLines: 5,
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Goal Details'),
+                  _buildSectionCard(children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDateInput(
+                            context,
+                            'Start Date',
+                            _startDate,
+                            isStartDate: true,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _buildDateInput(
+                            context,
+                            'Target Date',
+                            _targetDate,
+                            isStartDate: false,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _buildDropdownField(
+                      hintText: 'Select category',
+                      value: _goalCategory,
+                      items: _goalCategories,
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _goalCategory = newValue;
+                        });
+                      },
+                    ),
+                    _buildDropdownField(
+                      hintText: 'Select priority',
+                      value: _currentStatus,
+                      items: ['High', 'Medium', 'Low'],
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _currentStatus = newValue;
+                        });
+                      },
+                    ),
+                    _buildDropdownField(
+                      hintText: 'Select Key Performance Area',
+                      value: _kpa != null
+                          ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
+                          : null,
+                      items: _kpaOptions,
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _kpa = newValue?.toLowerCase();
+                        });
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSmartCriteriaSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Dependencies & Prerequisites'),
+                  _buildSectionCard(children: [
+                    _buildTextField(
+                      controller: _dependenciesController,
+                      hintText:
+                          'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                      maxLines: 4,
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Success Metrics'),
+                  _buildSectionCard(children: [
+                    _buildTextField(
+                      controller: _successMetricsController,
+                      hintText: 'Define specific metrics or milestones...',
+                      maxLines: 4,
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.xxl),
+                  _buildSectionCard(children: [
+                    _buildActionButtons(),
+                  ]),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Goal Information'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _goalTitleController,
-                  hintText: 'Enter your development goal title',
-                ),
-                _buildTextField(
-                  controller: _goalDescriptionController,
-                  hintText: 'Describe your goal in detail...',
-                  maxLines: 5,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Goal Details'),
-              _buildSectionCard(children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDateInput(
-                        context,
-                        'Start Date',
-                        _startDate,
-                        isStartDate: true,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: _buildDateInput(
-                        context,
-                        'Target Date',
-                        _targetDate,
-                        isStartDate: false,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _buildDropdownField(
-                  hintText: 'Select category',
-                  value: _goalCategory,
-                  items: _goalCategories,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _goalCategory = newValue;
-                    });
-                  },
-                ),
-                _buildDropdownField(
-                  hintText: 'Select priority',
-                  value: _currentStatus,
-                  items: ['High', 'Medium', 'Low'],
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _currentStatus = newValue;
-                    });
-                  },
-                ),
-                _buildDropdownField(
-                  hintText: 'Select Key Performance Area',
-                  value: _kpa != null
-                      ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
-                      : null,
-                  items: _kpaOptions,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _kpa = newValue?.toLowerCase();
-                    });
-                  },
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSmartCriteriaSection(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Dependencies & Prerequisites'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _dependenciesController,
-                  hintText:
-                      'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-                  maxLines: 4,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Success Metrics'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _successMetricsController,
-                  hintText: 'Define specific metrics or milestones...',
-                  maxLines: 4,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xxl),
-              _buildSectionCard(children: [
-                _buildActionButtons(),
-              ]),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

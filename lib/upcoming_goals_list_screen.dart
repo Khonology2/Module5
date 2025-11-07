@@ -9,6 +9,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/services/role_service.dart';
 
 class UpcomingGoalsListScreen extends StatelessWidget {
   const UpcomingGoalsListScreen({super.key});
@@ -37,71 +38,78 @@ class UpcomingGoalsListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Upcoming Goals',
-      showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/upcoming_goals_list',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-      },
-      content: StreamBuilder<List<Goal>>(
-        stream: _getUpcomingGoalsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-              ),
-            );
-          }
-          final goals = snapshot.data ?? const <Goal>[];
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.backgroundColor,
-                  AppColors.backgroundColor.withValues(alpha: 0.9),
-                ],
-              ),
-            ),
-            child: ListView.builder(
-              padding: AppSpacing.screenPadding,
-              itemCount: goals.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: Text(
-                      'All Upcoming Goals',
-                      style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  );
-                }
-                final goal = goals[index - 1];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _GoalListItem(goal: goal),
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        return AppScaffold(
+          title: 'Upcoming Goals',
+          showAppBar: false,
+          items: items,
+          currentRouteName: '/upcoming_goals_list',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            final navigator = Navigator.of(context);
+            await AuthService().signOut();
+            navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          },
+          content: StreamBuilder<List<Goal>>(
+            stream: _getUpcomingGoalsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  ),
                 );
-              },
-            ),
-          );
-        },
-      ),
+              }
+              final goals = snapshot.data ?? const <Goal>[];
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.backgroundColor,
+                      AppColors.backgroundColor.withValues(alpha: 0.9),
+                    ],
+                  ),
+                ),
+                child: ListView.builder(
+                  padding: AppSpacing.screenPadding,
+                  itemCount: goals.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        child: Text(
+                          'All Upcoming Goals',
+                          style: AppTypography.heading2.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      );
+                    }
+                    final goal = goals[index - 1];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _GoalListItem(goal: goal),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
