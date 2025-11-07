@@ -98,52 +98,65 @@ class SidebarConfig {
 
   // ===== MANAGER SIDEBAR ITEMS =====
   static List<SidebarItem> managerItems = [
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Dashboard_White.png',
-      red:   'assets/Khonodemy Icons/Dashboard_Red.png',
+    // Dashboard → /dashboard
+    SidebarItem(
+      icon: Icons.dashboard,
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red:   'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'Team Management',
-      route: '/manager_portal',
-    ),
+    // Profile → /my_pdp
     SidebarItem(
-      icon: Icons.rate_review,
-      label: 'Team Reviews',
-      route: '/manager_review_team_dashboard',
+      icon: Icons.person,
+      label: 'Profile',
+      route: '/my_pdp',
     ),
+    // Team Challenges & Seasons → /team_challenges_seasons
+    SidebarItem(
+      icon: Icons.emoji_events,
+      label: 'Team Challenges & Seasons',
+      route: '/team_challenges_seasons',
+    ),
+    // Progress Visuals → /progress_visuals
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/ProgressVisuals_Whie.png'),
-      label: 'Progress Visuals.',
+      label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
+    // Team Alerts & Nudges → /manager_alerts_nudges
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Alerts&Visuals_White.png'),
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
     ),
+    // Badges & Points → /badges_points
     SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Alerts&Visuals_White.png'),
-      label: 'Personal Alerts',
-      route: '/alerts_nudges',
+      icon: Icons.workspace_premium,
+      label: 'Badges & Points',
+      route: '/badges_points',
     ),
+    // Leaderboard → /manager_leaderboard
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/LeaderBoard_White.png'),
-      label: 'Leaderboard.',
-      route: '/leaderboard',
+      label: 'Leaderboard',
+      route: '/manager_leaderboard',
     ),
+    // Repository & Audit → /repository_audit
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Repository&Audit_White.png'),
-      label: 'Repository & Audit.',
+      label: 'Repository & Audit',
       route: '/repository_audit',
     ),
+    // Settings & Privacy → /settings
     SidebarItem(
       iconWidget: SidebarConfig.sidebarIcon('assets/Khonodemy Icons/Settings_White.png'),
       label: 'Settings & Privacy',
       route: '/settings',
+    ),
+    // Review Team → /manager_review_team_dashboard
+    SidebarItem(
+      icon: Icons.groups,
+      label: 'Review Team',
+      route: '/manager_review_team_dashboard',
     ),
   ];
 
