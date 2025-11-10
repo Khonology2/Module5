@@ -981,7 +981,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                       ? OutlinedButton.styleFrom(
                                           // ignore: deprecated_member_use
                                           backgroundColor: Colors.orange
-                                              .withOpacity(0.1),
+                                              .withValues(alpha: 0.1),
                                           foregroundColor: Colors.orange,
                                           side: const BorderSide(
                                             color: Colors.orange,
