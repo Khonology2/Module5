@@ -1043,12 +1043,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         // Determine the active rarity based on user's current level
         final level = userProfile?.level ?? 1;
         bool isInRange(badge_model.BadgeRarity r) {
-          if (r == badge_model.BadgeRarity.common)
+          if (r == badge_model.BadgeRarity.common) {
             return level >= 1 && level <= 5;
-          if (r == badge_model.BadgeRarity.rare)
+          }
+          if (r == badge_model.BadgeRarity.rare) {
             return level >= 6 && level <= 10;
-          if (r == badge_model.BadgeRarity.epic)
+          }
+          if (r == badge_model.BadgeRarity.epic) {
             return level >= 11 && level <= 15;
+          }
           return level >= 16; // legendary
         }
 
@@ -1395,8 +1398,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                           itemBuilder: (context, index) {
                             final sorted = [...badges]
                               ..sort((a, b) {
-                                if (a.isEarned != b.isEarned)
+                                if (a.isEarned != b.isEarned) {
                                   return a.isEarned ? -1 : 1; // earned first
+                                }
                                 return a.name.compareTo(b.name);
                               });
                             final b = sorted[index];

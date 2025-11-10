@@ -907,10 +907,12 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         int points = 0;
         points += approvalsCount * weightApproval;
         points += nudgesSent * weightNudge;
-        if (teamCompletionRate >= 0.6)
+        if (teamCompletionRate >= 0.6) {
           points += weightHighCompletionBonus; // reward high completion
-        if (teamEngagement >= 70)
+        }
+        if (teamEngagement >= 70) {
           points += weightEngagementBonus; // reward engagement
+        }
 
         yield _ManagerMetrics(
           approvalsCount: approvalsCount,

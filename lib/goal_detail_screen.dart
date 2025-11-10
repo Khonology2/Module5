@@ -83,10 +83,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         );
       }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _submittingApproval = false;
         });
+      }
     }
   }
 
@@ -172,10 +173,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 );
               }
             } finally {
-              if (mounted)
+              if (mounted) {
                 setState(() {
                   isLoading = false;
                 });
+              }
             }
           },
         ),

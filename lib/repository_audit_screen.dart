@@ -1800,6 +1800,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     final messenger = ScaffoldMessenger.of(context);
     // ignore: unnecessary_null_comparison, unused_local_variable
     final isManager =
+        // ignore: unnecessary_null_comparison
         (RoleService.instance != null); // placeholder; use stream below
     showModalBottomSheet(
       context: context,
