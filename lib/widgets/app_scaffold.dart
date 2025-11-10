@@ -73,6 +73,7 @@ class AppScaffold extends StatelessWidget {
         ),
       body: SafeArea(
         child: Stack(
+          fit: StackFit.expand,
           children: [
             Positioned.fill(
               child: FocusTraversalGroup(
@@ -138,6 +139,7 @@ class AppScaffold extends StatelessWidget {
                 Expanded(
                   child: ClipRect(
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
                         Positioned.fill(
                           child: FocusTraversalGroup(

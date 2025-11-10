@@ -50,6 +50,10 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // Basic access (added per requested snippet)
+      allow read: if true;
+      allow write: if isSignedIn();
+
       // Allow reads for: the user themselves, managers/admins per policy,
       // or any user document where the owner has opted-in to leaderboard visibility
       allow read: if isSignedIn() && (
@@ -96,11 +100,11 @@ service cloud.firestore {
         allow update: if isManager() && userRole(userId) == 'employee' && 
           sameDepartment(userId) && (subcollection == 'goals' || subcollection == 'activities');
       }
-      allow read, write: if true;
     }
 
     match /onboarding/{uid} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     // Goals collection - managers can read/write employee goals
@@ -317,6 +321,11 @@ service cloud.firestore {
     // Deleted accounts blocklist - allow reads for signed-in users only
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Catch-all deny (added per requested snippet)
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
