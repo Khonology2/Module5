@@ -345,9 +345,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha:0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: DropdownButton<TimeFilter>(
         value: currentTimeFilter,
@@ -421,6 +421,12 @@ class _ManagerProgressVisualsContentState
                 title: 'Team Members',
                 value: metrics.totalEmployees.toString(),
                 icon: Icons.people_outline,
+                iconWidget: const ImageIcon(
+                  AssetImage(
+                    'assets/Task_Management/Task_Management_White.png',
+                  ),
+                  size: 23,
+                ),
                 color: AppColors.activeColor,
                 subtitle: '${metrics.activeEmployees} active (7d)',
               ),
@@ -431,6 +437,12 @@ class _ManagerProgressVisualsContentState
                 title: 'Average Progress',
                 value: '${metrics.avgTeamProgress.toStringAsFixed(1)}%',
                 icon: Icons.trending_up,
+                iconWidget: const ImageIcon(
+                  AssetImage(
+                    'assets/Project_Direction_Acceleration/Direction_Acceleration_White.png',
+                  ),
+                  size: 23,
+                ),
                 color: metrics.avgTeamProgress >= 70
                     ? AppColors.successColor
                     : metrics.avgTeamProgress >= 40
@@ -449,6 +461,10 @@ class _ManagerProgressVisualsContentState
                 title: 'Goals Completed',
                 value: metrics.goalsCompleted.toString(),
                 icon: Icons.check_circle_outline,
+                iconWidget: const ImageIcon(
+                  AssetImage('assets/Like_Thumbs_Up/Like_Thumbs_Up_White.png'),
+                  size: 23,
+                ),
                 color: AppColors.successColor,
                 subtitle: 'This period',
               ),
@@ -459,6 +475,12 @@ class _ManagerProgressVisualsContentState
                 title: 'Overdue Goals',
                 value: metrics.overdueGoals.toString(),
                 icon: Icons.warning_outlined,
+                iconWidget: const ImageIcon(
+                  AssetImage(
+                    'assets/Time_Allocation_Approval/Approval_Whie.png',
+                  ),
+                  size: 23,
+                ),
                 color: AppColors.dangerColor,
                 subtitle: 'Needs attention',
               ),
@@ -472,7 +494,11 @@ class _ManagerProgressVisualsContentState
               child: _buildMetricCard(
                 title: 'Team Engagement',
                 value: '${metrics.teamEngagement.toStringAsFixed(1)}%',
-                icon: Icons.groups,
+                icon: Icons.group_work_outlined,
+                iconWidget: const ImageIcon(
+                  AssetImage('assets/Team_Meeting/Team_Meeting_White.png'),
+                  size: 23,
+                ),
                 color: metrics.teamEngagement >= 70
                     ? AppColors.successColor
                     : metrics.teamEngagement >= 40
@@ -487,11 +513,11 @@ class _ManagerProgressVisualsContentState
                 title: 'Active Status',
                 value: '${metrics.activeEmployees}/${metrics.totalEmployees}',
                 icon: Icons.online_prediction,
-                color: (metrics.activeEmployees / metrics.totalEmployees) >= 0.8
-                    ? AppColors.successColor
-                    : (metrics.activeEmployees / metrics.totalEmployees) >= 0.5
-                    ? AppColors.warningColor
-                    : AppColors.dangerColor,
+                iconWidget: const ImageIcon(
+                  AssetImage('assets/Data_Approval/Data_Approval_White.png'),
+                  size: 23,
+                ),
+                color: AppColors.infoColor,
                 subtitle: 'Currently active',
               ),
             ),
@@ -505,6 +531,7 @@ class _ManagerProgressVisualsContentState
     required String title,
     required String value,
     required IconData icon,
+    Widget? iconWidget,
     required Color color,
     String? subtitle,
     bool fullWidth = false,
@@ -513,16 +540,16 @@ class _ManagerProgressVisualsContentState
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha:0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 24),
+              iconWidget ?? Icon(icon, size: 23, color: color),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -557,7 +584,6 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  
   Widget _buildInsightCard(TeamInsight insight) {
     Color priorityColor;
     IconData priorityIcon;
@@ -737,9 +763,9 @@ class _ManagerProgressVisualsContentState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha:0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withValues(alpha:0.3)),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -748,7 +774,7 @@ class _ManagerProgressVisualsContentState
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: statusColor.withValues(alpha:0.1),
+                backgroundColor: statusColor.withValues(alpha: 0.1),
                 child: Text(
                   employee.profile.displayName.isNotEmpty
                       ? employee.profile.displayName[0].toUpperCase()
@@ -791,10 +817,10 @@ class _ManagerProgressVisualsContentState
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha:0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: statusColor.withValues(alpha:0.3),
+                        color: statusColor.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -819,10 +845,10 @@ class _ManagerProgressVisualsContentState
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: activeStatusColor.withValues(alpha:0.1),
+                      color: activeStatusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: activeStatusColor.withValues(alpha:0.3),
+                        color: activeStatusColor.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -856,6 +882,9 @@ class _ManagerProgressVisualsContentState
               Expanded(
                 child: _buildEmployeeMetricChip(
                   icon: Icons.track_changes,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Approved_Tick/Approved_White.png'),
+                  ),
                   label: 'Active Goals',
                   value: employee.goals
                       .where((g) => g.status != GoalStatus.completed)
@@ -868,6 +897,9 @@ class _ManagerProgressVisualsContentState
               Expanded(
                 child: _buildEmployeeMetricChip(
                   icon: Icons.check_circle_outline,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Process_Flows_Automation/points2.png'),
+                  ),
                   label: 'Completed',
                   value: employee.completedGoalsCount.toString(),
                   color: AppColors.successColor,
@@ -877,6 +909,11 @@ class _ManagerProgressVisualsContentState
               Expanded(
                 child: _buildEmployeeMetricChip(
                   icon: Icons.access_time,
+                  iconWidget: const ImageIcon(
+                    AssetImage(
+                      'assets/Time_Allocation_Approval/Approval_Whie.png',
+                    ),
+                  ),
                   label: 'Progress',
                   value: '${employee.avgProgress.toStringAsFixed(1)}%',
                   color: employee.avgProgress >= 70
@@ -894,7 +931,7 @@ class _ManagerProgressVisualsContentState
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.textSecondary.withValues(alpha:0.05),
+              color: AppColors.textSecondary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
@@ -1010,6 +1047,7 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildEmployeeMetricChip({
     required IconData icon,
+    Widget? iconWidget,
     required String label,
     required String value,
     required Color color,
@@ -1023,7 +1061,7 @@ class _ManagerProgressVisualsContentState
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 16),
+          iconWidget ?? Icon(icon, color: color, size: 16),
           const SizedBox(height: 4),
           Text(
             value,
@@ -1818,7 +1856,11 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.access_time, size: 14, color: Color(0xFF9E9E9E)),
+                    const Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: Color(0xFF9E9E9E),
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Created $createdText',

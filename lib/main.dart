@@ -30,7 +30,8 @@ import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/landing_screen.dart';
 import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
-import 'package:pdh/ai_chatbot.dart' hide ChatMessage; // Import the new AI Chatbot screen
+import 'package:pdh/ai_chatbot.dart'
+    hide ChatMessage; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
@@ -383,10 +384,19 @@ class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
     // Precache common icons/images once after first frame to reduce jank on first open
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      precacheImage(const AssetImage('assets/AI_Red.png'), context, size: const Size(40, 40));
-      precacheImage(const AssetImage('assets/khonodemy-sidebar-logo-red.png'), context, size: const Size(300, 60));
+      precacheImage(
+        const AssetImage('assets/AI_Red.png'),
+        context,
+        size: const Size(40, 40),
+      );
+      precacheImage(
+        const AssetImage('assets/khonodemy-sidebar-logo-red.png'),
+        context,
+        size: const Size(300, 60),
+      );
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Stack(

@@ -23,17 +23,19 @@ class UpcomingGoalsListScreen extends StatelessWidget {
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-      final goals = snapshot.docs
-          .map((doc) => Goal.fromFirestore(doc))
-          .where((g) =>
-              g.approvalStatus == GoalApprovalStatus.approved &&
-              g.status != GoalStatus.completed &&
-              g.progress < 100)
-          .toList();
+          final goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .where(
+                (g) =>
+                    g.approvalStatus == GoalApprovalStatus.approved &&
+                    g.status != GoalStatus.completed &&
+                    g.progress < 100,
+              )
+              .toList();
 
-      goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-      return goals;
-    });
+          goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+          return goals;
+        });
   }
 
   @override
@@ -41,7 +43,8 @@ class UpcomingGoalsListScreen extends StatelessWidget {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, roleSnapshot) {
-        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
         return AppScaffold(
           title: 'Upcoming Goals',
@@ -65,7 +68,9 @@ class UpcomingGoalsListScreen extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
                   ),
                 );
               }
@@ -138,7 +143,8 @@ class _GoalListItem extends StatelessWidget {
     Color deadlineColor = AppColors.textSecondary;
 
     if (isOverdue) {
-      deadlineText = 'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
+      deadlineText =
+          'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
       deadlineColor = AppColors.dangerColor;
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
@@ -163,9 +169,7 @@ class _GoalListItem extends StatelessWidget {
         }
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => GoalDetailScreen(goal: goal),
-          ),
+          MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
         );
       },
       borderRadius: BorderRadius.circular(8),
@@ -191,12 +195,17 @@ class _GoalListItem extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: _priorityColor(goal.priority).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _priorityColor(goal.priority).withValues(alpha: 0.3),
+                      color: _priorityColor(
+                        goal.priority,
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
@@ -225,7 +234,9 @@ class _GoalListItem extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${goal.progress}% Complete',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),

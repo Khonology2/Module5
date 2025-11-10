@@ -21,7 +21,8 @@ class ManagerBadgesPointsScreen extends StatefulWidget {
   const ManagerBadgesPointsScreen({super.key, this.embedded = false});
 
   @override
-  State<ManagerBadgesPointsScreen> createState() => _ManagerBadgesPointsScreenState();
+  State<ManagerBadgesPointsScreen> createState() =>
+      _ManagerBadgesPointsScreenState();
 }
 
 class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
@@ -31,7 +32,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   // Weights for manager points calculation (tunable)
   static const int weightApproval = 10; // approve/reject acknowledgements
   static const int weightNudge = 2; // meaningful nudges / check-ins
-  static const int weightHighCompletionBonus = 100; // bonus when team completion high
+  static const int weightHighCompletionBonus =
+      100; // bonus when team completion high
   static const int weightEngagementBonus = 50; // bonus for engagement threshold
 
   @override
@@ -65,11 +67,18 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     if (user == null) {
       return Container(
         padding: const EdgeInsets.all(16),
-        child: Text('Please sign in to view badges', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+        child: Text(
+          'Please sign in to view badges',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
       );
     }
 
-    final currentLevel = ManagerLevelService.getInfoForPoints(m.totalPoints).level;
+    final currentLevel = ManagerLevelService.getInfoForPoints(
+      m.totalPoints,
+    ).level;
 
     return StreamBuilder<List<badge_model.Badge>>(
       stream: BadgeService.getUserBadgesStream(user.uid),
@@ -82,7 +91,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           );
         }
 
-        final allBadges = (snapshot.data ?? <badge_model.Badge>[])..removeWhere((b) => b.id == 'init');
+        final allBadges = (snapshot.data ?? <badge_model.Badge>[])
+          ..removeWhere((b) => b.id == 'init');
 
         int? inferManagerLevel(badge_model.Badge b) {
           final ml = b.criteria['managerLevel'];
@@ -108,22 +118,51 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         }
 
         List<badge_model.Badge> forLevel(int lvl) => allBadges.where((b) {
-              final inferred = inferManagerLevel(b);
-              return inferred == lvl;
-            }).toList()
-              ..sort((a, b) => a.name.compareTo(b.name));
+          final inferred = inferManagerLevel(b);
+          return inferred == lvl;
+        }).toList()..sort((a, b) => a.name.compareTo(b.name));
 
         return Column(
           children: [
-            _buildLevelOvalSection(level: 1, title: 'Level 1 · Starter Coach', subtitle: 'Initial coaching and acknowledgements', badges: forLevel(1), isActive: currentLevel == 1),
+            _buildLevelOvalSection(
+              level: 1,
+              title: 'Level 1 · Starter Coach',
+              subtitle: 'Initial coaching and acknowledgements',
+              badges: forLevel(1),
+              isActive: currentLevel == 1,
+            ),
             const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(level: 2, title: 'Level 2 · Active Coach', subtitle: 'Consistent feedback & check-ins', badges: forLevel(2), isActive: currentLevel == 2),
+            _buildLevelOvalSection(
+              level: 2,
+              title: 'Level 2 · Active Coach',
+              subtitle: 'Consistent feedback & check-ins',
+              badges: forLevel(2),
+              isActive: currentLevel == 2,
+            ),
             const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(level: 3, title: 'Level 3 · Growth Enabler', subtitle: 'Team motivation, replans & engagement', badges: forLevel(3), isActive: currentLevel == 3),
+            _buildLevelOvalSection(
+              level: 3,
+              title: 'Level 3 · Growth Enabler',
+              subtitle: 'Team motivation, replans & engagement',
+              badges: forLevel(3),
+              isActive: currentLevel == 3,
+            ),
             const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(level: 4, title: 'Level 4 · Strategic Mentor', subtitle: 'Growth Seasons leadership', badges: forLevel(4), isActive: currentLevel == 4),
+            _buildLevelOvalSection(
+              level: 4,
+              title: 'Level 4 · Strategic Mentor',
+              subtitle: 'Growth Seasons leadership',
+              badges: forLevel(4),
+              isActive: currentLevel == 4,
+            ),
             const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(level: 5, title: 'Level 5 · Master Coach', subtitle: 'Elite mentoring & results', badges: forLevel(5), isActive: currentLevel >= 5),
+            _buildLevelOvalSection(
+              level: 5,
+              title: 'Level 5 · Master Coach',
+              subtitle: 'Elite mentoring & results',
+              badges: forLevel(5),
+              isActive: currentLevel >= 5,
+            ),
           ],
         );
       },
@@ -137,7 +176,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     required List<badge_model.Badge> badges,
     bool isActive = false,
   }) {
-    final baseColor = isActive ? AppColors.activeColor : AppColors.textSecondary;
+    final baseColor = isActive
+        ? AppColors.activeColor
+        : AppColors.textSecondary;
     final earnedCount = badges.where((b) => b.isEarned).length;
     final total = badges.length;
 
@@ -149,7 +190,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       decoration: BoxDecoration(
         color: AppColors.elevatedBackground,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: baseColor.withValues(alpha: 0.5), width: isActive ? 2 : 1.5),
+        border: Border.all(
+          color: baseColor.withValues(alpha: 0.5),
+          width: isActive ? 2 : 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: baseColor.withValues(alpha: isActive ? 0.25 : 0.12),
@@ -175,22 +219,38 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: baseColor.withValues(alpha: 0.6)),
                   ),
-                  child: const Icon(Icons.workspace_premium, color: Colors.white),
+                  child: const Icon(
+                    Icons.workspace_premium,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+                      Text(
+                        title,
+                        style: AppTypography.heading4.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                      Text(
+                        subtitle,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Text(
                   total == 0 ? '0/0' : '$earnedCount/$total',
-                  style: AppTypography.bodySmall.copyWith(color: baseColor, fontWeight: FontWeight.w600),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: baseColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Icon(Icons.chevron_right, color: baseColor),
@@ -198,8 +258,12 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              total == 0 ? 'No badges available in this level' : 'Tap to view all badges in this level',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              total == 0
+                  ? 'No badges available in this level'
+                  : 'Tap to view all badges in this level',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -211,7 +275,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.elevatedBackground,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) {
         final user = FirebaseAuth.instance.currentUser;
         return FutureBuilder<void>(
@@ -229,7 +295,12 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 children: [
                   Row(
                     children: [
-                      Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+                      Text(
+                        title,
+                        style: AppTypography.heading4.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       const Spacer(),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.white),
@@ -241,41 +312,66 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   if (user == null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text('Please sign in to view badges', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+                      child: Text(
+                        'Please sign in to view badges',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     )
                   else
                     Flexible(
                       child: StreamBuilder<List<badge_model.Badge>>(
                         stream: BadgeService.getUserBadgesStream(user.uid),
                         builder: (context, snapshot) {
-                          final all = snapshot.data ?? const <badge_model.Badge>[];
+                          final all =
+                              snapshot.data ?? const <badge_model.Badge>[];
                           final badges = all.where((b) {
                             final ml = b.criteria['managerLevel'];
                             if (ml is int) return ml == level;
                             if (ml is num) return ml.round() == level;
                             return false;
-                          }).toList()
-                            ..sort((a, b) => a.name.compareTo(b.name));
-                          if (snapshot.connectionState == ConnectionState.waiting && badges.isEmpty) {
-                            return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor)));
+                          }).toList()..sort((a, b) => a.name.compareTo(b.name));
+                          if (snapshot.connectionState ==
+                                  ConnectionState.waiting &&
+                              badges.isEmpty) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.activeColor,
+                                ),
+                              ),
+                            );
                           }
                           if (badges.isEmpty) {
-                            return Center(child: Text('No badges in this level yet', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)));
+                            return Center(
+                              child: Text(
+                                'No badges in this level yet',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            );
                           }
                           return ListView.separated(
                             shrinkWrap: true,
                             itemCount: badges.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 8),
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 8),
                             itemBuilder: (context, i) {
                               final b = badges[i];
                               final earned = b.isEarned;
-                              final color = earned ? AppColors.successColor : AppColors.textSecondary;
+                              final color = earned
+                                  ? AppColors.successColor
+                                  : AppColors.textSecondary;
                               return Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: AppColors.backgroundColor,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: color.withValues(alpha: 0.5)),
+                                  border: Border.all(
+                                    color: color.withValues(alpha: 0.5),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
@@ -283,15 +379,39 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(b.name, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                                          Text(
+                                            b.name,
+                                            style: AppTypography.bodyLarge
+                                                .copyWith(
+                                                  color: AppColors.textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
                                           const SizedBox(height: 2),
-                                          Text(b.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                                          Text(
+                                            b.description,
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                ),
+                                          ),
                                         ],
                                       ),
                                     ),
-                                    if (earned) const Icon(Icons.check_circle, color: AppColors.successColor) else const Icon(Icons.lock_outline, color: AppColors.textSecondary),
+                                    if (earned)
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: AppColors.successColor,
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.lock_outline,
+                                        color: AppColors.textSecondary,
+                                      ),
                                   ],
                                 ),
                               );
@@ -317,7 +437,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view manager badges & points',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
@@ -359,7 +481,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   padding: AppSpacing.screenPadding,
                   child: Text(
                     'No data available yet',
-                    style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               );
@@ -377,7 +501,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                 children: [
                   Text(
                     'Manager Badges & Points',
-                    style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildPointsCard(m),
@@ -428,10 +554,22 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     } else {
       nextThreshold = null; // max level reached
     }
-    final remaining = nextThreshold != null ? (nextThreshold - points).clamp(0, nextThreshold) : 0;
+    final remaining = nextThreshold != null
+        ? (nextThreshold - points).clamp(0, nextThreshold)
+        : 0;
     final progressToNext = nextThreshold != null
-        ? (points - (nextLevel == 2 ? 0 : (nextLevel == 3 ? 500 : (nextLevel == 4 ? 1000 : 2000)))) /
-            (nextThreshold - (nextLevel == 2 ? 0 : (nextLevel == 3 ? 500 : (nextLevel == 4 ? 1000 : 2000))))
+        ? (points -
+                  (nextLevel == 2
+                      ? 0
+                      : (nextLevel == 3
+                            ? 500
+                            : (nextLevel == 4 ? 1000 : 2000)))) /
+              (nextThreshold -
+                  (nextLevel == 2
+                      ? 0
+                      : (nextLevel == 3
+                            ? 500
+                            : (nextLevel == 4 ? 1000 : 2000))))
         : 1.0;
     return Container(
       padding: const EdgeInsets.all(24),
@@ -506,13 +644,19 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                       const SizedBox(width: 6),
                       Text(
                         'Level ${info.level}',
-                        style: AppTypography.heading4.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: AppTypography.heading4.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                   Text(
                     info.title,
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary.withValues(alpha: 0.9), fontWeight: FontWeight.w600),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -536,7 +680,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
               const SizedBox(width: 8),
               _chip('Nudges', m.nudgesSent.toString()),
               const SizedBox(width: 8),
-              _chip('Completion', '${(m.teamCompletionRate * 100).toStringAsFixed(0)}%'),
+              _chip(
+                'Completion',
+                '${(m.teamCompletionRate * 100).toStringAsFixed(0)}%',
+              ),
               const SizedBox(width: 8),
               _chip('Engagement', '${m.teamEngagement.toStringAsFixed(0)}%'),
             ],
@@ -544,14 +691,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           const SizedBox(height: 10),
           Text(
             info.description,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary.withValues(alpha: 0.85)),
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary.withValues(alpha: 0.85),
+            ),
           ),
         ],
       ),
     );
   }
-
-
 
   Widget _chip(String label, String value) {
     return Container(
@@ -564,15 +711,24 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(width: 6),
-          Text(label, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
   }
-
-
 
   Widget _buildExplanation() {
     return Container(
@@ -585,11 +741,26 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _bullet('Acknowledgements', 'You earn points when you approve/reject and acknowledge employee goals and milestones.'),
-          _bullet('Feedback & Check-ins', 'Points for sending meaningful nudges and maintaining regular touchpoints.'),
-          _bullet('Replanning Support', 'Earn when you help replan delayed objectives (captured via approvals and actions).'),
-          _bullet('Team Outcomes', 'Bonuses for high goal completion, strong engagement, and consistent progress.'),
-          _bullet('Growth Seasons', 'Running seasons/challenges adds badges and contributes to your points.'),
+          _bullet(
+            'Acknowledgements',
+            'You earn points when you approve/reject and acknowledge employee goals and milestones.',
+          ),
+          _bullet(
+            'Feedback & Check-ins',
+            'Points for sending meaningful nudges and maintaining regular touchpoints.',
+          ),
+          _bullet(
+            'Replanning Support',
+            'Earn when you help replan delayed objectives (captured via approvals and actions).',
+          ),
+          _bullet(
+            'Team Outcomes',
+            'Bonuses for high goal completion, strong engagement, and consistent progress.',
+          ),
+          _bullet(
+            'Growth Seasons',
+            'Running seasons/challenges adds badges and contributes to your points.',
+          ),
         ],
       ),
     );
@@ -605,9 +776,17 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           Expanded(
             child: RichText(
               text: TextSpan(
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
                 children: [
-                  TextSpan(text: '$title: ', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                  TextSpan(
+                    text: '$title: ',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                   TextSpan(text: text),
                 ],
               ),
@@ -652,7 +831,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         final totalEmployees = tm.totalEmployees;
         final teamEngagement = tm.teamEngagement; // 0-100 percentage
         final teamCompletionRate = totalEmployees > 0
-            ? (goalsCompleted / (totalEmployees * 5)).clamp(0.0, 1.0) // assume ~5 goals/person baseline
+            ? (goalsCompleted / (totalEmployees * 5)).clamp(
+                0.0,
+                1.0,
+              ) // assume ~5 goals/person baseline
             : 0.0;
 
         // Manager badges from seasons (ids stored in season.metrics.managerBadgesEarned)
@@ -672,13 +854,13 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           activeSeasonsTeamPoints += (metrics['totalTeamPoints'] is int)
               ? metrics['totalTeamPoints'] as int
               : (metrics['totalTeamPoints'] is num)
-                  ? (metrics['totalTeamPoints'] as num).round()
-                  : 0;
+              ? (metrics['totalTeamPoints'] as num).round()
+              : 0;
           completedTeamChallenges += (metrics['completedTeamChallenges'] is int)
               ? metrics['completedTeamChallenges'] as int
               : (metrics['completedTeamChallenges'] is num)
-                  ? (metrics['completedTeamChallenges'] as num).round()
-                  : 0;
+              ? (metrics['completedTeamChallenges'] as num).round()
+              : 0;
         }
 
         // Build recent actions: latest 10 nudges and approvals
@@ -691,12 +873,15 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             .get();
         for (final doc in recentNudges.docs) {
           final data = doc.data();
-          final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-          recentActions.add(_RecentManagerAction(
-            type: 'nudge',
-            title: data['title'] ?? 'Nudge sent',
-            timeLabel: _timeAgo(createdAt),
-          ));
+          final createdAt =
+              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          recentActions.add(
+            _RecentManagerAction(
+              type: 'nudge',
+              title: data['title'] ?? 'Nudge sent',
+              timeLabel: _timeAgo(createdAt),
+            ),
+          );
         }
         final recentApprovals = await FirebaseFirestore.instance
             .collection('goals')
@@ -706,21 +891,26 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             .get();
         for (final doc in recentApprovals.docs) {
           final data = doc.data();
-          final updatedAt = (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final updatedAt =
+              (data['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now();
           final title = data['title'] ?? 'Goal approval';
-          recentActions.add(_RecentManagerAction(
-            type: 'approval',
-            title: 'Acknowledged: $title',
-            timeLabel: _timeAgo(updatedAt),
-          ));
+          recentActions.add(
+            _RecentManagerAction(
+              type: 'approval',
+              title: 'Acknowledged: $title',
+              timeLabel: _timeAgo(updatedAt),
+            ),
+          );
         }
 
         // Points calculation
         int points = 0;
         points += approvalsCount * weightApproval;
         points += nudgesSent * weightNudge;
-        if (teamCompletionRate >= 0.6) points += weightHighCompletionBonus; // reward high completion
-        if (teamEngagement >= 70) points += weightEngagementBonus; // reward engagement
+        if (teamCompletionRate >= 0.6)
+          points += weightHighCompletionBonus; // reward high completion
+        if (teamEngagement >= 70)
+          points += weightEngagementBonus; // reward engagement
 
         yield _ManagerMetrics(
           approvalsCount: approvalsCount,
@@ -743,7 +933,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       }
     }
   }
-  
+
   String _timeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final diff = now.difference(dateTime);
@@ -792,20 +982,20 @@ class _ManagerMetrics {
   });
 
   factory _ManagerMetrics.empty() => const _ManagerMetrics(
-        approvalsCount: 0,
-        nudgesSent: 0,
-        teamCompletionRate: 0.0,
-        teamEngagement: 0.0,
-        totalEmployees: 0,
-        goalsCompleted: 0,
-        avgTeamProgress: 0.0,
-        totalPoints: 0,
-        managerSeasonBadges: [],
-        seasonsManaged: 0,
-        activeSeasonsTeamPoints: 0,
-        completedTeamChallenges: 0,
-        recentActions: [],
-      );
+    approvalsCount: 0,
+    nudgesSent: 0,
+    teamCompletionRate: 0.0,
+    teamEngagement: 0.0,
+    totalEmployees: 0,
+    goalsCompleted: 0,
+    avgTeamProgress: 0.0,
+    totalPoints: 0,
+    managerSeasonBadges: [],
+    seasonsManaged: 0,
+    activeSeasonsTeamPoints: 0,
+    completedTeamChallenges: 0,
+    recentActions: [],
+  );
 }
 
 // ignore: unused_element
@@ -813,7 +1003,11 @@ class _ManagerBadgeMeta {
   final String name;
   final String desc;
   final String emoji;
-  const _ManagerBadgeMeta({required this.name, required this.desc, required this.emoji});
+  const _ManagerBadgeMeta({
+    required this.name,
+    required this.desc,
+    required this.emoji,
+  });
 }
 
 // Mirror of SeasonService manager badge IDs
@@ -822,5 +1016,9 @@ class _RecentManagerAction {
   final String type; // 'nudge' | 'approval'
   final String title;
   final String timeLabel;
-  const _RecentManagerAction({required this.type, required this.title, required this.timeLabel});
+  const _RecentManagerAction({
+    required this.type,
+    required this.title,
+    required this.timeLabel,
+  });
 }

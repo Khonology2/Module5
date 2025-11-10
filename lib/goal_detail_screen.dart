@@ -18,10 +18,7 @@ import 'package:pdh/models/alert.dart';
 class GoalDetailScreen extends StatefulWidget {
   final Goal goal;
 
-  const GoalDetailScreen({
-    super.key,
-    required this.goal,
-  });
+  const GoalDetailScreen({super.key, required this.goal});
 
   @override
   State<GoalDetailScreen> createState() => _GoalDetailScreenState();
@@ -44,21 +41,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         .doc(widget.goal.id)
         .snapshots()
         .listen((doc) {
-      if (!mounted) return;
-      try {
-        final updated = Goal.fromFirestore(doc);
-        setState(() {
-          currentGoal = updated;
-          final data = doc.data();
-          _isSeasonGoal = (data?['isSeasonGoal'] == true);
+          if (!mounted) return;
+          try {
+            final updated = Goal.fromFirestore(doc);
+            setState(() {
+              currentGoal = updated;
+              final data = doc.data();
+              _isSeasonGoal = (data?['isSeasonGoal'] == true);
+            });
+          } catch (_) {}
         });
-      } catch (_) {}
-    });
   }
 
   Future<void> _submitForApproval() async {
     if (_submittingApproval) return;
-    setState(() { _submittingApproval = true; });
+    setState(() {
+      _submittingApproval = true;
+    });
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
@@ -69,7 +68,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       );
       if (mounted) {
         setState(() {
-          currentGoal = currentGoal.copyWith(approvalRequestedAt: DateTime.now());
+          currentGoal = currentGoal.copyWith(
+            approvalRequestedAt: DateTime.now(),
+          );
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Submitted for manager approval')),
@@ -82,13 +83,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() { _submittingApproval = false; });
+      if (mounted)
+        setState(() {
+          _submittingApproval = false;
+        });
     }
   }
 
   Widget _buildKpaSelector() {
     final List<String> options = ['Operational', 'Customer', 'Financial'];
-    final String? current = currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty
+    final String? current =
+        currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty
         ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
         : null;
 
@@ -106,7 +111,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         DropdownButtonFormField<String>(
           initialValue: current,
           dropdownColor: AppColors.elevatedBackground,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
           decoration: InputDecoration(
             hintText: 'Select Key Performance Area',
             hintStyle: AppTypography.bodyMedium.copyWith(
@@ -122,25 +129,41 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: AppColors.activeColor),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
           ),
           icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-          items: options.map((o) => DropdownMenuItem<String>(
-            value: o,
-            child: Text(o, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
-          )).toList(),
+          items: options
+              .map(
+                (o) => DropdownMenuItem<String>(
+                  value: o,
+                  child: Text(
+                    o,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
           onChanged: (val) async {
             if (val == null) return;
             final newKpa = val.toLowerCase();
             try {
-              setState(() { isLoading = true; });
+              setState(() {
+                isLoading = true;
+              });
               final updated = currentGoal.copyWith(kpa: newKpa);
               await DatabaseService.updateGoal(updated);
               if (mounted) {
-                setState(() { currentGoal = updated; });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('KPA updated')),
-                );
+                setState(() {
+                  currentGoal = updated;
+                });
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('KPA updated')));
               }
             } catch (e) {
               if (mounted) {
@@ -149,7 +172,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 );
               }
             } finally {
-              if (mounted) setState(() { isLoading = false; });
+              if (mounted)
+                setState(() {
+                  isLoading = false;
+                });
             }
           },
         ),
@@ -163,7 +189,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Goal'),
-        content: const Text('Are you sure you want to permanently delete this goal? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to permanently delete this goal? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -171,7 +199,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.dangerColor, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.dangerColor,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -179,25 +210,38 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
     if (confirm != true) return;
 
-    setState(() { isLoading = true; });
+    setState(() {
+      isLoading = true;
+    });
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
-      await DatabaseService.deleteGoal(goalId: currentGoal.id, requesterId: user.uid);
+      await DatabaseService.deleteGoal(
+        goalId: currentGoal.id,
+        requesterId: user.uid,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Goal deleted'), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text('Goal deleted'),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete goal: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Failed to delete goal: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() { isLoading = false; });
+        setState(() {
+          isLoading = false;
+        });
       }
     }
   }
@@ -220,7 +264,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           activityType: 'goal_started',
           description: 'Started goal',
         );
-        
+
         await AlertService.createPointsAlert(
           userId: user.uid,
           pointsEarned: 20,
@@ -260,7 +304,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _completeGoal() async {
     if (isLoading) return;
-    
+
     // Guard: ensure started and at 100% before attempting to complete
     if (currentGoal.status != GoalStatus.inProgress) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -280,7 +324,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       );
       return;
     }
-    
+
     setState(() {
       isLoading = true;
     });
@@ -296,7 +340,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           activityType: 'goal_completed',
           description: 'Completed goal',
         );
-        
+
         // Create completion alerts
         await AlertService.createGoalAlert(
           userId: user.uid,
@@ -306,7 +350,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
           type: AlertType.goalCompleted,
         );
-        
+
         await AlertService.createPointsAlert(
           userId: user.uid,
           pointsEarned: 100,
@@ -353,7 +397,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _updateProgress(int newProgress) async {
     if (isLoading) return;
-    
+
     setState(() {
       isLoading = true;
     });
@@ -372,14 +416,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       } catch (_) {
         // Swallow activity write errors so progress UX isn't interrupted
       }
-      
+
       if (mounted) {
         setState(() {
           // If progress moves above 0 and we were not started, reflect auto-transition to inProgress
-          final nextStatus = (newProgress > 0 && currentGoal.status == GoalStatus.notStarted)
+          final nextStatus =
+              (newProgress > 0 && currentGoal.status == GoalStatus.notStarted)
               ? GoalStatus.inProgress
               : currentGoal.status;
-          currentGoal = currentGoal.copyWith(progress: newProgress, status: nextStatus);
+          currentGoal = currentGoal.copyWith(
+            progress: newProgress,
+            status: nextStatus,
+          );
         });
 
         // Award points for progress milestones (backend handles 50% with +20 and motivational alert)
@@ -432,7 +480,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, roleSnapshot) {
-        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
         return AppScaffold(
           title: 'Goal Details',
@@ -448,10 +497,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           onLogout: () async {
             await AuthService().signOut();
             if (!context.mounted) return;
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/sign_in',
-              (route) => false,
-            );
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/sign_in', (route) => false);
           },
           content: Container(
             width: double.infinity,
@@ -494,7 +542,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildApprovalNotice() {
-    if (_isSeasonGoal || currentGoal.approvalStatus == GoalApprovalStatus.approved) {
+    if (_isSeasonGoal ||
+        currentGoal.approvalStatus == GoalApprovalStatus.approved) {
       return const SizedBox.shrink();
     }
     final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
@@ -517,7 +566,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           Expanded(
             child: Text(
               text,
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -530,10 +581,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       children: [
         IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back,
-            color: AppColors.textPrimary,
-          ),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -571,7 +619,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Widget _buildGoalInfo() {
     final daysLeft = currentGoal.targetDate.difference(DateTime.now()).inDays;
     final createdText = _fmtDateTime(currentGoal.createdAt);
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -669,11 +717,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Widget _buildInfoItem(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.textSecondary,
-        ),
+        Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -736,7 +780,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed && (currentGoal.approvalStatus == GoalApprovalStatus.approved || _isSeasonGoal)) ...[
+          if (currentGoal.status != GoalStatus.completed &&
+              (currentGoal.approvalStatus == GoalApprovalStatus.approved ||
+                  _isSeasonGoal)) ...[
             Text(
               'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
@@ -748,22 +794,33 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               spacing: 8,
               runSpacing: 8,
               children: List.generate(10, (i) => (i + 1) * 10).map((progress) {
-                final bool overEvidenceCap = (!_isSeasonGoal && currentGoal.evidence.isEmpty && progress > 90);
-                final isDisabled = progress <= currentGoal.progress || overEvidenceCap;
+                final bool overEvidenceCap =
+                    (!_isSeasonGoal &&
+                    currentGoal.evidence.isEmpty &&
+                    progress > 90);
+                final isDisabled =
+                    progress <= currentGoal.progress || overEvidenceCap;
                 return ElevatedButton(
-                  onPressed: isDisabled ? null : () => _updateProgress(progress),
+                  onPressed: isDisabled
+                      ? null
+                      : () => _updateProgress(progress),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDisabled 
-                        ? AppColors.borderColor 
+                    backgroundColor: isDisabled
+                        ? AppColors.borderColor
                         : AppColors.activeColor,
                     foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                   child: Text('$progress%'),
                 );
               }).toList(),
             ),
-            if (currentGoal.progress >= 90 && currentGoal.progress < 100 && (_isSeasonGoal || currentGoal.evidence.isNotEmpty)) ...[
+            if (currentGoal.progress >= 90 &&
+                currentGoal.progress < 100 &&
+                (_isSeasonGoal || currentGoal.evidence.isNotEmpty)) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -774,16 +831,24 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textPrimary,
                     side: BorderSide(color: AppColors.activeColor),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                 ),
               ),
             ],
-            if (!_isSeasonGoal && currentGoal.progress >= 90 && currentGoal.progress < 100 && currentGoal.evidence.isEmpty) ...[
+            if (!_isSeasonGoal &&
+                currentGoal.progress >= 90 &&
+                currentGoal.progress < 100 &&
+                currentGoal.evidence.isEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 'Submit evidence to unlock the final 10% and complete.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ],
@@ -799,15 +864,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         decoration: BoxDecoration(
           color: AppColors.successColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: AppColors.successColor.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.check_circle,
-              color: AppColors.successColor,
-              size: 24,
-            ),
+            Icon(Icons.check_circle, color: AppColors.successColor, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -824,8 +887,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
 
     // If not approved yet, either allow submission or show status banner
-    if (!_isSeasonGoal && currentGoal.approvalStatus != GoalApprovalStatus.approved) {
-      final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
+    if (!_isSeasonGoal &&
+        currentGoal.approvalStatus != GoalApprovalStatus.approved) {
+      final isPending =
+          currentGoal.approvalStatus == GoalApprovalStatus.pending;
       final hasRequested = currentGoal.approvalRequestedAt != null;
       // Permanently hide the submit-for-approval UI (auto-request happens on create)
       final bool showSubmitForApproval = UniqueKey() == UniqueKey();
@@ -850,7 +915,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Your goal needs manager approval before you can start updating progress.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -858,9 +925,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _submittingApproval ? null : _submitForApproval,
                   icon: _submittingApproval
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
                       : const Icon(Icons.send),
-                  label: Text(_submittingApproval ? 'Submitting...' : 'Submit for Approval'),
+                  label: Text(
+                    _submittingApproval
+                        ? 'Submitting...'
+                        : 'Submit for Approval',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
                     foregroundColor: AppColors.textPrimary,
@@ -877,9 +957,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.1),
+          color: (isPending ? AppColors.warningColor : AppColors.dangerColor)
+              .withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.3)),
+          border: Border.all(
+            color: (isPending ? AppColors.warningColor : AppColors.dangerColor)
+                .withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
@@ -911,7 +995,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: isLoading ? null : _startGoal,
-              icon: isLoading 
+              icon: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -932,8 +1016,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ] else if (currentGoal.status == GoalStatus.inProgress) ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: (isLoading || currentGoal.progress < 100 || (!_isSeasonGoal && currentGoal.evidence.isEmpty)) ? null : _completeGoal,
-              icon: isLoading 
+              onPressed:
+                  (isLoading ||
+                      currentGoal.progress < 100 ||
+                      (!_isSeasonGoal && currentGoal.evidence.isEmpty))
+                  ? null
+                  : _completeGoal,
+              icon: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -943,7 +1032,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     )
                   : const Icon(Icons.check_circle),
-              label: Text(isLoading ? 'Completing...' : 'Complete Goal (+100 pts)'),
+              label: Text(
+                isLoading ? 'Completing...' : 'Complete Goal (+100 pts)',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.successColor,
                 foregroundColor: AppColors.textPrimary,
@@ -963,16 +1054,20 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       50: 20, // halfway bonus
       100: 100, // completion
     };
-    final milestones = steps.map((p) => {
-      'progress': p,
-      'label': p == 0 ? 'Started' : '$p% Complete',
-      'points': pointsByStep[p] ?? 0,
-      'icon': p == 0
-          ? Icons.play_arrow
-          : p == 100
-              ? Icons.check_circle
-              : Icons.trending_up,
-    }).toList();
+    final milestones = steps
+        .map(
+          (p) => {
+            'progress': p,
+            'label': p == 0 ? 'Started' : '$p% Complete',
+            'points': pointsByStep[p] ?? 0,
+            'icon': p == 0
+                ? Icons.play_arrow
+                : p == 100
+                ? Icons.check_circle
+                : Icons.trending_up,
+          },
+        )
+        .toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -993,11 +1088,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           const SizedBox(height: 16),
           ...milestones.map((milestone) {
             final progress = milestone['progress'] as int;
-            final isCompleted = (currentGoal.status == GoalStatus.inProgress && progress == 0) ||
-                               currentGoal.progress >= progress;
-            final isCurrent = currentGoal.progress >= progress && 
-                             (milestones.indexOf(milestone) == milestones.length - 1 || 
-                              currentGoal.progress < (milestones[milestones.indexOf(milestone) + 1]['progress'] as int));
+            final isCompleted =
+                (currentGoal.status == GoalStatus.inProgress &&
+                    progress == 0) ||
+                currentGoal.progress >= progress;
+            final isCurrent =
+                currentGoal.progress >= progress &&
+                (milestones.indexOf(milestone) == milestones.length - 1 ||
+                    currentGoal.progress <
+                        (milestones[milestones.indexOf(milestone) +
+                                1]['progress']
+                            as int));
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1007,27 +1108,27 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: isCompleted 
+                      color: isCompleted
                           ? AppColors.successColor.withValues(alpha: 0.2)
                           : isCurrent
-                              ? AppColors.activeColor.withValues(alpha: 0.2)
-                              : AppColors.borderColor.withValues(alpha: 0.2),
+                          ? AppColors.activeColor.withValues(alpha: 0.2)
+                          : AppColors.borderColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isCompleted 
+                        color: isCompleted
                             ? AppColors.successColor
                             : isCurrent
-                                ? AppColors.activeColor
-                                : AppColors.borderColor,
+                            ? AppColors.activeColor
+                            : AppColors.borderColor,
                       ),
                     ),
                     child: Icon(
                       milestone['icon'] as IconData,
-                      color: isCompleted 
+                      color: isCompleted
                           ? AppColors.successColor
                           : isCurrent
-                              ? AppColors.activeColor
-                              : AppColors.textSecondary,
+                          ? AppColors.activeColor
+                          : AppColors.textSecondary,
                       size: 20,
                     ),
                   ),
@@ -1039,10 +1140,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         Text(
                           milestone['label'] as String,
                           style: AppTypography.bodyMedium.copyWith(
-                            color: isCompleted 
+                            color: isCompleted
                                 ? AppColors.textPrimary
                                 : AppColors.textSecondary,
-                            fontWeight: isCompleted ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isCompleted
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                         if ((milestone['points'] as int) > 0)
@@ -1056,11 +1159,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                   ),
                   if (isCompleted)
-                    Icon(
-                      Icons.check,
-                      color: AppColors.successColor,
-                      size: 20,
-                    ),
+                    Icon(Icons.check, color: AppColors.successColor, size: 20),
                 ],
               ),
             );

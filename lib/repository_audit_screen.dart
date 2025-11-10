@@ -64,19 +64,25 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           .doc(user.uid)
           .get();
       final role = (roleDoc.data() ?? const {})['role'] as String?;
-      
+
       if (role == 'manager') {
         // For managers: backfill all verified entries in their department
-        final department = (roleDoc.data() ?? const {})['department'] as String?;
+        final department =
+            (roleDoc.data() ?? const {})['department'] as String?;
         if (department != null && department.isNotEmpty) {
-          await RepositoryService.backfillVerifiedEntriesForDepartment(department);
+          await RepositoryService.backfillVerifiedEntriesForDepartment(
+            department,
+          );
         }
       } else {
         // For employees: backfill their own verified entries
         await RepositoryService.backfillVerifiedEntriesForUser(user.uid);
       }
     } catch (e) {
-      developer.log('Error backfilling verified entries: $e', name: 'RepositoryAuditScreen');
+      developer.log(
+        'Error backfilling verified entries: $e',
+        name: 'RepositoryAuditScreen',
+      );
     }
   }
 
@@ -149,15 +155,22 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       itemBuilder: (context, index) {
         final e = entries[index];
         final d = e.completedDate;
-        final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        final date =
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
         return ListTile(
           leading: const Icon(Icons.verified, color: Colors.green),
-          title: Text(e.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          title: Text(
+            e.goalTitle,
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
           subtitle: Text(
             '$date • ${e.userDisplayName} • Score: ${e.score?.toStringAsFixed(1) ?? '-'}',
             style: TextStyle(color: AppColors.textMuted),
           ),
-          trailing: Text('${e.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+          trailing: Text(
+            '${e.evidence.length} evidence',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         );
       },
     );
@@ -181,14 +194,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             fillColor: Colors.black.withValues(alpha: 0.4),
             enabledBorder: OutlineInputBorder(
               borderRadius: const BorderRadius.all(Radius.circular(15.0)),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: const BorderRadius.all(Radius.circular(15.0)),
               borderSide: BorderSide(color: AppColors.activeColor),
             ),
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 16,
+            ),
           ),
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -197,7 +215,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         LayoutBuilder(
           builder: (context, constraints) {
             final isWideScreen = constraints.maxWidth > 600;
-            
+
             if (isWideScreen) {
               // Wide screen: use Row with Expanded
               return Row(
@@ -212,7 +230,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         fillColor: Colors.black.withValues(alpha: 0.4),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -223,10 +243,22 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       dropdownColor: Colors.black.withValues(alpha: 0.9),
                       style: TextStyle(color: AppColors.textPrimary),
                       items: const [
-                        DropdownMenuItem(value: null, child: Text('All Statuses')),
-                        DropdownMenuItem(value: 'verified', child: Text('Verified')),
-                        DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                        DropdownMenuItem(
+                          value: null,
+                          child: Text('All Statuses'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'verified',
+                          child: Text('Verified'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'pending',
+                          child: Text('Pending'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'rejected',
+                          child: Text('Rejected'),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -245,7 +277,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         fillColor: Colors.black.withValues(alpha: 0.4),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -268,7 +302,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         fillColor: Colors.black.withValues(alpha: 0.4),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -312,7 +348,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       fillColor: Colors.black.withValues(alpha: 0.4),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -323,10 +361,22 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     dropdownColor: Colors.black.withValues(alpha: 0.9),
                     style: TextStyle(color: AppColors.textPrimary),
                     items: const [
-                      DropdownMenuItem(value: null, child: Text('All Statuses')),
-                      DropdownMenuItem(value: 'verified', child: Text('Verified')),
-                      DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                      DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text('All Statuses'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'verified',
+                        child: Text('Verified'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('Pending'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'rejected',
+                        child: Text('Rejected'),
+                      ),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -343,7 +393,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       fillColor: Colors.black.withValues(alpha: 0.4),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -363,7 +415,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       fillColor: Colors.black.withValues(alpha: 0.4),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -373,7 +427,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                     keyboardType: TextInputType.number,
                     style: TextStyle(color: AppColors.textPrimary),
-                    onChanged: (v) => setState(() => _minScore = double.tryParse(v)),
+                    onChanged: (v) =>
+                        setState(() => _minScore = double.tryParse(v)),
                   ),
                   const SizedBox(height: 12),
                   Align(
@@ -428,12 +483,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 icon: const Icon(Icons.info_outline),
                 color: AppColors.warningColor,
               ),
-            IconButton(
-              tooltip: 'Export',
-              onPressed: _showExportSheet,
-              icon: const Icon(Icons.ios_share),
-              color: AppColors.textPrimary,
-            ),
           ],
         );
       },
@@ -444,7 +493,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return null;
-      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final dept = (doc.data() ?? const {})['department'] as String?;
       developer.log(
         'Manager department check: uid=$uid, department="$dept"',
@@ -452,7 +504,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       );
       return dept;
     } catch (e) {
-      developer.log('Error getting manager department: $e', name: 'RepositoryAuditScreen');
+      developer.log(
+        'Error getting manager department: $e',
+        name: 'RepositoryAuditScreen',
+      );
       return null;
     }
   }
@@ -465,7 +520,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
       // Get manager's department
       final managerDept = await _getManagerDept();
-      
+
       // Get ALL audit entries (no filter) to see what's actually in the database
       final allEntriesSnapshot = await FirebaseFirestore.instance
           .collection('audit_entries')
@@ -491,7 +546,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       }
 
       if (!mounted) return;
-      
+
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -584,16 +639,20 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           'Count: ${entries.length}',
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
-                        ...entries.take(3).map((e) => Padding(
-                              padding: const EdgeInsets.only(left: 8, top: 4),
-                              child: Text(
-                                '• ${e['userDisplayName']} - ${e['goalTitle']} (${e['status']})',
-                                style: TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 12,
+                        ...entries
+                            .take(3)
+                            .map(
+                              (e) => Padding(
+                                padding: const EdgeInsets.only(left: 8, top: 4),
+                                child: Text(
+                                  '• ${e['userDisplayName']} - ${e['goalTitle']} (${e['status']})',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
-                            )),
+                            ),
                         if (entries.length > 3)
                           Padding(
                             padding: const EdgeInsets.only(left: 8, top: 4),
@@ -610,7 +669,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                   );
                 }),
-                if (managerDept != null && managerDept.isNotEmpty && !byDept.containsKey(managerDept))
+                if (managerDept != null &&
+                    managerDept.isNotEmpty &&
+                    !byDept.containsKey(managerDept))
                   Container(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(8),
@@ -630,13 +691,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+              child: Text(
+                'Close',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
           ],
         ),
       );
     } catch (e) {
-      developer.log('Error showing diagnostic info: $e', name: 'RepositoryAuditScreen');
+      developer.log(
+        'Error showing diagnostic info: $e',
+        name: 'RepositoryAuditScreen',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading diagnostic info: $e')),
@@ -666,58 +733,75 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   .where('userDepartment', isEqualTo: dept)
                   .snapshots()
                   .map((snapshot) {
-                final entries = <AuditEntry>[];
-                for (final doc in snapshot.docs) {
-                  try {
-                    entries.add(AuditEntry.fromFirestore(doc));
-                  } catch (e) {
-                    developer.log('Error parsing audit entry ${doc.id}: $e');
-                  }
-                }
+                    final entries = <AuditEntry>[];
+                    for (final doc in snapshot.docs) {
+                      try {
+                        entries.add(AuditEntry.fromFirestore(doc));
+                      } catch (e) {
+                        developer.log(
+                          'Error parsing audit entry ${doc.id}: $e',
+                        );
+                      }
+                    }
 
-                return <String, int>{
-                  'total': entries.length,
-                  'verified': entries.where((e) => e.status == 'verified').length,
-                  'pending': entries.where((e) => e.status == 'pending').length,
-                  'rejected': entries.where((e) => e.status == 'rejected').length,
-                };
-              });
+                    return <String, int>{
+                      'total': entries.length,
+                      'verified': entries
+                          .where((e) => e.status == 'verified')
+                          .length,
+                      'pending': entries
+                          .where((e) => e.status == 'pending')
+                          .length,
+                      'rejected': entries
+                          .where((e) => e.status == 'rejected')
+                          .length,
+                    };
+                  });
             });
           })
         : Stream.value(emptyStats).asyncExpand((_) {
             // Get all entries without status filter for accurate counts
             return AuditService.getEmployeeAuditEntriesStream(
-              status: null, // Get all statuses for accurate counts
-            ).map((entries) {
-              developer.log(
-                'Employee summary: Total entries=${entries.length}, '
-                'Pending=${entries.where((e) => e.status == 'pending').length}, '
-                'Verified=${entries.where((e) => e.status == 'verified').length}, '
-                'Rejected=${entries.where((e) => e.status == 'rejected').length}',
-                name: 'RepositoryAuditScreen',
-              );
-              return <String, int>{
-                'total': entries.length,
-                'verified': entries.where((e) => e.status == 'verified').length,
-                'pending': entries.where((e) => e.status == 'pending').length,
-                'rejected': entries.where((e) => e.status == 'rejected').length,
-              };
-            }).handleError((error, stackTrace) {
-              developer.log(
-                'Error in employee audit entries stream: $error',
-                name: 'RepositoryAuditScreen',
-                error: error,
-                stackTrace: stackTrace,
-              );
-              return emptyStats;
-            });
+                  status: null, // Get all statuses for accurate counts
+                )
+                .map((entries) {
+                  developer.log(
+                    'Employee summary: Total entries=${entries.length}, '
+                    'Pending=${entries.where((e) => e.status == 'pending').length}, '
+                    'Verified=${entries.where((e) => e.status == 'verified').length}, '
+                    'Rejected=${entries.where((e) => e.status == 'rejected').length}',
+                    name: 'RepositoryAuditScreen',
+                  );
+                  return <String, int>{
+                    'total': entries.length,
+                    'verified': entries
+                        .where((e) => e.status == 'verified')
+                        .length,
+                    'pending': entries
+                        .where((e) => e.status == 'pending')
+                        .length,
+                    'rejected': entries
+                        .where((e) => e.status == 'rejected')
+                        .length,
+                  };
+                })
+                .handleError((error, stackTrace) {
+                  developer.log(
+                    'Error in employee audit entries stream: $error',
+                    name: 'RepositoryAuditScreen',
+                    error: error,
+                    stackTrace: stackTrace,
+                  );
+                  return emptyStats;
+                });
           });
 
     return StreamBuilder<Map<String, int>>(
       stream: stream,
       builder: (context, snapshot) {
-        final stats = snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
-        
+        final stats =
+            snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
+
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -737,7 +821,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                        'My Goals Progress',
+                      'My Goals Progress',
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
@@ -751,9 +835,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildStatusChip('Verified', stats['verified'] ?? 0, AppColors.successColor),
-                  _buildStatusChip('Pending', stats['pending'] ?? 0, AppColors.warningColor),
-                    _buildStatusChip('Rejected', stats['rejected'] ?? 0, AppColors.dangerColor),
+                  _buildStatusChip(
+                    'Verified',
+                    stats['verified'] ?? 0,
+                    AppColors.successColor,
+                  ),
+                  _buildStatusChip(
+                    'Pending',
+                    stats['pending'] ?? 0,
+                    AppColors.warningColor,
+                  ),
+                  _buildStatusChip(
+                    'Rejected',
+                    stats['rejected'] ?? 0,
+                    AppColors.dangerColor,
+                  ),
                 ],
               ),
             ],
@@ -777,10 +873,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
@@ -810,34 +903,43 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       builder: (context, snapshot) {
         // Show loading only if we're truly waiting AND haven't received any data yet
         // This prevents infinite loading when stream hasn't emitted yet but will emit soon
-        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           // Only show loading for a short time, then assume empty
           return FutureBuilder<bool>(
-            future: Future.delayed(const Duration(milliseconds: 500), () => true),
+            future: Future.delayed(
+              const Duration(milliseconds: 500),
+              () => true,
+            ),
             builder: (context, timeoutSnapshot) {
-              if (timeoutSnapshot.hasData && snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+              if (timeoutSnapshot.hasData &&
+                  snapshot.connectionState == ConnectionState.waiting &&
+                  !snapshot.hasData) {
                 // After timeout, show empty state instead of infinite loading
                 return _buildEmptyState(isManager: isManager);
               }
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: AppColors.activeColor),
-                SizedBox(height: 16),
-                Text(
-                  'Loading audit entries...',
-                  style: TextStyle(color: AppColors.textMuted),
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.activeColor),
+                    SizedBox(height: 16),
+                    Text(
+                      'Loading audit entries...',
+                      style: TextStyle(color: AppColors.textMuted),
+                    ),
+                  ],
                 ),
-              ],
-            ),
               );
             },
           );
         }
 
         if (snapshot.hasError) {
-          developer.log('Audit entries error: ${snapshot.error}', name: 'RepositoryAuditScreen');
+          developer.log(
+            'Audit entries error: ${snapshot.error}',
+            name: 'RepositoryAuditScreen',
+          );
           return _buildErrorState(
             'Failed to load audit entries. ${snapshot.error}',
             onRetry: () {
@@ -853,7 +955,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         }
 
         return Column(
-          children: entries.map((entry) => _buildAuditEntryCard(entry, isManager)).toList(),
+          children: entries
+              .map((entry) => _buildAuditEntryCard(entry, isManager))
+              .toList(),
         );
       },
     );
@@ -865,7 +969,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       builder: (context, deptSnapshot) {
         final managerDept = deptSnapshot.data;
         final hasDept = managerDept != null && managerDept.isNotEmpty;
-        
+
         return Container(
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
@@ -893,10 +997,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               if (isManager && !hasDept) ...[
                 Text(
                   'Your department is not set. Please update your profile to view employee submissions.',
-                  style: TextStyle(
-                    color: AppColors.warningColor,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: AppColors.warningColor, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
@@ -914,28 +1015,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ] else if (isManager && hasDept) ...[
                 Text(
                   'No employee submissions found for your department ($managerDept).',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Employees must submit goals for audit to appear here.',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ] else ...[
                 Text(
                   'Complete some goals to see them here for audit',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
                 ),
               ],
             ],
@@ -955,11 +1047,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.error_outline,
-            color: AppColors.dangerColor,
-            size: 48,
-          ),
+          Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
           const SizedBox(height: 16),
           Text(
             'Error Loading Data',
@@ -972,10 +1060,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 8),
           Text(
             error,
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           if (onRetry != null) ...[
@@ -1035,7 +1120,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
@@ -1063,7 +1151,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 const SizedBox(width: 16),
                 Text(
                   'By: ${entry.userDisplayName}',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Text(
@@ -1123,27 +1214,36 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               decoration: BoxDecoration(
                 color: AppColors.successColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.successColor.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-            Row(
-              children: [
-                      Icon(Icons.verified_user, color: AppColors.successColor, size: 20),
-                const SizedBox(width: 8),
-                Text(
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.verified_user,
+                        color: AppColors.successColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
                         'Verified by ${entry.acknowledgedBy}',
-                    style: TextStyle(
-                      color: AppColors.successColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                        style: TextStyle(
+                          color: AppColors.successColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (entry.score != null) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.warningColor,
                             borderRadius: BorderRadius.circular(12),
@@ -1178,11 +1278,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                      'Manager Feedback:',
+                    'Manager Feedback:',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1197,31 +1297,38 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               ),
             ),
           ],
-          
-          if (entry.rejectionReason != null && entry.rejectionReason!.isNotEmpty) ...[
+
+          if (entry.rejectionReason != null &&
+              entry.rejectionReason!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.dangerColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.dangerColor.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.dangerColor.withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.warning, color: AppColors.dangerColor, size: 20),
+                      Icon(
+                        Icons.warning,
+                        color: AppColors.dangerColor,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
-                  Text(
+                      Text(
                         'Changes Requested',
-                    style: TextStyle(
-                      color: AppColors.dangerColor,
+                        style: TextStyle(
+                          color: AppColors.dangerColor,
                           fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -1275,17 +1382,23 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         ev.eventType == 'submission'
                             ? Icons.outbox
                             : ev.eventType == 'verification'
-                                ? Icons.verified
-                                : Icons.edit_note,
+                            ? Icons.verified
+                            : Icons.edit_note,
                         color: AppColors.textMuted,
                       ),
                       title: Text(
                         ev.description,
-                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                        ),
                       ),
                       subtitle: Text(
                         '${ev.actorName} • ${_formatDate(ev.timestamp)}',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
                       ),
                     );
                   },
@@ -1327,7 +1440,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 fillColor: Colors.black.withValues(alpha: 0.4),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1347,7 +1462,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 fillColor: Colors.black.withValues(alpha: 0.4),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1373,7 +1490,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   await AuditService.verifyAuditEntry(
                     entry.id,
                     score,
-                    commentsController.text.isEmpty ? null : commentsController.text,
+                    commentsController.text.isEmpty
+                        ? null
+                        : commentsController.text,
                   );
                   if (mounted) navigator.pop();
                 } catch (e) {
@@ -1385,7 +1504,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 }
               } else {
                 scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid score between 1.0 and 5.0')),
+                  const SnackBar(
+                    content: Text(
+                      'Please enter a valid score between 1.0 and 5.0',
+                    ),
+                  ),
                 );
               }
             },
@@ -1420,7 +1543,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             fillColor: Colors.black.withValues(alpha: 0.4),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -1440,7 +1565,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               final navigator = Navigator.of(context);
               if (reasonController.text.isNotEmpty) {
                 try {
-                  await AuditService.requestChanges(entry.id, reasonController.text);
+                  await AuditService.requestChanges(
+                    entry.id,
+                    reasonController.text,
+                  );
                   if (mounted) navigator.pop();
                 } catch (e) {
                   if (mounted) {
@@ -1451,7 +1579,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 }
               } else {
                 scaffoldMessenger.showSnackBar(
-                  const SnackBar(content: Text('Please provide a reason for the changes')),
+                  const SnackBar(
+                    content: Text('Please provide a reason for the changes'),
+                  ),
                 );
               }
             },
@@ -1464,7 +1594,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ),
     );
   }
-
 
   Widget _buildRepositorySection({required bool isManager}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1497,71 +1626,96 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           child: (isManager)
               ? StreamBuilder<List<RepositoryGoal>>(
                   // Use repository goals stream which shows all synced verified goals
-                  stream: Stream.value(<RepositoryGoal>[]).asyncExpand((_) {
-                    return Stream.fromFuture(
-                      FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
-                          .get(),
-                    ).asyncExpand((userDoc) {
-                      final department = (userDoc.data() ?? const {})['department'] as String?;
-                      if (department == null || department.isEmpty) {
-                        return Stream.value(<RepositoryGoal>[]);
-                      }
-                      return RepositoryService.getAllRepositoryGoalsStream(department: department);
-                    });
-                  }).map((goals) {
-                    // Apply filters
-                    Iterable<RepositoryGoal> filtered = goals;
+                  stream: Stream.value(<RepositoryGoal>[])
+                      .asyncExpand((_) {
+                        return Stream.fromFuture(
+                          FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
+                              .get(),
+                        ).asyncExpand((userDoc) {
+                          final department =
+                              (userDoc.data() ?? const {})['department']
+                                  as String?;
+                          if (department == null || department.isEmpty) {
+                            return Stream.value(<RepositoryGoal>[]);
+                          }
+                          return RepositoryService.getAllRepositoryGoalsStream(
+                            department: department,
+                          );
+                        });
+                      })
+                      .map((goals) {
+                        // Apply filters
+                        Iterable<RepositoryGoal> filtered = goals;
 
-                    if (_searchQuery.isNotEmpty) {
-                      final q = _searchQuery.toLowerCase();
-                      filtered = filtered.where((g) =>
-                          g.goalTitle.toLowerCase().contains(q) ||
-                          g.evidence.any((e) => e.toLowerCase().contains(q)));
-                    }
+                        if (_searchQuery.isNotEmpty) {
+                          final q = _searchQuery.toLowerCase();
+                          filtered = filtered.where(
+                            (g) =>
+                                g.goalTitle.toLowerCase().contains(q) ||
+                                g.evidence.any(
+                                  (e) => e.toLowerCase().contains(q),
+                                ),
+                          );
+                        }
 
-                    if (_monthFilter != null && _monthFilter!.isNotEmpty) {
-                      filtered = filtered.where((g) {
-                        final d = g.completedDate;
-                        if (d == null) return false;
-                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
-                        return key == _monthFilter;
-                      });
-                    }
+                        if (_monthFilter != null && _monthFilter!.isNotEmpty) {
+                          filtered = filtered.where((g) {
+                            final d = g.completedDate;
+                            if (d == null) return false;
+                            final key =
+                                '${d.year}-${d.month.toString().padLeft(2, '0')}';
+                            return key == _monthFilter;
+                          });
+                        }
 
-                    if (_minScore != null) {
-                      filtered = filtered.where((g) => (g.score ?? 0) >= _minScore!);
-                    }
+                        if (_minScore != null) {
+                          filtered = filtered.where(
+                            (g) => (g.score ?? 0) >= _minScore!,
+                          );
+                        }
 
-                    return filtered.toList()
-                      ..sort((a, b) {
-                        final ad = a.verifiedDate ?? a.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-                        final bd = b.verifiedDate ?? b.completedDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-                        return bd.compareTo(ad);
-                      });
-                  }),
+                        return filtered.toList()..sort((a, b) {
+                          final ad =
+                              a.verifiedDate ??
+                              a.completedDate ??
+                              DateTime.fromMillisecondsSinceEpoch(0);
+                          final bd =
+                              b.verifiedDate ??
+                              b.completedDate ??
+                              DateTime.fromMillisecondsSinceEpoch(0);
+                          return bd.compareTo(ad);
+                        });
+                      }),
                   builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                          child: CircularProgressIndicator(
+                            color: AppColors.activeColor,
+                          ),
                         ),
                       );
                     }
                     if (snapshot.hasError) {
                       return Padding(
                         padding: const EdgeInsets.all(16.0),
-                        child: Text('Error loading repository: ${snapshot.error}',
-                            style: TextStyle(color: AppColors.dangerColor)),
+                        child: Text(
+                          'Error loading repository: ${snapshot.error}',
+                          style: TextStyle(color: AppColors.dangerColor),
+                        ),
                       );
                     }
                     final goals = snapshot.data ?? const <RepositoryGoal>[];
                     if (goals.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(16.0),
-                        child: Text('No verified entries found for your team. Previously acknowledged entries should appear here.'),
+                        child: Text(
+                          'No verified entries found for your team. Previously acknowledged entries should appear here.',
+                        ),
                       );
                     }
                     return _buildRepositoryList(goals);
@@ -1579,7 +1733,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: CircularProgressIndicator(color: AppColors.activeColor),
+                          child: CircularProgressIndicator(
+                            color: AppColors.activeColor,
+                          ),
                         ),
                       );
                     }
@@ -1596,13 +1752,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     if (items.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.all(16.0),
-                        child: Text('No repository items found. Complete and verify some goals to see them here.'),
+                        child: Text(
+                          'No repository items found. Complete and verify some goals to see them here.',
+                        ),
                       );
                     }
                     return _buildRepositoryList(items);
                   },
                 ),
-          ),
+        ),
       ],
     );
   }
@@ -1618,12 +1776,18 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         final date = g.completedDate ?? g.verifiedDate;
         return ListTile(
           leading: const Icon(Icons.check_circle_outline, color: Colors.green),
-          title: Text(g.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+          title: Text(
+            g.goalTitle,
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
           subtitle: Text(
             '${date != null ? '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}' : 'Unknown date'} • Score: ${g.score?.toStringAsFixed(1) ?? '-'}',
             style: TextStyle(color: AppColors.textMuted),
           ),
-          trailing: Text('${g.evidence.length} evidence', style: TextStyle(color: AppColors.textSecondary)),
+          trailing: Text(
+            '${g.evidence.length} evidence',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         );
       },
     );
@@ -1635,7 +1799,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     // Capture the parent ScaffoldMessenger before opening the sheet
     final messenger = ScaffoldMessenger.of(context);
     // ignore: unnecessary_null_comparison, unused_local_variable
-    final isManager = (RoleService.instance != null); // placeholder; use stream below
+    final isManager =
+        (RoleService.instance != null); // placeholder; use stream below
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.cardBackground,
@@ -1739,36 +1904,34 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.borderColor),
           ),
-      child: Row(
-        children: [
+          child: Row(
+            children: [
               Icon(icon, color: AppColors.activeColor, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                    color: isUrl ? AppColors.activeColor : AppColors.textSecondary,
-                fontSize: 14,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: isUrl
+                        ? AppColors.activeColor
+                        : AppColors.textSecondary,
+                    fontSize: 14,
                     decoration: isUrl ? TextDecoration.underline : null,
+                  ),
+                ),
               ),
-            ),
-          ),
-              Icon(
-                Icons.open_in_new,
-                color: AppColors.textMuted,
-                size: 16,
-          ),
-        ],
+              Icon(Icons.open_in_new, color: AppColors.textMuted, size: 16),
+            ],
           ),
         ),
       ),
     );
   }
 
-
   void _openEvidence(String evidence) {
-    final isUrl = evidence.startsWith('http://') || evidence.startsWith('https://');
-    
+    final isUrl =
+        evidence.startsWith('http://') || evidence.startsWith('https://');
+
     if (isUrl) {
       // For URLs, show a dialog with option to open externally
       showDialog(
@@ -1805,7 +1968,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+              child: Text(
+                'Close',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1842,15 +2008,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+              child: Text(
+                'Close',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
           ],
         ),
       );
     }
   }
-
-  
 
   void _showGoalSubmissionDialog() {
     showDialog(
@@ -1874,17 +2041,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: AppColors.activeColor),
+                    child: CircularProgressIndicator(
+                      color: AppColors.activeColor,
+                    ),
                   );
                 }
-                
+
                 if (snapshot.hasError) {
                   return Text(
                     'Error loading goals: ${snapshot.error}',
                     style: TextStyle(color: AppColors.dangerColor),
                   );
                 }
-                
+
                 final goals = snapshot.data ?? [];
                 if (goals.isEmpty) {
                   return Text(
@@ -1892,7 +2061,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     style: TextStyle(color: AppColors.textMuted),
                   );
                 }
-                
+
                 return SizedBox(
                   height: 200,
                   child: ListView.builder(
@@ -1940,13 +2109,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return [];
-      
+
       final snapshot = await FirebaseFirestore.instance
           .collection('goals')
           .where('userId', isEqualTo: user.uid)
           .where('status', isEqualTo: 'completed')
           .get();
-      
+
       return snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
     } catch (e) {
       developer.log('Error loading completed goals: $e');
@@ -1959,7 +2128,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     final evidenceList = <String>[];
     final uploadedFiles = <EvidenceFile>[];
     bool isUploading = false;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -1978,7 +2147,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Text evidence input
                 Row(
                   children: [
@@ -2016,9 +2185,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // File upload button
                 SizedBox(
                   width: double.infinity,
@@ -2036,7 +2205,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('${files.length} file(s) uploaded successfully'),
+                                    content: Text(
+                                      '${files.length} file(s) uploaded successfully',
+                                    ),
                                     backgroundColor: Colors.green,
                                   ),
                                 );
@@ -2069,7 +2240,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                   ),
                 ),
-                
+
                 // Display uploaded files
                 if (uploadedFiles.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -2113,14 +2284,17 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 uploadedFiles.removeAt(index);
                               });
                             },
-                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                            icon: const Icon(
+                              Icons.remove_circle,
+                              color: Colors.red,
+                            ),
                           ),
                         );
                       },
                     ),
                   ),
                 ],
-                
+
                 // Display text evidence
                 if (evidenceList.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -2144,7 +2318,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       itemBuilder: (context, index) {
                         final evidence = evidenceList[index];
                         return ListTile(
-                          leading: const Icon(Icons.text_fields, color: AppColors.activeColor),
+                          leading: const Icon(
+                            Icons.text_fields,
+                            color: AppColors.activeColor,
+                          ),
                           title: Text(
                             evidence,
                             style: TextStyle(color: AppColors.textPrimary),
@@ -2157,7 +2334,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 evidenceList.removeAt(index);
                               });
                             },
-                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                            icon: const Icon(
+                              Icons.remove_circle,
+                              color: Colors.red,
+                            ),
                           ),
                         );
                       },
@@ -2170,12 +2350,19 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
             ElevatedButton(
               onPressed: (evidenceList.isEmpty && uploadedFiles.isEmpty)
                   ? null
-                  : () => _submitGoalForAuditWithFiles(goal, evidenceList, uploadedFiles),
+                  : () => _submitGoalForAuditWithFiles(
+                      goal,
+                      evidenceList,
+                      uploadedFiles,
+                    ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.activeColor,
                 foregroundColor: Colors.white,
@@ -2189,7 +2376,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Future<List<EvidenceFile>> _uploadFiles(String goalId) async {
-    final files = await EvidenceUploadService.pickAndUploadFiles(goalId: goalId);
+    final files = await EvidenceUploadService.pickAndUploadFiles(
+      goalId: goalId,
+    );
     return files;
   }
 
@@ -2225,10 +2414,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return false;
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final data = userDoc.data() ?? const <String, dynamic>{};
       final department = (data['department'] as String?)?.trim();
-      final hasDept = department != null && department.isNotEmpty && department.toLowerCase() != 'unknown';
+      final hasDept =
+          department != null &&
+          department.isNotEmpty &&
+          department.toLowerCase() != 'unknown';
 
       if (!hasDept) {
         if (!mounted) return false;
@@ -2236,7 +2431,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: AppColors.cardBackground,
-            title: Text('Department Required', style: TextStyle(color: AppColors.textPrimary)),
+            title: Text(
+              'Department Required',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
             content: Text(
               'Your department information is missing. Please update your profile before submitting.',
               style: TextStyle(color: AppColors.textSecondary),
@@ -2244,7 +2442,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Close', style: TextStyle(color: AppColors.textMuted)),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -2254,7 +2455,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     Navigator.pushNamed(context, '/settings');
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.activeColor, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                ),
                 child: const Text('Go to Settings'),
               ),
             ],
@@ -2269,9 +2473,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-  
-
-  Future<void> _submitGoalForAuditWithFiles(Goal goal, List<String> textEvidence, List<EvidenceFile> uploadedFiles) async {
+  Future<void> _submitGoalForAuditWithFiles(
+    Goal goal,
+    List<String> textEvidence,
+    List<EvidenceFile> uploadedFiles,
+  ) async {
     try {
       // Ensure the user has a department set before allowing submission
       final proceed = await _ensureDepartmentIsSet();
@@ -2282,19 +2488,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       final allEvidence = <String>[];
       allEvidence.addAll(textEvidence);
       allEvidence.addAll(uploadedFiles.map((file) => file.url));
-      
+
       // Submit goal for audit
       await AuditService.submitGoalForAudit(goal, allEvidence);
-      
+
       // Update uploaded files with audit entry ID (we'll need to get this from the audit service)
       // For now, we'll just submit the goal and the files will be linked by goal ID
-      
+
       if (mounted) {
         Navigator.pop(context); // Close evidence dialog
         Navigator.pop(context); // Close goal selection dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Goal submitted for audit with ${uploadedFiles.length} file(s) and ${textEvidence.length} text evidence!'),
+            content: Text(
+              'Goal submitted for audit with ${uploadedFiles.length} file(s) and ${textEvidence.length} text evidence!',
+            ),
             backgroundColor: Colors.green,
           ),
         );

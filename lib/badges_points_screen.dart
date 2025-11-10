@@ -222,15 +222,16 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           setState(() {
             // Update profile if values changed
             final levelChanged = updatedProfile.level != userProfile?.level;
-            final pointsChanged = updatedProfile.totalPoints != userProfile?.totalPoints;
+            final pointsChanged =
+                updatedProfile.totalPoints != userProfile?.totalPoints;
             final rankChanged = updatedRank != userRank;
-            
+
             if (levelChanged || pointsChanged || rankChanged) {
               userProfile = updatedProfile;
               if (rankChanged) {
                 userRank = updatedRank > 0 ? updatedRank : 1;
               }
-              
+
               // Check for level up after badge updates
               if (levelChanged && updatedProfile.level > _previousLevel) {
                 _previousLevel = updatedProfile.level;
@@ -243,7 +244,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         }
       }
     } catch (e) {
-      developer.log('Error updating badges in background: $e', name: 'BadgesPointsScreen');
+      developer.log(
+        'Error updating badges in background: $e',
+        name: 'BadgesPointsScreen',
+      );
       // Silently fail - UI is already displayed with initial data
     }
   }
@@ -642,14 +646,20 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snap) {
-        final role = (snap.data ?? RoleService.instance.cachedRole ?? 'employee').toLowerCase();
+        final role =
+            (snap.data ?? RoleService.instance.cachedRole ?? 'employee')
+                .toLowerCase();
         final isManager = role == 'manager';
         return AppScaffold(
           title: 'Badges & Points',
           showAppBar: false,
           embedded: widget.embedded,
-          items: isManager ? SidebarConfig.getItemsForRole('manager') : SidebarConfig.employeeItems,
-          currentRouteName: isManager ? '/manager_badges_points' : '/badges_points',
+          items: isManager
+              ? SidebarConfig.getItemsForRole('manager')
+              : SidebarConfig.employeeItems,
+          currentRouteName: isManager
+              ? '/manager_badges_points'
+              : '/badges_points',
           onNavigate: (route) {
             final current = ModalRoute.of(context)?.settings.name;
             if (current != route) {
@@ -664,49 +674,49 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             }
           },
           content: FocusTraversalGroup(
-        policy: WidgetOrderTraversalPolicy(),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage('assets/khono_bg.png'),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: RefreshIndicator(
-            onRefresh: _loadData,
-            child: ListView(
-              padding: AppSpacing.screenPadding,
-              children: [
-                FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Badges & Points',
-                        style: AppTypography.heading2.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildPointsAndLevelCard(),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildSectionHeader('Your Badges'),
-                      _buildBadgesSection(),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildProgressStats(),
-                      const SizedBox(height: AppSpacing.xl),
-                      _buildRetroactiveUpdateButton(),
-                    ],
-                  ),
+            policy: WidgetOrderTraversalPolicy(),
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
                 ),
-              ],
+              ),
+              child: RefreshIndicator(
+                onRefresh: _loadData,
+                child: ListView(
+                  padding: AppSpacing.screenPadding,
+                  children: [
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Badges & Points',
+                            style: AppTypography.heading2.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildPointsAndLevelCard(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildSectionHeader('Your Badges'),
+                          _buildBadgesSection(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildProgressStats(),
+                          const SizedBox(height: AppSpacing.xl),
+                          _buildRetroactiveUpdateButton(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
         );
       },
     );
@@ -776,9 +786,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                         _pointsCountAnimation.isCompleted
                                         ? points
                                         : (_previousPoints +
-                                                    (points - _previousPoints) *
-                                                        _pointsCountAnimation.value)
-                                                .round();
+                                                  (points - _previousPoints) *
+                                                      _pointsCountAnimation
+                                                          .value)
+                                              .round();
                                     return Text(
                                       _formatNumber(animatedPoints),
                                       style: AppTypography.heading1.copyWith(
@@ -960,7 +971,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
-
   Widget _buildBadgesSection() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -1033,18 +1043,23 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         // Determine the active rarity based on user's current level
         final level = userProfile?.level ?? 1;
         bool isInRange(badge_model.BadgeRarity r) {
-          if (r == badge_model.BadgeRarity.common) return level >= 1 && level <= 5;
-          if (r == badge_model.BadgeRarity.rare) return level >= 6 && level <= 10;
-          if (r == badge_model.BadgeRarity.epic) return level >= 11 && level <= 15;
+          if (r == badge_model.BadgeRarity.common)
+            return level >= 1 && level <= 5;
+          if (r == badge_model.BadgeRarity.rare)
+            return level >= 6 && level <= 10;
+          if (r == badge_model.BadgeRarity.epic)
+            return level >= 11 && level <= 15;
           return level >= 16; // legendary
         }
+
         return Column(
           children: [
             _buildRarityOvalSection(
               title: 'Common Goals',
               subtitle: 'Levels 1–5',
               rarity: badge_model.BadgeRarity.common,
-              badges: byRarity[badge_model.BadgeRarity.common]!..sort((a, b) => a.name.compareTo(b.name)),
+              badges: byRarity[badge_model.BadgeRarity.common]!
+                ..sort((a, b) => a.name.compareTo(b.name)),
               isActive: isInRange(badge_model.BadgeRarity.common),
               onTap: () => _openRarityList(badge_model.BadgeRarity.common),
             ),
@@ -1053,7 +1068,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               title: 'Rare Goals',
               subtitle: 'Levels 6–10',
               rarity: badge_model.BadgeRarity.rare,
-              badges: byRarity[badge_model.BadgeRarity.rare]!..sort((a, b) => a.name.compareTo(b.name)),
+              badges: byRarity[badge_model.BadgeRarity.rare]!
+                ..sort((a, b) => a.name.compareTo(b.name)),
               isActive: isInRange(badge_model.BadgeRarity.rare),
               onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
             ),
@@ -1062,7 +1078,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               title: 'Epic Goals',
               subtitle: 'Levels 11–15',
               rarity: badge_model.BadgeRarity.epic,
-              badges: byRarity[badge_model.BadgeRarity.epic]!..sort((a, b) => a.name.compareTo(b.name)),
+              badges: byRarity[badge_model.BadgeRarity.epic]!
+                ..sort((a, b) => a.name.compareTo(b.name)),
               isActive: isInRange(badge_model.BadgeRarity.epic),
               onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
             ),
@@ -1071,7 +1088,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               title: 'Legendary Goals',
               subtitle: 'Levels 16+',
               rarity: badge_model.BadgeRarity.legendary,
-              badges: byRarity[badge_model.BadgeRarity.legendary]!..sort((a, b) => a.name.compareTo(b.name)),
+              badges: byRarity[badge_model.BadgeRarity.legendary]!
+                ..sort((a, b) => a.name.compareTo(b.name)),
               isActive: isInRange(badge_model.BadgeRarity.legendary),
               onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
             ),
@@ -1088,8 +1106,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       },
     );
   }
-
-  
 
   // Compact oval section to present a badge rarity group entry point
   Widget _buildRarityOvalSection({
@@ -1114,7 +1130,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: isActive ? 2 : 1.5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: isActive ? 2 : 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isActive ? 0.25 : 0.15),
@@ -1130,7 +1149,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           if (!isActive) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Tip: We recommend focusing here after your current level for faster progress.'),
+                content: Text(
+                  'Tip: We recommend focusing here after your current level for faster progress.',
+                ),
                 backgroundColor: AppColors.elevatedBackground,
                 behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 2),
@@ -1147,62 +1168,84 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           );
         },
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: baseColor.withValues(alpha: 0.6)),
-                ),
-                child: Icon(Icons.workspace_premium, color: baseColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              if (isActive)
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  margin: const EdgeInsets.only(right: 8),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.activeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.6)),
+                    color: baseColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: baseColor.withValues(alpha: 0.6)),
                   ),
-                  child: Text(
-                    'Recommended',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.activeColor, fontWeight: FontWeight.w600),
+                  child: Icon(Icons.workspace_premium, color: baseColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTypography.heading4.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              Text(
-                total == 0 ? '0/0' : '$earnedCount/$total',
-                style: AppTypography.bodySmall.copyWith(
-                  color: baseColor,
-                  fontWeight: FontWeight.w600,
+                if (isActive)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.activeColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    child: Text(
+                      'Recommended',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.activeColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                Text(
+                  total == 0 ? '0/0' : '$earnedCount/$total',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: baseColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right, color: baseColor),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              total == 0
+                  ? 'No badges available in this group'
+                  : 'Tap to view all badges in this group',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: baseColor),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            total == 0 ? 'No badges available in this group' : 'Tap to view all badges in this group',
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
+            ),
+          ],
         ),
       ),
     );
@@ -1238,132 +1281,210 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         final progress = total == 0 ? 0.0 : (earned / total).clamp(0.0, 1.0);
         return Dialog(
           backgroundColor: const Color(0xFF1B2431),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(360.0, 800.0);
+              final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(
+                360.0,
+                800.0,
+              );
               return SizedBox(
                 width: 520,
                 height: maxHeight,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
-              mainAxisSize: MainAxisSize.max,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: accent.withValues(alpha: 0.6)),
-                      ),
-                      child: Icon(Icons.workspace_premium, color: accent),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.max,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
-                          const SizedBox(height: 2),
-                          Text(subtitle, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: accent.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            child: Icon(Icons.workspace_premium, color: accent),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: AppTypography.heading4.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  subtitle,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text('Progress', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 6,
-                    backgroundColor: Colors.white.withValues(alpha: 0.15),
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('$earned / $total badges', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-                    Text('${(progress * 100).toStringAsFixed(0)}%', style: AppTypography.bodySmall.copyWith(color: accent, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Inline list of badges in this rarity
-                Text('Badges in this group', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: (() {
-                      return badges.length;
-                    })(),
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final sorted = [...badges]
-                        ..sort((a, b) {
-                          if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1; // earned first
-                          return a.name.compareTo(b.name);
-                        });
-                      final b = sorted[index];
-                      final earnedBadge = b.isEarned;
-                      final borderColor = earnedBadge ? accent : AppColors.borderColor;
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.elevatedBackground,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: borderColor.withValues(alpha: earnedBadge ? 0.8 : 0.6), width: earnedBadge ? 2 : 1),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Progress',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: accent.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: accent.withValues(alpha: 0.6)),
-                              ),
-                              child: Icon(Icons.workspace_premium, color: accent),
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '$earned / $total badges',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                          Text(
+                            '${(progress * 100).toStringAsFixed(0)}%',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Inline list of badges in this rarity
+                      Text(
+                        'Badges in this group',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: (() {
+                            return badges.length;
+                          })(),
+                          // ignore: unnecessary_underscores
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final sorted = [...badges]
+                              ..sort((a, b) {
+                                if (a.isEarned != b.isEarned)
+                                  return a.isEarned ? -1 : 1; // earned first
+                                return a.name.compareTo(b.name);
+                              });
+                            final b = sorted[index];
+                            final earnedBadge = b.isEarned;
+                            final borderColor = earnedBadge
+                                ? accent
+                                : AppColors.borderColor;
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.elevatedBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: borderColor.withValues(
+                                    alpha: earnedBadge ? 0.8 : 0.6,
+                                  ),
+                                  width: earnedBadge ? 2 : 1,
+                                ),
+                              ),
+                              child: Row(
                                 children: [
-                                  Text(b.name, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                                  const SizedBox(height: 2),
-                                  Text(b.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: accent.withValues(alpha: 0.6),
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.workspace_premium,
+                                      color: accent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          b.name,
+                                          style: AppTypography.bodyLarge
+                                              .copyWith(
+                                                color: AppColors.textPrimary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          b.description,
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: AppColors.textSecondary,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  earnedBadge
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: AppColors.successColor,
+                                        )
+                                      : const Icon(
+                                          Icons.lock_outline,
+                                          color: AppColors.textSecondary,
+                                        ),
                                 ],
                               ),
-                            ),
-                            earnedBadge
-                                ? const Icon(Icons.check_circle, color: AppColors.successColor)
-                                : const Icon(Icons.lock_outline, color: AppColors.textSecondary),
-                          ],
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Close', style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text(
+                            'Close',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -2099,7 +2220,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     if (level >= 5) return 'Rising Star';
     return 'Beginner';
   }
-
 
   Color _getBadgeRarityColor(badge_model.BadgeRarity rarity) {
     switch (rarity) {

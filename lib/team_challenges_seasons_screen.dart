@@ -68,9 +68,24 @@ class _TeamChallengesSeasonsScreenState
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
           tabs: const [
-            Tab(text: 'Active Seasons', icon: Icon(Icons.event_available)),
+            Tab(
+              text: 'Active Seasons',
+              icon: ImageIcon(
+                AssetImage(
+                  'assets/Calendar_Date_Picker/Date_Picker_Red_Badge_White.png',
+                ),
+              ),
+            ),
             Tab(text: 'Create Season', icon: Icon(Icons.add_circle)),
-            Tab(text: 'Season History', icon: Icon(Icons.history)),
+            Tab(
+              text: 'Season History',
+              icon: ImageIcon(
+                AssetImage(
+                  'assets/Deadline Notification_Reminder/Notification_Reminder_Red.png',
+                ),
+                size: 38,
+              ),
+            ),
           ],
         ),
       ),
@@ -87,7 +102,12 @@ class _TeamChallengesSeasonsScreenState
 
   Widget _buildActiveSeasonsTab() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 48, AppSpacing.lg, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        48,
+        AppSpacing.lg,
+        AppSpacing.xxl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -230,7 +250,12 @@ class _TeamChallengesSeasonsScreenState
 
   Widget _buildCreateSeasonTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 60, AppSpacing.lg, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        60,
+        AppSpacing.lg,
+        AppSpacing.xxl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -584,6 +609,9 @@ class _TeamChallengesSeasonsScreenState
             children: [
               _buildMetricChip(
                 icon: Icons.people,
+                iconWidget: const ImageIcon(
+                  AssetImage('assets/Team_Meeting/Team.png'),
+                ),
                 label: 'Participants',
                 value: '${season.metrics.totalParticipants}',
                 color: AppColors.infoColor,
@@ -599,6 +627,7 @@ class _TeamChallengesSeasonsScreenState
               const Spacer(),
               _buildMetricChip(
                 icon: Icons.stars,
+                iconWidget: const ImageIcon(AssetImage('assets/Star.png')),
                 label: 'Points',
                 value: '${season.metrics.totalPointsEarned}',
                 color: AppColors.successColor,
@@ -642,7 +671,9 @@ class _TeamChallengesSeasonsScreenState
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -712,7 +743,10 @@ class _TeamChallengesSeasonsScreenState
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _viewSeasonDetails(season),
-                  icon: const Icon(Icons.visibility, size: 16),
+                  icon: const ImageIcon(
+                    AssetImage('assets/Concentration_Key_Focus/eye.png'),
+                    size: 16,
+                  ),
                   label: const Text('View Details'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.activeColor,
@@ -724,7 +758,10 @@ class _TeamChallengesSeasonsScreenState
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () => _manageSeason(season),
-                  icon: const Icon(Icons.settings, size: 16),
+                  icon: const ImageIcon(
+                    AssetImage('assets/gear.png'),
+                    size: 24,
+                  ),
                   label: const Text('Manage'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
@@ -840,6 +877,7 @@ class _TeamChallengesSeasonsScreenState
 
   Widget _buildMetricChip({
     required IconData icon,
+    Widget? iconWidget,
     required String label,
     required String value,
     required Color color,
@@ -857,7 +895,7 @@ class _TeamChallengesSeasonsScreenState
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 14),
+          iconWidget ?? Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -934,7 +972,8 @@ class _TeamChallengesSeasonsScreenState
         // Support both flat and dotted milestone keys
         final keyDot = '${challenge.id}.${milestone.id}';
         final keyFlat = milestone.id;
-        final status = participation.milestoneProgress[keyDot] ??
+        final status =
+            participation.milestoneProgress[keyDot] ??
             participation.milestoneProgress[keyFlat];
 
         if (status == MilestoneStatus.completed) {

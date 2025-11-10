@@ -1,5 +1,3 @@
-// ignore_for_file: unused_local_variable
-
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -65,8 +63,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     } catch (_) {}
   }
 
-  
-
   Future<void> _redirectIfManagerStandalone() async {
     try {
       final role = await RoleService.instance.getRole();
@@ -105,7 +101,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               height: 360,
               child: const Center(
                 child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
                 ),
               ),
             );
@@ -148,7 +146,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                             height: 120,
                             child: const Center(
                               child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.activeColor,
+                                ),
                               ),
                             ),
                           ),
@@ -227,46 +227,40 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return _card(
       child: Row(
         children: [
-          Builder(
-            builder: (context) {
-              // Determine name and photo URL with fallbacks
-              final authUser = FirebaseAuth.instance.currentUser;
-              final String name = (context.findAncestorStateOfType<_ManagerDashboardScreenState>()?.mounted ?? false)
-                  ? _managerName
-                  : _managerName;
-              return Row(
-                children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2),
-                      color: Colors.black.withValues(alpha: 0.15),
-                    ),
-                    child: ClipOval(
-                      child: ((_currentProfilePhotoUrl ?? '').isNotEmpty)
-                          ? Image.network(
-                              _currentProfilePhotoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, color: Colors.white, size: 36),
-                            )
-                          : const Icon(Icons.person, color: Colors.white, size: 36),
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  // Name and greeting next to avatar
-                  // Expanded is added by parent
-                ],
-              );
-            },
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 2,
+              ),
+              color: Colors.black.withValues(alpha: 0.15),
+            ),
+            child: ClipOval(
+              child: ((_currentProfilePhotoUrl ?? '').isNotEmpty)
+                  ? Image.network(
+                      _currentProfilePhotoUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    )
+                  : const Icon(Icons.person, color: Colors.white, size: 36),
+            ),
           ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$greeting, ${_resolveManagerName()}!', style: AppTypography.heading4),
+                Text(
+                  '$greeting, ${_resolveManagerName()}!',
+                  style: AppTypography.heading4,
+                ),
                 const SizedBox(height: 5),
                 Text(
                   'Lead by example and help your team grow today.',
@@ -362,7 +356,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       "Celebrate progress, not just outcomes.",
       "Lead with clarity, empathy, and action.",
     ];
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    final dayOfYear = DateTime.now()
+        .difference(DateTime(DateTime.now().year, 1, 1))
+        .inDays;
     return motivations[dayOfYear % motivations.length];
   }
 
@@ -376,7 +372,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         .map((doc) {
           if (!doc.exists) return null;
           final profile = UserProfile.fromFirestore(doc);
-          _currentProfilePhotoUrl = (profile.profilePhotoUrl != null && profile.profilePhotoUrl!.isNotEmpty)
+          _currentProfilePhotoUrl =
+              (profile.profilePhotoUrl != null &&
+                  profile.profilePhotoUrl!.isNotEmpty)
               ? profile.profilePhotoUrl
               : null;
           return profile;
@@ -400,10 +398,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     final now = DateTime.now();
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
     final totalEmployees = employees.length;
-    final activeEmployees =
-        employees.where((e) => e.lastActivity.isAfter(sevenDaysAgo)).length;
+    final activeEmployees = employees
+        .where((e) => e.lastActivity.isAfter(sevenDaysAgo))
+        .length;
     final avgProgress = totalEmployees > 0
-        ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) / totalEmployees
+        ? employees.map((e) => e.avgProgress).fold(0.0, (a, b) => a + b) /
+              totalEmployees
         : 0.0;
     final engagement = totalEmployees > 0
         ? (activeEmployees / totalEmployees) * 100.0
@@ -432,8 +432,14 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       overdueGoals: overdue,
       avgTeamProgress: avgProgress,
       teamEngagement: engagement,
-      totalPointsEarned: employees.fold<int>(0, (acc, e) => acc + e.totalPoints),
-      goalsCompleted: employees.fold<int>(0, (acc, e) => acc + e.completedGoalsCount),
+      totalPointsEarned: employees.fold<int>(
+        0,
+        (acc, e) => acc + e.totalPoints,
+      ),
+      goalsCompleted: employees.fold<int>(
+        0,
+        (acc, e) => acc + e.completedGoalsCount,
+      ),
       lastUpdated: DateTime.now(),
     );
   }
