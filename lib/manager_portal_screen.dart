@@ -14,6 +14,7 @@ import 'package:pdh/settings_screen.dart'; // Import SettingsScreen
 import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
 // Import MyGoalWorkspaceScreen
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
+import 'package:pdh/manager_badges_points_screen.dart'; // Import ManagerBadgesPointsScreen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
 import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
@@ -51,6 +52,8 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerInboxScreen(embedded: true);
       case '/alerts_nudges':
         return const AlertsNudgesScreen(embedded: true);
+      case '/manager_badges_points':
+        return const ManagerBadgesPointsScreen(embedded: true);
       case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
