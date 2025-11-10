@@ -60,12 +60,13 @@ class RarityBadgesListScreen extends StatelessWidget {
     if (useManagerSidebar) {
       return _buildScaffold(context, true, user);
     }
-    return StreamBuilder<String?>(
+    return StreamBuilder<String?>
+      (
       stream: RoleService.instance.roleStream(),
-      initialData: RoleService.instance.cachedRole,
+      initialData: useManagerSidebar ? 'manager' : RoleService.instance.cachedRole,
       builder: (context, snap) {
-        final roleRaw = snap.data ?? RoleService.instance.cachedRole ?? 'employee';
-        final isManager = roleRaw.toLowerCase() == 'manager';
+        final roleRaw = snap.data ?? (useManagerSidebar ? 'manager' : RoleService.instance.cachedRole) ?? '';
+        final isManager = (roleRaw as String).toLowerCase() == 'manager';
         return _buildScaffold(context, isManager, user);
       },
     );
@@ -156,7 +157,7 @@ class RarityBadgesListScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                   Expanded(
                     child: StreamBuilder<List<badge_model.Badge>>(
-                      stream: BadgeService.getUserBadgesStream(user.uid),
+                      stream: user == null ? const Stream.empty() : BadgeService.getUserBadgesStream(user.uid),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
                           return const Center(
