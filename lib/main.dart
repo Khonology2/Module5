@@ -145,6 +145,7 @@ class _MyAppState extends State<MyApp> {
     return _GlobalChatbotWrapper(
       currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
       child: Stack(
+        fit: StackFit.expand,
         textDirection: TextDirection.ltr,
         children: [
           MaterialApp(
@@ -400,6 +401,7 @@ class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
   @override
   Widget build(BuildContext context) {
     return Stack(
+      fit: StackFit.expand,
       textDirection: TextDirection.ltr,
       children: [
         widget.child,
