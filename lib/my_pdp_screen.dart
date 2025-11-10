@@ -37,7 +37,11 @@ Future<void> _showCenterNotice(BuildContext context, String message) async {
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontFamily: 'Poppins',
+                ),
               ),
             ),
           ],
@@ -75,7 +79,10 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.white, fontFamily: 'Poppins'),
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'Poppins',
+              ),
             ),
           ),
         ],
@@ -193,7 +200,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             final file = picked.files.first;
                             final bytes = file.bytes;
                             if (bytes != null) {
-                              _showLoadingDialog(ctx, message: 'Uploading file...');
+                              _showLoadingDialog(
+                                ctx,
+                                message: 'Uploading file...',
+                              );
                               try {
                                 final cloudinaryUrl =
                                     await CloudinaryService.uploadFileUnsigned(
@@ -208,27 +218,45 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   evidence: [fileInfo, cloudinaryUrl],
                                 );
                                 if (ctx.mounted) {
-                                  Navigator.of(ctx, rootNavigator: true).maybePop();
+                                  Navigator.of(
+                                    ctx,
+                                    rootNavigator: true,
+                                  ).maybePop();
                                   // Close dialog automatically after successful upload
                                   Navigator.of(ctx).pop('uploaded');
                                   setState(() {});
                                   // Show success message
-                                  await _showCenterNotice(ctx, 'File uploaded successfully');
+                                  await _showCenterNotice(
+                                    ctx,
+                                    'File uploaded successfully',
+                                  );
                                 }
                               } catch (cloudErr) {
                                 // Do not save or mark evidence on failure; show error and keep dialog open
                                 if (ctx.mounted) {
-                                  Navigator.of(ctx, rootNavigator: true).maybePop();
-                                  await _showCenterNotice(ctx, 'Upload failed: $cloudErr');
+                                  Navigator.of(
+                                    ctx,
+                                    rootNavigator: true,
+                                  ).maybePop();
+                                  await _showCenterNotice(
+                                    ctx,
+                                    'Upload failed: $cloudErr',
+                                  );
                                 }
                               }
                             } else {
-                              await _showCenterNotice(ctx, 'Error: No file data available');
+                              await _showCenterNotice(
+                                ctx,
+                                'Error: No file data available',
+                              );
                             }
                           }
                         } catch (e) {
                           if (ctx.mounted) {
-                            await _showCenterNotice(ctx, 'Error picking file: $e');
+                            await _showCenterNotice(
+                              ctx,
+                              'Error picking file: $e',
+                            );
                           }
                         }
                       },
@@ -298,7 +326,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha:0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
               ),
@@ -411,9 +439,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha:0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withValues(alpha:0.3)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,16 +495,16 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
   }
 
-
   // Ensure user's department is set; otherwise block submission and prompt to update profile
   Future<bool> _ensureDepartmentIsSet() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
-      
+
       final userDoc = await DatabaseService.getUserProfile(user.uid);
       final department = userDoc.department.trim();
-      final hasDept = department.isNotEmpty && department.toLowerCase() != 'unknown';
+      final hasDept =
+          department.isNotEmpty && department.toLowerCase() != 'unknown';
 
       if (!hasDept) {
         if (!mounted) return false;
@@ -484,10 +512,15 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF0E1A2E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             title: const Text(
               'Department Required',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             content: const Text(
               'Your department information is missing. Please update your profile before submitting.',
@@ -496,7 +529,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close', style: TextStyle(color: Colors.white70)),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -529,16 +565,25 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (mounted) {
-          await _showCenterNotice(context, 'Please sign in to request acknowledgement');
+          await _showCenterNotice(
+            context,
+            'Please sign in to request acknowledgement',
+          );
         }
         return;
       }
 
       // Check if already submitted
-      final alreadySubmitted = await AuditService.hasGoalBeenSubmittedForAudit(goal.id, user.uid);
+      final alreadySubmitted = await AuditService.hasGoalBeenSubmittedForAudit(
+        goal.id,
+        user.uid,
+      );
       if (alreadySubmitted) {
         if (mounted) {
-          await _showCenterNotice(context, 'This goal has already been submitted for acknowledgement');
+          await _showCenterNotice(
+            context,
+            'This goal has already been submitted for acknowledgement',
+          );
         }
         return;
       }
@@ -623,9 +668,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       color: Colors.transparent, // Ensure it's transparent
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha:0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -705,10 +750,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               children: goals.map((goal) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha:0.4),
+                    color: Colors.black.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha:0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Padding(
@@ -752,7 +797,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                               color: const Color(0xFF2A3441),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: Colors.green.withValues(alpha:0.3),
+                                color: Colors.green.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Column(
@@ -787,7 +832,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                           'https://res.cloudinary.com/',
                                         )) {
                                           // You can implement opening the URL in a browser
-                                          _showCenterNotice(context, 'File URL: $evidence');
+                                          _showCenterNotice(
+                                            context,
+                                            'File URL: $evidence',
+                                          );
                                         }
                                       },
                                       child: Row(
@@ -892,8 +940,8 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                               ),
                               style: goal.evidence.isNotEmpty
                                   ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green.withValues(alpha:
-                                        0.1,
+                                      backgroundColor: Colors.green.withValues(
+                                        alpha: 0.1,
                                       ),
                                       foregroundColor: Colors.green,
                                       side: const BorderSide(
@@ -903,17 +951,25 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   : null,
                             ),
                             StreamBuilder<List<AuditEntry>>(
-                              stream: AuditService.getEmployeeAuditEntriesStream(),
+                              stream:
+                                  AuditService.getEmployeeAuditEntriesStream(),
                               builder: (context, auditSnapshot) {
-                                final hasAuditEntry = auditSnapshot.hasData &&
-                                    auditSnapshot.data!.any((entry) => entry.goalId == goal.id);
-                                
+                                final hasAuditEntry =
+                                    auditSnapshot.hasData &&
+                                    auditSnapshot.data!.any(
+                                      (entry) => entry.goalId == goal.id,
+                                    );
+
                                 return OutlinedButton.icon(
                                   onPressed: hasAuditEntry
                                       ? null
-                                      : () => _requestManagerAcknowledgement(goal),
+                                      : () => _requestManagerAcknowledgement(
+                                          goal,
+                                        ),
                                   icon: Icon(
-                                    hasAuditEntry ? Icons.check_circle : Icons.verified_user,
+                                    hasAuditEntry
+                                        ? Icons.check_circle
+                                        : Icons.verified_user,
                                     size: 18,
                                   ),
                                   label: Text(
@@ -923,9 +979,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   ),
                                   style: hasAuditEntry
                                       ? OutlinedButton.styleFrom(
-                                          backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                                          // ignore: deprecated_member_use
+                                          backgroundColor: Colors.orange
+                                              .withOpacity(0.1),
                                           foregroundColor: Colors.orange,
-                                          side: const BorderSide(color: Colors.orange),
+                                          side: const BorderSide(
+                                            color: Colors.orange,
+                                          ),
                                         )
                                       : null,
                                 );

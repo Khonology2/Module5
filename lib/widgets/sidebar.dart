@@ -231,9 +231,7 @@ class _NavTileState extends State<_NavTile> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: isCollapsed
-                  ? Center(
-                      child: _buildIcon(isSelected),
-                    )
+                  ? Center(child: _buildIcon(isSelected))
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // If there isn't enough width to safely render icon + label,
@@ -243,9 +241,7 @@ class _NavTileState extends State<_NavTile> {
                           return Row(
                             mainAxisAlignment: MainAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildIcon(isSelected),
-                            ],
+                            children: [_buildIcon(isSelected)],
                           );
                         }
                         return Row(
@@ -280,7 +276,8 @@ class _NavTileState extends State<_NavTile> {
     // Priority: explicit asset pair -> iconWidget -> IconData
     if (widget.assetWhite != null) {
       // Requirement: White when expanded (even if selected); Red only when mini AND selected
-      final bool useRed = isSelected && widget.collapsed && widget.assetRed != null;
+      final bool useRed =
+          isSelected && widget.collapsed && widget.assetRed != null;
       final String path = useRed ? widget.assetRed! : widget.assetWhite!;
       return SizedBox(
         width: 24,
@@ -321,7 +318,7 @@ class SidebarItem {
   final IconData? icon; // Make icon nullable
   final Widget? iconWidget; // New field for custom icon widget
   final String? assetWhite; // unselected
-  final String? assetRed;   // selected
+  final String? assetRed; // selected
   final String label;
   final String route;
 }

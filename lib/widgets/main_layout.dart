@@ -6,6 +6,8 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/employee_profile_screen.dart';
+import 'package:pdh/manager_profile_screen.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
 /// application pages. It reuses the dashboard's sidebar and visuals.
@@ -46,8 +48,7 @@ class MainLayout extends StatelessWidget {
       },
       // Keep background and spacing consistent with dashboard
       content: AppComponents.backgroundWithImage(
-        imagePath:
-            'assets/khono_bg.png',
+        imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
           padding: AppSpacing.screenPadding,
           child: body,
@@ -70,23 +71,38 @@ class _ProfileButton extends StatelessWidget {
         } else if (user?.email != null && user!.email!.isNotEmpty) {
           userName = user.email!.split('@').first;
         }
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2A3652),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0x1FFFFFFF)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.person, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                userName,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+        final isManager =
+            (snapshot.data ?? RoleService.instance.cachedRole) == 'manager';
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => isManager
+                    ? const ManagerProfileScreen()
+                    : const EmployeeProfileScreen(),
               ),
-            ],
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A3652),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
           ),
         );
       },

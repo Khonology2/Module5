@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 
 void main() {
   runApp(const MyApp());
@@ -25,7 +26,9 @@ class MyApp extends StatelessWidget {
       title: 'Manager Profile',
       theme: ThemeData(
         fontFamily: 'Inter',
-        scaffoldBackgroundColor: const Color(0xFF040610), // Set scaffold background color here
+        scaffoldBackgroundColor: const Color(
+          0xFF040610,
+        ), // Set scaffold background color here
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFFC10D00),
           secondary: Color(0xFF1F2840),
@@ -64,21 +67,30 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   final TextEditingController _workEmailController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
-  final TextEditingController _developmentInputController = TextEditingController();
-  final TextEditingController _careerAspirationsController = TextEditingController();
-  final TextEditingController _currentProjectsController = TextEditingController();
-  final TextEditingController _devActivitiesController = TextEditingController();
+  final TextEditingController _developmentInputController =
+      TextEditingController();
+  final TextEditingController _careerAspirationsController =
+      TextEditingController();
+  final TextEditingController _currentProjectsController =
+      TextEditingController();
+  final TextEditingController _devActivitiesController =
+      TextEditingController();
   final TextEditingController _shortGoalsController = TextEditingController();
   final TextEditingController _longGoalsController = TextEditingController();
-  final TextEditingController _notificationPrefsController = TextEditingController();
-  final TextEditingController _goalVisibilityController = TextEditingController();
-  final TextEditingController _leaderboardOptinController = TextEditingController();
+  final TextEditingController _notificationPrefsController =
+      TextEditingController();
+  final TextEditingController _goalVisibilityController =
+      TextEditingController();
+  final TextEditingController _leaderboardOptinController =
+      TextEditingController();
   final TextEditingController _badgeNameController = TextEditingController();
-  final TextEditingController _celebrationConsentController = TextEditingController();
+  final TextEditingController _celebrationConsentController =
+      TextEditingController();
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
-  final List<String> _preferredDevActivities = []; // For preferred development activities
+  final List<String> _preferredDevActivities =
+      []; // For preferred development activities
   String? _selectedLearningStyle;
   String? _profilePhotoUrl;
   String? _leaderboardOptin = 'no';
@@ -132,7 +144,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           ..addAll(userProfile.developmentAreas);
         _careerAspirationsController.text = userProfile.careerAspirations;
         _currentProjectsController.text = userProfile.currentProjects;
-        _selectedLearningStyle = userProfile.learningStyle.isNotEmpty ? userProfile.learningStyle : null;
+        _selectedLearningStyle = userProfile.learningStyle.isNotEmpty
+            ? userProfile.learningStyle
+            : null;
         _preferredDevActivities
           ..clear()
           ..addAll(userProfile.preferredDevActivities);
@@ -143,7 +157,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
         _badgeNameController.text = userProfile.badgeName;
         _celebrationConsent = userProfile.celebrationConsent;
-        _profilePhotoUrl = (userProfile.profilePhotoUrl != null && userProfile.profilePhotoUrl!.isNotEmpty)
+        _profilePhotoUrl =
+            (userProfile.profilePhotoUrl != null &&
+                userProfile.profilePhotoUrl!.isNotEmpty)
             ? userProfile.profilePhotoUrl
             : null;
         // Ensure UserProfile is recognized as used here.
@@ -203,7 +219,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           content: Text(message, style: const TextStyle(color: Colors.white70)),
           actions: <Widget>[
             TextButton(
-              child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -218,14 +237,21 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AiChatbotScreen(
-          prompt: 'Generate a personalized development plan for ${_fullNameController.text} based on their current skills, areas for development, career aspirations, and current projects. Include specific goals, recommended resources, and actionable steps.',
+          prompt:
+              'Generate a personalized development plan for ${_fullNameController.text} based on their current skills, areas for development, career aspirations, and current projects. Include specific goals, recommended resources, and actionable steps.',
           onResult: (result) {
             if (result.isNotEmpty) {
-              _careerAspirationsController.text = result; // Update the career aspirations field
+              _careerAspirationsController.text =
+                  result; // Update the career aspirations field
               _saveProfile(); // Save the updated profile
-              _showMotivationalMessageDialog('Your Personal Development Plan has been generated and updated in your profile!');
+              _showMotivationalMessageDialog(
+                'Your Personal Development Plan has been generated and updated in your profile!',
+              );
             } else {
-              _showAlertDialog('No Plan Generated', 'Could not generate a development plan at this time.');
+              _showAlertDialog(
+                'No Plan Generated',
+                'Could not generate a development plan at this time.',
+              );
             }
           },
         ),
@@ -235,7 +261,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
 
   void _draftMotivationalMessage() {
     setState(() {
-      _motivationalMessage = "Great job on your progress! Keep pushing forward, and remember that every small step leads to significant achievements. Your dedication is inspiring!";
+      _motivationalMessage =
+          "Great job on your progress! Keep pushing forward, and remember that every small step leads to significant achievements. Your dedication is inspiring!";
     });
     _showMotivationalMessageDialog(_motivationalMessage!);
   }
@@ -246,7 +273,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF2C3E50),
-          title: const Text('Motivational Message', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Motivational Message',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,10 +288,15 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => _speak(message),
                   icon: const Icon(Icons.volume_up, color: Colors.white),
-                  label: const Text('Read Aloud', style: TextStyle(color: Colors.white)),
+                  label: const Text(
+                    'Read Aloud',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFC10D00),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -269,7 +304,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           ),
           actions: <Widget>[
             TextButton(
-              child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
               onPressed: () {
                 _stop(); // Stop speech when dialog is dismissed
                 Navigator.of(context).pop();
@@ -305,7 +343,11 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
   }
 
-  Future<void> _saveProfile({bool showDialog = true, String? successTitle, String? successMessage}) async {
+  Future<void> _saveProfile({
+    bool showDialog = true,
+    String? successTitle,
+    String? successMessage,
+  }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       _showAlertDialog('Error', 'You must be logged in to save your profile.');
@@ -313,7 +355,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
 
     try {
-      // Flush any pending tag input values so they are included even if Enter wasn't pressed
       final pendingSkill = _skillsInputController.text.trim();
       if (pendingSkill.isNotEmpty && !_skills.contains(pendingSkill)) {
         _skills.add(pendingSkill);
@@ -325,7 +366,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _developmentInputController.clear();
       }
       // Fetch the existing user profile to preserve immutable fields
-      final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
+      final existingUserProfile = await DatabaseService.getUserProfile(
+        user.uid,
+      );
 
       final updatedProfile = existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
@@ -361,9 +404,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final content = Center(
+  Widget _buildProfileContent() {
+    return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
         child: Container(
@@ -371,9 +413,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12.0),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.2),
-            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           ),
           padding: const EdgeInsets.all(40.0),
           child: Column(
@@ -400,12 +440,34 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               _buildCardSection(
                 title: 'Basic Information',
                 children: [
-                  _buildTextField(controller: _fullNameController, hintText: 'Enter your full name'),
-                  _buildTextField(controller: _jobTitleController, hintText: 'Job Title / Role'),
-                  _buildTextField(controller: _departmentController, hintText: 'Department / Team'),
-                  _buildTextField(controller: TextEditingController(text: 'M-123456'), hintText: 'Employee ID', readOnly: true, color: Colors.white10),
-                  _buildTextField(controller: _workEmailController, hintText: 'Work Email', keyboardType: TextInputType.emailAddress),
-                  _buildTextField(controller: _phoneNumberController, hintText: 'Phone Number (optional)', keyboardType: TextInputType.phone),
+                  _buildTextField(
+                    controller: _fullNameController,
+                    hintText: 'Enter your full name',
+                  ),
+                  _buildTextField(
+                    controller: _jobTitleController,
+                    hintText: 'Job Title / Role',
+                  ),
+                  _buildTextField(
+                    controller: _departmentController,
+                    hintText: 'Department / Team',
+                  ),
+                  _buildTextField(
+                    controller: TextEditingController(text: 'M-123456'),
+                    hintText: 'Employee ID',
+                    readOnly: true,
+                    color: Colors.white10,
+                  ),
+                  _buildTextField(
+                    controller: _workEmailController,
+                    hintText: 'Work Email',
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  _buildTextField(
+                    controller: _phoneNumberController,
+                    hintText: 'Phone Number (optional)',
+                    keyboardType: TextInputType.phone,
+                  ),
                   const SizedBox(height: 16.0),
                   Row(
                     children: [
@@ -417,20 +479,37 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                           borderRadius: BorderRadius.circular(40),
                         ),
                         child: ClipOval(
-                          child: (_profilePhotoUrl != null && _profilePhotoUrl!.isNotEmpty)
+                          child:
+                              (_profilePhotoUrl != null &&
+                                  _profilePhotoUrl!.isNotEmpty)
                               ? Image.network(
                                   _profilePhotoUrl!,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 40, color: Colors.white54),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(
+                                        Icons.person,
+                                        size: 40,
+                                        color: Colors.white54,
+                                      ),
                                 )
-                              : const Icon(Icons.person, size: 40, color: Colors.white54),
+                              : const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.white54,
+                                ),
                         ),
                       ),
                       const SizedBox(width: 16.0),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Profile Photo', style: TextStyle(fontSize: 14, color: Colors.white70)),
+                          const Text(
+                            'Profile Photo',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white70,
+                            ),
+                          ),
                           const SizedBox(height: 4.0),
                           Row(
                             children: [
@@ -439,10 +518,21 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white10,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
-                                child: const Text('Upload Photo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                child: const Text(
+                                  'Upload Photo',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               if ((_profilePhotoUrl ?? '').isNotEmpty)
@@ -470,10 +560,12 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     onAdd: () => _addTag(_skillsInputController, _skills),
                   ),
                   _buildTaggableInput(
-                    label: 'Areas for Development (self-identified growth areas)',
+                    label:
+                        'Areas for Development (self-identified growth areas)',
                     controller: _developmentInputController,
                     list: _developmentAreas,
-                    onAdd: () => _addTag(_developmentInputController, _developmentAreas),
+                    onAdd: () =>
+                        _addTag(_developmentInputController, _developmentAreas),
                   ),
                   const SizedBox(height: 16),
                   _buildActionButton(
@@ -481,8 +573,14 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     onPressed: _generateDevelopmentPlan,
                   ),
                   const SizedBox(height: 16),
-                  _buildTextArea(controller: _careerAspirationsController, hintText: 'Career Aspirations / Future Role'),
-                  _buildTextArea(controller: _currentProjectsController, hintText: 'Current Projects / Focus Areas (optional)'),
+                  _buildTextArea(
+                    controller: _careerAspirationsController,
+                    hintText: 'Career Aspirations / Future Role',
+                  ),
+                  _buildTextArea(
+                    controller: _currentProjectsController,
+                    hintText: 'Current Projects / Focus Areas (optional)',
+                  ),
                 ],
               ),
 
@@ -493,8 +591,14 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                   _buildLearningStyleDropdown(),
                   _buildPreferredDevActivitiesCheckboxes(),
                   const SizedBox(height: 16),
-                  _buildTextArea(controller: _shortGoalsController, hintText: 'Short-Term Goals (next 3–6 months)'),
-                  _buildTextArea(controller: _longGoalsController, hintText: 'Long-Term Goals (1–3 years)'),
+                  _buildTextArea(
+                    controller: _shortGoalsController,
+                    hintText: 'Short-Term Goals (next 3–6 months)',
+                  ),
+                  _buildTextArea(
+                    controller: _longGoalsController,
+                    hintText: 'Long-Term Goals (1–3 years)',
+                  ),
                   _buildActionButton(
                     text: '✨ Draft Motivational Message ✨',
                     onPressed: _draftMotivationalMessage,
@@ -510,7 +614,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                 title: 'Gamification & Motivation',
                 children: [
                   _buildLeaderboardOptInRadios(),
-                  _buildTextField(controller: _badgeNameController, hintText: 'Preferred Badge Display Name'),
+                  _buildTextField(
+                    controller: _badgeNameController,
+                    hintText: 'Preferred Badge Display Name',
+                  ),
                   _buildCelebrationConsentRadios(),
                 ],
               ),
@@ -527,13 +634,21 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                       },
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: Color.fromARGB(51, 255, 255, 255)),
+                          side: const BorderSide(
+                            color: Color.fromARGB(51, 255, 255, 255),
+                          ),
                         ),
                       ),
-                      child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   if (!widget.embedded) const SizedBox(width: 16),
                   ElevatedButton(
@@ -541,10 +656,18 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC10D00),
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                    child: const Text('Save Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Save Profile',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
@@ -553,46 +676,36 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         ),
       ),
     );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     if (widget.embedded) {
-      return content;
+      return _buildProfileContent();
     }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage('assets/khono_bg.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-          content,
-        ],
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: AppComponents.backgroundWithImage(
+        imagePath: 'assets/khono_bg.png',
+        child: _buildProfileContent(),
       ),
     );
   }
 
-  Widget _buildCardSection({required String title, required List<Widget> children}) {
+  Widget _buildCardSection({
+    required String title,
+    required List<Widget> children,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 32.0),
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -617,7 +730,13 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String hintText, TextInputType keyboardType = TextInputType.text, bool readOnly = false, Color? color}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType keyboardType = TextInputType.text,
+    bool readOnly = false,
+    Color? color,
+  }) {
     return TextFormField(
       controller: controller,
       readOnly: readOnly,
@@ -644,7 +763,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
-  Widget _buildTextArea({required TextEditingController controller, required String hintText}) {
+  Widget _buildTextArea({
+    required TextEditingController controller,
+    required String hintText,
+  }) {
     return TextFormField(
       controller: controller,
       maxLines: 3,
@@ -670,7 +792,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
-  Widget _buildActionButton({required String text, required VoidCallback onPressed}) {
+  Widget _buildActionButton({
+    required String text,
+    required VoidCallback onPressed,
+  }) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
@@ -716,7 +841,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                 final index = entry.key;
                 final tag = entry.value;
                 return Chip(
-                  label: Text(tag, style: const TextStyle(color: Color(0xFFC10D00))),
+                  label: Text(
+                    tag,
+                    style: const TextStyle(color: Color(0xFFC10D00)),
+                  ),
                   backgroundColor: const Color(0xFF1F2840),
                   deleteIconColor: Colors.white70,
                   onDeleted: () => _removeTag(list, index),
@@ -748,12 +876,15 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       data: Theme.of(context).copyWith(
         dropdownMenuTheme: DropdownMenuThemeData(
           menuStyle: MenuStyle(
-            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)), // Changed to WidgetStateProperty
+            backgroundColor: WidgetStateProperty.all(
+              const Color(0xFF1F2840),
+            ), // Changed to WidgetStateProperty
           ),
         ),
       ),
       child: DropdownButtonFormField<String>(
-        initialValue: _selectedLearningStyle, // Changed from value to initialValue
+        initialValue:
+            _selectedLearningStyle, // Changed from value to initialValue
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',
@@ -766,11 +897,20 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           ),
         ),
         items: const [
-          DropdownMenuItem(value: null, child: Text('Select Learning Style', style: TextStyle(color: Colors.white70))),
+          DropdownMenuItem(
+            value: null,
+            child: Text(
+              'Select Learning Style',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
           DropdownMenuItem(value: 'visual', child: Text('Visual')),
           DropdownMenuItem(value: 'hands-on', child: Text('Hands-on')),
           DropdownMenuItem(value: 'reading', child: Text('Reading')),
-          DropdownMenuItem(value: 'collaborative', child: Text('Collaborative')),
+          DropdownMenuItem(
+            value: 'collaborative',
+            child: Text('Collaborative'),
+          ),
         ],
         onChanged: (String? newValue) {
           setState(() {
@@ -785,7 +925,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Preferred Development Activities', style: TextStyle(fontSize: 14, color: Colors.white70)),
+        const Text(
+          'Preferred Development Activities',
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 16,
@@ -815,7 +958,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               }
             });
           },
-          fillColor: WidgetStateProperty.all(const Color(0xFFC10D00)), // Changed to WidgetStateProperty
+          fillColor: WidgetStateProperty.all(
+            const Color(0xFFC10D00),
+          ), // Changed to WidgetStateProperty
           checkColor: Colors.white,
         ),
         Text(title, style: const TextStyle(color: Colors.white70)),
@@ -827,7 +972,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Notification Preferences', style: TextStyle(fontSize: 14, color: Colors.white70)),
+        const Text(
+          'Notification Preferences',
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+        ),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
@@ -840,14 +988,19 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
             data: Theme.of(context).copyWith(
               dropdownMenuTheme: DropdownMenuThemeData(
                 menuStyle: MenuStyle(
-                  backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
+                  backgroundColor: WidgetStateProperty.all(
+                    const Color(0xFF1F2840),
+                  ),
                 ),
               ),
             ),
             child: DropdownButton<String>(
               isExpanded: true,
               value: _notificationFrequency,
-              hint: const Text('Select frequency', style: TextStyle(color: Colors.white30)),
+              hint: const Text(
+                'Select frequency',
+                style: TextStyle(color: Colors.white30),
+              ),
               style: const TextStyle(color: Colors.white, fontSize: 16),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
               onChanged: (String? newValue) {
@@ -857,11 +1010,12 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               },
               items: <String>['Daily', 'Weekly', 'Monthly', 'None']
                   .map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value.toLowerCase(),
-                  child: Text(value),
-                );
-              }).toList(),
+                    return DropdownMenuItem<String>(
+                      value: value.toLowerCase(),
+                      child: Text(value),
+                    );
+                  })
+                  .toList(),
             ),
           ),
         ),
@@ -873,29 +1027,56 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Goal Visibility', style: TextStyle(fontSize: 14, color: Colors.white70)),
+        const Text(
+          'Goal Visibility',
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildRadio('Private', 'private', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
-            _buildRadio('Manager Only', 'manager', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
-            _buildRadio('Team Share', 'team', _goalVisibility, (value) => setState(() => _goalVisibility = value)),
+            _buildRadio(
+              'Private',
+              'private',
+              _goalVisibility,
+              (value) => setState(() => _goalVisibility = value),
+            ),
+            _buildRadio(
+              'Manager Only',
+              'manager',
+              _goalVisibility,
+              (value) => setState(() => _goalVisibility = value),
+            ),
+            _buildRadio(
+              'Team Share',
+              'team',
+              _goalVisibility,
+              (value) => setState(() => _goalVisibility = value),
+            ),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildRadio(String title, String value, String? groupValue, ValueChanged<String?> onChanged) {
+  Widget _buildRadio(
+    String title,
+    String value,
+    String? groupValue,
+    ValueChanged<String?> onChanged,
+  ) {
     return RadioListTile<String>(
       title: Text(title, style: const TextStyle(color: Colors.white70)),
       value: value,
       groupValue: groupValue,
       onChanged: onChanged,
-      activeColor: const Color(0xFFC10D00), // This is still needed for the active color of the radio button itself
-      fillColor: WidgetStateProperty.all(const Color(0xFFC10D00)), // Changed to WidgetStateProperty
+      activeColor: const Color(
+        0xFFC10D00,
+      ), // This is still needed for the active color of the radio button itself
+      fillColor: WidgetStateProperty.all(
+        const Color(0xFFC10D00),
+      ), // Changed to WidgetStateProperty
       contentPadding: EdgeInsets.zero,
     );
   }
@@ -904,14 +1085,27 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Opt-in to Leaderboards', style: TextStyle(fontSize: 14, color: Colors.white70)),
+        const Text(
+          'Opt-in to Leaderboards',
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildRadio('Yes', 'yes', _leaderboardOptin, (value) => setState(() => _leaderboardOptin = value)),
-            _buildRadio('No', 'no', _leaderboardOptin, (value) => setState(() => _leaderboardOptin = value)),
+            _buildRadio(
+              'Yes',
+              'yes',
+              _leaderboardOptin,
+              (value) => setState(() => _leaderboardOptin = value),
+            ),
+            _buildRadio(
+              'No',
+              'no',
+              _leaderboardOptin,
+              (value) => setState(() => _leaderboardOptin = value),
+            ),
           ],
         ),
       ],
@@ -922,14 +1116,27 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Celebration Feed Consent', style: TextStyle(fontSize: 14, color: Colors.white70)),
+        const Text(
+          'Celebration Feed Consent',
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildRadio('Share wins publicly', 'public', _celebrationConsent, (value) => setState(() => _celebrationConsent = value)),
-            _buildRadio('Private only', 'private', _celebrationConsent, (value) => setState(() => _celebrationConsent = value)),
+            _buildRadio(
+              'Share wins publicly',
+              'public',
+              _celebrationConsent,
+              (value) => setState(() => _celebrationConsent = value),
+            ),
+            _buildRadio(
+              'Private only',
+              'private',
+              _celebrationConsent,
+              (value) => setState(() => _celebrationConsent = value),
+            ),
           ],
         ),
       ],
@@ -958,7 +1165,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       final fileBytes = await pickedFile.readAsBytes();
       final cloudinaryUrl = await CloudinaryService.uploadFileUnsigned(
         bytes: fileBytes,
-        fileName: 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        fileName:
+            'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
         goalId: 'profile_photo', // Use a generic goalId for profile photos
       );
 

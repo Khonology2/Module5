@@ -24,11 +24,11 @@ class MyGoalWorkspaceScreen extends StatefulWidget {
 
 class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   // SMART scoring (1-5)
-  int _clarity = 3;        // Specific
-  int _measurability = 3;  // Measurable
-  int _achievability = 3;  // Achievable
-  int _relevance = 3;      // Relevant
-  int _timeline = 3;       // Time-bound
+  int _clarity = 3; // Specific
+  int _measurability = 3; // Measurable
+  int _achievability = 3; // Achievable
+  int _relevance = 3; // Relevant
+  int _timeline = 3; // Time-bound
 
   // Controllers for text fields
   final _goalTitleController = TextEditingController();
@@ -53,11 +53,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Finance',
     'Other',
   ];
-  final List<String> _kpaOptions = [
-    'Operational',
-    'Customer',
-    'Financial',
-  ];
+  final List<String> _kpaOptions = ['Operational', 'Customer', 'Financial'];
 
   @override
   void initState() {
@@ -66,8 +62,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         precacheImage(const AssetImage('assets/khono_bg.png'), context);
-        precacheImage(const AssetImage('Calendar_Date_Picker/Date_Picker_White_Badge_Red.png'), context);
-        precacheImage(const AssetImage('Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png'), context);
+        precacheImage(
+          const AssetImage(
+            'Calendar_Date_Picker/Date_Picker_White_Badge_Red.png',
+          ),
+          context,
+        );
+        precacheImage(
+          const AssetImage(
+            'Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png',
+          ),
+          context,
+        );
       } catch (_) {}
     });
   }
@@ -114,7 +120,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, roleSnapshot) {
-        final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
         return AppScaffold(
           title: 'Goal Workspace',
@@ -136,8 +143,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             }
           },
           content: AppComponents.backgroundWithImage(
-            imagePath:
-                'assets/khono_bg.png',
+            imagePath: 'assets/khono_bg.png',
             child: SingleChildScrollView(
               padding: AppSpacing.screenPadding,
               child: Column(
@@ -151,100 +157,106 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Goal Information'),
-                  _buildSectionCard(children: [
-                    _buildTextField(
-                      controller: _goalTitleController,
-                      hintText: 'Enter your development goal title',
-                    ),
-                    _buildTextField(
-                      controller: _goalDescriptionController,
-                      hintText: 'Describe your goal in detail...',
-                      maxLines: 5,
-                    ),
-                  ]),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextField(
+                        controller: _goalTitleController,
+                        hintText: 'Enter your development goal title',
+                      ),
+                      _buildTextField(
+                        controller: _goalDescriptionController,
+                        hintText: 'Describe your goal in detail...',
+                        maxLines: 5,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Goal Details'),
-                  _buildSectionCard(children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildDateInput(
-                            context,
-                            'Start Date',
-                            _startDate,
-                            isStartDate: true,
+                  _buildSectionCard(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDateInput(
+                              context,
+                              'Start Date',
+                              _startDate,
+                              isStartDate: true,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: _buildDateInput(
-                            context,
-                            'Target Date',
-                            _targetDate,
-                            isStartDate: false,
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: _buildDateInput(
+                              context,
+                              'Target Date',
+                              _targetDate,
+                              isStartDate: false,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildDropdownField(
-                      hintText: 'Select category',
-                      value: _goalCategory,
-                      items: _goalCategories,
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _goalCategory = newValue;
-                        });
-                      },
-                    ),
-                    _buildDropdownField(
-                      hintText: 'Select priority',
-                      value: _currentStatus,
-                      items: ['High', 'Medium', 'Low'],
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _currentStatus = newValue;
-                        });
-                      },
-                    ),
-                    _buildDropdownField(
-                      hintText: 'Select Key Performance Area',
-                      value: _kpa != null
-                          ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
-                          : null,
-                      items: _kpaOptions,
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _kpa = newValue?.toLowerCase();
-                        });
-                      },
-                    ),
-                  ]),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildDropdownField(
+                        hintText: 'Select category',
+                        value: _goalCategory,
+                        items: _goalCategories,
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _goalCategory = newValue;
+                          });
+                        },
+                      ),
+                      _buildDropdownField(
+                        hintText: 'Select priority',
+                        value: _currentStatus,
+                        items: ['High', 'Medium', 'Low'],
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _currentStatus = newValue;
+                          });
+                        },
+                      ),
+                      _buildDropdownField(
+                        hintText: 'Select Key Performance Area',
+                        value: _kpa != null
+                            ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
+                            : null,
+                        items: _kpaOptions,
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _kpa = newValue?.toLowerCase();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSmartCriteriaSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Dependencies & Prerequisites'),
-                  _buildSectionCard(children: [
-                    _buildTextField(
-                      controller: _dependenciesController,
-                      hintText:
-                          'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-                      maxLines: 4,
-                    ),
-                  ]),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextField(
+                        controller: _dependenciesController,
+                        hintText:
+                            'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                        maxLines: 4,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Success Metrics'),
-                  _buildSectionCard(children: [
-                    _buildTextField(
-                      controller: _successMetricsController,
-                      hintText: 'Define specific metrics or milestones...',
-                      maxLines: 4,
-                    ),
-                  ]),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextField(
+                        controller: _successMetricsController,
+                        hintText: 'Define specific metrics or milestones...',
+                        maxLines: 4,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: AppSpacing.xxl),
-                  _buildSectionCard(children: [
-                    _buildActionButtons(),
-                  ]),
+                  _buildSectionCard(children: [_buildActionButtons()]),
                 ],
               ),
             ),
@@ -253,9 +265,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       },
     );
   }
-
-  
-
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -292,7 +301,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -326,7 +338,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -373,7 +388,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -392,8 +410,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           ),
           icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
           onChanged: onChanged,
-          items: (items ?? const <String>[])
-              .map<DropdownMenuItem<String>>((String value) {
+          items: (items ?? const <String>[]).map<DropdownMenuItem<String>>((
+            String value,
+          ) {
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
@@ -415,7 +434,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha:0.2)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -441,7 +460,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.elevatedBackground,
                     borderRadius: BorderRadius.circular(20),
@@ -449,7 +471,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   ),
                   child: Text(
                     'SMART: ${_computeSmartTotal()}/25',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -465,7 +489,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               title: 'Measurable - Progress can be tracked',
               value: _measurability,
               onChanged: (v) => setState(() => _measurability = v),
-              helper: '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
+              helper:
+                  '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
             ),
             _buildScoreSelector(
               title: 'Achievable - Goal is realistic and attainable',
@@ -508,13 +533,17 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         children: [
           Text(
             title,
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           if (helper != null) ...[
             const SizedBox(height: 4),
             Text(
               helper,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -527,14 +556,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 label: Text(
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: selected
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
                   ),
                 ),
                 selected: selected,
                 onSelected: (_) => onChanged(score),
                 selectedColor: AppColors.activeColor,
-                backgroundColor: Colors.black.withValues(alpha:0.3),
-                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+                backgroundColor: Colors.black.withValues(alpha: 0.3),
+                shape: StadiumBorder(
+                  side: BorderSide(color: AppColors.borderColor),
+                ),
               );
             }),
           ),
@@ -657,7 +690,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -688,7 +723,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         );
       }
     } catch (e) {
-      
       try {
         if (mounted) {
           Navigator.of(context).pop();

@@ -46,31 +46,33 @@ flutter:
   assets:
     - assets/
     - assets/Account_User_Profile/
-    - assets/Data_Approval/
-    - assets/Innovation_Brainstorm/
+    - assets/1.Audio_Sound.png
     - assets/Approved_Tick/
-    - assets/Brand/
-    - assets/fonts/poppins/
-    - assets/videos/
-    - assets/1.Audio_Sound.png 
-    - assets/Goal_Target/ 
     - assets/Approved_Tick/Approved_White_Badge_Red.png
-    - assets/Process_Flows_Automation/
+    - assets/Brand/
     - assets/Business_Growth_Development/
-    - assets/Email_Notification/
-    - assets/Task_Management/
     - assets/Calendar_Date_Picker/
+    - assets/Concentration_Key_Focus/
+    - assets/Data_Approval/
+    - assets/Deadline Notification_Reminder/
+    - assets/Email_Notification/
+    - assets/fonts/poppins/
+    - assets/Goal_Target/
+    - "assets/Graphic_Image Placeholder/"
     - assets/Information_Detail/
-    - assets/Project_Direction_Acceleration/
-    - assets/Like_Thumbs_Up/
-    - assets/Office_Workplace/
+    - assets/Innovation_Brainstorm/
     - assets/Internet_Web_Browser/
     - assets/Khonodemy Icons/
-    - assets/Send_Paper_Plane/
-    - "assets/Graphic_Image Placeholder/"
+    - assets/Like_Thumbs_Up/
+    - assets/Office_Workplace/
     - "assets/Project Management/"
+    - assets/Process_Flows_Automation/
+    - assets/Project_Direction_Acceleration/
+    - assets/Send_Paper_Plane/
+    - assets/Task_Management/
     - assets/Team_Meeting/
-    - assets/Concentration_Key_Focus/
+    - assets/Time_Allocation_Approval/
+    - assets/videos/
 
   fonts:
     - family: Poppins

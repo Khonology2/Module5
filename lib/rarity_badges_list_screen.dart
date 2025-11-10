@@ -13,7 +13,11 @@ import 'package:pdh/services/role_service.dart';
 class RarityBadgesListScreen extends StatelessWidget {
   final badge_model.BadgeRarity rarity;
   final bool useManagerSidebar;
-  const RarityBadgesListScreen({super.key, required this.rarity, this.useManagerSidebar = false});
+  const RarityBadgesListScreen({
+    super.key,
+    required this.rarity,
+    this.useManagerSidebar = false,
+  });
 
   String _titleForRarity(badge_model.BadgeRarity r) {
     switch (r) {
@@ -60,13 +64,17 @@ class RarityBadgesListScreen extends StatelessWidget {
     if (useManagerSidebar) {
       return _buildScaffold(context, true, user);
     }
-    return StreamBuilder<String?>
-      (
+    return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
-      initialData: useManagerSidebar ? 'manager' : RoleService.instance.cachedRole,
+      initialData: useManagerSidebar
+          ? 'manager'
+          : RoleService.instance.cachedRole,
       builder: (context, snap) {
-        final roleRaw = snap.data ?? (useManagerSidebar ? 'manager' : RoleService.instance.cachedRole) ?? '';
-        final isManager = (roleRaw as String).toLowerCase() == 'manager';
+        final roleRaw =
+            snap.data ??
+            (useManagerSidebar ? 'manager' : RoleService.instance.cachedRole) ??
+            '';
+        final isManager = roleRaw.toLowerCase() == 'manager';
         return _buildScaffold(context, isManager, user);
       },
     );
@@ -76,7 +84,9 @@ class RarityBadgesListScreen extends StatelessWidget {
     return AppScaffold(
       title: _titleForRarity(rarity),
       showAppBar: false,
-      items: isManager ? SidebarConfig.getItemsForRole('manager') : SidebarConfig.employeeItems,
+      items: isManager
+          ? SidebarConfig.getItemsForRole('manager')
+          : SidebarConfig.employeeItems,
       currentRouteName: isManager ? '/manager_badges_points' : '/badges_points',
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
@@ -91,7 +101,9 @@ class RarityBadgesListScreen extends StatelessWidget {
           ? Center(
               child: Text(
                 'Please sign in to view badges',
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
             )
           : Container(
@@ -114,7 +126,10 @@ class RarityBadgesListScreen extends StatelessWidget {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new,
+                          color: AppColors.textPrimary,
+                        ),
                         tooltip: 'Back to Badges & Points',
                         onPressed: () => Navigator.pop(context),
                       ),
@@ -135,20 +150,39 @@ class RarityBadgesListScreen extends StatelessWidget {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: _colorForRarity(rarity).withValues(alpha: 0.15),
+                          color: _colorForRarity(
+                            rarity,
+                          ).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: _colorForRarity(rarity).withValues(alpha: 0.6)),
+                          border: Border.all(
+                            color: _colorForRarity(
+                              rarity,
+                            ).withValues(alpha: 0.6),
+                          ),
                         ),
-                        child: Icon(Icons.workspace_premium, color: _colorForRarity(rarity)),
+                        child: Icon(
+                          Icons.workspace_premium,
+                          color: _colorForRarity(rarity),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_titleForRarity(rarity), style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                            Text(
+                              _titleForRarity(rarity),
+                              style: AppTypography.heading3.copyWith(
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
                             const SizedBox(height: 2),
-                            Text(_subtitleForRarity(rarity), style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                            Text(
+                              _subtitleForRarity(rarity),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -157,32 +191,44 @@ class RarityBadgesListScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.lg),
                   Expanded(
                     child: StreamBuilder<List<badge_model.Badge>>(
-                      stream: user == null ? const Stream.empty() : BadgeService.getUserBadgesStream(user.uid),
+                      stream: BadgeService.getUserBadgesStream(user.uid),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
                           return const Center(
                             child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.activeColor,
+                              ),
                             ),
                           );
                         }
-                        final all = (snapshot.data ?? <badge_model.Badge>[])..removeWhere((b) => b.id == 'init');
-                        final filtered = all.where((b) => b.rarity == rarity).toList()
-                          ..sort((a, b) {
-                            if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
-                            return a.name.compareTo(b.name);
-                          });
+                        final all = (snapshot.data ?? <badge_model.Badge>[])
+                          ..removeWhere((b) => b.id == 'init');
+                        final filtered =
+                            all.where((b) => b.rarity == rarity).toList()..sort((
+                              a,
+                              b,
+                            ) {
+                              if (a.isEarned != b.isEarned)
+                                // ignore: curly_braces_in_flow_control_structures
+                                return a.isEarned ? -1 : 1;
+                              return a.name.compareTo(b.name);
+                            });
                         if (filtered.isEmpty) {
                           return Center(
                             child: Text(
                               'No badges in this group yet',
-                              style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           );
                         }
                         return ListView.separated(
                           itemCount: filtered.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
                             final badge = filtered[index];
                             final color = _colorForRarity(rarity);
@@ -191,7 +237,12 @@ class RarityBadgesListScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: AppColors.elevatedBackground,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: badge.isEarned ? color : AppColors.borderColor, width: badge.isEarned ? 2 : 1),
+                                border: Border.all(
+                                  color: badge.isEarned
+                                      ? color
+                                      : AppColors.borderColor,
+                                  width: badge.isEarned ? 2 : 1,
+                                ),
                               ),
                               child: Row(
                                 children: [
@@ -201,25 +252,50 @@ class RarityBadgesListScreen extends StatelessWidget {
                                     decoration: BoxDecoration(
                                       color: color.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(24),
-                                      border: Border.all(color: color.withValues(alpha: 0.6)),
+                                      border: Border.all(
+                                        color: color.withValues(alpha: 0.6),
+                                      ),
                                     ),
-                                    child: Icon(Icons.workspace_premium, color: color),
+                                    child: Icon(
+                                      Icons.workspace_premium,
+                                      color: color,
+                                    ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(badge.name, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                                        Text(
+                                          badge.name,
+                                          style: AppTypography.bodyLarge
+                                              .copyWith(
+                                                color: AppColors.textPrimary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
                                         const SizedBox(height: 2),
-                                        Text(badge.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                                        Text(
+                                          badge.description,
+                                          style: AppTypography.bodySmall
+                                              .copyWith(
+                                                color: AppColors.textSecondary,
+                                              ),
+                                        ),
                                       ],
                                     ),
                                   ),
                                   if (badge.isEarned)
-                                    const Icon(Icons.check_circle, color: AppColors.successColor)
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: AppColors.successColor,
+                                    )
                                   else
-                                    const Icon(Icons.lock_outline, color: AppColors.textSecondary),
+                                    const Icon(
+                                      Icons.lock_outline,
+                                      color: AppColors.textSecondary,
+                                    ),
                                 ],
                               ),
                             );

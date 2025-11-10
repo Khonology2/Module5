@@ -6,7 +6,6 @@ import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScre
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_inbox_screen.dart'; // Manager Inbox
 import 'package:pdh/alerts_nudges_screen.dart'; // Personal Alerts
-import 'package:web/web.dart' as web; // For localStorage persistence on web
 // Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
 // Removed in favor of employee leaderboard UI for uniformity
 import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
@@ -33,7 +32,6 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
-  static const String _storageKey = 'manager_portal.current_route';
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -53,7 +51,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerInboxScreen(embedded: true);
       case '/alerts_nudges':
         return const AlertsNudgesScreen(embedded: true);
-    case '/badges_points':
+      case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
         return const LeaderboardScreen();
@@ -72,10 +70,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     setState(() {
       _currentRoute = route;
     });
-    // Persist selection for refresh
-    try {
-      web.window.localStorage[_storageKey] = route;
-    } catch (_) {}
   }
 
   Future<void> _onLogout() async {
@@ -83,9 +77,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(
-        builder: (context) => const LoginScreen(),
-      ), // Use LoginScreen as SignInScreen is deprecated
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
       (Route<dynamic> route) => false,
     );
   }
@@ -97,17 +89,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       if (args is Map<String, dynamic>) {
         final initial = args['initialRoute'] as String?;
         if (initial != null && initial.isNotEmpty && initial != _currentRoute) {
-          // Initialize the portal to show the requested initial route
           _currentRoute = initial;
         }
       }
-      // Restore last visited route from localStorage (web refresh persistence)
-      try {
-        final saved = web.window.localStorage[_storageKey];
-        if (saved != null && saved.isNotEmpty && _isValidRoute(saved)) {
-          _currentRoute = saved;
-        }
-      } catch (_) {}
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -124,10 +108,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         children: [
           // Background image
           Positioned.fill(
-            child: Image.asset(
-              'assets/khono_bg.png',
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
           ),
           // Overlay for gradient effect and content
           Positioned.fill(
@@ -163,24 +144,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     );
   }
 
-  bool _isValidRoute(String route) {
-    switch (route) {
-      case '/dashboard':
-      case '/my_pdp':
-      case '/team_challenges_seasons':
-      case '/progress_visuals':
-      case '/manager_alerts_nudges':
-      case '/manager_inbox':
-      case '/badges_points':
-      case '/manager_leaderboard':
-      case '/repository_audit':
-      case '/settings':
-      case '/manager_review_team_dashboard':
-        return true;
-    }
-    return false;
-  }
-
   Widget _buildProfileButton(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
@@ -189,23 +152,32 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     } else if (user?.email != null && user!.email!.isNotEmpty) {
       userName = user.email!.split('@').first;
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.person, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            userName,
-            style: AppTypography.bodySmall.copyWith(color: Colors.white),
-          ),
-        ],
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const ManagerProfileScreen()),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: AppTypography.bodySmall.copyWith(color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
