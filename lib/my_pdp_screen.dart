@@ -209,8 +209,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 );
                                 if (ctx.mounted) {
                                   Navigator.of(ctx, rootNavigator: true).maybePop();
+                                  // Close dialog automatically after successful upload
                                   Navigator.of(ctx).pop('uploaded');
                                   setState(() {});
+                                  // Show success message
+                                  await _showCenterNotice(ctx, 'File uploaded successfully');
                                 }
                               } catch (cloudErr) {
                                 // Do not save or mark evidence on failure; show error and keep dialog open
@@ -465,6 +468,62 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   }
 
 
+  // Ensure user's department is set; otherwise block submission and prompt to update profile
+  Future<bool> _ensureDepartmentIsSet() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      
+      final userDoc = await DatabaseService.getUserProfile(user.uid);
+      final department = userDoc.department.trim();
+      final hasDept = department.isNotEmpty && department.toLowerCase() != 'unknown';
+
+      if (!hasDept) {
+        if (!mounted) return false;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0E1A2E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: const Text(
+              'Department Required',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            content: const Text(
+              'Your department information is missing. Please update your profile before submitting.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close', style: TextStyle(color: Colors.white70)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Navigate to settings where profile can be updated
+                  if (mounted) {
+                    Navigator.pushNamed(context, '/settings');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Go to Settings'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      // If we cannot validate, be safe and block submission
+      return false;
+    }
+  }
+
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -482,6 +541,12 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           await _showCenterNotice(context, 'This goal has already been submitted for acknowledgement');
         }
         return;
+      }
+
+      // Ensure the user has a department set before allowing submission
+      final proceed = await _ensureDepartmentIsSet();
+      if (!proceed) {
+        return; // User has been informed; do not proceed
       }
 
       // Submit to audit along with attached evidence so managers can review
