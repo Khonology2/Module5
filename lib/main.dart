@@ -70,13 +70,13 @@ void main() async {
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {
-    // Log to console
-    debugPrint('FlutterError: \\n${details.exceptionAsString()}');
+    debugPrint('FlutterError: ${details.exceptionAsString()}');
     if (details.stack != null) {
       debugPrint(details.stack.toString());
     }
-    // Fallback to default behavior
-    FlutterError.presentError(details);
+    if (!kIsWeb) {
+      FlutterError.presentError(details);
+    }
   };
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(

@@ -6,6 +6,7 @@ import 'package:pdh/progress_visuals_screen.dart'; // Import ProgressVisualsScre
 import 'package:pdh/manager_alerts_nudges_screen.dart'; // Import ManagerAlertsNudgesScreen
 import 'package:pdh/manager_inbox_screen.dart'; // Manager Inbox
 import 'package:pdh/alerts_nudges_screen.dart'; // Personal Alerts
+import 'package:web/web.dart' as web; // For localStorage persistence on web
 // Removed: employee leaderboard import; manager uses ManagerLeaderboardScreen
 // Removed in favor of employee leaderboard UI for uniformity
 import 'package:pdh/leaderboard_screen.dart'; // Use employee leaderboard UI
@@ -32,6 +33,7 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  static const String _storageKey = 'manager_portal.current_route';
 
   Widget _getBodyWidget() {
     switch (_currentRoute) {
@@ -51,7 +53,7 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         return const ManagerInboxScreen(embedded: true);
       case '/alerts_nudges':
         return const AlertsNudgesScreen(embedded: true);
-      case '/badges_points':
+    case '/badges_points':
         return const BadgesPointsScreen(embedded: true);
       case '/manager_leaderboard':
         return const LeaderboardScreen();
@@ -70,6 +72,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
     setState(() {
       _currentRoute = route;
     });
+    // Persist selection for refresh
+    try {
+      web.window.localStorage[_storageKey] = route;
+    } catch (_) {}
   }
 
   Future<void> _onLogout() async {
@@ -95,6 +101,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
           _currentRoute = initial;
         }
       }
+      // Restore last visited route from localStorage (web refresh persistence)
+      try {
+        final saved = web.window.localStorage[_storageKey];
+        if (saved != null && saved.isNotEmpty && _isValidRoute(saved)) {
+          _currentRoute = saved;
+        }
+      } catch (_) {}
       _didInitFromArgs = true;
     }
     // Set system UI overlay style here if needed to ensure consistency across the portal
@@ -148,6 +161,24 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
         ],
       ),
     );
+  }
+
+  bool _isValidRoute(String route) {
+    switch (route) {
+      case '/dashboard':
+      case '/my_pdp':
+      case '/team_challenges_seasons':
+      case '/progress_visuals':
+      case '/manager_alerts_nudges':
+      case '/manager_inbox':
+      case '/badges_points':
+      case '/manager_leaderboard':
+      case '/repository_audit':
+      case '/settings':
+      case '/manager_review_team_dashboard':
+        return true;
+    }
+    return false;
   }
 
   Widget _buildProfileButton(BuildContext context) {
