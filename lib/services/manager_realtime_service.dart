@@ -267,6 +267,79 @@ class TeamMetrics {
   });
 }
 
+class DailyNudgeStat {
+  final DateTime date;
+  final int nudgesSent;
+  final int followUpActions;
+
+  const DailyNudgeStat({
+    required this.date,
+    required this.nudgesSent,
+    required this.followUpActions,
+  });
+}
+
+class EmployeeNudgeMetric {
+  final String employeeId;
+  final int unreadCount;
+  final int urgentCount;
+  final DateTime? lastNudgedAt;
+
+  const EmployeeNudgeMetric({
+    required this.employeeId,
+    required this.unreadCount,
+    required this.urgentCount,
+    required this.lastNudgedAt,
+  });
+}
+
+class NudgeAnalyticsSummary {
+  final int totalNudges;
+  final int nudgesLast7Days;
+  final int uniqueRecipientsLast7Days;
+  final int unreadNudges;
+  final int readNudges;
+  final int dismissedNudges;
+  final List<DailyNudgeStat> trend;
+  final Map<String, int> templateBreakdown;
+  final List<EmployeeNudgeMetric> outstandingEmployees;
+  final DateTime generatedAt;
+
+  const NudgeAnalyticsSummary({
+    required this.totalNudges,
+    required this.nudgesLast7Days,
+    required this.uniqueRecipientsLast7Days,
+    required this.unreadNudges,
+    required this.readNudges,
+    required this.dismissedNudges,
+    required this.trend,
+    required this.templateBreakdown,
+    required this.outstandingEmployees,
+    required this.generatedAt,
+  });
+
+  factory NudgeAnalyticsSummary.empty() {
+    return NudgeAnalyticsSummary(
+      totalNudges: 0,
+      nudgesLast7Days: 0,
+      uniqueRecipientsLast7Days: 0,
+      unreadNudges: 0,
+      readNudges: 0,
+      dismissedNudges: 0,
+      trend: const [],
+      templateBreakdown: const {},
+      outstandingEmployees: const [],
+      generatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
+}
+
+class _EmployeeNudgeAccumulator {
+  int unread = 0;
+  int urgent = 0;
+  DateTime? lastNudgedAt;
+}
+
 class ManagerRealtimeService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -366,6 +439,182 @@ class ManagerRealtimeService {
         message:
             'Firestore error (${e.code}). Check rules/auth: ${e.message ?? ''}',
       );
+    }
+  }
+
+  static Future<NudgeAnalyticsSummary> fetchManagerNudgeAnalytics({
+    int lookbackDays = 30,
+  }) async {
+    final service = ManagerRealtimeService();
+    await service._ensureSignedIn();
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return NudgeAnalyticsSummary.empty();
+    }
+
+    final now = DateTime.now();
+    final since = now.subtract(Duration(days: lookbackDays));
+    final sinceTimestamp = Timestamp.fromDate(since);
+
+    try {
+      final actionsQuery = await _firestore
+          .collection('manager_actions')
+          .where('managerId', isEqualTo: currentUser.uid)
+          .where('createdAt', isGreaterThanOrEqualTo: sinceTimestamp)
+          .orderBy('createdAt', descending: false)
+          .limit(1000)
+          .get();
+
+      final alertsQuery = await _firestore
+          .collection('alerts')
+          .where('type', isEqualTo: AlertType.managerNudge.name)
+          .where('fromUserId', isEqualTo: currentUser.uid)
+          .where('createdAt', isGreaterThanOrEqualTo: sinceTimestamp)
+          .orderBy('createdAt', descending: false)
+          .limit(1000)
+          .get();
+
+      final Map<DateTime, int> nudgesByDay = {};
+      final Map<DateTime, int> followUpsByDay = {};
+      final Map<String, int> templateBreakdown = {};
+      final Set<String> recipientsLast7Days = {};
+
+      int totalNudges = 0;
+      int nudgesLast7Days = 0;
+
+      for (final doc in actionsQuery.docs) {
+        // ignore: unnecessary_cast
+        final data = doc.data() as Map<String, dynamic>;
+        final actionType = (data['actionType'] ?? '').toString();
+        final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? now;
+        final dayKey = DateTime(
+          createdAt.year,
+          createdAt.month,
+          createdAt.day,
+        );
+
+        if (actionType == ManagementAction.sendNudge.name) {
+          totalNudges++;
+          nudgesByDay[dayKey] = (nudgesByDay[dayKey] ?? 0) + 1;
+          if (createdAt.isAfter(now.subtract(const Duration(days: 7)))) {
+            nudgesLast7Days++;
+            final employeeId = (data['employeeId'] ?? '').toString();
+            if (employeeId.isNotEmpty) {
+              recipientsLast7Days.add(employeeId);
+            }
+          }
+
+          final details = data['details'];
+          final nudgeType = details is Map && details['nudgeType'] != null
+              ? details['nudgeType'].toString()
+              : 'custom';
+          templateBreakdown[nudgeType] =
+              (templateBreakdown[nudgeType] ?? 0) + 1;
+        } else {
+          followUpsByDay[dayKey] = (followUpsByDay[dayKey] ?? 0) + 1;
+        }
+      }
+
+      int readNudges = 0;
+      int dismissedNudges = 0;
+
+      final Map<String, _EmployeeNudgeAccumulator> employeeAccum = {};
+
+      for (final doc in alertsQuery.docs) {
+        // ignore: unnecessary_cast
+        final data = doc.data() as Map<String, dynamic>;
+        final userId = (data['userId'] ?? '').toString();
+        final isRead = data['isRead'] == true;
+        final isDismissed = data['isDismissed'] == true;
+        final priority = (data['priority'] ?? '').toString();
+        final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? now;
+
+        if (isRead) {
+          readNudges++;
+        }
+        if (isDismissed) {
+          dismissedNudges++;
+        }
+
+        if (userId.isEmpty) continue;
+
+        final accumulator =
+            employeeAccum.putIfAbsent(userId, () => _EmployeeNudgeAccumulator());
+
+        if (!isRead && !isDismissed) {
+          accumulator.unread += 1;
+        }
+        if (priority == AlertPriority.urgent.name) {
+          accumulator.urgent += 1;
+        }
+        if (accumulator.lastNudgedAt == null ||
+            createdAt.isAfter(accumulator.lastNudgedAt!)) {
+          accumulator.lastNudgedAt = createdAt;
+        }
+      }
+
+      final unreadNudges =
+          alertsQuery.docs.length - readNudges - dismissedNudges;
+
+      final List<EmployeeNudgeMetric> outstandingEmployees = employeeAccum.entries
+          .map(
+            (entry) => EmployeeNudgeMetric(
+              employeeId: entry.key,
+              unreadCount: entry.value.unread,
+              urgentCount: entry.value.urgent,
+              lastNudgedAt: entry.value.lastNudgedAt,
+            ),
+          )
+          .where((metric) => metric.unreadCount > 0 || metric.urgentCount > 0)
+          .toList()
+        ..sort(
+          (a, b) {
+            if (b.urgentCount != a.urgentCount) {
+              return b.urgentCount.compareTo(a.urgentCount);
+            }
+            if (b.unreadCount != a.unreadCount) {
+              return b.unreadCount.compareTo(a.unreadCount);
+            }
+            final aTime = a.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime);
+          },
+        );
+
+      final today = DateTime(now.year, now.month, now.day);
+      final List<DailyNudgeStat> trend = List.generate(14, (index) {
+        final day = today.subtract(Duration(days: 13 - index));
+        return DailyNudgeStat(
+          date: day,
+          nudgesSent: nudgesByDay[day] ?? 0,
+          followUpActions: followUpsByDay[day] ?? 0,
+        );
+      });
+
+      return NudgeAnalyticsSummary(
+        totalNudges: totalNudges,
+        nudgesLast7Days: nudgesLast7Days,
+        uniqueRecipientsLast7Days: recipientsLast7Days.length,
+        unreadNudges: unreadNudges < 0 ? 0 : unreadNudges,
+        readNudges: readNudges,
+        dismissedNudges: dismissedNudges,
+        trend: trend,
+        templateBreakdown: templateBreakdown,
+        outstandingEmployees: outstandingEmployees,
+        generatedAt: DateTime.now(),
+      );
+    } on FirebaseException catch (e) {
+      developer.log('fetchManagerNudgeAnalytics FirebaseException: $e');
+      throw FirebaseException(
+        plugin: e.plugin,
+        code: e.code,
+        message:
+            'Unable to load analytics data (${e.code}). Please verify Firestore indexes and permissions.',
+      );
+    } catch (e, st) {
+      developer.log('fetchManagerNudgeAnalytics error: $e', stackTrace: st);
+      rethrow;
     }
   }
 

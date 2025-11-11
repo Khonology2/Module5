@@ -1,5 +1,7 @@
 // ignore_for_file: unused_element
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -41,11 +43,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   // ignore: unused_field
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
+  Future<NudgeAnalyticsSummary>? _analyticsFuture;
+  bool _showNudgeTrend = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _analyticsFuture = ManagerRealtimeService.fetchManagerNudgeAnalytics();
     _redirectIfManager();
   }
 
@@ -83,6 +88,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       }
     } catch (_) {
       // ignore
+    }
+  }
+
+  Future<void> _refreshAnalytics() async {
+    setState(() {
+      _analyticsFuture = ManagerRealtimeService.fetchManagerNudgeAnalytics();
+    });
+    try {
+      await _analyticsFuture;
+    } catch (_) {
+      // ignore refresh errors; UI will show current snapshot or error message
     }
   }
 
@@ -181,58 +197,63 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       );
     }
 
-    return ListView.separated(
-      padding: AppSpacing.screenPadding,
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (context, index) {
-        final emp = items[index]['employee'] as EmployeeData;
-        final g = items[index]['goal'] as Goal;
-        final isApproved = g.approvalStatus == GoalApprovalStatus.approved;
-        final color = isApproved ? AppColors.successColor : AppColors.dangerColor;
-        final statusLabel = isApproved ? 'Approved' : 'Rejected';
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: ListTile(
-            leading: Icon(
-              isApproved ? Icons.check_circle_outline : Icons.cancel_outlined,
-              color: color,
-            ),
-            title: Text(
-              g.title,
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Text(
-              '${emp.profile.displayName} • ${_fmtDate(g.targetDate)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-            ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withValues(alpha: 0.5)),
-              ),
-              child: Text(
-                statusLabel,
-                style: AppTypography.bodySmall.copyWith(color: color, fontWeight: FontWeight.w600),
-              ),
-            ),
-            onTap: () {
-              // View-only: approvals happen in Manager Inbox goal review
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: AppSpacing.screenPadding,
+          sliver: SliverList.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final emp = items[index]['employee'] as EmployeeData;
+              final g = items[index]['goal'] as Goal;
+              final isApproved = g.approvalStatus == GoalApprovalStatus.approved;
+              final color = isApproved ? AppColors.successColor : AppColors.dangerColor;
+              final statusLabel = isApproved ? 'Approved' : 'Rejected';
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    isApproved ? Icons.check_circle_outline : Icons.cancel_outlined,
+                    color: color,
+                  ),
+                  title: Text(
+                    g.title,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${emp.profile.displayName} • ${_fmtDate(g.targetDate)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: color.withValues(alpha: 0.5)),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: AppTypography.bodySmall.copyWith(color: color, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  onTap: () {},
+                ),
+              );
             },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -332,70 +353,67 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 fit: BoxFit.cover,
               ),
             ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: AppSpacing.screenPadding,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) {
+                final tabBar = TabBar(
+                  controller: _tabController,
+                  indicatorColor: AppColors.activeColor,
+                  labelColor: AppColors.textPrimary,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  labelStyle: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                  tabs: const [
+                    Tab(text: 'Approvals', icon: Icon(Icons.fact_check_outlined, size: 20)),
+                    Tab(text: 'Team Alerts', icon: Icon(Icons.notifications, size: 20)),
+                    Tab(text: 'Send Nudges', icon: Icon(Icons.message_outlined, size: 20)),
+                    Tab(text: 'Analytics', icon: Icon(Icons.analytics_outlined, size: 20)),
+                  ],
+                );
+
+                return [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: AppSpacing.screenPadding,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              'Team Alerts & Nudges',
-                              style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-                            ),
+                          Text(
+                            'Team Alerts & Nudges',
+                            style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
                           ),
-                          ElevatedButton.icon(
-                            onPressed: () => _showSendNudgeDialog(),
-                            icon: const Icon(Icons.add_circle_outline, size: 18),
-                            label: const Text('Send Nudge'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.activeColor,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          _buildStatsRow(employees),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-                      _buildStatsRow(employees),
-                    ],
+                    ),
                   ),
-                ),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    floating: false,
+                    delegate: _TabBarHeaderDelegate(
+                      tabBar: tabBar,
+                      margin: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg,
+                        vertical: AppSpacing.md / 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                    ),
                   ),
-                  child: TabBar(
-                    controller: _tabController,
-                    indicatorColor: AppColors.activeColor,
-                    labelColor: AppColors.textPrimary,
-                    unselectedLabelColor: AppColors.textSecondary,
-                    labelStyle: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-                    tabs: const [
-                      Tab(text: 'Approvals', icon: Icon(Icons.fact_check_outlined, size: 20)),
-                      Tab(text: 'Team Alerts', icon: Icon(Icons.notifications, size: 20)),
-                      Tab(text: 'Send Nudges', icon: Icon(Icons.message_outlined, size: 20)),
-                      Tab(text: 'Analytics', icon: Icon(Icons.analytics_outlined, size: 20)),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildApprovalsTab(employees),
-                      _buildTeamAlertsTab(employees),
-                      _buildSendNudgesTab(employees),
-                      _buildAnalyticsTab(),
-                    ],
-                  ),
-                ),
-              ],
+                ];
+              },
+              body: TabBarView(
+                controller: _tabController,
+                physics: const ClampingScrollPhysics(),
+                children: [
+                  _buildApprovalsTab(employees),
+                  _buildTeamAlertsTab(employees),
+                  _buildSendNudgesTab(employees),
+                  _buildAnalyticsTab(employees),
+                ],
+              ),
             ),
           );
         },
@@ -544,6 +562,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
         SliverPadding(
           padding: AppSpacing.screenPadding,
@@ -569,10 +588,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           SliverPadding(
             padding: AppSpacing.screenPadding,
             sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                alerts
-                    .map((alert) => _buildTeamAlertCard(alert, employeesById[alert.userId] ?? employees.first))
-                    .toList(),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _buildTeamAlertCard(
+                  alerts[index],
+                  employeesById[alerts[index].userId] ?? employees.first,
+                ),
+                childCount: alerts.length,
               ),
             ),
           ),
@@ -908,20 +929,21 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   Widget _buildSendNudgesTab(List<EmployeeData> employees) {
     final filteredEmployees = _filterEmployees(employees);
 
-    return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Send Team Nudges',
-            style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: AppSpacing.screenPadding,
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Send Team Nudges',
+                  style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search team members...',
@@ -940,31 +962,25 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              ElevatedButton.icon(
-                onPressed: () => _showBulkNudgeDialog(employees),
-                icon: const Icon(Icons.group, size: 18),
-                label: const Text('Bulk Nudge'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warningColor,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          if (filteredEmployees.isEmpty)
-            _buildNoEmployeesState()
-          else
-            ...filteredEmployees.map((employee) => 
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _buildEmployeeNudgeCard(employee),
-              ),
+              ],
             ),
-        ],
-      ),
+          ),
+        ),
+        SliverPadding(
+          padding: AppSpacing.screenPadding.copyWith(top: AppSpacing.md),
+          sliver: filteredEmployees.isEmpty
+              ? SliverToBoxAdapter(child: _buildNoEmployeesState())
+              : SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: _buildEmployeeNudgeCard(filteredEmployees[index]),
+                    ),
+                    childCount: filteredEmployees.length,
+                  ),
+                ),
+        ),
+      ],
     );
   }
 
@@ -1114,53 +1130,868 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildAnalyticsTab() {
-    return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
+  Widget _buildAnalyticsTab(List<EmployeeData> employees) {
+    return StreamBuilder<List<ManagerAction>>(
+      stream: ManagerRealtimeService.getManagerActionsStream(limit: 250),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: const CircularProgressIndicator(
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: AppSpacing.screenPadding,
+              child: Text(
+                'Analytics unavailable: ${snapshot.error}',
+                style:
+                    AppTypography.bodyMedium.copyWith(color: Colors.redAccent),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        final actions = snapshot.data ?? [];
+        return _buildAnalyticsContent(
+          employees,
+          actions,
+        );
+      },
+    );
+  }
+
+  Widget _buildAnalyticsContent(
+    List<EmployeeData> employees,
+    List<ManagerAction> actions,
+  ) {
+    final managerId = FirebaseAuth.instance.currentUser?.uid;
+    final now = DateTime.now();
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    final weeklyNudges = actions.where((action) {
+      return action.actionType == ManagementAction.sendNudge &&
+          action.createdAt.isAfter(sevenDaysAgo);
+    }).toList();
+
+    final uniqueEmployeesNudged = weeklyNudges
+        .map((action) => action.employeeId)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .length;
+
+    final followUpActions = actions.where((action) {
+      return action.createdAt.isAfter(sevenDaysAgo) &&
+          action.actionType != ManagementAction.sendNudge;
+    }).toList();
+
+    final nudgeAlerts = employees
+        .expand((e) => e.recentAlerts)
+        .where((alert) {
+          if (alert.type != AlertType.managerNudge) return false;
+          if (managerId == null || alert.fromUserId == null) return true;
+          return alert.fromUserId == managerId;
+        })
+        .toList();
+
+    final openedNudges =
+        nudgeAlerts.where((alert) => alert.isRead && !alert.isDismissed).length;
+    final dismissedNudges =
+        nudgeAlerts.where((alert) => alert.isDismissed).length;
+    final pendingNudges =
+        nudgeAlerts.length - openedNudges - dismissedNudges;
+
+    final responseRate = nudgeAlerts.isNotEmpty
+        ? (openedNudges / nudgeAlerts.length) * 100
+        : 0.0;
+
+    final dailyBuckets = List.generate(7, (index) {
+      final day = now.subtract(Duration(days: 6 - index));
+      final dayStart = DateTime(day.year, day.month, day.day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final count = weeklyNudges
+          .where((action) =>
+              action.createdAt.isAfter(dayStart) &&
+              action.createdAt.isBefore(dayEnd))
+          .length;
+      return _DailyNudgeBucket(
+        label: _weekdayLabel(day.weekday),
+        count: count,
+      );
+    });
+
+    final followUpSummary = <ManagementAction, int>{};
+    for (final action in followUpActions) {
+      followUpSummary.update(action.actionType, (value) => value + 1,
+          ifAbsent: () => 1);
+    }
+
+    final topFollowUps = followUpSummary.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final attentionItems = _buildAttentionItems(
+      employees: employees,
+      managerId: managerId,
+    );
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: AppSpacing.screenPadding,
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Nudge Analytics',
+                      style:
+                          AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.activeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.activeColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        'Response Rate: ${responseRate.toStringAsFixed(0)}%',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.activeColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _buildAnalyticsStatGrid(
+                  totalNudges: weeklyNudges.length,
+                  uniqueEmployees: uniqueEmployeesNudged,
+                  opened: openedNudges,
+                  pending: pendingNudges,
+                ),
+              ],
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: AppSpacing.screenPadding.copyWith(top: 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildResponseBreakdown(
+                  opened: openedNudges,
+                  pending: pendingNudges,
+                  dismissed: dismissedNudges,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Show 7-Day Nudge Trend',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _showNudgeTrend,
+                      activeTrackColor: AppColors.activeColor,
+                      onChanged: (value) {
+                        setState(() => _showNudgeTrend = value);
+                      },
+                    ),
+                  ],
+                ),
+                if (_showNudgeTrend) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _buildNudgeTrendSection(dailyBuckets),
+                  const SizedBox(height: AppSpacing.lg),
+                ] else
+                  const SizedBox(height: AppSpacing.lg),
+                _buildFollowUpSection(topFollowUps),
+                const SizedBox(height: AppSpacing.lg),
+                _buildAttentionSection(attentionItems),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnalyticsStatGrid({
+    required int totalNudges,
+    required int uniqueEmployees,
+    required int opened,
+    required int pending,
+  }) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: AppSpacing.sm,
+      mainAxisSpacing: AppSpacing.sm,
+      childAspectRatio: 1.8,
+      children: [
+        _buildAnalyticsStatCard(
+          title: 'Nudges Sent (7d)',
+          value: totalNudges.toString(),
+          icon: Icons.campaign_outlined,
+          color: AppColors.activeColor,
+          subtitle: totalNudges == 0
+              ? 'No nudges this week'
+              : 'Avg ${(totalNudges / 7).toStringAsFixed(1)} per day',
+        ),
+        _buildAnalyticsStatCard(
+          title: 'Unique Employees',
+          value: uniqueEmployees.toString(),
+          icon: Icons.groups_outlined,
+          color: AppColors.infoColor,
+          subtitle: uniqueEmployees == 0
+              ? 'No recent outreach'
+              : '$uniqueEmployees reached in 7 days',
+        ),
+        _buildAnalyticsStatCard(
+          title: 'Opened Nudges',
+          value: opened.toString(),
+          icon: Icons.mark_email_read_outlined,
+          color: AppColors.successColor,
+          subtitle: 'Team members engaged',
+        ),
+        _buildAnalyticsStatCard(
+          title: 'Pending Nudges',
+          value: pending.toString(),
+          icon: Icons.pending_actions_outlined,
+          color: AppColors.warningColor,
+          subtitle:
+              pending == 0 ? 'All nudges viewed' : 'Needs follow-up',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnalyticsStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    String? subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Nudge Analytics',
-            style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              Icon(Icons.trending_up, size: 16, color: color.withValues(alpha: 0.6)),
+            ],
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: 12),
           Text(
-            'Coming Soon',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            value,
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
             ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.analytics_outlined,
-                  size: 48,
-                  color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponseBreakdown({
+    required int opened,
+    required int pending,
+    required int dismissed,
+  }) {
+    final total = opened + pending + dismissed;
+    final openedPct = total == 0 ? 0.0 : opened / total;
+    final pendingPct = total == 0 ? 0.0 : pending / total;
+    final dismissedPct = total == 0 ? 0.0 : dismissed / total;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_outlined,
+                  color: AppColors.activeColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Nudge Response Breakdown',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Analytics Dashboard',
-                  style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildBreakdownRow(
+            label: 'Opened',
+            value: opened,
+            percentage: openedPct,
+            color: AppColors.successColor,
+          ),
+          const SizedBox(height: 12),
+          _buildBreakdownRow(
+            label: 'Pending',
+            value: pending,
+            percentage: pendingPct,
+            color: AppColors.warningColor,
+          ),
+          const SizedBox(height: 12),
+          _buildBreakdownRow(
+            label: 'Dismissed',
+            value: dismissed,
+            percentage: dismissedPct,
+            color: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownRow({
+    required String label,
+    required int value,
+    required double percentage,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              value.toString(),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${(percentage * 100).toStringAsFixed(0)}%',
+              style: AppTypography.bodySmall.copyWith(
+                color: color,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: percentage.clamp(0.0, 1.0),
+            backgroundColor: AppColors.borderColor,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNudgeTrendSection(List<_DailyNudgeBucket> buckets) {
+    final maxCount = buckets.isEmpty
+        ? 1
+        : math.max(1, buckets.map((b) => b.count).reduce(math.max));
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timeline_outlined,
+                  color: AppColors.infoColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '7-Day Nudge Trend',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Track nudge effectiveness, response rates, and team engagement patterns.',
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...buckets.map((bucket) {
+            final normalized = maxCount == 0 ? 0.0 : bucket.count / maxCount;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 42,
+                    child: Text(
+                      bucket.label,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: normalized.isNaN ? 0.0 : normalized,
+                        backgroundColor: AppColors.borderColor,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    bucket.count.toString(),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 6),
+          Text(
+            'Keep your outreach consistent. A steady cadence of nudges builds accountability and momentum.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary.withValues(alpha: 0.8),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildFollowUpSection(
+    List<MapEntry<ManagementAction, int>> followUps,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.follow_the_signs_outlined,
+                  color: AppColors.warningColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Follow-up Actions (7d)',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (followUps.isEmpty)
+            Text(
+              'No follow-up actions recorded in the past 7 days. Turn nudges into coaching moments with 1:1s, recognition, or support.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            )
+          else
+            Column(
+              children: followUps.take(3).map((entry) {
+                final actionLabel = _formatManagementAction(entry.key);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.textSecondary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _iconForManagementAction(entry.key),
+                        color: AppColors.textSecondary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          actionLabel,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.activeColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${entry.value}',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.activeColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttentionSection(List<_AttentionItem> items) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.priority_high_outlined,
+                  color: AppColors.dangerColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Employees Needing Attention',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (items.isEmpty)
+            Text(
+              'All clear! No outstanding nudges or urgent alerts require action.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            )
+          else
+            Column(
+              children: items.take(5).map((item) {
+                final employee = item.employee;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.textSecondary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor:
+                                AppColors.dangerColor.withValues(alpha: 0.15),
+                            child: Text(
+                              employee.profile.displayName.isNotEmpty
+                                  ? employee.profile.displayName[0]
+                                      .toUpperCase()
+                                  : '?',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.dangerColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  employee.profile.displayName,
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '${item.urgentAlerts} urgent alerts • ${item.unreadNudges} unread nudges',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.dangerColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Score ${item.score}',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.dangerColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule,
+                              size: 14, color: AppColors.textSecondary),
+                          const SizedBox(width: 6),
+                          Text(
+                            item.daysInactive > 0
+                                ? 'Inactive ${item.daysInactive}d'
+                                : 'Active today',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => _showSendNudgeDialog(
+                              employee: employee,
+                            ),
+                            child: const Text('Send Nudge'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<_AttentionItem> _buildAttentionItems({
+    required List<EmployeeData> employees,
+    required String? managerId,
+  }) {
+    final now = DateTime.now();
+    final items = <_AttentionItem>[];
+
+    for (final employee in employees) {
+      final urgentAlerts = employee.recentAlerts.where((alert) {
+        if (alert.priority != AlertPriority.urgent) return false;
+        if (managerId == null || alert.fromUserId == null) return true;
+        return alert.fromUserId == managerId;
+      }).length;
+
+      final unreadNudges = employee.recentAlerts.where((alert) {
+        if (alert.type != AlertType.managerNudge) return false;
+        if (alert.isRead || alert.isDismissed) return false;
+        if (managerId == null || alert.fromUserId == null) return true;
+        return alert.fromUserId == managerId;
+      }).length;
+
+      final inactivityDays = now.difference(employee.lastActivity).inDays;
+      final statusPenalty = switch (employee.status) {
+        EmployeeStatus.overdue => 3,
+        EmployeeStatus.atRisk => 2,
+        EmployeeStatus.inactive => 2,
+        EmployeeStatus.onTrack => 0,
+      };
+
+      final score = urgentAlerts * 3 +
+          unreadNudges * 2 +
+          (inactivityDays >= 7 ? 2 : inactivityDays >= 3 ? 1 : 0) +
+          statusPenalty;
+
+      if (score == 0) continue;
+
+      items.add(
+        _AttentionItem(
+          employee: employee,
+          score: score,
+          urgentAlerts: urgentAlerts,
+          unreadNudges: unreadNudges,
+          daysInactive: inactivityDays,
+        ),
+      );
+    }
+
+    items.sort((a, b) => b.score.compareTo(a.score));
+    return items;
+  }
+
+  String _formatManagementAction(ManagementAction action) {
+    switch (action) {
+      case ManagementAction.sendNudge:
+        return 'Sent Nudge';
+      case ManagementAction.scheduleMeeting:
+        return 'Scheduled 1:1';
+      case ManagementAction.assignGoal:
+        return 'Assigned Goal';
+      case ManagementAction.reassignGoal:
+        return 'Reassigned Goal';
+      case ManagementAction.giveRecognition:
+        return 'Gave Recognition';
+      case ManagementAction.provideFeedback:
+        return 'Provided Feedback';
+      case ManagementAction.escalateIssue:
+        return 'Escalated Issue';
+      case ManagementAction.adjustWorkload:
+        return 'Adjusted Workload';
+      case ManagementAction.offerSupport:
+        return 'Offered Support';
+    }
+  }
+
+  IconData _iconForManagementAction(ManagementAction action) {
+    switch (action) {
+      case ManagementAction.sendNudge:
+        return Icons.notifications_active_outlined;
+      case ManagementAction.scheduleMeeting:
+        return Icons.event_available_outlined;
+      case ManagementAction.assignGoal:
+        return Icons.flag_outlined;
+      case ManagementAction.reassignGoal:
+        return Icons.swap_horiz_outlined;
+      case ManagementAction.giveRecognition:
+        return Icons.emoji_events_outlined;
+      case ManagementAction.provideFeedback:
+        return Icons.feedback_outlined;
+      case ManagementAction.escalateIssue:
+        return Icons.warning_amber_outlined;
+      case ManagementAction.adjustWorkload:
+        return Icons.tune_outlined;
+      case ManagementAction.offerSupport:
+        return Icons.volunteer_activism_outlined;
+    }
+  }
+
+  String _weekdayLabel(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'Mon';
+      case DateTime.tuesday:
+        return 'Tue';
+      case DateTime.wednesday:
+        return 'Wed';
+      case DateTime.thursday:
+        return 'Thu';
+      case DateTime.friday:
+        return 'Fri';
+      case DateTime.saturday:
+        return 'Sat';
+      case DateTime.sunday:
+        return 'Sun';
+      default:
+        return '';
+    }
   }
 
   Widget _buildEmptyAlertsState() {
@@ -1720,4 +2551,63 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
     widget.onSendBulkNudge(_messageController.text.trim());
     Navigator.pop(context);
   }
+}
+
+class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final PreferredSizeWidget tabBar;
+  final EdgeInsets margin;
+  final BoxDecoration decoration;
+
+  _TabBarHeaderDelegate({
+    required this.tabBar,
+    required this.margin,
+    required this.decoration,
+  });
+
+  @override
+  double get minExtent => tabBar.preferredSize.height + margin.vertical;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height + margin.vertical;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Padding(
+      padding: margin,
+      child: DecoratedBox(
+        decoration: decoration,
+        child: tabBar,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _TabBarHeaderDelegate oldDelegate) {
+    return tabBar != oldDelegate.tabBar ||
+        margin != oldDelegate.margin ||
+        decoration != oldDelegate.decoration;
+  }
+}
+
+class _DailyNudgeBucket {
+  final String label;
+  final int count;
+
+  const _DailyNudgeBucket({required this.label, required this.count});
+}
+
+class _AttentionItem {
+  final EmployeeData employee;
+  final int score;
+  final int urgentAlerts;
+  final int unreadNudges;
+  final int daysInactive;
+
+  const _AttentionItem({
+    required this.employee,
+    required this.score,
+    required this.urgentAlerts,
+    required this.unreadNudges,
+    required this.daysInactive,
+  });
 }
