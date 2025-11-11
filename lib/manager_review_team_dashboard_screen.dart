@@ -109,16 +109,7 @@ class _ManagerReviewTeamDashboardScreenState
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildKpiRow(metricsSnapshot.data),
-                                    const SizedBox(height: 20),
                                     _buildHeader(),
-                                    const SizedBox(height: 20),
-
-                                    // Debug info display
-                                    _buildDebugInfo(
-                                      employeesSnapshot,
-                                      insightsSnapshot,
-                                    ),
                                     const SizedBox(height: 20),
 
                                     if (employeesSnapshot.hasData &&
@@ -199,61 +190,6 @@ class _ManagerReviewTeamDashboardScreenState
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildKpiRow(TeamMetrics? metrics) {
-    Widget tile(String label, String value, Color color) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (metrics == null) {
-      return Row(
-        children: [
-          tile('On Track', '--', Colors.greenAccent),
-          const SizedBox(width: 12),
-          tile('At Risk', '--', Colors.orangeAccent),
-          const SizedBox(width: 12),
-          tile('Overdue', '--', Colors.redAccent),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        tile('On Track', '${metrics.onTrackGoals}', Colors.greenAccent),
-        const SizedBox(width: 12),
-        tile('At Risk', '${metrics.atRiskGoals}', Colors.orangeAccent),
-        const SizedBox(width: 12),
-        tile('Overdue', '${metrics.overdueGoals}', Colors.redAccent),
-      ],
     );
   }
 
@@ -1097,75 +1033,6 @@ class _ManagerReviewTeamDashboardScreenState
             child: const Text('Close', style: TextStyle(color: Colors.white70)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDebugInfo(
-    AsyncSnapshot<List<EmployeeData>> employeesSnapshot,
-    AsyncSnapshot<List<TeamInsight>> insightsSnapshot,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Debug Information',
-            style: TextStyle(
-              color: Colors.orange,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildDebugRow(
-            'Employees Stream:',
-            'hasData: ${employeesSnapshot.hasData}, hasError: ${employeesSnapshot.hasError}',
-          ),
-          if (employeesSnapshot.hasData)
-            _buildDebugRow(
-              'Employee Count:',
-              '${employeesSnapshot.data!.length}',
-            ),
-          if (employeesSnapshot.hasError)
-            _buildDebugRow('Employee Error:', '${employeesSnapshot.error}'),
-          _buildDebugRow(
-            'Insights Stream:',
-            'hasData: ${insightsSnapshot.hasData}, hasError: ${insightsSnapshot.hasError}',
-          ),
-          if (insightsSnapshot.hasError)
-            _buildDebugRow('Insights Error:', '${insightsSnapshot.error}'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDebugRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(
-              text: '$label ',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-            TextSpan(
-              text: value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

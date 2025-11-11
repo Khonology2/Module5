@@ -208,16 +208,6 @@ class _ManagerProgressVisualsContentState
               _buildFilterDropdown(),
               const SizedBox(width: AppSpacing.md),
               _buildDepartmentDropdown(),
-              const SizedBox(width: AppSpacing.md),
-              OutlinedButton.icon(
-                onPressed: _showDebugInfo,
-                icon: const Icon(Icons.bug_report, size: 16),
-                label: const Text('Debug Data'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.warningColor,
-                  side: BorderSide(color: AppColors.warningColor),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: AppSpacing.xl),

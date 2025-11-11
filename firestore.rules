@@ -186,6 +186,36 @@ service cloud.firestore {
         allow create: if isSignedIn();
     }
 
+    // Manager actions audit trail
+    match /manager_actions/{actionId} {
+      // Managers can read their own action history; admins can read all
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (isManager() && resource.data.managerId == userId())
+      );
+
+      // Listing must stay scoped to the requesting manager and use a limit
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        (
+          isManager() &&
+          request.query.where('managerId', '==', userId())
+        )
+      );
+
+      // Manager action records are written by managers or admins
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (
+          isManager() &&
+          request.resource.data.managerId == userId()
+        )
+      );
+
+      // Only admins can modify existing entries
+      allow update, delete: if isAdmin();
+    }
+
     // Seasons/Challenges - managers create; employees can read and self-join
     match /seasons/{seasonId} {
       // Allow any signed-in user to read seasons so employees can browse/join
