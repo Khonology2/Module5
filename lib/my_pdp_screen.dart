@@ -156,9 +156,14 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     }
   }
 
-  Future<void> _attachEvidence(BuildContext context, Goal goal) async {
-    // If evidence already exists, show what's submitted with option to change
-    if (goal.evidence.isNotEmpty) {
+  Future<void> _attachEvidence(
+    BuildContext context,
+    Goal goal, {
+    bool bypassExisting = false,
+    bool replaceExisting = false,
+  }) async {
+    // If evidence already exists, show what's submitted with option to change unless bypassed
+    if (goal.evidence.isNotEmpty && !bypassExisting) {
       _showEvidenceManagementDialog(context, goal);
       return;
     }
@@ -200,8 +205,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             final file = picked.files.first;
                             final bytes = file.bytes;
                             if (bytes != null) {
+                              // Close the Add Evidence dialog before starting upload
+                              if (ctx.mounted) {
+                                Navigator.of(ctx).pop();
+                              }
+                              // Show a blocking loading dialog while uploading
                               _showLoadingDialog(
-                                ctx,
+                                context,
                                 message: 'Uploading file...',
                               );
                               try {
@@ -213,33 +223,37 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     );
                                 final fileInfo =
                                     '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB)';
+                                if (replaceExisting) {
+                                  await DatabaseService.clearGoalEvidence(
+                                    goalId: goal.id,
+                                  );
+                                }
                                 await DatabaseService.attachGoalEvidence(
                                   goalId: goal.id,
                                   evidence: [fileInfo, cloudinaryUrl],
                                 );
-                                if (ctx.mounted) {
+                                if (mounted) {
+                                  // Ensure loading dialog is fully closed (definite pop)
                                   Navigator.of(
-                                    ctx,
+                                    context,
                                     rootNavigator: true,
-                                  ).maybePop();
-                                  // Close dialog automatically after successful upload
-                                  Navigator.of(ctx).pop('uploaded');
+                                  ).pop();
                                   setState(() {});
                                   // Show success message
                                   await _showCenterNotice(
-                                    ctx,
+                                    context,
                                     'File uploaded successfully',
                                   );
                                 }
                               } catch (cloudErr) {
-                                // Do not save or mark evidence on failure; show error and keep dialog open
-                                if (ctx.mounted) {
+                                // Close loading and show error
+                                if (mounted) {
                                   Navigator.of(
-                                    ctx,
+                                    context,
                                     rootNavigator: true,
-                                  ).maybePop();
+                                  ).pop();
                                   await _showCenterNotice(
-                                    ctx,
+                                    context,
                                     'Upload failed: $cloudErr',
                                   );
                                 }
@@ -283,6 +297,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
     if (result != null && result.isNotEmpty) {
       if (result != 'uploaded') {
+        if (replaceExisting) {
+          await DatabaseService.clearGoalEvidence(goalId: goal.id);
+        }
         await DatabaseService.attachGoalEvidence(
           goalId: goal.id,
           evidence: [result],
@@ -477,12 +494,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              // Clear existing evidence
-              await DatabaseService.clearGoalEvidence(goalId: goal.id);
-              // Refresh the screen
-              setState(() {});
-              // Open new evidence dialog
-              _attachEvidence(context, goal);
+              // Open add evidence dialog directly; existing evidence will be replaced on save
+              _attachEvidence(
+                context,
+                goal,
+                bypassExisting: true,
+                replaceExisting: true,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
@@ -925,31 +943,57 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     )
                                   : null,
                             ),
-                            OutlinedButton.icon(
-                              onPressed: () => _attachEvidence(context, goal),
-                              icon: Icon(
-                                goal.evidence.isNotEmpty
-                                    ? Icons.check_circle
-                                    : Icons.attach_file,
-                                size: 18,
-                              ),
-                              label: Text(
-                                goal.evidence.isNotEmpty
-                                    ? 'Evidence submitted'
-                                    : 'Attach evidence',
-                              ),
-                              style: goal.evidence.isNotEmpty
-                                  ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      foregroundColor: Colors.green,
-                                      side: const BorderSide(
-                                        color: Colors.green,
-                                      ),
-                                    )
-                                  : null,
-                            ),
+                            Builder(builder: (context) {
+                              bool isHovered = false;
+                              return StatefulBuilder(
+                                builder: (context, localSetState) => MouseRegion(
+                                  onEnter: (_) {
+                                    if (goal.evidence.isNotEmpty) {
+                                      localSetState(() {
+                                        isHovered = true;
+                                      });
+                                    }
+                                  },
+                                  onExit: (_) {
+                                    if (goal.evidence.isNotEmpty) {
+                                      localSetState(() {
+                                        isHovered = false;
+                                      });
+                                    }
+                                  },
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => goal.evidence.isNotEmpty
+                                        ? _showChangeEvidenceDialog(context, goal)
+                                        : _attachEvidence(context, goal),
+                                    icon: Icon(
+                                      goal.evidence.isNotEmpty
+                                          ? Icons.check_circle
+                                          : Icons.attach_file,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      goal.evidence.isNotEmpty
+                                          ? (isHovered
+                                              ? 'Change evidence'
+                                              : 'Evidence submitted')
+                                          : 'Attach evidence',
+                                    ),
+                                    style: goal.evidence.isNotEmpty
+                                        ? OutlinedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.green.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            foregroundColor: Colors.green,
+                                            side: const BorderSide(
+                                              color: Colors.green,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            }),
                             StreamBuilder<List<AuditEntry>>(
                               stream:
                                   AuditService.getEmployeeAuditEntriesStream(),
