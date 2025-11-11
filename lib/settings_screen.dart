@@ -2,11 +2,14 @@
 
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/utils/download_helper.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -841,25 +844,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportUserData() async {
     try {
+      // Show blocking loading dialog centred on screen
+      _showLoadingDialog(context, message: 'Exporting your data...');
       final data = await SettingsService.exportUserData();
-      // In a real app, you'd save this to a file or share it
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Data exported successfully! ${data.keys.length} sections included.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
+      if (!mounted) return;
+      // Close loading
+      Navigator.of(context, rootNavigator: true).pop();
+      // Trigger JSON file download on web
+      if (kIsWeb) {
+        final filename = 'pdh-export-${DateTime.now().millisecondsSinceEpoch}.json';
+        downloadJsonFile(filename, _prettyJson(data));
       }
+      // Show success dialog centred
+      await _showCenterNotice(
+        context,
+        'Data exported successfully! ${data.keys.length} sections included.',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error exporting data: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      // Close loading if still open
+      Navigator.of(context, rootNavigator: true).pop();
+      await _showCenterNotice(
+        context,
+        'Error exporting data: $e',
+      );
     }
   }
 
@@ -875,6 +883,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Team analytics feature coming soon!')),
     );
+  }
+
+  // Dialog helpers
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        content: Row(
+          children: [
+            const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _prettyJson(Map<String, dynamic> data) {
+    try {
+      return const JsonEncoder.withIndent('  ').convert(data);
+    } catch (_) {
+      return data.toString();
+    }
   }
 
   Future<void> _signOut() async {
