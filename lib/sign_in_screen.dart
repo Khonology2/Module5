@@ -364,16 +364,21 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               );
                                             } on FirebaseAuthException catch (e) {
                                               String message;
-                                              if (e.code == 'user-not-found') {
-                                                message =
-                                                    'No user found for that email.';
-                                              } else if (e.code == 'wrong-password') {
-                                                message =
-                                                    'Wrong password provided for that user.';
-                                              } else {
-                                                message =
-                                                    e.message ??
-                                                    'An unknown error occurred.';
+                                              switch (e.code) {
+                                                case 'user-not-found':
+                                                case 'wrong-password':
+                                                case 'invalid-credential':
+                                                case 'invalid-login-credentials':
+                                                  message = 'Email or password is incorrect. Please try again.';
+                                                  break;
+                                                case 'too-many-requests':
+                                                  message = 'Too many attempts. Please wait a moment and try again.';
+                                                  break;
+                                                case 'user-disabled':
+                                                  message = 'This account is disabled. Please contact support.';
+                                                  break;
+                                                default:
+                                                  message = 'We couldn\'t sign you in right now. Please try again.';
                                               }
                                               if (!mounted) return;
                                               await _showCenterNotice(message);
