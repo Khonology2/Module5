@@ -36,6 +36,7 @@ import 'package:pdh/services/speech_recognition_service.dart'; // Import the spe
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
+import 'package:showcaseview/showcaseview.dart'; // Import showcaseview for tutorial
 import 'package:pdh/team_challenges_seasons_screen.dart';
 import 'package:pdh/season_management_screen.dart' as season_mgmt;
 import 'package:pdh/employee_season_challenges_screen.dart'; // Import Team Challenges & Seasons screen
@@ -142,224 +143,227 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return _GlobalChatbotWrapper(
-      currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
-      child: Stack(
-        fit: StackFit.expand,
-        textDirection: TextDirection.ltr,
-        children: [
-          MaterialApp(
-            navigatorKey: navigatorKey, // Assign the global key to MaterialApp
-            title: 'Personal Development Hub',
-            theme: AppTheme.darkTheme,
-            initialRoute: '/landing',
-            builder: (context, child) {
-              if (child == null) return const SizedBox.shrink();
-              return FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: child,
-              );
-            },
-            routes: {
-              '/landing': (context) => const PersonalDevelopmentHubScreen(),
-              '/': (context) =>
-                  const AuthWrapper(), // Set the root route to AuthWrapper
-              '/register': (context) => const RegisterScreen(),
-              '/sign_in': (context) => const LoginScreen(),
-              '/my_pdp': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: MainLayout(
-                  title: 'Profile',
-                  currentRouteName: '/my_pdp',
-                  body: const MyPdpScreen(),
-                ),
-              ),
-              '/my_profile': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: MainLayout(
-                  title: 'My Profile',
-                  currentRouteName: '/my_profile',
-                  body: const EmployeeProfileScreen(embedded: true),
-                ),
-              ),
-              '/manager_profile': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerProfileScreen(),
-              ),
-              '/progress_visuals': (context) => MainLayout(
-                title: 'Progress Visuals',
-                currentRouteName: '/progress_visuals',
-                body: const ProgressVisualsScreen(),
-              ),
-              '/my_goal_workspace': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: const MyGoalWorkspaceScreen(),
-              ),
-              '/gamification': (context) => const GamificationScreen(),
-              '/repository_audit': (context) => MainLayout(
-                title: 'Repository & Audit',
-                currentRouteName: '/repository_audit',
-                body: const RepositoryAuditScreen(),
-              ),
-              '/alerts_nudges': (context) => const AlertsNudgesScreen(),
-              '/season_challenge': (context) => const SeasonChallengeScreen(),
-              '/settings': (context) => MainLayout(
-                title: 'Settings & Privacy',
-                currentRouteName: '/settings',
-                body: const SettingsScreen(),
-              ),
-              '/manager_review_team_dashboard': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerReviewTeamDashboardScreen(),
-              ),
-              '/badges_points': (context) => const BadgesPointsScreen(),
-              '/leaderboard': (context) => MainLayout(
-                title: 'Leaderboard',
-                currentRouteName: '/leaderboard',
-                body: const LeaderboardScreen(),
-              ),
-              '/manager_leaderboard': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerLeaderboardScreen(),
-              ),
-              // Map legacy employee_portal route to the dashboard to remove the old portal screen
-              '/employee_portal': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: const EmployeeDashboardScreen(),
-              ),
-              '/employee_dashboard': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: const EmployeeDashboardScreen(),
-              ),
-              '/manager_portal': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerPortalScreen(),
-              ),
-              '/dashboard': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const DashboardScreen(),
-              ),
-              '/manager_alerts_nudges': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerAlertsNudgesScreen(),
-              ),
-              '/manager_inbox': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerInboxScreen(),
-              ),
-              '/manager_badges_points': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const ManagerBadgesPointsScreen(),
-              ),
-              '/employee_profile_detail': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: Builder(
-                  builder: (context) => EmployeeProfileDetailScreen(
-                    employeeId:
-                        (ModalRoute.of(context)?.settings.arguments
-                            as String?) ??
-                        '',
+    return ShowCaseWidget(
+      builder: (context) => _GlobalChatbotWrapper(
+        currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
+        child: Stack(
+          fit: StackFit.expand,
+          textDirection: TextDirection.ltr,
+          children: [
+            MaterialApp(
+              navigatorKey:
+                  navigatorKey, // Assign the global key to MaterialApp
+              title: 'Personal Development Hub',
+              theme: AppTheme.darkTheme,
+              initialRoute: '/landing',
+              builder: (context, child) {
+                if (child == null) return const SizedBox.shrink();
+                return FocusTraversalGroup(
+                  policy: WidgetOrderTraversalPolicy(),
+                  child: child,
+                );
+              },
+              routes: {
+                '/landing': (context) => const PersonalDevelopmentHubScreen(),
+                '/': (context) =>
+                    const AuthWrapper(), // Set the root route to AuthWrapper
+                '/register': (context) => const RegisterScreen(),
+                '/sign_in': (context) => const LoginScreen(),
+                '/my_pdp': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: MainLayout(
+                    title: 'Profile',
+                    currentRouteName: '/my_pdp',
+                    body: const MyPdpScreen(),
                   ),
                 ),
-              ),
-              '/team_goals': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: const TeamGoalsScreen(),
-              ),
-              '/team_challenges_seasons': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: const TeamChallengesSeasonsScreen(),
-              ),
-              '/season_management': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: season_mgmt.SeasonManagementScreen(
-                  seasonId:
-                      (ModalRoute.of(context)?.settings.arguments
-                          as Map<String, dynamic>?)?['seasonId'],
-                ),
-              ),
-              '/season_challenges': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: const EmployeeSeasonChallengesScreen(),
-              ),
-              '/season_goal_completion': (context) => RoleGate(
-                requiredRole: RequiredRole.employee,
-                child: SeasonGoalCompletionScreen(
-                  seasonId:
-                      (ModalRoute.of(context)?.settings.arguments
-                          as Map<String, dynamic>?)?['seasonId'] ??
-                      '',
-                  goalId:
-                      (ModalRoute.of(context)?.settings.arguments
-                          as Map<String, dynamic>?)?['goalId'],
-                ),
-              ),
-              '/team_details': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: Builder(
-                  builder: (context) => TeamDetailsScreen(
-                    teamGoalId:
-                        (ModalRoute.of(context)?.settings.arguments
-                            as String?) ??
-                        '',
+                '/my_profile': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: MainLayout(
+                    title: 'My Profile',
+                    currentRouteName: '/my_profile',
+                    body: const EmployeeProfileScreen(embedded: true),
                   ),
                 ),
-              ),
-              '/ai_chatbot': (context) =>
-                  const AiChatbotScreen(), // Add the new AI Chatbot route
-              '/team_chats': (context) => const TeamChatsScreen(),
-              '/team_management': (context) => RoleGate(
-                requiredRole: RequiredRole.manager,
-                child: Builder(
-                  builder: (context) => TeamManagementScreen(
-                    teamGoalId:
-                        (ModalRoute.of(context)?.settings.arguments
-                            as String?) ??
-                        '',
-                  ),
+                '/manager_profile': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerProfileScreen(),
                 ),
-              ),
-              // Goal Proof route removed
-            },
-            debugShowCheckedModeBanner: false,
-            // Add the custom NavigatorObserver
-            navigatorObservers: [MyNavigatorObserver()],
-          ),
-          // Speech recognition feedback overlay
-          ValueListenableBuilder<String?>(
-            valueListenable: speechRecognitionStatusNotifier,
-            builder: (context, status, child) {
-              if (status == null) {
-                return const SizedBox.shrink();
-              }
-              return Positioned(
-                top: 50,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.mic, color: Colors.white),
-                        const SizedBox(width: 8.0),
-                        Text(
-                          status,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
+                '/progress_visuals': (context) => MainLayout(
+                  title: 'Progress Visuals',
+                  currentRouteName: '/progress_visuals',
+                  body: const ProgressVisualsScreen(),
+                ),
+                '/my_goal_workspace': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const MyGoalWorkspaceScreen(),
+                ),
+                '/gamification': (context) => const GamificationScreen(),
+                '/repository_audit': (context) => MainLayout(
+                  title: 'Repository & Audit',
+                  currentRouteName: '/repository_audit',
+                  body: const RepositoryAuditScreen(),
+                ),
+                '/alerts_nudges': (context) => const AlertsNudgesScreen(),
+                '/season_challenge': (context) => const SeasonChallengeScreen(),
+                '/settings': (context) => MainLayout(
+                  title: 'Settings & Privacy',
+                  currentRouteName: '/settings',
+                  body: const SettingsScreen(),
+                ),
+                '/manager_review_team_dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerReviewTeamDashboardScreen(),
+                ),
+                '/badges_points': (context) => const BadgesPointsScreen(),
+                '/leaderboard': (context) => MainLayout(
+                  title: 'Leaderboard',
+                  currentRouteName: '/leaderboard',
+                  body: const LeaderboardScreen(),
+                ),
+                '/manager_leaderboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerLeaderboardScreen(),
+                ),
+                // Map legacy employee_portal route to the dashboard to remove the old portal screen
+                '/employee_portal': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const EmployeeDashboardScreen(),
+                ),
+                '/employee_dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const EmployeeDashboardScreen(),
+                ),
+                '/manager_portal': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerPortalScreen(),
+                ),
+                '/dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const DashboardScreen(),
+                ),
+                '/manager_alerts_nudges': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerAlertsNudgesScreen(),
+                ),
+                '/manager_inbox': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerInboxScreen(),
+                ),
+                '/manager_badges_points': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerBadgesPointsScreen(),
+                ),
+                '/employee_profile_detail': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: Builder(
+                    builder: (context) => EmployeeProfileDetailScreen(
+                      employeeId:
+                          (ModalRoute.of(context)?.settings.arguments
+                              as String?) ??
+                          '',
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        ],
+                '/team_goals': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const TeamGoalsScreen(),
+                ),
+                '/team_challenges_seasons': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const TeamChallengesSeasonsScreen(),
+                ),
+                '/season_management': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: season_mgmt.SeasonManagementScreen(
+                    seasonId:
+                        (ModalRoute.of(context)?.settings.arguments
+                            as Map<String, dynamic>?)?['seasonId'],
+                  ),
+                ),
+                '/season_challenges': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: const EmployeeSeasonChallengesScreen(),
+                ),
+                '/season_goal_completion': (context) => RoleGate(
+                  requiredRole: RequiredRole.employee,
+                  child: SeasonGoalCompletionScreen(
+                    seasonId:
+                        (ModalRoute.of(context)?.settings.arguments
+                            as Map<String, dynamic>?)?['seasonId'] ??
+                        '',
+                    goalId:
+                        (ModalRoute.of(context)?.settings.arguments
+                            as Map<String, dynamic>?)?['goalId'],
+                  ),
+                ),
+                '/team_details': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: Builder(
+                    builder: (context) => TeamDetailsScreen(
+                      teamGoalId:
+                          (ModalRoute.of(context)?.settings.arguments
+                              as String?) ??
+                          '',
+                    ),
+                  ),
+                ),
+                '/ai_chatbot': (context) =>
+                    const AiChatbotScreen(), // Add the new AI Chatbot route
+                '/team_chats': (context) => const TeamChatsScreen(),
+                '/team_management': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: Builder(
+                    builder: (context) => TeamManagementScreen(
+                      teamGoalId:
+                          (ModalRoute.of(context)?.settings.arguments
+                              as String?) ??
+                          '',
+                    ),
+                  ),
+                ),
+                // Goal Proof route removed
+              },
+              debugShowCheckedModeBanner: false,
+              // Add the custom NavigatorObserver
+              navigatorObservers: [MyNavigatorObserver()],
+            ),
+            // Speech recognition feedback overlay
+            ValueListenableBuilder<String?>(
+              valueListenable: speechRecognitionStatusNotifier,
+              builder: (context, status, child) {
+                if (status == null) {
+                  return const SizedBox.shrink();
+                }
+                return Positioned(
+                  top: 50,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.mic, color: Colors.white),
+                          const SizedBox(width: 8.0),
+                          Text(
+                            status,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,8 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 
 class ResponsiveSidebar extends StatelessWidget {
   const ResponsiveSidebar({
@@ -13,12 +15,20 @@ class ResponsiveSidebar extends StatelessWidget {
     required this.onNavigate,
     required this.currentRouteName,
     required this.onLogout,
+    this.tutorialStepIndex,
+    this.sidebarTutorialKeys,
+    this.onTutorialNext,
+    this.onTutorialSkip,
   });
 
   final List<SidebarItem> items;
   final void Function(String route) onNavigate;
   final String? currentRouteName;
   final VoidCallback onLogout;
+  final int? tutorialStepIndex;
+  final List<GlobalKey>? sidebarTutorialKeys;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -48,21 +58,35 @@ class ResponsiveSidebar extends StatelessWidget {
               Expanded(
                 child: ListView(
                   padding: AppSpacing.sidebarContentPadding,
-                  children: items
-                      .map(
-                        (it) => _NavTile(
-                          icon: it.icon,
-                          iconWidget: it.iconWidget,
-                          assetWhite: it.assetWhite,
-                          assetRed: it.assetRed,
-                          label: it.label,
-                          route: it.route,
-                          isActive: currentRouteName == it.route,
-                          collapsed: effectiveCollapsed,
-                          onTap: () => onNavigate(it.route),
-                        ),
-                      )
-                      .toList(),
+                  children: items.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final it = entry.value;
+                    final navTile = _NavTile(
+                      icon: it.icon,
+                      iconWidget: it.iconWidget,
+                      assetWhite: it.assetWhite,
+                      assetRed: it.assetRed,
+                      label: it.label,
+                      route: it.route,
+                      isActive: currentRouteName == it.route,
+                      collapsed: effectiveCollapsed,
+                      onTap: () => onNavigate(it.route),
+                      tutorialKey:
+                          sidebarTutorialKeys != null &&
+                              index < sidebarTutorialKeys!.length
+                          ? sidebarTutorialKeys![index]
+                          : null,
+                      showTutorial:
+                          tutorialStepIndex != null &&
+                          tutorialStepIndex == index,
+                      onTutorialNext: onTutorialNext,
+                      onTutorialSkip: onTutorialSkip,
+                      isLastTutorialStep:
+                          tutorialStepIndex != null &&
+                          tutorialStepIndex == items.length - 1,
+                    );
+                    return navTile;
+                  }).toList(),
                 ),
               ),
               _NavTile(
@@ -167,6 +191,11 @@ class _NavTile extends StatefulWidget {
     required this.isActive,
     required this.collapsed,
     required this.onTap,
+    this.tutorialKey,
+    this.showTutorial = false,
+    this.onTutorialNext,
+    this.onTutorialSkip,
+    this.isLastTutorialStep = false,
   }) : assert(
          icon != null || iconWidget != null || assetWhite != null,
          'Provide icon, iconWidget, or assetWhite',
@@ -180,6 +209,11 @@ class _NavTile extends StatefulWidget {
   final bool isActive;
   final bool collapsed;
   final VoidCallback onTap;
+  final GlobalKey? tutorialKey;
+  final bool showTutorial;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
+  final bool isLastTutorialStep;
 
   @override
   State<_NavTile> createState() => _NavTileState();
@@ -192,7 +226,8 @@ class _NavTileState extends State<_NavTile> {
     final bool isHovered = hovering && !widget.isActive;
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
-    return Padding(
+
+    Widget navTileContent = Padding(
       padding: AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
@@ -270,6 +305,105 @@ class _NavTileState extends State<_NavTile> {
         ),
       ),
     );
+
+    // Wrap with Showcase if tutorial is active for this item
+    if (widget.showTutorial &&
+        widget.tutorialKey != null &&
+        widget.onTutorialNext != null) {
+      try {
+        // Find matching step for this route
+        SidebarTutorialStep step;
+        try {
+          step = EmployeeSidebarTutorialConfig.steps.firstWhere(
+            (s) => s.route == widget.route,
+          );
+        } catch (_) {
+          // If route doesn't match, don't show showcase for this item
+          return navTileContent;
+        }
+
+        // Create custom tooltip widget with Skip button
+        final customTooltip = Container(
+          constraints: const BoxConstraints(maxWidth: 300),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title
+              Text(step.title, style: AppTypography.heading4),
+              const SizedBox(height: 8),
+              // Description
+              Text(step.description, style: AppTypography.bodyMedium),
+              const SizedBox(height: 16),
+              // Action buttons row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Skip button
+                  TextButton(
+                    onPressed: widget.onTutorialSkip ?? widget.onTutorialNext!,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: const Text('Skip'),
+                  ),
+                  const SizedBox(width: 8),
+                  // Next button
+                  ElevatedButton(
+                    onPressed: widget.onTutorialNext!,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: Text(widget.isLastTutorialStep ? 'Finish' : 'Next'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        return Showcase.withWidget(
+          key: widget.tutorialKey!,
+          width: 320,
+          height: 250,
+          targetShapeBorder: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+          overlayColor: Colors.black87,
+          overlayOpacity: 0.8,
+          container: customTooltip,
+          onBarrierClick: widget.onTutorialNext!,
+          onTargetClick: widget.onTutorialNext!,
+          disposeOnTap: true,
+          child: navTileContent,
+        );
+      } catch (e, stackTrace) {
+        // If there's an error with showcase, just return the nav tile without showcase
+        debugPrint('Error wrapping sidebar item with showcase: $e');
+        debugPrint('Stack trace: $stackTrace');
+        return navTileContent;
+      }
+    }
+
+    return navTileContent;
   }
 
   Widget _buildIcon(bool isSelected) {
