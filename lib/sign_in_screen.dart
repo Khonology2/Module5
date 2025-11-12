@@ -7,6 +7,8 @@ import 'package:pdh/services/role_service.dart'; // Add RoleService import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/services/settings_service.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -96,11 +98,26 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         await BadgeService.checkAndAwardBadges(user.uid);
       }
 
+      // Enable tutorial for employees when they sign in
+      if (user != null && currentRole == 'employee') {
+        try {
+          // Enable tutorial in settings
+          await SettingsService.updateSetting('tutorialEnabled', true);
+
+          // Reset tutorial completion status so it will show
+          await EmployeeTutorialService.instance.resetTutorialCompletion();
+        } catch (e) {
+          // Log error but don't block navigation
+          debugPrint('Error enabling tutorial on sign in: $e');
+        }
+      }
+
       // User already has a role, redirect to appropriate portal
       if (currentRole == 'manager') {
         Navigator.pushReplacementNamed(context, '/manager_portal');
       } else if (currentRole == 'employee') {
         // Route employees directly to the dashboard
+        // Tutorial will start automatically when dashboard loads
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else {
         // Unknown role or no role selected, redirect to sign in as fallback
@@ -131,10 +148,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                 Colors.black.withValues(alpha: 0.3),
                 BlendMode.darken,
               ),
-              child: Image.asset(
-                'assets/khono_bg.png',
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
             ),
           ),
           // Main content with standalone top logo
@@ -193,7 +207,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 8.0,
+                                    sigmaY: 8.0,
+                                  ),
                                   child: TextFormField(
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
@@ -220,10 +237,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                           width: 2.0,
                                         ),
                                       ),
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 16,
-                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 16,
+                                          ),
                                     ),
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -250,7 +268,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 8.0,
+                                    sigmaY: 8.0,
+                                  ),
                                   child: TextFormField(
                                     controller: _passwordController,
                                     obscureText: true,
@@ -277,10 +298,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                           width: 2.0,
                                         ),
                                       ),
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 16,
-                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 16,
+                                          ),
                                     ),
                                     style: const TextStyle(
                                       color: Colors.white,
@@ -306,7 +328,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   color: const Color(0xFFC10D00),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFFC10D00).withOpacity(0.3),
+                                      color: const Color(
+                                        0xFFC10D00,
+                                      ).withOpacity(0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),
@@ -316,16 +340,20 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   onPressed: _isSigningIn
                                       ? null
                                       : () async {
-                                          if (_formKey.currentState!.validate()) {
+                                          if (_formKey.currentState!
+                                              .validate()) {
                                             setState(() {
                                               _isSigningIn = true;
                                             });
                                             try {
-                                              final cred = await FirebaseAuth.instance
+                                              final cred = await FirebaseAuth
+                                                  .instance
                                                   .signInWithEmailAndPassword(
-                                                    email: _emailController.text,
+                                                    email:
+                                                        _emailController.text,
                                                     password:
-                                                        _passwordController.text,
+                                                        _passwordController
+                                                            .text,
                                                   );
                                               // Store lastLoginAt and record daily login activity
                                               final user = cred.user;
@@ -339,10 +367,13 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                     }, SetOptions(merge: true));
                                                 // Also record a light-weight daily activity for streaks
                                                 try {
-                                                  await FirebaseFirestore.instance
+                                                  await FirebaseFirestore
+                                                      .instance
                                                       .collection('users')
                                                       .doc(user.uid)
-                                                      .collection('daily_activities')
+                                                      .collection(
+                                                        'daily_activities',
+                                                      )
                                                       .doc(
                                                         '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
                                                       )
@@ -350,9 +381,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                         'date':
                                                             FieldValue.serverTimestamp(),
                                                         'activities':
-                                                            FieldValue.arrayUnion([
-                                                              'login',
-                                                            ]),
+                                                            FieldValue.arrayUnion(
+                                                              ['login'],
+                                                            ),
                                                         'createdAt':
                                                             FieldValue.serverTimestamp(),
                                                       }, SetOptions(merge: true));
@@ -362,12 +393,15 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               await _handlePostLoginNavigation(
                                                 context,
                                               );
-                                            } on FirebaseAuthException catch (e) {
+                                            } on FirebaseAuthException catch (
+                                              e
+                                            ) {
                                               String message;
                                               if (e.code == 'user-not-found') {
                                                 message =
                                                     'No user found for that email.';
-                                              } else if (e.code == 'wrong-password') {
+                                              } else if (e.code ==
+                                                  'wrong-password') {
                                                 message =
                                                     'Wrong password provided for that user.';
                                               } else {
@@ -379,7 +413,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               await _showCenterNotice(message);
                                             } catch (e) {
                                               if (!mounted) return;
-                                              await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                              await _showCenterNotice(
+                                                'An unexpected error occurred: ${e.toString()}',
+                                              );
                                             } finally {
                                               if (mounted) {
                                                 setState(() {
@@ -395,9 +431,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                           width: 20,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
                                           ),
                                         )
                                       : const Text(
@@ -487,7 +524,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
                                                     .doc(user.uid)
-                                                    .collection('daily_activities')
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
                                                     .doc(
                                                       '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
                                                     )
@@ -495,20 +534,24 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                       'date':
                                                           FieldValue.serverTimestamp(),
                                                       'activities':
-                                                          FieldValue.arrayUnion([
-                                                            'login',
-                                                          ]),
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
                                                       'createdAt':
                                                           FieldValue.serverTimestamp(),
                                                     }, SetOptions(merge: true));
                                               } catch (_) {}
                                             }
                                             if (!mounted) return;
-                                            await _handlePostLoginNavigation(context);
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
                                           } on FirebaseAuthException catch (e) {
                                             String message =
-                                                e.message ?? 'Google Sign-In failed.';
-                                            if (e.code == 'popup-closed-by-user') {
+                                                e.message ??
+                                                'Google Sign-In failed.';
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
                                               message =
                                                   'Popup closed before completing sign-in.';
                                             } else if (e.code ==
@@ -524,7 +567,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             await _showCenterNotice(message);
                                           } catch (e) {
                                             if (!mounted) return;
-                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
                                           }
                                         },
                                   child: Row(
@@ -572,7 +617,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             UserCredential cred;
                                             if (kIsWeb) {
                                               cred = await FirebaseAuth.instance
-                                                  .signInWithPopup(microsoftProvider);
+                                                  .signInWithPopup(
+                                                    microsoftProvider,
+                                                  );
                                             } else {
                                               cred = await FirebaseAuth.instance
                                                   .signInWithProvider(
@@ -592,7 +639,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
                                                     .doc(user.uid)
-                                                    .collection('daily_activities')
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
                                                     .doc(
                                                       '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
                                                     )
@@ -600,16 +649,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                       'date':
                                                           FieldValue.serverTimestamp(),
                                                       'activities':
-                                                          FieldValue.arrayUnion([
-                                                            'login',
-                                                          ]),
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
                                                       'createdAt':
                                                           FieldValue.serverTimestamp(),
                                                     }, SetOptions(merge: true));
                                               } catch (_) {}
                                             }
                                             if (!mounted) return;
-                                            await _handlePostLoginNavigation(context);
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
                                           } on FirebaseAuthException catch (e) {
                                             setState(() {
                                               _isSigningIn = false;
@@ -617,7 +668,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             String message =
                                                 e.message ??
                                                 'Microsoft Sign-In failed.';
-                                            if (e.code == 'popup-closed-by-user') {
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
                                               message =
                                                   'Popup closed before completing sign-in.';
                                             } else if (e.code ==
@@ -636,13 +688,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               _isSigningIn = false;
                                             });
                                             if (!mounted) return;
-                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
                                           }
                                         },
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Image.asset('assets/mslogo.png', height: 20.0),
+                                      Image.asset(
+                                        'assets/mslogo.png',
+                                        height: 20.0,
+                                      ),
                                       const SizedBox(width: 12),
                                       const Text(
                                         'Continue with Microsoft',
@@ -678,10 +735,14 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             UserCredential cred;
                                             if (kIsWeb) {
                                               cred = await FirebaseAuth.instance
-                                                  .signInWithPopup(githubProvider);
+                                                  .signInWithPopup(
+                                                    githubProvider,
+                                                  );
                                             } else {
                                               cred = await FirebaseAuth.instance
-                                                  .signInWithProvider(githubProvider);
+                                                  .signInWithProvider(
+                                                    githubProvider,
+                                                  );
                                             }
                                             final user = cred.user;
                                             if (user != null) {
@@ -696,7 +757,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
                                                     .doc(user.uid)
-                                                    .collection('daily_activities')
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
                                                     .doc(
                                                       '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
                                                     )
@@ -704,20 +767,24 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                       'date':
                                                           FieldValue.serverTimestamp(),
                                                       'activities':
-                                                          FieldValue.arrayUnion([
-                                                            'login',
-                                                          ]),
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
                                                       'createdAt':
                                                           FieldValue.serverTimestamp(),
                                                     }, SetOptions(merge: true));
                                               } catch (_) {}
                                             }
                                             if (!mounted) return;
-                                            await _handlePostLoginNavigation(context);
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
                                           } on FirebaseAuthException catch (e) {
                                             String message =
-                                                e.message ?? 'GitHub Sign-In failed.';
-                                            if (e.code == 'popup-closed-by-user') {
+                                                e.message ??
+                                                'GitHub Sign-In failed.';
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
                                               message =
                                                   'Popup closed before completing sign-in.';
                                             } else if (e.code ==
@@ -733,7 +800,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             await _showCenterNotice(message);
                                           } catch (e) {
                                             if (!mounted) return;
-                                            await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
                                           }
                                         },
                                   child: Row(
@@ -777,10 +846,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     style: TextButton.styleFrom(
                                       padding: EdgeInsets.zero,
                                       minimumSize: Size.zero,
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                     ),
-                              child: const Text(
-                                'SIGN UP',
+                                    child: const Text(
+                                      'SIGN UP',
                                       style: TextStyle(
                                         color: Color(0xFFC10D00),
                                         fontSize: 14,
