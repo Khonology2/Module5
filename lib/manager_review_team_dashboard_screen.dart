@@ -28,6 +28,7 @@ class _ManagerReviewTeamDashboardScreenState
       appBar: AppBar(
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
+        automaticallyImplyLeading: false, // Remove back arrow button
         title: const Text(
           'Manager Review',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
