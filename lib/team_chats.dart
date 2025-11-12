@@ -632,46 +632,29 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.of(context).maybePop(),
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
-                            tooltip: 'Back',
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Khonnect',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text('Your Username:',
-                              style: TextStyle(fontSize: 10, color: Colors.grey)),
-                          Builder(builder: (context) {
-                            final user = FirebaseAuth.instance.currentUser;
-                            final name = _displayName ?? user?.displayName ?? user?.email ?? '';
-                            return Tooltip(
+                      Builder(builder: (context) {
+                        final user = FirebaseAuth.instance.currentUser;
+                        final name = _displayName ?? user?.displayName ?? user?.email ?? '';
+                        return Row(
+                          children: [
+                            const Icon(Icons.person_outline, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Tooltip(
                               message: name.isEmpty ? 'Not signed in' : name,
                               child: Text(
-                                name,
+                                name.isEmpty ? 'Guest' : name,
                                 style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: chatPrimary,
-                                    fontWeight: FontWeight.bold),
+                                  color: chatPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
                               ),
-                            );
-                          }),
-                        ],
-                      ),
+                            ),
+                            
+                          ],
+                        );
+                      }),
                     ],
                   ),
                 ),

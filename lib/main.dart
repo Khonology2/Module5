@@ -44,6 +44,8 @@ import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScre
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/team_chats.dart' hide ChatMessage;
+import 'package:pdh/widgets/khonnect_chat_widget.dart'; // Import the chat modal helper
+import 'package:pdh/design_system/app_colors.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -307,7 +309,20 @@ class _MyAppState extends State<MyApp> {
               ),
               '/ai_chatbot': (context) =>
                   const AiChatbotScreen(), // Add the new AI Chatbot route
-              '/team_chats': (context) => const TeamChatsScreen(),
+              '/team_chats': (context) {
+                // Show the chat modal instead of navigating to a full screen
+                // Pop the route immediately and show the modal
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  Navigator.of(context).pop(); // Remove the route from stack
+                  showKhonnectChatModal(context);
+                });
+                // Return a placeholder widget since we're showing a modal
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              },
               '/team_management': (context) => RoleGate(
                 requiredRole: RequiredRole.manager,
                 child: Builder(
@@ -525,23 +540,47 @@ class _TeamChatButtonState extends State<TeamChatButton> {
     return Positioned(
       bottom: 90,
       right: 20,
-      child: GestureDetector(
-        onTap: () {
-          navigatorKey.currentState!.pushNamed('/team_chats');
-        },
-        child: SizedBox(
-          width: 56.0,
-          height: 56.0,
-          child: Center(
-            child: Image.asset(
-              'assets/Team_Meeting/Team.png',
-              width: 44.0,
-              height: 44.0,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+      child: Builder(
+        builder: (context) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              splashColor: Colors.white24,
+              highlightColor: Colors.transparent,
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              onTap: () {
+                navigatorKey.currentState?.pushNamed('/team_chats');
+              },
+              borderRadius: BorderRadius.circular(28.0),
+              child: Container(
+                width: 56.0,
+                height: 56.0,
+                decoration: BoxDecoration(
+                  color: AppColors.activeColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8.0,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Image.asset(
+                    'assets/Team_Meeting/Team.png',
+                    width: 32.0,
+                    height: 32.0,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.chat, color: Colors.white),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        }
       ),
     );
   }
