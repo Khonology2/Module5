@@ -92,7 +92,7 @@ class TeamChatsScreen extends StatefulWidget {
 
 class _TeamChatsScreenState extends State<TeamChatsScreen> {
   final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController(initialScrollOffset: 0.0);
   String? _displayName;
   final Set<String> _processedIds = {};
   final List<ChatMessage> _visibleMessages = [];
@@ -105,6 +105,11 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   void initState() {
     super.initState();
     _loadDisplayName();
+    // Nudge list to latest after first frame and shortly after to account for async content sizing
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+      Future.delayed(const Duration(milliseconds: 120), () => _scrollToBottom());
+    });
   }
 
   Future<void> _loadDisplayName() async {
@@ -533,6 +538,27 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     }
   }
 
+  void _scrollToBottom({bool animate = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        // With reverse: true, the 'bottom' aligns to offset 0.0
+        const double position = 0.0;
+        if (animate) {
+          _scrollController.animateTo(
+            position,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } else {
+          _scrollController.jumpTo(position);
+        }
+      }
+    });
+  }
+
+  void _sortVisibleDesc() {}
+
   bool _reactionsEqual(Map<String, List<String>> a, Map<String, List<String>> b) {
     if (identical(a, b)) return true;
     if (a.length != b.length) return false;
@@ -663,7 +689,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                 child: StreamBuilder<List<ChatMessage>>(
                   stream: FirebaseFirestore.instance
                       .collection('team.chat')
-                      .orderBy('clientAt')
+                      .orderBy('clientAt', descending: true)
                       .snapshots()
                       .map((snapshot) => snapshot.docs.map((doc) {
                         final data = doc.data();
@@ -730,7 +756,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                             _processedIds.add(m.id);
                           }
                           _initializedStream = true;
+                          _sortVisibleDesc();
                         });
+                        _scrollToBottom();
                       });
                     } else {
                       bool changed = false;
@@ -792,6 +820,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           if (!mounted) return;
                           setState(() {});
+                          _scrollToBottom(animate: true);
                         });
                       }
                     }
@@ -801,6 +830,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                               style: TextStyle(color: Colors.grey)));
                     }
                     return ListView.builder(
+                      reverse: true,
                       controller: _scrollController,
                       padding: const EdgeInsets.all(12),
                       itemCount: _visibleMessages.length,
