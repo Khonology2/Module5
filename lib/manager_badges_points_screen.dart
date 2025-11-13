@@ -188,15 +188,15 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(32),
         border: Border.all(
-          color: baseColor.withValues(alpha: 0.5),
+          color: Colors.white.withValues(alpha: 0.2),
           width: isActive ? 2 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: baseColor.withValues(alpha: isActive ? 0.25 : 0.12),
+            color: Colors.black.withValues(alpha: isActive ? 0.25 : 0.15),
             blurRadius: isActive ? 16 : 12,
             offset: Offset(0, 4 - lift),
           ),
@@ -272,13 +272,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   }
 
   void _openLevelBadges({required int level, required String title}) {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: AppColors.elevatedBackground,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (ctx) {
         final user = FirebaseAuth.instance.currentUser;
         return FutureBuilder<void>(
           future: () async {
@@ -287,140 +284,272 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             }
           }(),
           builder: (context, snap) {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: AppTypography.heading4.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (user == null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'Please sign in to view badges',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: StreamBuilder<List<badge_model.Badge>>(
-                        stream: BadgeService.getUserBadgesStream(user.uid),
-                        builder: (context, snapshot) {
-                          final all =
-                              snapshot.data ?? const <badge_model.Badge>[];
-                          final badges = all.where((b) {
-                            final ml = b.criteria['managerLevel'];
-                            if (ml is int) return ml == level;
-                            if (ml is num) return ml.round() == level;
-                            return false;
-                          }).toList()..sort((a, b) => a.name.compareTo(b.name));
-                          if (snapshot.connectionState ==
-                                  ConnectionState.waiting &&
-                              badges.isEmpty) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
-                            );
-                          }
-                          if (badges.isEmpty) {
-                            return Center(
-                              child: Text(
-                                'No badges in this level yet',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            );
-                          }
-                          return ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: badges.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (context, i) {
-                              final b = badges[i];
-                              final earned = b.isEarned;
-                              final color = earned
-                                  ? AppColors.successColor
-                                  : AppColors.textSecondary;
-                              return Container(
-                                padding: const EdgeInsets.all(12),
+            return Dialog(
+              backgroundColor: Colors.black.withValues(alpha: 0.85),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 1,
+                ),
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(
+                    360.0,
+                    800.0,
+                  );
+                  return SizedBox(
+                    width: 520,
+                    height: maxHeight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.max,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
                                 decoration: BoxDecoration(
-                                  color: AppColors.backgroundColor,
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: color.withValues(alpha: 0.5),
+                                    color: Colors.white.withValues(alpha: 0.3),
                                   ),
                                 ),
-                                child: Row(
+                                child: Icon(
+                                  Icons.workspace_premium,
+                                  color: AppColors.activeColor,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.workspace_premium, color: color),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            b.name,
-                                            style: AppTypography.bodyLarge
-                                                .copyWith(
-                                                  color: AppColors.textPrimary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            b.description,
-                                            style: AppTypography.bodySmall
-                                                .copyWith(
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                ),
-                                          ),
-                                        ],
+                                    Text(
+                                      title,
+                                      style: AppTypography.heading4.copyWith(
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
-                                    if (earned)
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: AppColors.successColor,
-                                      )
-                                    else
-                                      const Icon(
-                                        Icons.lock_outline,
-                                        color: AppColors.textSecondary,
-                                      ),
                                   ],
                                 ),
-                              );
-                            },
-                          );
-                        },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                onPressed: () => Navigator.pop(ctx),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          if (user == null)
+                            Expanded(
+                              child: Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 24),
+                                  child: Text(
+                                    'Please sign in to view badges',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            Expanded(
+                              child: StreamBuilder<List<badge_model.Badge>>(
+                                stream: BadgeService.getUserBadgesStream(user.uid),
+                                builder: (context, snapshot) {
+                                  final all =
+                                      snapshot.data ?? const <badge_model.Badge>[];
+                                  final badges = all.where((b) {
+                                    final ml = b.criteria['managerLevel'];
+                                    if (ml is int) return ml == level;
+                                    if (ml is num) return ml.round() == level;
+                                    return false;
+                                  }).toList()..sort((a, b) => a.name.compareTo(b.name));
+                                  
+                                  if (snapshot.connectionState ==
+                                          ConnectionState.waiting &&
+                                      badges.isEmpty) {
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          AppColors.activeColor,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  
+                                  final earnedCount = badges.where((b) => b.isEarned).length;
+                                  final total = badges.length;
+                                  final progress = total == 0 ? 0.0 : (earnedCount / total).clamp(0.0, 1.0);
+                                  
+                                  return SizedBox.expand(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.max,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Progress',
+                                          style: AppTypography.bodyMedium.copyWith(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: LinearProgressIndicator(
+                                            value: progress,
+                                            minHeight: 6,
+                                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                                            valueColor: const AlwaysStoppedAnimation<Color>(
+                                              AppColors.activeColor,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              '$earnedCount / $total badges',
+                                              style: AppTypography.bodySmall.copyWith(
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${(progress * 100).toStringAsFixed(0)}%',
+                                              style: AppTypography.bodySmall.copyWith(
+                                                color: AppColors.activeColor,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Badges in this level',
+                                          style: AppTypography.bodyMedium.copyWith(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: badges.isEmpty
+                                              ? Center(
+                                                  child: Text(
+                                                    'No badges in this level yet',
+                                                    style: AppTypography.bodyMedium.copyWith(
+                                                      color: AppColors.textSecondary,
+                                                    ),
+                                                  ),
+                                                )
+                                              : ListView.separated(
+                                                  itemCount: badges.length,
+                                                  separatorBuilder: (_, _) =>
+                                                      const SizedBox(height: 8),
+                                                  itemBuilder: (context, i) {
+                                                    final b = badges[i];
+                                                    final earned = b.isEarned;
+                                                    return Container(
+                                                      padding: const EdgeInsets.all(12),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.black.withValues(alpha: 0.6),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        border: Border.all(
+                                                          color: Colors.white.withValues(alpha: earned ? 0.3 : 0.2),
+                                                          width: earned ? 2 : 1,
+                                                        ),
+                                                      ),
+                                                      child: Row(
+                                                        children: [
+                                                          Container(
+                                                            width: 40,
+                                                            height: 40,
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.black.withValues(alpha: 0.4),
+                                                              borderRadius: BorderRadius.circular(20),
+                                                              border: Border.all(
+                                                                color: Colors.white.withValues(alpha: 0.3),
+                                                              ),
+                                                            ),
+                                                            child: Icon(
+                                                              Icons.workspace_premium,
+                                                              color: AppColors.activeColor,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 12),
+                                                          Expanded(
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment.start,
+                                                              children: [
+                                                                Text(
+                                                                  b.name,
+                                                                  style: AppTypography.bodyLarge
+                                                                      .copyWith(
+                                                                        color: AppColors.textPrimary,
+                                                                        fontWeight: FontWeight.w600,
+                                                                      ),
+                                                                ),
+                                                                const SizedBox(height: 2),
+                                                                Text(
+                                                                  b.description,
+                                                                  style: AppTypography.bodySmall
+                                                                      .copyWith(
+                                                                        color:
+                                                                            AppColors.textSecondary,
+                                                                      ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          if (earned)
+                                                            const Icon(
+                                                              Icons.check_circle,
+                                                              color: AppColors.successColor,
+                                                            )
+                                                          else
+                                                            const Icon(
+                                                              Icons.lock_outline,
+                                                              color: AppColors.textSecondary,
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton(
+                                            onPressed: () => Navigator.pop(ctx),
+                                            child: const Text(
+                                              'Close',
+                                              style: TextStyle(color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                ],
+                  );
+                },
               ),
             );
           },
@@ -450,15 +579,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       child: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.backgroundColor,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppColors.backgroundColor,
-              AppColors.backgroundColor.withValues(alpha: 0.9),
-            ],
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/khono_bg.png'),
+            fit: BoxFit.cover,
           ),
         ),
         child: StreamBuilder(
@@ -504,9 +628,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   _buildSectionHeader('Your Badges'),
                   _buildManagerGroupedBadges(m),
                   const SizedBox(height: AppSpacing.xl),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('How Points Are Calculated'),
-                  _buildExplanation(),
                 ],
               ),
             );
@@ -723,72 +844,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  Widget _buildExplanation() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _bullet(
-            'Acknowledgements',
-            'You earn points when you approve/reject and acknowledge employee goals and milestones.',
-          ),
-          _bullet(
-            'Feedback & Check-ins',
-            'Points for sending meaningful nudges and maintaining regular touchpoints.',
-          ),
-          _bullet(
-            'Replanning Support',
-            'Earn when you help replan delayed objectives (captured via approvals and actions).',
-          ),
-          _bullet(
-            'Team Outcomes',
-            'Bonuses for high goal completion, strong engagement, and consistent progress.',
-          ),
-          _bullet(
-            'Growth Seasons',
-            'Running seasons/challenges adds badges and contributes to your points.',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _bullet(String title, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('• ', style: TextStyle(color: Colors.white)),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                children: [
-                  TextSpan(
-                    text: '$title: ',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  TextSpan(text: text),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // Stream aggregator for manager metrics and points
   Stream<_ManagerMetrics> _buildManagerMetricsStream(String managerId) async* {

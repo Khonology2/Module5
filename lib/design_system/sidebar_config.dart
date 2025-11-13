@@ -121,45 +121,39 @@ class SidebarConfig {
       label: 'Team Challenges',
       route: '/team_challenges_seasons',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
+      red: 'assets/Khonodemy Icons/ProgressVisuals_Red.png',
       label: 'Progress Visuals',
       route: '/progress_visuals',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
       label: 'Team Alerts & Nudges',
       route: '/manager_alerts_nudges',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/Badges&Points_White.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Badges&Points_White.png',
+      red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
       label: 'Badges & Points',
       route: '/manager_badges_points',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/LeaderBoard_White.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
       label: 'Leaderboard',
       route: '/manager_leaderboard',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/Repository&Audit_White.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
+      red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
       label: 'Repository & Audit',
       route: '/repository_audit',
     ),
-    SidebarItem(
-      iconWidget: SidebarConfig.sidebarIcon(
-        'assets/Khonodemy Icons/Settings_White.png',
-      ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Settings_White.png',
+      red: 'assets/Khonodemy Icons/Settings_Red.png',
       label: 'Settings & Privacy',
       route: '/settings',
     ),

@@ -1287,15 +1287,19 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     required int total,
     required List<badge_model.Badge> badges,
   }) {
-    final Color accent = _getBadgeRarityColor(rarity);
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
       builder: (ctx) {
         final progress = total == 0 ? 0.0 : (earned / total).clamp(0.0, 1.0);
         return Dialog(
-          backgroundColor: const Color(0xFF1B2431),
+          backgroundColor: Colors.black.withValues(alpha: 0.85),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -1318,13 +1322,16 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: accent.withValues(alpha: 0.15),
+                              color: Colors.black.withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: accent.withValues(alpha: 0.6),
+                                color: Colors.white.withValues(alpha: 0.3),
                               ),
                             ),
-                            child: Icon(Icons.workspace_premium, color: accent),
+                            child: Icon(
+                              Icons.workspace_premium,
+                              color: AppColors.activeColor,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1337,15 +1344,12 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  subtitle,
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
                               ],
                             ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.pop(ctx),
                           ),
                         ],
                       ),
@@ -1364,7 +1368,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                           value: progress,
                           minHeight: 6,
                           backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          valueColor: AlwaysStoppedAnimation<Color>(accent),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -1380,7 +1386,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                           Text(
                             '${(progress * 100).toStringAsFixed(0)}%',
                             style: AppTypography.bodySmall.copyWith(
-                              color: accent,
+                              color: AppColors.activeColor,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1398,12 +1404,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       const SizedBox(height: 8),
                       Expanded(
                         child: ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: (() {
-                            return badges.length;
-                          })(),
-                          // ignore: unnecessary_underscores
-                          separatorBuilder: (_, __) =>
+                          itemCount: badges.length,
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final sorted = [...badges]
@@ -1415,17 +1417,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                               });
                             final b = sorted[index];
                             final earnedBadge = b.isEarned;
-                            final borderColor = earnedBadge
-                                ? accent
-                                : AppColors.borderColor;
                             return Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: AppColors.elevatedBackground,
+                                color: Colors.black.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: borderColor.withValues(
-                                    alpha: earnedBadge ? 0.8 : 0.6,
+                                  color: Colors.white.withValues(
+                                    alpha: earnedBadge ? 0.3 : 0.2,
                                   ),
                                   width: earnedBadge ? 2 : 1,
                                 ),
@@ -1436,15 +1435,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: accent.withValues(alpha: 0.15),
+                                      color: Colors.black.withValues(alpha: 0.4),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: accent.withValues(alpha: 0.6),
+                                        color: Colors.white.withValues(alpha: 0.3),
                                       ),
                                     ),
                                     child: Icon(
                                       Icons.workspace_premium,
-                                      color: accent,
+                                      color: AppColors.activeColor,
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -2416,3 +2415,4 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 }
+
