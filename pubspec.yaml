@@ -74,6 +74,14 @@ flutter:
     - assets/Team_Meeting/
     - assets/Time_Allocation_Approval/
     - assets/videos/
+    - assets/Audio_Sound.png
+    - assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png
+    - assets/videos/Ai_Avatar.gif
+    - assets/khono_bg.png
+
+
+
+
 
   fonts:
     - family: Poppins

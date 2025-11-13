@@ -694,13 +694,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Badges & Points',
-                            style: AppTypography.heading2.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
                           _buildPointsAndLevelCard(),
                           const SizedBox(height: AppSpacing.xl),
                           _buildSectionHeader('Your Badges'),

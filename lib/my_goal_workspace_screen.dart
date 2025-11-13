@@ -156,7 +156,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Goal Information'),
                   _buildSectionCard(
                     children: [
                       _buildTextField(

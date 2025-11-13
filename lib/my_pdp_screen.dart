@@ -643,14 +643,6 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'My Personal Development Plan',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
               _buildExcellenceArea(
                 title: 'Operational Excellence',
                 expanded: _isOperationalExpanded,

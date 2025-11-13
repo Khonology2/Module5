@@ -78,13 +78,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Alerts & Nudges',
-                    style: AppTypography.heading2.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
                   _buildSmartAlertsCard(),
                   const SizedBox(height: AppSpacing.lg),
                   StreamBuilder<List<Alert>>(

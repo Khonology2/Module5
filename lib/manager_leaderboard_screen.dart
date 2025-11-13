@@ -204,7 +204,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.backgroundColor,
-        title: const Text('Manager Leaderboard'),
+        title: const Text(''),
       ),
       body: content,
     );

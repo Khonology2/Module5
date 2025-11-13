@@ -376,11 +376,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Team Alerts & Nudges',
-                            style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
                           _buildStatsRow(employees),
                         ],
                       ),
