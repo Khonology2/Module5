@@ -7,7 +7,6 @@ import 'package:pdh/services/role_service.dart'; // Add RoleService import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
-import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 
 // The main entry point for the Flutter application.
@@ -98,17 +97,61 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
         await BadgeService.checkAndAwardBadges(user.uid);
       }
 
-      // Enable tutorial for employees when they sign in
+      // Only enable tutorial for NEW employees (first time login)
+      // Don't reset tutorial if it's already been completed
       if (user != null && currentRole == 'employee') {
         try {
-          // Enable tutorial in settings
-          await SettingsService.updateSetting('tutorialEnabled', true);
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
 
-          // Reset tutorial completion status so it will show
-          await EmployeeTutorialService.instance.resetTutorialCompletion();
+          final existingData = userDoc.data();
+          final tutorialCompleted =
+              existingData?['employeeSidebarTutorialCompleted'];
+
+          // Only set tutorial for new users (if tutorial completion status doesn't exist)
+          // This means it's a new user who hasn't completed the tutorial yet
+          if (tutorialCompleted == null) {
+            // New user - enable tutorial
+            await SettingsService.updateSetting('tutorialEnabled', true);
+            // Don't set employeeSidebarTutorialCompleted - leave it as null/undefined
+            // so the tutorial will show on first login
+          }
+          // If tutorialCompleted exists (true or false), don't change it
+          // This ensures tutorial only shows once for new users
         } catch (e) {
           // Log error but don't block navigation
-          debugPrint('Error enabling tutorial on sign in: $e');
+          debugPrint('Error checking tutorial status on sign in: $e');
+        }
+      }
+
+      // Only enable tutorial for NEW managers (first time login)
+      // Don't reset tutorial if it's already been completed
+      if (user != null && currentRole == 'manager') {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          final existingData = userDoc.data();
+          final tutorialCompleted =
+              existingData?['managerSidebarTutorialCompleted'];
+
+          // Only set tutorial for new users (if tutorial completion status doesn't exist)
+          // This means it's a new user who hasn't completed the tutorial yet
+          if (tutorialCompleted == null) {
+            // New user - enable tutorial
+            await SettingsService.updateSetting('tutorialEnabled', true);
+            // Don't set managerSidebarTutorialCompleted - leave it as null/undefined
+            // so the tutorial will show on first login
+          }
+          // If tutorialCompleted exists (true or false), don't change it
+          // This ensures tutorial only shows once for new users
+        } catch (e) {
+          // Log error but don't block navigation
+          debugPrint('Error checking manager tutorial status on sign in: $e');
         }
       }
 

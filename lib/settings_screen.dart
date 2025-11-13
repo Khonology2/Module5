@@ -317,11 +317,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (value) async {
                     if (value) {
                       // Show confirmation dialog when enabling
-                      // Dialog handles enabling and navigation if confirmed
-                      // If cancelled, switch will remain false (value won't be updated)
-                      await _showTutorialConfirmationDialog(context);
+                      final confirmed = await _showTutorialConfirmationDialog(
+                        context,
+                      );
+                      if (!confirmed) {
+                        // User cancelled - don't update the setting
+                        // The switch will revert to false automatically
+                        return;
+                      }
+                      // If confirmed, dialog already handled enabling and navigation
                     } else {
-                      // Disable tutorial
+                      // Disable tutorial - mark as completed so it won't show on next login
                       await _toggleTutorial(false);
                     }
                   },
@@ -453,51 +459,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (context) => Center(
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 280, maxHeight: 320),
           margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.activeColor, width: 2),
+            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.school_outlined,
-                  size: 64,
-                  color: AppColors.activeColor,
+                Image.asset(
+                  'assets/chat_bot.png',
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text(
                   'Start Sidebar Tutorial?',
                   style: TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 24,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
                   'This tutorial will guide you through all the sidebar navigation options. You can skip it at any time.',
                   style: TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 16,
+                    fontSize: 13,
+                    height: 1.3,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -505,28 +520,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onPressed: () => Navigator.of(context).pop(false),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.textSecondary,
-                          side: BorderSide(color: AppColors.textSecondary),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          minimumSize: const Size(0, 36),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Cancel'),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () => Navigator.of(context).pop(true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.activeColor,
-                          foregroundColor: AppColors.textPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          minimumSize: const Size(0, 36),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        child: const Text('Start Tutorial'),
+                        child: const Text(
+                          'Start Tutorial',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                     ),
                   ],
@@ -539,18 +566,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true) {
-      // Enable tutorial and reset completion status
-      await _toggleTutorial(true);
+      // Enable tutorial and reset completion status so it will start immediately
+      await SettingsService.updateSetting('tutorialEnabled', true);
+      await EmployeeTutorialService.instance.resetTutorialCompletion();
 
       if (context.mounted) {
-        // Navigate to dashboard where tutorial will start
-        // Use pushReplacementNamed to ensure dashboard screen is recreated
+        // Navigate to dashboard where tutorial will start immediately
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
-
-        // Give the dashboard time to initialize, then trigger tutorial check
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          // The dashboard's initState will check and start the tutorial
-        });
       }
       return true;
     }
@@ -563,10 +585,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     // Handle tutorial completion status
     if (enabled) {
-      // Reset completion status so tutorial will show
+      // When enabling, reset completion status so tutorial will show
+      // But don't navigate here - let the confirmation dialog handle navigation
       await EmployeeTutorialService.instance.resetTutorialCompletion();
     } else {
-      // Mark as completed so it won't show
+      // When disabling, mark as completed so it won't show even on next login
       await EmployeeTutorialService.instance.markTutorialCompleted();
     }
   }
@@ -605,6 +628,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true) {
+      // Enable tutorial and reset completion status
+      await SettingsService.updateSetting('tutorialEnabled', true);
       await EmployeeTutorialService.instance.resetTutorialCompletion();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -615,6 +640,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             backgroundColor: AppColors.activeColor,
           ),
         );
+        // Navigate to dashboard to show tutorial immediately
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }
     }
   }

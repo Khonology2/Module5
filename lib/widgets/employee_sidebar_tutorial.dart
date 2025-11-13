@@ -81,6 +81,12 @@ class EmployeeSidebarTutorialConfig {
       description:
           'Manage your account settings, privacy preferences, and app configurations.',
     ),
+    SidebarTutorialStep(
+      route: '__collapse_toggle__',
+      title: 'Collapse/Expand Sidebar',
+      description:
+          'Click this icon to collapse or expand the sidebar. This helps you save screen space when needed.',
+    ),
   ];
 }
 

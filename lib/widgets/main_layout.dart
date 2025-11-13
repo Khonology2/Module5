@@ -5,6 +5,8 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
@@ -30,12 +32,51 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Get tutorial state from global service and update context
+    final tutorialService = EmployeeTutorialService.instance;
+    if (tutorialService.isTutorialActive) {
+      tutorialService.setCurrentContext(context);
+
+      // Check if we should show tutorial popup for this screen
+      // This happens after navigation when the new screen builds
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (tutorialService.isTutorialActive) {
+          // Check if current route matches the tutorial step
+          final currentRoute = ModalRoute.of(context)?.settings.name;
+          if (currentRoute != null &&
+              tutorialService.currentTutorialStep <
+                  EmployeeSidebarTutorialConfig.steps.length) {
+            final step = EmployeeSidebarTutorialConfig
+                .steps[tutorialService.currentTutorialStep];
+            if (step.route == currentRoute ||
+                (step.route == '__collapse_toggle__' &&
+                    tutorialService.currentTutorialStep ==
+                        SidebarConfig.employeeItems.length)) {
+              // This screen matches the current tutorial step, show popup
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (tutorialService.isTutorialActive) {
+                  // ignore: use_build_context_synchronously
+                  tutorialService.showTutorialPopup(context);
+                }
+              });
+            }
+          }
+        }
+      });
+    }
+    final tutorialParams = tutorialService.getTutorialParams();
+
     return AppScaffold(
       title: title,
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: currentRouteName,
       topRightAction: _ProfileButton(),
+      tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
+      sidebarTutorialKeys:
+          tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+      onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
+      onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
         if (ModalRoute.of(context)?.settings.name != route) {
           Navigator.pushNamed(context, route);

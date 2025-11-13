@@ -12,6 +12,8 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
 // import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -123,12 +125,55 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final role =
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
         final items = SidebarConfig.getItemsForRole(role);
+        // Get tutorial state from global service (only for employees)
+        final tutorialService = EmployeeTutorialService.instance;
+        if (role == 'employee' && tutorialService.isTutorialActive) {
+          tutorialService.setCurrentContext(context);
+          
+          // Check if we should show tutorial popup for this screen
+          // This happens after navigation when the new screen builds
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !tutorialService.isTutorialActive) return;
+            
+            // Check if current route matches the tutorial step
+            final currentRoute = ModalRoute.of(context)?.settings.name;
+            if (currentRoute != null &&
+                tutorialService.currentTutorialStep <
+                    EmployeeSidebarTutorialConfig.steps.length) {
+              final step = EmployeeSidebarTutorialConfig
+                  .steps[tutorialService.currentTutorialStep];
+              if (step.route == currentRoute ||
+                  (step.route == '__collapse_toggle__' &&
+                      tutorialService.currentTutorialStep ==
+                          SidebarConfig.employeeItems.length)) {
+                // This screen matches the current tutorial step, show popup
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (mounted && tutorialService.isTutorialActive) {
+                    // ignore: use_build_context_synchronously
+                    tutorialService.showTutorialPopup(context);
+                  }
+                });
+              }
+            }
+          });
+        }
+        final tutorialParams = role == 'employee' ? tutorialService.getTutorialParams() : {
+          'tutorialStepIndex': null,
+          'sidebarTutorialKeys': null,
+          'onTutorialNext': null,
+          'onTutorialSkip': null,
+        };
+        
         return AppScaffold(
           title: 'Goal Workspace',
           showAppBar: false,
           embedded: widget.embedded,
           items: items,
           currentRouteName: '/my_goal_workspace',
+          tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
+          sidebarTutorialKeys: tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
+          onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
             final current = ModalRoute.of(context)?.settings.name;
             if (current != route) {
