@@ -113,14 +113,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Repository & Audit',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
               _buildSearchAndFilters(),
               const SizedBox(height: 25),
               _buildHeader(),

@@ -39,7 +39,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Manager Badges & Points',
+      title: '',
       showAppBar: false,
       embedded: widget.embedded,
       items: SidebarConfig.getItemsForRole('manager'),
@@ -499,13 +499,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
               child: ListView(
                 padding: AppSpacing.screenPadding,
                 children: [
-                  Text(
-                    'Manager Badges & Points',
-                    style: AppTypography.heading2.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
                   _buildPointsCard(m),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Your Badges'),

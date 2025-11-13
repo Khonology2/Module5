@@ -34,7 +34,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Team Workspace',
+      title: '',
       embedded: widget.embedded,
       items: const [], // Manager-specific items - we'll handle this properly
       currentRouteName: '/manager_team_workspace',

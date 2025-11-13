@@ -178,7 +178,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
 
     return AppScaffold(
-      title: 'Manager Dashboard',
+      title: '',
       showAppBar: false,
       items: SidebarConfig.managerItems,
       currentRouteName: '/dashboard',
