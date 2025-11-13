@@ -8,7 +8,7 @@ import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 
-class ResponsiveSidebar extends StatelessWidget {
+class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
     super.key,
     required this.items,
@@ -30,10 +30,61 @@ class ResponsiveSidebar extends StatelessWidget {
   final VoidCallback? onTutorialNext;
   final VoidCallback? onTutorialSkip;
 
+  @override
+  State<ResponsiveSidebar> createState() => _ResponsiveSidebarState();
+}
+
+class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
+  final ScrollController _scrollController = ScrollController();
+  int? _previousTutorialStep;
+
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
-  static const Color hoverColor = AppColors.hoverColor;
-  static const Color activeColor = AppColors.activeColor;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousTutorialStep = widget.tutorialStepIndex;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ResponsiveSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Scroll to tutorial item when step changes
+    if (widget.tutorialStepIndex != null &&
+        widget.tutorialStepIndex != _previousTutorialStep &&
+        widget.sidebarTutorialKeys != null &&
+        widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length) {
+      _previousTutorialStep = widget.tutorialStepIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToTutorialItem(widget.tutorialStepIndex!);
+      });
+    }
+  }
+
+  void _scrollToTutorialItem(int stepIndex) {
+    if (widget.sidebarTutorialKeys == null ||
+        stepIndex >= widget.sidebarTutorialKeys!.length) {
+      return;
+    }
+
+    final key = widget.sidebarTutorialKeys![stepIndex];
+    final context = key.currentContext;
+    if (context != null && _scrollController.hasClients) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,8 +108,9 @@ class ResponsiveSidebar extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
               Expanded(
                 child: ListView(
+                  controller: _scrollController,
                   padding: AppSpacing.sidebarContentPadding,
-                  children: items.asMap().entries.map((entry) {
+                  children: widget.items.asMap().entries.map((entry) {
                     final index = entry.key;
                     final it = entry.value;
                     final navTile = _NavTile(
@@ -68,22 +120,22 @@ class ResponsiveSidebar extends StatelessWidget {
                       assetRed: it.assetRed,
                       label: it.label,
                       route: it.route,
-                      isActive: currentRouteName == it.route,
+                      isActive: widget.currentRouteName == it.route,
                       collapsed: effectiveCollapsed,
-                      onTap: () => onNavigate(it.route),
+                      onTap: () => widget.onNavigate(it.route),
                       tutorialKey:
-                          sidebarTutorialKeys != null &&
-                              index < sidebarTutorialKeys!.length
-                          ? sidebarTutorialKeys![index]
+                          widget.sidebarTutorialKeys != null &&
+                              index < widget.sidebarTutorialKeys!.length
+                          ? widget.sidebarTutorialKeys![index]
                           : null,
                       showTutorial:
-                          tutorialStepIndex != null &&
-                          tutorialStepIndex == index,
-                      onTutorialNext: onTutorialNext,
-                      onTutorialSkip: onTutorialSkip,
+                          widget.tutorialStepIndex != null &&
+                          widget.tutorialStepIndex == index,
+                      onTutorialNext: widget.onTutorialNext,
+                      onTutorialSkip: widget.onTutorialSkip,
                       isLastTutorialStep:
-                          tutorialStepIndex != null &&
-                          tutorialStepIndex == items.length - 1,
+                          widget.tutorialStepIndex != null &&
+                          widget.tutorialStepIndex == widget.items.length - 1,
                     );
                     return navTile;
                   }).toList(),
@@ -95,9 +147,23 @@ class ResponsiveSidebar extends StatelessWidget {
                 route: '__logout__',
                 isActive: false,
                 collapsed: effectiveCollapsed,
-                onTap: onLogout,
+                onTap: widget.onLogout,
               ),
-              _CollapseToggle(collapsed: effectiveCollapsed),
+              _CollapseToggle(
+                collapsed: effectiveCollapsed,
+                tutorialKey: widget.sidebarTutorialKeys != null &&
+                        widget.tutorialStepIndex != null &&
+                        widget.tutorialStepIndex == widget.items.length &&
+                        widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length
+                    ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                    : null,
+                showTutorial: widget.tutorialStepIndex != null &&
+                    widget.tutorialStepIndex == widget.items.length,
+                onTutorialNext: widget.onTutorialNext,
+                onTutorialSkip: widget.onTutorialSkip,
+                isLastTutorialStep: widget.tutorialStepIndex != null &&
+                    widget.tutorialStepIndex == widget.items.length,
+              ),
             ],
           ),
         );
@@ -160,12 +226,24 @@ class ResponsiveSidebar extends StatelessWidget {
 }
 
 class _CollapseToggle extends StatelessWidget {
-  const _CollapseToggle({required this.collapsed});
+  const _CollapseToggle({
+    required this.collapsed,
+    this.tutorialKey,
+    this.showTutorial = false,
+    this.onTutorialNext,
+    this.onTutorialSkip,
+    this.isLastTutorialStep = false,
+  });
   final bool collapsed;
+  final GlobalKey? tutorialKey;
+  final bool showTutorial;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
+  final bool isLastTutorialStep;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    Widget collapseWidget = InkWell(
       onTap: () => SidebarState.instance.isCollapsed.value =
           !SidebarState.instance.isCollapsed.value,
       child: Container(
@@ -177,6 +255,137 @@ class _CollapseToggle extends StatelessWidget {
         ),
       ),
     );
+
+    // Wrap with showcase if tutorial is active
+    if (showTutorial && tutorialKey != null && onTutorialNext != null) {
+      try {
+        final step = EmployeeSidebarTutorialConfig.steps.firstWhere(
+          (s) => s.route == '__collapse_toggle__',
+        );
+
+        final customTooltip = Container(
+          constraints: const BoxConstraints(maxWidth: 240),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AI Avatar GIF at the top - centered and circular
+              Center(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/videos/Ai_Avatar.gif',
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Title - compact
+              Text(
+                step.title,
+                style: AppTypography.heading4.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              // Description - compact
+              Text(
+                step.description,
+                style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              // Action buttons row - compact
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Skip button
+                  TextButton(
+                    onPressed: onTutorialSkip ?? onTutorialNext!,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Next button
+                  ElevatedButton(
+                    onPressed: onTutorialNext!,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      isLastTutorialStep ? 'Finish' : 'Next',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        return Showcase.withWidget(
+          key: tutorialKey!,
+          width: 260,
+          height: 200,
+          targetShapeBorder: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+          overlayColor: Colors.transparent,
+          overlayOpacity: 0.0,
+          container: customTooltip,
+          onBarrierClick: onTutorialNext!,
+          onTargetClick: onTutorialNext!,
+          disposeOnTap: true,
+          child: collapseWidget,
+        );
+      } catch (e) {
+        return collapseWidget;
+      }
+    }
+
+    return collapseWidget;
   }
 }
 
@@ -244,9 +453,9 @@ class _NavTileState extends State<_NavTile> {
                 // When collapsed: keep background transparent for a clean mini look
                 color: !isCollapsed
                     ? (isSelected
-                          ? ResponsiveSidebar.activeColor
+                          ? AppColors.activeColor
                           : (isHovered
-                                ? ResponsiveSidebar.hoverColor
+                                ? AppColors.hoverColor
                                 : Colors.transparent))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
@@ -255,8 +464,8 @@ class _NavTileState extends State<_NavTile> {
                         BoxShadow(
                           color:
                               (isSelected
-                                      ? ResponsiveSidebar.activeColor
-                                      : ResponsiveSidebar.hoverColor)
+                                      ? AppColors.activeColor
+                                      : AppColors.hoverColor)
                                   .withValues(alpha: 0x35),
                           blurRadius: 10,
                           offset: const Offset(0, 2),
@@ -322,29 +531,64 @@ class _NavTileState extends State<_NavTile> {
           return navTileContent;
         }
 
-        // Create custom tooltip widget with Skip button
+        // Create custom tooltip widget with Skip button - compact translucent design
         final customTooltip = Container(
-          constraints: const BoxConstraints(maxWidth: 300),
-          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxWidth: 240),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.backgroundColor,
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.activeColor.withValues(alpha: 0.3),
-              width: 1,
+              color: AppColors.activeColor.withValues(alpha: 0.5),
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
-              Text(step.title, style: AppTypography.heading4),
-              const SizedBox(height: 8),
-              // Description
-              Text(step.description, style: AppTypography.bodyMedium),
-              const SizedBox(height: 16),
-              // Action buttons row
+              // AI Avatar GIF at the top - centered and circular
+              Center(
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/videos/Ai_Avatar.gif',
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Title - compact
+              Text(
+                step.title,
+                style: AppTypography.heading4.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 5),
+              // Description - compact
+              Text(
+                step.description,
+                style: AppTypography.bodyMedium.copyWith(
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              // Action buttons row - compact
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -354,13 +598,18 @@ class _NavTileState extends State<_NavTile> {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.textSecondary,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                        horizontal: 10,
+                        vertical: 4,
                       ),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('Skip'),
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   // Next button
                   ElevatedButton(
                     onPressed: widget.onTutorialNext!,
@@ -368,11 +617,16 @@ class _NavTileState extends State<_NavTile> {
                       backgroundColor: AppColors.activeColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+                        horizontal: 10,
+                        vertical: 4,
                       ),
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: Text(widget.isLastTutorialStep ? 'Finish' : 'Next'),
+                    child: Text(
+                      widget.isLastTutorialStep ? 'Finish' : 'Next',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -382,13 +636,13 @@ class _NavTileState extends State<_NavTile> {
 
         return Showcase.withWidget(
           key: widget.tutorialKey!,
-          width: 320,
-          height: 250,
+          width: 260,
+          height: 200,
           targetShapeBorder: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(8)),
           ),
-          overlayColor: Colors.black87,
-          overlayOpacity: 0.8,
+          overlayColor: Colors.transparent,
+          overlayOpacity: 0.0,
           container: customTooltip,
           onBarrierClick: widget.onTutorialNext!,
           onTargetClick: widget.onTutorialNext!,
@@ -431,7 +685,7 @@ class _NavTileState extends State<_NavTile> {
     }
     return Icon(
       widget.icon,
-      color: isSelected ? ResponsiveSidebar.activeColor : AppColors.textPrimary,
+      color: isSelected ? AppColors.activeColor : AppColors.textPrimary,
       size: 24.0,
     );
   }

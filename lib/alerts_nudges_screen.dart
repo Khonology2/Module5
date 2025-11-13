@@ -9,6 +9,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
@@ -33,12 +34,23 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get tutorial state from global service and update context
+    final tutorialService = EmployeeTutorialService.instance;
+    if (tutorialService.isTutorialActive) {
+      tutorialService.setCurrentContext(context);
+    }
+    final tutorialParams = tutorialService.getTutorialParams();
+    
     return AppScaffold(
       title: 'Alerts & Nudges',
       showAppBar: false,
       embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/alerts_nudges',
+      tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
+      sidebarTutorialKeys: tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+      onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
+      onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) {

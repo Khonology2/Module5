@@ -18,7 +18,9 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/upcoming_goals_list_screen.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:showcaseview/showcaseview.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
@@ -41,7 +43,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   bool _shouldShowTutorial = false;
   int _currentTutorialStep = 0;
   final List<GlobalKey> _sidebarTutorialKeys = List.generate(
-    10,
+    11, // 10 sidebar items + 1 collapse toggle
     (index) => GlobalKey(),
   );
 
@@ -160,6 +162,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           _currentTutorialStep = 0;
         });
 
+        // Store tutorial state globally so it persists across navigation
+        // Use global methods that work from any screen
+        EmployeeTutorialService.instance.setTutorialState(
+          isActive: true,
+          currentStep: 0,
+          keys: _sidebarTutorialKeys,
+          context: context,
+        );
+
         // Ensure sidebar is expanded
         SidebarState.instance.isCollapsed.value = false;
 
@@ -175,6 +186,33 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   'Starting tutorial from check...',
                   name: 'EmployeeDashboardScreen',
                 );
+                // Navigate to first screen if needed
+                if (EmployeeSidebarTutorialConfig.steps.isNotEmpty) {
+                  final firstStep = EmployeeSidebarTutorialConfig.steps[0];
+                  if (firstStep.route != '__collapse_toggle__') {
+                    final currentRoute = ModalRoute.of(context)?.settings.name;
+                    if (currentRoute != firstStep.route) {
+                      Navigator.pushReplacementNamed(
+                        context,
+                        firstStep.route,
+                      ).then((_) {
+                        // The new screen will update context in its build method
+                        // Then we'll show the popup via the retry mechanism
+                        Future.delayed(const Duration(milliseconds: 800), () {
+                          final tutorialService =
+                              EmployeeTutorialService.instance;
+                          if (tutorialService.isTutorialActive &&
+                              tutorialService.currentContext != null) {
+                            tutorialService.showTutorialPopup(
+                              tutorialService.currentContext!,
+                            );
+                          }
+                        });
+                      });
+                      return;
+                    }
+                  }
+                }
                 _startTutorialImmediate();
               }
             });
@@ -204,58 +242,104 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   void _moveToNextTutorialStep() {
     if (!mounted || !_shouldShowTutorial) return;
 
-    if (_currentTutorialStep < SidebarConfig.employeeItems.length - 1) {
+    // Total steps = sidebar items + collapse toggle
+    final totalSteps = SidebarConfig.employeeItems.length + 1;
+    if (_currentTutorialStep < totalSteps - 1) {
+      final nextStep = _currentTutorialStep + 1;
+
       setState(() {
-        _currentTutorialStep++;
+        _currentTutorialStep = nextStep;
       });
 
-      // Trigger showcase for next step
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _shouldShowTutorial) {
-          try {
-            final keyContext =
-                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
-            if (keyContext != null) {
-              ShowCaseWidget.of(
-                context,
-              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
-              developer.log(
-                'Started showcase for step $_currentTutorialStep',
-                name: 'EmployeeDashboardScreen',
-              );
-            } else {
-              developer.log(
-                'Key not attached for step $_currentTutorialStep, retrying...',
-                name: 'EmployeeDashboardScreen',
-              );
-              // Retry
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted && _shouldShowTutorial) {
-                  try {
-                    ShowCaseWidget.of(context).startShowCase([
-                      _sidebarTutorialKeys[_currentTutorialStep],
-                    ]);
-                  } catch (e) {
-                    developer.log(
-                      'Retry failed: $e',
-                      name: 'EmployeeDashboardScreen',
+      // Update global tutorial state
+      EmployeeTutorialService.instance.updateTutorialStep(nextStep);
+
+      // Navigate to the screen for this tutorial step
+      if (nextStep < EmployeeSidebarTutorialConfig.steps.length) {
+        final step = EmployeeSidebarTutorialConfig.steps[nextStep];
+        // Only navigate if it's not the collapse toggle
+        if (step.route != '__collapse_toggle__') {
+          final currentRoute = ModalRoute.of(context)?.settings.name;
+          if (currentRoute != step.route) {
+            developer.log(
+              'Navigating to ${step.route} for tutorial step $nextStep',
+              name: 'EmployeeDashboardScreen',
+            );
+            // Use pushReplacementNamed to replace current screen and avoid GlobalKey conflicts
+            Navigator.pushReplacementNamed(context, step.route).then((_) {
+              // After navigation completes, wait for the new screen to build
+              // The new screen will update context and trigger popup via MainLayout
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                Future.delayed(const Duration(milliseconds: 800), () {
+                  final tutorialService = EmployeeTutorialService.instance;
+                  if (tutorialService.isTutorialActive &&
+                      tutorialService.currentContext != null) {
+                    // Use the global service to show popup from any screen
+                    tutorialService.showTutorialPopup(
+                      tutorialService.currentContext!,
                     );
                   }
-                }
+                });
               });
-            }
-          } catch (e) {
-            developer.log(
-              'Could not start showcase for step $_currentTutorialStep: $e',
-              name: 'EmployeeDashboardScreen',
-              error: e,
-            );
+            });
+            return; // Exit early, popup will be shown after navigation
           }
+        }
+      }
+
+      // Trigger showcase for next step (if no navigation needed)
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _shouldShowTutorial) {
+          _showTutorialPopup();
         }
       });
     } else {
       // Tutorial complete
       _completeTutorial();
+    }
+  }
+
+  void _showTutorialPopup() {
+    if (!mounted || !_shouldShowTutorial) return;
+
+    try {
+      final keyContext =
+          _sidebarTutorialKeys[_currentTutorialStep].currentContext;
+      if (keyContext != null) {
+        ShowCaseWidget.of(
+          context,
+        ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+        developer.log(
+          'Started showcase for step $_currentTutorialStep',
+          name: 'EmployeeDashboardScreen',
+        );
+      } else {
+        developer.log(
+          'Key not attached for step $_currentTutorialStep, retrying...',
+          name: 'EmployeeDashboardScreen',
+        );
+        // Retry
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && _shouldShowTutorial) {
+            try {
+              ShowCaseWidget.of(
+                context,
+              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+            } catch (e) {
+              developer.log(
+                'Retry failed: $e',
+                name: 'EmployeeDashboardScreen',
+              );
+            }
+          }
+        });
+      }
+    } catch (e) {
+      developer.log(
+        'Could not start showcase for step $_currentTutorialStep: $e',
+        name: 'EmployeeDashboardScreen',
+        error: e,
+      );
     }
   }
 
@@ -265,6 +349,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       name: 'EmployeeDashboardScreen',
     );
     await EmployeeTutorialService.instance.markTutorialCompleted();
+
+    // Clear global tutorial state
+    EmployeeTutorialService.instance.clearTutorialState();
 
     if (mounted) {
       setState(() {
@@ -290,8 +377,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       );
     }
 
-    // Mark tutorial as completed
+    // Mark tutorial as completed and disable it in settings
     await EmployeeTutorialService.instance.markTutorialCompleted();
+    await SettingsService.updateSetting('tutorialEnabled', false);
+
+    // Clear global tutorial state
+    EmployeeTutorialService.instance.clearTutorialState();
 
     if (mounted) {
       setState(() {
@@ -442,19 +533,64 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Always use global service for tutorial state to ensure consistency
+    final tutorialService = EmployeeTutorialService.instance;
+
+    // Update context if tutorial is active
+    if (tutorialService.isTutorialActive) {
+      tutorialService.setCurrentContext(context);
+
+      // Check if we should show tutorial popup for this screen (dashboard)
+      // This happens when tutorial first starts or when navigating back to dashboard
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !tutorialService.isTutorialActive) return;
+
+        final currentRoute = ModalRoute.of(context)?.settings.name;
+        if (currentRoute == '/employee_dashboard' &&
+            tutorialService.currentTutorialStep <
+                EmployeeSidebarTutorialConfig.steps.length) {
+          final step = EmployeeSidebarTutorialConfig
+              .steps[tutorialService.currentTutorialStep];
+          if (step.route == '/employee_dashboard') {
+            // This is the dashboard step, show popup
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted && tutorialService.isTutorialActive) {
+                // ignore: use_build_context_synchronously
+                tutorialService.showTutorialPopup(context);
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // Get tutorial state from global service (prefer global over local)
+    final tutorialStep = tutorialService.isTutorialActive
+        ? tutorialService.currentTutorialStep
+        : (_shouldShowTutorial ? _currentTutorialStep : null);
+    final tutorialKeys = tutorialService.isTutorialActive
+        ? tutorialService.tutorialKeys
+        : (_shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+              ? _sidebarTutorialKeys
+              : null);
+    // Always use global service callbacks to ensure consistent navigation
+    final onTutorialNext = tutorialService.isTutorialActive
+        ? tutorialService.onTutorialNext
+        : (_shouldShowTutorial ? _moveToNextTutorialStep : null);
+    final onTutorialSkip = tutorialService.isTutorialActive
+        ? tutorialService.onTutorialSkip
+        : (_shouldShowTutorial ? _skipTutorial : null);
+
     return AppScaffold(
       title: 'Employee Dashboard',
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/employee_dashboard',
       topRightAction: _profileButton(context),
-      tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
-      sidebarTutorialKeys:
-          _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
-          ? _sidebarTutorialKeys
-          : null,
-      onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
-      onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
+      tutorialStepIndex: tutorialStep,
+      sidebarTutorialKeys: tutorialKeys,
+      onTutorialNext: onTutorialNext,
+      onTutorialSkip: onTutorialSkip,
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) {
