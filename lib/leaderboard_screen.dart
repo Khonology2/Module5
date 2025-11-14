@@ -7,6 +7,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -288,7 +289,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 }
 
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -334,9 +335,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         children: [
           Text(
             'Leaderboard',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: AppTypography.heading2.copyWith(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
             ),
           ),
           Row(
