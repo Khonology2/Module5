@@ -19,13 +19,76 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(uid)).data.role : null;
     }
     function sameDepartment(uid) {
-      return exists(/databases/$(database)/documents/users/$(userId())) &&
-             exists(/databases/$(database)/documents/users/$(uid)) &&
-             get(/databases/$(database)/documents/users/$(userId())).data.department ==
-             get(/databases/$(database)/documents/users/$(uid)).data.department;
+      // Temporarily allow managers to see/update all employees regardless of department
+      return true;
     }
     function canManagerSeeEmployee(userId) {
       return userRole(userId) == 'employee' && sameDepartment(userId);
+    }
+
+    function goalExists(goalId) {
+      return exists(/databases/$(database)/documents/goals/$(goalId));
+    }
+
+    function goalOwner(goalId) {
+      return goalExists(goalId)
+        ? get(/databases/$(database)/documents/goals/$(goalId)).data.userId
+        : null;
+    }
+
+    function canAccessGoal(goalId) {
+      let owner = goalOwner(goalId);
+      return owner != null && (
+        userId() == owner ||
+        (isManager() && sameDepartment(owner)) ||
+        isAdmin()
+      );
+    }
+
+    function canEditGoalMilestones(goalId) {
+      let owner = goalOwner(goalId);
+      return owner != null && (
+        userId() == owner ||
+        isAdmin()
+      );
+    }
+
+    function isValidMilestoneStatus(status) {
+      return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
+    }
+
+    function validateMilestoneCreate(data) {
+      return data.keys().hasOnly([
+        'title',
+        'description',
+        'status',
+        'dueDate',
+        'createdBy',
+        'createdByName',
+        'createdAt',
+        'updatedAt',
+        'completedAt'
+      ]) &&
+      data.title is string &&
+      data.title.size() > 0 &&
+      (!('description' in data) || data.description is string) &&
+      data.dueDate is timestamp &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp &&
+      (!('completedAt' in data) || data.completedAt == null || data.completedAt is timestamp) &&
+      data.createdBy == userId() &&
+      isValidMilestoneStatus(data.status);
+    }
+
+    function validateMilestoneUpdate(diff) {
+      return diff.changedKeys().hasOnly([
+        'title',
+        'description',
+        'status',
+        'dueDate',
+        'updatedAt',
+        'completedAt'
+      ]);
     }
 
     // Permit narrowly scoped approval/review updates even if manager role metadata is missing
@@ -120,6 +183,21 @@ service cloud.firestore {
       );
       
         allow create: if isSignedIn();
+
+      match /milestones/{milestoneId} {
+        allow list: if isSignedIn() && canAccessGoal(goalId);
+        allow read: if isSignedIn() && canAccessGoal(goalId);
+        allow create: if isSignedIn() &&
+          canEditGoalMilestones(goalId) &&
+          validateMilestoneCreate(request.resource.data);
+        allow update: if isSignedIn() &&
+          canEditGoalMilestones(goalId) &&
+          validateMilestoneUpdate(resource.data.diff(request.resource.data)) &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.status is string &&
+          isValidMilestoneStatus(request.resource.data.status);
+        allow delete: if isSignedIn() && canEditGoalMilestones(goalId);
+      }
     }
 
     // Activities tracking for managers
