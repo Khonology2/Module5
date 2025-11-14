@@ -21,10 +21,16 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
     return Scaffold(
       backgroundColor: AppColors.cardBackground,
       appBar: AppBar(
-        title: const Text('Team Goals'),
+        title: Text(
+          'Team Goals',
+          style: AppTypography.heading2.copyWith(
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: AppColors.activeColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        centerTitle: false,
       ),
       body: Padding(
         padding: AppSpacing.screenPadding,

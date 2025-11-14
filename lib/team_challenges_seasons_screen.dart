@@ -58,7 +58,14 @@ class _TeamChallengesSeasonsScreenState
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Team Challenges & Growth Seasons'),
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        title: Text(
+          'Team Challenges & Growth Seasons',
+          style: AppTypography.heading2.copyWith(
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,

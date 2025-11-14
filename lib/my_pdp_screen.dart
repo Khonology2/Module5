@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -639,15 +640,14 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       child: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0), // Adjust padding as needed
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'My Personal Development Plan',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: AppTypography.heading2.copyWith(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 20),
