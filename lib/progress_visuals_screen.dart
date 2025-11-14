@@ -11,6 +11,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/role_service.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
@@ -1869,6 +1870,8 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                   minHeight: 3,
                 ),
                 const SizedBox(height: 8),
+                _buildMilestonePreview(goal.id),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -1902,6 +1905,134 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     );
   }
 
+  Widget _buildMilestonePreview(String goalId) {
+    return StreamBuilder<List<GoalMilestone>>(
+      stream: DatabaseService.getGoalMilestonesStream(goalId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Loading milestones…',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          );
+        }
+
+        final milestones = snapshot.data ?? const <GoalMilestone>[];
+        if (milestones.isEmpty) {
+          return Text(
+            'No milestones added yet',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          );
+        }
+
+        final completed = milestones
+            .where((m) => m.status == GoalMilestoneStatus.completed)
+            .length;
+        final chips =
+            milestones.take(3).map(_buildMilestoneChip).toList(growable: false);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Milestones',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$completed/${milestones.length} complete',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: chips,
+            ),
+            if (milestones.length > chips.length)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${milestones.length - chips.length} more milestones',
+                  style: AppTypography.caption,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMilestoneChip(GoalMilestone milestone) {
+    final color = _milestoneStatusColor(milestone.status);
+    final icon = _milestoneStatusIcon(milestone.status);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    milestone.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _milestoneSubtitle(milestone),
+              style: AppTypography.caption,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _getPriorityColor(GoalPriority priority) {
     switch (priority) {
       case GoalPriority.high:
@@ -1911,6 +2042,66 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       case GoalPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  Color _milestoneStatusColor(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.completed:
+        return AppColors.successColor;
+      case GoalMilestoneStatus.inProgress:
+        return AppColors.activeColor;
+      case GoalMilestoneStatus.blocked:
+        return AppColors.dangerColor;
+      case GoalMilestoneStatus.notStarted:
+        return AppColors.textSecondary;
+    }
+  }
+
+  IconData _milestoneStatusIcon(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.completed:
+        return Icons.check_circle;
+      case GoalMilestoneStatus.inProgress:
+        return Icons.timelapse;
+      case GoalMilestoneStatus.blocked:
+        return Icons.block;
+      case GoalMilestoneStatus.notStarted:
+        return Icons.radio_button_unchecked;
+    }
+  }
+
+  String _milestoneSubtitle(GoalMilestone milestone) {
+    if (milestone.status == GoalMilestoneStatus.completed &&
+        milestone.completedAt != null) {
+      return 'Completed ${_formatShortDate(milestone.completedAt!)}';
+    }
+    if (milestone.status == GoalMilestoneStatus.blocked) {
+      return 'Updated ${_formatShortDate(milestone.updatedAt)}';
+    }
+    if (milestone.status == GoalMilestoneStatus.inProgress) {
+      return 'Due ${_formatShortDate(milestone.dueDate)}';
+    }
+    return 'Due ${_formatShortDate(milestone.dueDate)}';
+  }
+
+  String _formatShortDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final index = (date.month - 1).clamp(0, 11).toInt();
+    final month = months[index];
+    return '$month ${date.day}';
   }
 
   Widget _buildErrorState(String error) {

@@ -13,6 +13,7 @@ import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
 
 class GoalDetailScreen extends StatefulWidget {
@@ -526,6 +527,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   _buildProgressSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildActionButtons(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildGoalMilestonesSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildMilestoneTracker(),
                 ],
@@ -1205,5 +1208,594 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '${dt.day}/${dt.month}/${dt.year} $h:$m';
+  }
+
+  Widget _buildGoalMilestonesSection() {
+    final user = FirebaseAuth.instance.currentUser;
+    final bool canManage = user?.uid == currentGoal.userId;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Goal Milestones',
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      canManage
+                          ? 'Break this goal into concrete steps with target dates.'
+                          : 'View the employee-defined checkpoints for this goal.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (canManage)
+                TextButton.icon(
+                  onPressed: () => _showMilestoneDialog(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Milestone'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          StreamBuilder<List<GoalMilestone>>(
+            stream: DatabaseService.getGoalMilestonesStream(currentGoal.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              final milestones = snapshot.data ?? const [];
+              if (milestones.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Text(
+                    canManage
+                        ? 'No milestones yet. Use “Add Milestone” to map the steps for this goal.'
+                        : 'Milestones will appear here once the employee adds them.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: milestones
+                    .map(
+                      (milestone) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _GoalMilestoneTile(
+                          milestone: milestone,
+                          canManage: canManage,
+                          onEdit: () => _showMilestoneDialog(milestone: milestone),
+                          onUpdateStatus: (status) =>
+                              _updateMilestoneStatus(milestone, status),
+                          onDelete: () => _deleteMilestone(milestone),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMilestoneDialog({GoalMilestone? milestone}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be signed in to manage milestones.')),
+      );
+      return;
+    }
+    final titleController = TextEditingController(text: milestone?.title ?? '');
+    final descController =
+        TextEditingController(text: milestone?.description ?? '');
+    DateTime? dueDate =
+        milestone?.dueDate ?? DateTime.now().add(const Duration(days: 7));
+    GoalMilestoneStatus status =
+        milestone?.status ?? GoalMilestoneStatus.notStarted;
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickDueDate() async {
+              final now = DateTime.now();
+              final selected = await showDatePicker(
+                context: context,
+                initialDate: dueDate ?? now,
+                firstDate: DateTime(now.year - 1),
+                lastDate: DateTime(now.year + 5),
+              );
+              if (selected != null) {
+                setDialogState(() {
+                  dueDate = DateTime(selected.year, selected.month, selected.day);
+                });
+              }
+            }
+
+            Future<void> submit() async {
+              final trimmedTitle = titleController.text.trim();
+              final trimmedDesc = descController.text.trim();
+              if (trimmedTitle.isEmpty) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Title is required.')),
+                );
+                return;
+              }
+              if (dueDate == null) {
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  const SnackBar(content: Text('Select a due date.')),
+                );
+                return;
+              }
+              setDialogState(() => saving = true);
+              try {
+                if (milestone == null) {
+                  await DatabaseService.addGoalMilestone(
+                    goalId: currentGoal.id,
+                    title: trimmedTitle,
+                    description: trimmedDesc,
+                    dueDate: dueDate!,
+                    createdBy: user.uid,
+                    createdByName: user.displayName ?? user.email ?? 'You',
+                    status: status,
+                  );
+                } else {
+                  await DatabaseService.updateGoalMilestone(
+                    goalId: currentGoal.id,
+                    milestoneId: milestone.id,
+                    title: trimmedTitle,
+                    description: trimmedDesc,
+                    dueDate: dueDate!,
+                    status: status,
+                  );
+                }
+                if (mounted) {
+                  Navigator.of(dialogContext).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        milestone == null
+                            ? 'Milestone created.'
+                            : 'Milestone updated.',
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                setDialogState(() => saving = false);
+                ScaffoldMessenger.of(this.context).showSnackBar(
+                  SnackBar(content: Text('Failed to save milestone: $e')),
+                );
+              }
+            }
+
+            return AlertDialog(
+              title: Text(
+                milestone == null ? 'Add Milestone' : 'Edit Milestone',
+                style: AppTypography.heading4,
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Milestone title',
+                        hintText: 'e.g., Complete basics course',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description (optional)',
+                        hintText:
+                            'Add more context or link to learning resources.',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      onTap: pickDueDate,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(
+                        dueDate != null
+                            ? _formatShortDate(dueDate!)
+                            : 'Select due date',
+                      ),
+                      subtitle: const Text('Tap to choose deadline'),
+                      trailing: TextButton(
+                        onPressed: pickDueDate,
+                        child: const Text('Change'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<GoalMilestoneStatus>(
+                      value: status,
+                      decoration: const InputDecoration(
+                        labelText: 'Status',
+                      ),
+                      items: GoalMilestoneStatus.values
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(_milestoneStatusLabel(value)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => status = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: saving ? null : submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(milestone == null ? 'Create Milestone' : 'Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _updateMilestoneStatus(
+    GoalMilestone milestone,
+    GoalMilestoneStatus status,
+  ) async {
+    try {
+      await DatabaseService.updateGoalMilestone(
+        goalId: currentGoal.id,
+        milestoneId: milestone.id,
+        status: status,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Marked as ${_milestoneStatusLabel(status)}.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update milestone: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteMilestone(GoalMilestone milestone) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Milestone'),
+        content: const Text('Remove this milestone from the goal?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await DatabaseService.deleteGoalMilestone(
+        goalId: currentGoal.id,
+        milestoneId: milestone.id,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Milestone deleted.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete milestone: $e')),
+        );
+      }
+    }
+  }
+
+  String _milestoneStatusLabel(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return 'Not Started';
+      case GoalMilestoneStatus.inProgress:
+        return 'In Progress';
+      case GoalMilestoneStatus.completed:
+        return 'Completed';
+      case GoalMilestoneStatus.blocked:
+        return 'Blocked';
+    }
+  }
+
+  String _formatShortDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+}
+
+class _GoalMilestoneTile extends StatelessWidget {
+  final GoalMilestone milestone;
+  final bool canManage;
+  final VoidCallback onEdit;
+  final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
+  final VoidCallback onDelete;
+
+  const _GoalMilestoneTile({
+    required this.milestone,
+    required this.canManage,
+    required this.onEdit,
+    required this.onUpdateStatus,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isOverdue = milestone.status != GoalMilestoneStatus.completed &&
+        milestone.dueDate.isBefore(DateTime.now());
+    final Color statusColor = _statusColor(milestone.status);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOverdue ? AppColors.dangerColor : Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      milestone.title,
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatShortDate(milestone.dueDate),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: isOverdue
+                                ? AppColors.dangerColor
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _statusLabel(milestone.status),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'edit':
+                        onEdit();
+                        break;
+                      case 'start':
+                        onUpdateStatus(GoalMilestoneStatus.notStarted);
+                        break;
+                      case 'progress':
+                        onUpdateStatus(GoalMilestoneStatus.inProgress);
+                        break;
+                      case 'blocked':
+                        onUpdateStatus(GoalMilestoneStatus.blocked);
+                        break;
+                      case 'complete':
+                        onUpdateStatus(GoalMilestoneStatus.completed);
+                        break;
+                      case 'delete':
+                        onDelete();
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'edit', child: Text('Edit details')),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'start',
+                      child: Text('Mark Not Started'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'progress',
+                      child: Text('Mark In Progress'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'blocked',
+                      child: Text('Mark Blocked'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'complete',
+                      child: Text('Mark Completed'),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(color: AppColors.dangerColor),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          if (milestone.description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              milestone.description,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.person, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                milestone.createdByName ?? 'Employee',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (milestone.completedAt != null) ...[
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: AppColors.successColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Completed ${_formatShortDate(milestone.completedAt!)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.successColor,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatShortDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
+  String _statusLabel(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return 'Not Started';
+      case GoalMilestoneStatus.inProgress:
+        return 'In Progress';
+      case GoalMilestoneStatus.completed:
+        return 'Completed';
+      case GoalMilestoneStatus.blocked:
+        return 'Blocked';
+    }
+  }
+
+  Color _statusColor(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return AppColors.textSecondary;
+      case GoalMilestoneStatus.inProgress:
+        return AppColors.activeColor;
+      case GoalMilestoneStatus.completed:
+        return AppColors.successColor;
+      case GoalMilestoneStatus.blocked:
+        return AppColors.warningColor;
+    }
   }
 }

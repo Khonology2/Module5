@@ -23,6 +23,7 @@ enum AlertType {
   seasonJoined, // Employee joined a season (manager-facing)
   seasonProgressUpdate, // Employee completed a season goal / progress (manager-facing)
   seasonCompleted, // Season fully completed (manager-facing)
+  goalMilestoneCompleted, // Employee milestone completion surfaced to managers
 }
 
 enum AlertPriority {

@@ -691,6 +691,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (alert.type == AlertType.goalMilestoneCompleted)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_portal', arguments: {
+                      'initialRoute': '/manager_review_team_dashboard',
+                      'goalId': alert.relatedGoalId,
+                    });
+                  },
+                  icon: const Icon(Icons.flag),
+                  label: const Text('Open Goal'),
+                )
               else if (alert.actionText != null)
                 TextButton(
                   onPressed: () {},
@@ -775,6 +786,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         return Icons.thumb_up_alt_outlined;
       case AlertType.goalApprovalRejected:
         return Icons.thumb_down_alt_outlined;
+      case AlertType.goalMilestoneCompleted:
+        return Icons.checklist_outlined;
     }
   }
 }
