@@ -396,6 +396,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildDailyMotivationCard(),
                   const SizedBox(height: AppSpacing.xl),
+                  _buildQuickActions(),
+                  const SizedBox(height: AppSpacing.xl),
                   _buildKpis(metrics, employees),
                   const SizedBox(height: AppSpacing.xl),
                   _buildTeamHealth(metrics, employees),
@@ -1208,6 +1210,68 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       context,
       '/season_management',
       arguments: {'seasonId': season.id},
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return AppComponents.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Quick Actions', style: AppTypography.heading4),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Manager Review',
+                  icon: Icons.dashboard,
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_review_team_dashboard',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Progress Visuals',
+                  icon: Icons.bar_chart,
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/progress_visuals');
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Leaderboard',
+                  icon: Icons.leaderboard,
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_leaderboard');
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Badges & Points',
+                  icon: Icons.workspace_premium,
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_badges_points');
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
