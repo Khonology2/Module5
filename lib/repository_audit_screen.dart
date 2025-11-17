@@ -720,63 +720,43 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     };
 
     if (isManager) {
-      // For managers, use FutureBuilder to get department first, then create stream
-      return FutureBuilder<String?>(
-        future: _getManagerDept(),
-        builder: (context, deptSnapshot) {
-          if (!deptSnapshot.hasData) {
-            return _buildStatsContainer(emptyStats, isManager: true);
-          }
-          
-          final dept = deptSnapshot.data;
-          if (dept == null || dept.isEmpty) {
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('audit_entries')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            developer.log(
+              'Error loading manager audit entries: ${snapshot.error}',
+              name: 'RepositoryAuditScreen',
+            );
             return _buildStatsContainer(emptyStats, isManager: true);
           }
 
-          // Create a single Firestore stream for the department
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('audit_entries')
-                .where('userDepartment', isEqualTo: dept)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+          final entries = <AuditEntry>[];
+          if (snapshot.hasData) {
+            for (final doc in snapshot.data!.docs) {
+              try {
+                entries.add(AuditEntry.fromFirestore(doc));
+              } catch (e) {
                 developer.log(
-                  'Error loading manager audit entries: ${snapshot.error}',
-                  name: 'RepositoryAuditScreen',
+                  'Error parsing audit entry ${doc.id}: $e',
                 );
-                return _buildStatsContainer(emptyStats, isManager: true);
               }
+            }
+          }
 
-              final entries = <AuditEntry>[];
-              if (snapshot.hasData) {
-                for (final doc in snapshot.data!.docs) {
-                  try {
-                    entries.add(AuditEntry.fromFirestore(doc));
-                  } catch (e) {
-                    developer.log(
-                      'Error parsing audit entry ${doc.id}: $e',
-                    );
-                  }
-                }
-              }
+          final stats = <String, int>{
+            'total': entries.length,
+            'verified':
+                entries.where((e) => e.status == 'verified').length,
+            'pending':
+                entries.where((e) => e.status == 'pending').length,
+            'rejected':
+                entries.where((e) => e.status == 'rejected').length,
+          };
 
-              final stats = <String, int>{
-                'total': entries.length,
-                'verified': entries
-                    .where((e) => e.status == 'verified')
-                    .length,
-                'pending': entries
-                    .where((e) => e.status == 'pending')
-                    .length,
-                'rejected': entries
-                    .where((e) => e.status == 'rejected')
-                    .length,
-              };
-
-              return _buildStatsContainer(stats, isManager: true);
-            },
-          );
+          return _buildStatsContainer(stats, isManager: true);
         },
       );
     } else {
@@ -975,76 +955,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildEmptyState({bool isManager = false}) {
-    return FutureBuilder<String?>(
-      future: isManager ? _getManagerDept() : Future.value(null),
-      builder: (context, deptSnapshot) {
-        final managerDept = deptSnapshot.data;
-        final hasDept = managerDept != null && managerDept.isNotEmpty;
-
-        return Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.archive_outlined,
+            color: AppColors.textMuted,
+            size: 48,
           ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.archive_outlined,
-                color: AppColors.textMuted,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No audit entries found',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (isManager && !hasDept) ...[
-                Text(
-                  'Your department is not set. Please update your profile to view employee submissions.',
-                  style: TextStyle(color: AppColors.warningColor, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/settings');
-                  },
-                  icon: const Icon(Icons.settings, size: 18),
-                  label: const Text('Go to Settings'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ] else if (isManager && hasDept) ...[
-                Text(
-                  'No employee submissions found for your department ($managerDept).',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Employees must submit goals for audit to appear here.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ] else ...[
-                Text(
-                  'Complete some goals to see them here for audit',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                ),
-              ],
-            ],
+          const SizedBox(height: 16),
+          Text(
+            'No audit entries found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Text(
+            isManager
+                ? 'No employee submissions available yet. Once employees submit goals, they will appear here.'
+                : 'Complete some goals to see them here for audit.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

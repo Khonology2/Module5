@@ -78,6 +78,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   if (snap.hasData && snap.data!.exists) {
                     try { goal = Goal.fromFirestore(snap.data!); } catch (_) {}
                   }
+                  final bool finalDecision = goal != null &&
+                      (goal.approvalStatus == GoalApprovalStatus.approved ||
+                          goal.approvalStatus == GoalApprovalStatus.rejected);
+                  final bool finalApproved =
+                      goal?.approvalStatus == GoalApprovalStatus.approved;
                   return ListView(
                     controller: scrollController,
                     children: [
@@ -123,6 +128,38 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       _scoreRow('Relevance', goalId, _relevance, '1=not aligned, 5=directly aligned'),
                       _scoreRow('Timeline', goalId, _timeline, '1=no date, 5=realistic date'),
                       const SizedBox(height: 12),
+                      if (finalDecision) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: (finalApproved ? AppColors.successColor : AppColors.dangerColor)
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: (finalApproved ? AppColors.successColor : AppColors.dangerColor)
+                                  .withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                finalApproved ? Icons.check_circle_outline : Icons.cancel_outlined,
+                                color: finalApproved ? AppColors.successColor : AppColors.dangerColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'This goal is already ${finalApproved ? 'approved' : 'rejected'}. Further approval decisions are locked.',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       TextField(
                         controller: _reviewNotes[goalId],
                         maxLines: 3,
@@ -135,46 +172,52 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       Row(
                         children: [
                           ElevatedButton.icon(
-                            onPressed: () async {
-                              await _persistReview(goalId, decision: 'approved');
-                              await _approveGoal(goalId);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    await _persistReview(goalId, decision: 'approved');
+                                    await _approveGoal(goalId);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
                             icon: const Icon(Icons.check),
                             label: const Text('Approve'),
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.successColor, foregroundColor: Colors.white),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton.icon(
-                            onPressed: () async {
-                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
-                              if (note.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a note for Request changes')));
-                                return;
-                              }
-                              await _persistReview(goalId, decision: 'changes_requested');
-                              await _rejectGoal(goalId, reason: note);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                                    if (note.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a note for Request changes')));
+                                      return;
+                                    }
+                                    await _persistReview(goalId, decision: 'changes_requested');
+                                    await _rejectGoal(goalId, reason: note);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
                             icon: const Icon(Icons.edit_note),
                             label: const Text('Request changes'),
                             style: ElevatedButton.styleFrom(backgroundColor: AppColors.warningColor, foregroundColor: Colors.white),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
-                            onPressed: () async {
-                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
-                              if (note.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a reason to reject')));
-                                return;
-                              }
-                              await _persistReview(goalId, decision: 'rejected');
-                              await _rejectGoal(goalId, reason: note);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    final note = _reviewNotes[goalId]?.text.trim() ?? '';
+                                    if (note.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a reason to reject')));
+                                      return;
+                                    }
+                                    await _persistReview(goalId, decision: 'rejected');
+                                    await _rejectGoal(goalId, reason: note);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
                             icon: const Icon(Icons.close),
                             label: const Text('Reject'),
                             style: OutlinedButton.styleFrom(foregroundColor: AppColors.dangerColor, side: BorderSide(color: AppColors.dangerColor)),
@@ -311,9 +354,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         );
       }
     } catch (e) {
+      final message = e is StateError ? e.message : 'Failed to approve goal: $e';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to approve goal: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     }
@@ -335,9 +379,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         );
       }
     } catch (e) {
+      final message = e is StateError ? e.message : 'Failed to reject goal: $e';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reject goal: $e')),
+          SnackBar(content: Text(message)),
         );
       }
     }
@@ -688,6 +733,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (alert.type == AlertType.goalMilestoneCompleted)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_portal', arguments: {
+                      'initialRoute': '/manager_review_team_dashboard',
+                      'goalId': alert.relatedGoalId,
+                    });
+                  },
+                  icon: const Icon(Icons.flag),
+                  label: const Text('Open Goal'),
+                )
               else if (alert.actionText != null)
                 TextButton(
                   onPressed: () {},
@@ -772,6 +828,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         return Icons.thumb_up_alt_outlined;
       case AlertType.goalApprovalRejected:
         return Icons.thumb_down_alt_outlined;
+      case AlertType.goalMilestoneCompleted:
+        return Icons.checklist_outlined;
     }
   }
 }

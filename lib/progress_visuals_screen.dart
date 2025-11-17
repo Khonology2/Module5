@@ -11,7 +11,9 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/streak_service.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -1498,10 +1500,19 @@ ${goalsDocs.map((doc) {
   void _scheduleMeeting(String employeeName) {}
 }
 
-class EmployeeProgressVisualsContent extends StatelessWidget {
+class EmployeeProgressVisualsContent extends StatefulWidget {
   final UserProfile userProfile;
 
   const EmployeeProgressVisualsContent({super.key, required this.userProfile});
+
+  @override
+  State<EmployeeProgressVisualsContent> createState() =>
+      _EmployeeProgressVisualsContentState();
+}
+
+class _EmployeeProgressVisualsContentState
+    extends State<EmployeeProgressVisualsContent> {
+  GoalStatus? _selectedStatusFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -1538,7 +1549,24 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
 
               final goals = snapshot.data ?? [];
 
-              return Column(children: [_buildPersonalOverview(goals)]);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPersonalOverview(goals),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildPortfolioView(goals),
+                  const SizedBox(height: AppSpacing.lg),
+                  _buildStreakSection(widget.userProfile.uid),
+                  const SizedBox(height: AppSpacing.xl),
+                  if (goals.isEmpty)
+                    _buildEmptyGoalsState(context)
+                  else ...[
+                    _buildGoalsProgress(context, goals),
+                    const SizedBox(height: AppSpacing.xl),
+                    _buildMilestoneInsights(goals),
+                  ],
+                ],
+              );
             },
           ),
         ],
@@ -1710,6 +1738,672 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     );
   }
 
+  Widget _buildPortfolioView(List<Goal> goals) {
+    if (goals.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.dashboard_customize, color: Colors.white70),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Portfolio view unlocks once you add your first goal.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final now = DateTime.now();
+    final statusGroups = <GoalStatus, int>{
+      for (final status in GoalStatus.values)
+        status: goals.where((g) => g.status == status).length,
+    };
+    final categoryGroups = <GoalCategory, int>{
+      for (final category in GoalCategory.values)
+        category: goals.where((g) => g.category == category).length,
+    };
+
+    final overdue = goals
+        .where(
+          (goal) =>
+              goal.targetDate.isBefore(now) && goal.status != GoalStatus.completed,
+        )
+        .length;
+    final dueSoon = goals
+        .where(
+          (goal) =>
+              goal.targetDate.isAfter(now) &&
+              goal.targetDate.difference(now).inDays <= 14 &&
+              goal.status != GoalStatus.completed,
+        )
+        .length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.pie_chart_outline, color: Colors.white70),
+              const SizedBox(width: 8),
+              Text(
+                'Portfolio View',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildPortfolioMetric(
+                label: 'Completed',
+                value: '${statusGroups[GoalStatus.completed] ?? 0}',
+                accent: AppColors.successColor,
+              ),
+              _buildPortfolioMetric(
+                label: 'In Progress',
+                value: '${statusGroups[GoalStatus.inProgress] ?? 0}',
+                accent: AppColors.activeColor,
+              ),
+              _buildPortfolioMetric(
+                label: 'Not Started',
+                value: '${statusGroups[GoalStatus.notStarted] ?? 0}',
+                accent: AppColors.textSecondary,
+              ),
+              _buildPortfolioMetric(
+                label: 'On Hold',
+                value:
+                    '${(statusGroups[GoalStatus.paused] ?? 0) + (statusGroups[GoalStatus.burnout] ?? 0)}',
+                accent: AppColors.warningColor,
+              ),
+              _buildPortfolioMetric(
+                label: 'Overdue',
+                value: '$overdue',
+                accent: AppColors.dangerColor,
+              ),
+              _buildPortfolioMetric(
+                label: 'Due soon (14d)',
+                value: '$dueSoon',
+                accent: AppColors.infoColor,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Category allocation',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            children: GoalCategory.values.map((category) {
+              final count = categoryGroups[category] ?? 0;
+              final ratio = goals.isEmpty ? 0.0 : count / goals.length;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        category.name.toUpperCase(),
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: ratio,
+                          minHeight: 6,
+                          backgroundColor: AppColors.borderColor,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _categoryColor(category),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(ratio * 100).toInt()}%',
+                      style: AppTypography.caption,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortfolioMetric({
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _categoryColor(GoalCategory category) {
+    switch (category) {
+      case GoalCategory.personal:
+        return AppColors.successColor;
+      case GoalCategory.work:
+        return AppColors.activeColor;
+      case GoalCategory.health:
+        return AppColors.warningColor;
+      case GoalCategory.learning:
+        return AppColors.infoColor;
+    }
+  }
+
+  Widget _buildStreakSection(String userId) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: StreakService.getActivityHistory(userId, days: 56),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Loading streak insights…',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final history = snapshot.data ?? [];
+        final dailyStreak = _calculateDailyStreak(history);
+        final weeklyStreak = _calculateWeeklyStreak(history);
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.local_fire_department, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Streaks',
+                    style: AppTypography.heading4.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStreakMetric(
+                      label: 'Daily streak',
+                      value: '$dailyStreak days',
+                      icon: Icons.calendar_view_day_outlined,
+                      accent: AppColors.activeColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStreakMetric(
+                      label: 'Weekly streak',
+                      value: '$weeklyStreak weeks',
+                      icon: Icons.calendar_view_week_outlined,
+                      accent: AppColors.successColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildWeeklyHeatmap(history),
+              const SizedBox(height: 6),
+              Text(
+                'Log progress each week to grow your streak and stay on track.',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStreakMetric({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: accent),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                value,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyHeatmap(List<Map<String, dynamic>> history) {
+    final now = DateTime.now();
+    final last28Days = List<DateTime>.generate(
+      28,
+      (index) => DateTime(now.year, now.month, now.day).subtract(
+        Duration(days: 27 - index),
+      ),
+    );
+    final activityDates = history.map((h) => h['date'] as DateTime).toList();
+
+    return SizedBox(
+      height: 60,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 7,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+        ),
+        itemCount: last28Days.length,
+        itemBuilder: (context, index) {
+          final date = last28Days[index];
+          final hasActivity = activityDates.any(
+            (d) =>
+                d.year == date.year &&
+                d.month == date.month &&
+                d.day == date.day,
+          );
+          final isToday = date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day;
+          return Tooltip(
+            message:
+                '${date.day}/${date.month}: ${hasActivity ? 'Progress logged' : 'No progress'}',
+            child: Container(
+              decoration: BoxDecoration(
+                color: hasActivity
+                    ? AppColors.successColor.withValues(
+                        alpha: isToday ? 0.9 : 0.6,
+                      )
+                    : Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: isToday
+                      ? AppColors.activeColor
+                      : Colors.white.withValues(alpha: 0.08),
+                  width: isToday ? 1.5 : 1,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  int _calculateDailyStreak(List<Map<String, dynamic>> history) {
+    if (history.isEmpty) return 0;
+    final sortedDates = history
+        .map((h) => h['date'] as DateTime)
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    final today = DateTime.now();
+    DateTime cursor = DateTime(today.year, today.month, today.day);
+    int streak = 0;
+
+    for (final date in sortedDates) {
+      final diff = cursor.difference(date).inDays;
+      if (diff == 0) {
+        streak++;
+        cursor = cursor.subtract(const Duration(days: 1));
+      } else if (diff == 1 && streak > 0) {
+        streak++;
+        cursor = cursor.subtract(const Duration(days: 1));
+      } else {
+        if (streak == 0) {
+          return 0;
+        }
+        break;
+      }
+    }
+    return streak;
+  }
+
+  int _calculateWeeklyStreak(List<Map<String, dynamic>> history) {
+    if (history.isEmpty) return 0;
+    final activityWeeks = history
+        .map((entry) => entry['date'] as DateTime)
+        .map(_weekKey)
+        .toSet();
+
+    int streak = 0;
+    DateTime cursor = _startOfWeek(DateTime.now());
+
+    while (true) {
+      final key = _weekKey(cursor);
+      if (activityWeeks.contains(key)) {
+        streak++;
+        cursor = cursor.subtract(const Duration(days: 7));
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  DateTime _startOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    return DateTime(date.year, date.month, date.day)
+        .subtract(Duration(days: weekday - 1));
+  }
+
+  String _weekKey(DateTime date) {
+    final start = _startOfWeek(date);
+    return '${start.year}-${start.month}-${start.day}';
+  }
+
+  Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
+    final activeGoals = goals
+        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
+        .toList()
+      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+
+    final filteredGoals = activeGoals.where((goal) {
+      if (_selectedStatusFilter == null) return true;
+      return goal.status == _selectedStatusFilter;
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Goal Progress',
+                style: AppTypography.heading3.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            if (activeGoals.isNotEmpty)
+              TextButton.icon(
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  '/my_goal_workspace',
+                ),
+                icon: Icon(Icons.add, color: AppColors.activeColor, size: 18),
+                label: Text(
+                  'Add Goal',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (activeGoals.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildStatusFilterChip(null, 'All', Icons.all_inclusive),
+                const SizedBox(width: 8),
+                _buildStatusFilterChip(
+                  GoalStatus.inProgress,
+                  'In Progress',
+                  Icons.play_arrow,
+                ),
+                const SizedBox(width: 8),
+                _buildStatusFilterChip(
+                  GoalStatus.notStarted,
+                  'Not Started',
+                  Icons.flag_outlined,
+                ),
+                const SizedBox(width: 8),
+                _buildStatusFilterChip(
+                  GoalStatus.paused,
+                  'On Hold',
+                  Icons.pause_circle_outline,
+                ),
+                const SizedBox(width: 8),
+                _buildStatusFilterChip(
+                  GoalStatus.burnout,
+                  'Recovery',
+                  Icons.local_hospital_outlined,
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.md),
+        if (activeGoals.isEmpty)
+          _buildEmptyGoalsState(context)
+        else if (filteredGoals.isEmpty)
+          _buildFilteredGoalsState()
+        else
+          ...filteredGoals.take(5).map(
+                (goal) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: _buildGoalProgressCard(context, goal: goal),
+                ),
+              ),
+      ],
+    );
+  }
+
+  Widget _buildFilteredGoalsState() {
+    final label = _statusFilterLabel(_selectedStatusFilter);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No $label goals to show',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Switch filters or start a goal to see it here.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterChip(
+    GoalStatus? status,
+    String label,
+    IconData icon,
+  ) {
+    final isSelected = _selectedStatusFilter == status;
+    return FilterChip(
+      showCheckmark: false,
+      selected: isSelected,
+      avatar: Icon(
+        icon,
+        size: 14,
+        color: isSelected ? Colors.white : AppColors.textSecondary,
+      ),
+      label: Text(label),
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: isSelected ? Colors.white : AppColors.textSecondary,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+      ),
+      selectedColor: AppColors.activeColor,
+      backgroundColor: Colors.black.withValues(alpha: 0.35),
+      onSelected: (_) {
+        setState(() {
+          _selectedStatusFilter = status;
+        });
+      },
+    );
+  }
+
+  String _statusFilterLabel(GoalStatus? status) {
+    switch (status) {
+      case GoalStatus.inProgress:
+        return 'in-progress';
+      case GoalStatus.notStarted:
+        return 'not-started';
+      case GoalStatus.paused:
+        return 'on-hold';
+      case GoalStatus.burnout:
+        return 'recovery';
+      default:
+        return 'active';
+    }
+  }
+
+  Widget _buildMilestoneInsights(List<Goal> goals) {
+    if (goals.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Milestone Analytics',
+          style: AppTypography.heading3.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ...goals.take(3).map(
+              (goal) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: GoalMilestoneAnalyticsCard(goal: goal),
+              ),
+            ),
+      ],
+    );
+  }
+
   Widget _buildEmptyGoalsState(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(32),
@@ -1771,6 +2465,23 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     } else {
       deadlineText = 'Due in $daysUntilDeadline days';
       deadlineColor = AppColors.textSecondary;
+    }
+
+    final totalDuration =
+        goal.targetDate.difference(goal.createdAt).inSeconds.abs();
+    final elapsed = now.isBefore(goal.createdAt)
+        ? 0
+        : now.difference(goal.createdAt).inSeconds;
+    final timeProgress = totalDuration == 0
+        ? 1.0
+        : (elapsed / totalDuration).clamp(0.0, 1.0);
+    Color timeColor;
+    if (daysUntilDeadline > 14) {
+      timeColor = AppColors.successColor;
+    } else if (daysUntilDeadline >= 7) {
+      timeColor = AppColors.warningColor;
+    } else {
+      timeColor = AppColors.dangerColor;
     }
 
     Color progressColor = _getPriorityColor(goal.priority);
@@ -1869,6 +2580,51 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
                   minHeight: 3,
                 ),
                 const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.timelapse,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Time to due',
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          LinearProgressIndicator(
+                            value: timeProgress,
+                            minHeight: 4,
+                            backgroundColor: AppColors.borderColor,
+                            valueColor: AlwaysStoppedAnimation<Color>(timeColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      daysUntilDeadline >= 0
+                          ? '$daysUntilDeadline d'
+                          : 'Overdue',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: timeColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildMilestonePreview(goal.id),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -1902,6 +2658,134 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
     );
   }
 
+  Widget _buildMilestonePreview(String goalId) {
+    return StreamBuilder<List<GoalMilestone>>(
+      stream: DatabaseService.getGoalMilestonesStream(goalId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Loading milestones…',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          );
+        }
+
+        final milestones = snapshot.data ?? const <GoalMilestone>[];
+        if (milestones.isEmpty) {
+          return Text(
+            'No milestones added yet',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          );
+        }
+
+        final completed = milestones
+            .where((m) => m.status == GoalMilestoneStatus.completed)
+            .length;
+        final chips =
+            milestones.take(3).map(_buildMilestoneChip).toList(growable: false);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Milestones',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$completed/${milestones.length} complete',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: chips,
+            ),
+            if (milestones.length > chips.length)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${milestones.length - chips.length} more milestones',
+                  style: AppTypography.caption,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMilestoneChip(GoalMilestone milestone) {
+    final color = _milestoneStatusColor(milestone.status);
+    final icon = _milestoneStatusIcon(milestone.status);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    milestone.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _milestoneSubtitle(milestone),
+              style: AppTypography.caption,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _getPriorityColor(GoalPriority priority) {
     switch (priority) {
       case GoalPriority.high:
@@ -1911,6 +2795,66 @@ class EmployeeProgressVisualsContent extends StatelessWidget {
       case GoalPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  Color _milestoneStatusColor(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.completed:
+        return AppColors.successColor;
+      case GoalMilestoneStatus.inProgress:
+        return AppColors.activeColor;
+      case GoalMilestoneStatus.blocked:
+        return AppColors.dangerColor;
+      case GoalMilestoneStatus.notStarted:
+        return AppColors.textSecondary;
+    }
+  }
+
+  IconData _milestoneStatusIcon(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.completed:
+        return Icons.check_circle;
+      case GoalMilestoneStatus.inProgress:
+        return Icons.timelapse;
+      case GoalMilestoneStatus.blocked:
+        return Icons.block;
+      case GoalMilestoneStatus.notStarted:
+        return Icons.radio_button_unchecked;
+    }
+  }
+
+  String _milestoneSubtitle(GoalMilestone milestone) {
+    if (milestone.status == GoalMilestoneStatus.completed &&
+        milestone.completedAt != null) {
+      return 'Completed ${_formatShortDate(milestone.completedAt!)}';
+    }
+    if (milestone.status == GoalMilestoneStatus.blocked) {
+      return 'Updated ${_formatShortDate(milestone.updatedAt)}';
+    }
+    if (milestone.status == GoalMilestoneStatus.inProgress) {
+      return 'Due ${_formatShortDate(milestone.dueDate)}';
+    }
+    return 'Due ${_formatShortDate(milestone.dueDate)}';
+  }
+
+  String _formatShortDate(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    final index = (date.month - 1).clamp(0, 11).toInt();
+    final month = months[index];
+    return '$month ${date.day}';
   }
 
   Widget _buildErrorState(String error) {
@@ -2170,5 +3114,262 @@ class _LineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LineChartPainter oldDelegate) {
     return oldDelegate.values != values || oldDelegate.color != color;
+  }
+}
+
+class GoalMilestoneAnalyticsCard extends StatelessWidget {
+  final Goal goal;
+
+  const GoalMilestoneAnalyticsCard({super.key, required this.goal});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<GoalMilestone>>(
+      stream: DatabaseService.getGoalMilestonesStream(goal.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Loading milestones for ${goal.title}…',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final milestones = snapshot.data ?? const <GoalMilestone>[];
+        if (milestones.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  goal.title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Add milestones to unlock burn-up, burn-down, and streak analytics.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final total = milestones.length;
+        final completed =
+            milestones.where((m) => m.status == GoalMilestoneStatus.completed).length;
+        final remaining = total - completed;
+        final blocked =
+            milestones.where((m) => m.status == GoalMilestoneStatus.blocked).length;
+
+        final burnUp = _buildBurnSeries(milestones);
+        final burnDown =
+            burnUp.map((value) => (100 - value).clamp(0.0, 100.0)).toList();
+        final weeklyStreak = _calculateWeeklyStreak(milestones);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.35),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      goal.title,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$completed/$total milestones',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.activeColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _metricChip(
+                    label: 'Completed',
+                    value: '$completed',
+                    color: AppColors.successColor,
+                  ),
+                  _metricChip(
+                    label: 'Remaining',
+                    value: '$remaining',
+                    color: AppColors.activeColor,
+                  ),
+                  _metricChip(
+                    label: 'Blocked',
+                    value: '$blocked',
+                    color: AppColors.dangerColor,
+                  ),
+                  _metricChip(
+                    label: 'Weekly streak',
+                    value: '$weeklyStreak w',
+                    color: AppColors.infoColor,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _ChartCard(
+                title: 'Milestone Burn-up',
+                color: AppColors.successColor,
+                values: burnUp,
+              ),
+              const SizedBox(height: 12),
+              _ChartCard(
+                title: 'Milestone Burn-down',
+                color: AppColors.warningColor,
+                values: burnDown,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _metricChip({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static List<double> _buildBurnSeries(List<GoalMilestone> milestones) {
+    if (milestones.isEmpty) return const [0];
+    final total = milestones.length;
+    final completionEvents = milestones
+        .where((m) => m.completedAt != null)
+        .toList()
+      ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+    if (completionEvents.isEmpty) {
+      return const [0, 0];
+    }
+    final values = <double>[0];
+    int completed = 0;
+    for (final _ in completionEvents) {
+      completed++;
+      values.add(((completed / total) * 100).clamp(0.0, 100.0));
+    }
+    return values;
+  }
+
+  static int _calculateWeeklyStreak(List<GoalMilestone> milestones) {
+    if (milestones.isEmpty) return 0;
+    final weeks = milestones
+        .map((milestone) => milestone.completedAt ?? milestone.updatedAt)
+        .whereType<DateTime>()
+        .map(_weekKey)
+        .toSet();
+
+    int streak = 0;
+    DateTime cursor = _startOfWeek(DateTime.now());
+    while (true) {
+      final key = _weekKey(cursor);
+      if (weeks.contains(key)) {
+        streak++;
+        cursor = cursor.subtract(const Duration(days: 7));
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  static DateTime _startOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    return DateTime(date.year, date.month, date.day)
+        .subtract(Duration(days: weekday - 1));
+  }
+
+  static String _weekKey(DateTime date) {
+    final start = _startOfWeek(date);
+    return '${start.year}-${start.month}-${start.day}';
   }
 }

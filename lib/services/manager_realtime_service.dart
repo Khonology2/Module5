@@ -670,25 +670,20 @@ class ManagerRealtimeService {
           return;
         }
 
-        // Get the manager's department if not specified
-        String? targetDepartment = department;
-        if (targetDepartment == null) {
-          final managerDoc = await _firestore
-              .collection('users')
-              .doc(currentUser.uid)
-              .get();
-          targetDepartment = managerDoc.data()?['department'] as String?;
-        }
+        // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
+        final String? explicitDepartment =
+            (department != null && department.trim().isNotEmpty)
+                ? department.trim()
+                : null;
 
         // Build employee query; if department known, constrain to that team
         Query usersQuery = _firestore
             .collection('users')
             .where('role', isEqualTo: 'employee')
             .limit(_initialEmployeeLimit);
-        if (targetDepartment != null && targetDepartment.isNotEmpty) {
-          usersQuery = usersQuery
-              .where('department', isEqualTo: targetDepartment)
-              .limit(_initialEmployeeLimit);
+        if (explicitDepartment != null) {
+          usersQuery =
+              usersQuery.where('department', isEqualTo: explicitDepartment);
         }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
