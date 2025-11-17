@@ -20,6 +20,7 @@ class Goal {
   final DateTime createdAt;
   final DateTime targetDate;
   final int points;
+  final bool isSeasonGoal;
   // Key Performance Area tag for persistent excellence grouping
   final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
   final List<String> evidence; // List of evidence attachments
@@ -42,6 +43,7 @@ class Goal {
     required this.createdAt,
     required this.targetDate,
     required this.points,
+    this.isSeasonGoal = false,
     this.kpa,
     this.evidence = const [],
     this.approvalStatus = GoalApprovalStatus.pending,
@@ -98,6 +100,7 @@ class Goal {
         if (raw is num) return raw.round();
         return 0;
       })(),
+      isSeasonGoal: (data?['isSeasonGoal'] ?? false) == true,
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
       evidence: List<String>.from(data?['evidence'] ?? const []),
       approvalStatus: GoalApprovalStatus.values.firstWhere(
@@ -152,6 +155,7 @@ class Goal {
       points: (map['points'] ?? 0) is int
           ? (map['points'] as int)
           : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
+      isSeasonGoal: (map['isSeasonGoal'] ?? false) == true,
       kpa: map['kpa']?.toString().toLowerCase(),
       evidence: List<String>.from(map['evidence'] ?? const []),
       approvalStatus: GoalApprovalStatus.values.firstWhere(
@@ -178,6 +182,7 @@ class Goal {
     DateTime? createdAt,
     DateTime? targetDate,
     int? points,
+    bool? isSeasonGoal,
     String? kpa,
     List<String>? evidence,
     GoalApprovalStatus? approvalStatus,
@@ -199,6 +204,7 @@ class Goal {
       createdAt: createdAt ?? this.createdAt,
       targetDate: targetDate ?? this.targetDate,
       points: points ?? this.points,
+      isSeasonGoal: isSeasonGoal ?? this.isSeasonGoal,
       kpa: kpa ?? this.kpa,
       evidence: evidence ?? this.evidence,
       approvalStatus: approvalStatus ?? this.approvalStatus,
