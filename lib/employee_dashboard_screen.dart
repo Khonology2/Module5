@@ -522,13 +522,34 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       "Believe in yourself and all that you are capable of.",
       "Success is the sum of small efforts repeated day in and day out.",
       "The only way to do great work is to love what you do.",
+      "Challenges are opportunities in disguise. Embrace them!",
+      "Your potential is limitless when you commit to growth.",
+      "Today's effort is tomorrow's achievement.",
+      "Consistency is the key to unlocking your potential.",
+      "Every setback is a setup for a comeback.",
+      "Focus on progress, not perfection.",
+      "You are capable of more than you know.",
+      "The best time to start was yesterday. The second best is now.",
+      "Your dedication will take you places you've never imagined.",
+      "Growth happens outside your comfort zone.",
+      "Small daily improvements lead to massive results.",
+      "You have the power to create the life you want.",
+      "Every day is a fresh start to become better.",
+      "Your journey of a thousand miles begins with a single step.",
+      "Success is built one day at a time.",
+      "The only person you should try to be better than is who you were yesterday.",
+      "Your hard work today is an investment in your future.",
+      "Dream big, work hard, and stay focused.",
+      "You are stronger than you think and more capable than you imagine.",
+      "Every accomplishment starts with the decision to try.",
+      "The future belongs to those who believe in their dreams.",
+      "Your attitude determines your direction.",
+      "Keep going. Your breakthrough is just around the corner.",
     ];
 
-    // Use day of year to get consistent daily motivation
-    final dayOfYear = DateTime.now()
-        .difference(DateTime(DateTime.now().year, 1, 1))
-        .inDays;
-    return motivations[dayOfYear % motivations.length];
+    // Use day of month to get consistent daily motivation (1-30)
+    final dayOfMonth = DateTime.now().day;
+    return motivations[(dayOfMonth - 1) % motivations.length];
   }
 
   @override
