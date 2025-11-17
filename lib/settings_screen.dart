@@ -8,7 +8,6 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
