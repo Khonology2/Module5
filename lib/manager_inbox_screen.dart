@@ -417,7 +417,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Inbox',
+      title: '',
       showAppBar: false,
       embedded: widget.embedded,
       items: SidebarConfig.getItemsForRole('manager'),
@@ -473,10 +473,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Inbox',
-                        style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-                      ),
+                      child: const SizedBox.shrink(),
                     ),
                     TextButton.icon(
                       onPressed: _bulkMarking
