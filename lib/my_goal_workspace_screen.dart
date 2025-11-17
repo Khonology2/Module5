@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_ai/firebase_ai.dart';
+import 'dart:convert';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -38,6 +39,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   final _goalDescriptionController = TextEditingController();
   final _dependenciesController = TextEditingController();
   final _successMetricsController = TextEditingController();
+  final _customCategoryController = TextEditingController();
 
   // Date variables
   DateTime? _startDate;
@@ -47,6 +49,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   String? _goalCategory;
   String? _currentStatus;
   String? _kpa; // 'operational' | 'customer' | 'financial'
+  String? _customCategory; // For "Other" category custom input
+  bool _isOtherCategorySelected = false;
 
   // Lists for dropdowns
   final List<String> _goalCategories = [
@@ -79,6 +83,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         );
       } catch (_) {}
     });
+  }
+
+  @override
+  void dispose() {
+    _goalTitleController.dispose();
+    _goalDescriptionController.dispose();
+    _dependenciesController.dispose();
+    _successMetricsController.dispose();
+    _customCategoryController.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDate(
@@ -221,7 +235,28 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildSectionHeader('Goal Details'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildSectionHeader('Goal Details'),
+                      ElevatedButton.icon(
+                        onPressed:
+                            _goalDescriptionController.text.trim().isEmpty
+                            ? null
+                            : () => _suggestGoalDetails(context),
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: const Text('Suggest'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.activeColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   _buildSectionCard(
                     children: [
                       Row(
@@ -246,16 +281,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      _buildDropdownField(
-                        hintText: 'Select category',
-                        value: _goalCategory,
-                        items: _goalCategories,
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _goalCategory = newValue;
-                          });
-                        },
-                      ),
+                      _buildCategoryDropdown(),
                       _buildDropdownField(
                         hintText: 'Select priority',
                         value: _currentStatus,
@@ -450,22 +476,29 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 final model = FirebaseAI.googleAI().generativeModel(
                   model: 'gemini-2.5-flash',
                   systemInstruction: Content.text(
-                    'You are an AI assistant specialized in creating personal development goal descriptions. '
-                    'Generate a detailed and actionable description for the given goal title. '
-                    'The description should be comprehensive, motivating, and include specific steps or considerations. '
-                    'IMPORTANT: The description must be no more than 5 sentences. Be concise but thorough.',
+                    'You are an AI assistant specialized in creating comprehensive personal development goal plans. '
+                    'When given a goal title, you must generate three components:\n\n'
+                    '1. DESCRIPTION: A detailed and actionable description of the goal (no more than 5 sentences). '
+                    'Be concise but thorough, making it comprehensive, motivating, and including specific steps or considerations.\n\n'
+                    '2. DEPENDENCIES AND PREREQUISITES: Exactly 5 dependencies or prerequisites needed to achieve this goal. '
+                    'Format each as a bullet point starting with "-" or "•". Be specific and actionable.\n\n'
+                    '3. SUCCESS METRICS: Specific, measurable metrics or milestones that indicate successful completion of this goal. '
+                    'Provide a substantial amount of detail with clear, quantifiable indicators.\n\n'
+                    'Respond in this EXACT JSON format (no other text):\n'
+                    '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here"}',
                   ),
                 );
 
                 final prompt = [
                   Content.text(
-                    'Generate a detailed description for this personal development goal: $goalTitle',
+                    'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
+                    'Provide the description, 5 dependencies/prerequisites in point form, and success metrics.',
                   ),
                 ];
 
                 final response = await model.generateContent(prompt);
-                final generatedDescription =
-                    response.text?.replaceAll('*', '') ?? '';
+                final responseText =
+                    response.text?.replaceAll('*', '').trim() ?? '';
 
                 if (mounted) {
                   // Update the goal title if it was changed in the dialog
@@ -474,31 +507,116 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     _goalTitleController.text = titleController.text.trim();
                   }
 
-                  // Place the generated description in the description field
-                  _goalDescriptionController.text = generatedDescription;
+                  // Parse JSON response
+                  String jsonText = responseText.trim();
+                  // Remove markdown code blocks if present
+                  if (jsonText.contains('```json')) {
+                    jsonText = jsonText
+                        .split('```json')[1]
+                        .split('```')[0]
+                        .trim();
+                  } else if (jsonText.contains('```')) {
+                    jsonText = jsonText.split('```')[1].split('```')[0].trim();
+                  }
 
-                  // Close the dialog
-                  // ignore: use_build_context_synchronously
-                  Navigator.of(dialogContext).pop();
+                  // Extract JSON object
+                  final jsonMatch = RegExp(
+                    r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+                  ).firstMatch(jsonText);
 
-                  // Show success message
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Goal description generated successfully!'),
-                      backgroundColor: AppColors.successColor,
-                    ),
-                  );
+                  if (jsonMatch != null) {
+                    final jsonString = jsonMatch.group(0) ?? '{}';
+                    Map<String, dynamic> generatedData;
+
+                    try {
+                      generatedData =
+                          jsonDecode(jsonString) as Map<String, dynamic>;
+                    } catch (e) {
+                      // Fallback parsing with multiline support
+                      final descMatch = RegExp(
+                        r'"description"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+                      final depsMatch = RegExp(
+                        r'"dependencies"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+                      final metricsMatch = RegExp(
+                        r'"successMetrics"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+
+                      generatedData = {};
+                      if (descMatch != null) {
+                        generatedData['description'] = descMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                      if (depsMatch != null) {
+                        generatedData['dependencies'] = depsMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                      if (metricsMatch != null) {
+                        generatedData['successMetrics'] = metricsMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                    }
+
+                    // Fill all three fields
+                    final description =
+                        generatedData['description']?.toString() ?? '';
+                    final dependencies =
+                        generatedData['dependencies']?.toString() ?? '';
+                    final successMetrics =
+                        generatedData['successMetrics']?.toString() ?? '';
+
+                    _goalDescriptionController.text = description;
+                    _dependenciesController.text = dependencies;
+                    _successMetricsController.text = successMetrics;
+
+                    // Close the dialog
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(dialogContext).pop();
+
+                    // Show success message in centered dialog
+                    if (mounted) {
+                      await _showCenteredSuccessDialog(
+                        // ignore: use_build_context_synchronously
+                        context,
+                        'Goal description, dependencies, and success metrics generated successfully!',
+                      );
+                    }
+                  } else {
+                    // Fallback: if JSON parsing fails, try to extract description only
+                    _goalDescriptionController.text = responseText;
+
+                    // Close the dialog
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(dialogContext).pop();
+
+                    // Show success message
+                    if (mounted) {
+                      await _showCenteredSuccessDialog(
+                        // ignore: use_build_context_synchronously
+                        context,
+                        'Goal description generated. Dependencies and metrics could not be parsed.',
+                      );
+                    }
+                  }
                 }
               } catch (e) {
                 setDialogState(() => isGenerating = false);
                 if (mounted) {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error generating description: $e'),
-                      backgroundColor: AppColors.dangerColor,
-                    ),
+                  // Show error in centered dialog
+                  await _showCenteredErrorDialog(
+                    // ignore: use_build_context_synchronously
+                    context,
+                    'Error generating description: $e',
                   );
                 }
               }
@@ -646,6 +764,91 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  Widget _buildCategoryDropdown() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isOtherCategorySelected) ...[
+            TextField(
+              controller: _customCategoryController,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Category (Other)',
+                labelStyle: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                hintText: 'Enter custom category',
+                hintStyle: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
+                ),
+                contentPadding: const EdgeInsets.all(16),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () {
+                    setState(() {
+                      _isOtherCategorySelected = false;
+                      _goalCategory = null;
+                      _customCategory = null;
+                      _customCategoryController.clear();
+                    });
+                  },
+                  tooltip: 'Clear and select from dropdown',
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _customCategory = value;
+                });
+              },
+            ),
+          ] else
+            _buildDropdownField(
+              hintText: 'Select category',
+              value: _goalCategory,
+              items: _goalCategories,
+              onChanged: (String? newValue) {
+                setState(() {
+                  if (newValue == 'Other') {
+                    _isOtherCategorySelected = true;
+                    _goalCategory = 'Other';
+                    _customCategory = null;
+                    _customCategoryController.clear();
+                  } else {
+                    _goalCategory = newValue;
+                    _isOtherCategorySelected = false;
+                    _customCategory = null;
+                    _customCategoryController.clear();
+                  }
+                });
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDropdownField({
     required String hintText,
     required String? value,
@@ -696,6 +899,250 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showCenteredSuccessDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.check_circle, color: AppColors.successColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCenteredErrorDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline, color: AppColors.dangerColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _suggestGoalDetails(BuildContext context) async {
+    final description = _goalDescriptionController.text.trim();
+    if (description.isEmpty) {
+      await _showCenteredErrorDialog(
+        context,
+        'Please generate a goal description first',
+      );
+      return;
+    }
+
+    // Check if start date and target date are selected
+    if (_startDate == null || _targetDate == null) {
+      await _showCenteredErrorDialog(
+        context,
+        'Please select both Start Date and Target Date before generating suggestions.',
+      );
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+        ),
+      ),
+    );
+
+    try {
+      // Initialize Firebase AI model
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
+          'Based on the goal description provided, you must suggest:\n'
+          '1. Category: Choose ONE from these exact options: Career, Skills, Wellness, Finance, or Other. If it does not fit any of the first four, suggest "Other".\n'
+          '2. Priority: Choose ONE from these exact options: High, Medium, or Low.\n'
+          '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational, Customer, or Financial.\n\n'
+          'Respond ONLY with a JSON object in this exact format (no other text):\n'
+          '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational|Customer|Financial"}',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+
+      // Parse JSON response
+      String jsonText = responseText.trim();
+      // Remove markdown code blocks if present
+      if (jsonText.contains('```json')) {
+        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+      } else if (jsonText.contains('```')) {
+        jsonText = jsonText.split('```')[1].split('```')[0].trim();
+      }
+
+      // Extract JSON object using regex
+      final jsonMatch = RegExp(
+        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+      ).firstMatch(jsonText);
+      if (jsonMatch == null) {
+        throw Exception('Could not find JSON object in AI response');
+      }
+
+      final jsonString = jsonMatch.group(0) ?? '{}';
+      Map<String, dynamic> suggestions;
+
+      try {
+        suggestions = jsonDecode(jsonString) as Map<String, dynamic>;
+      } catch (e) {
+        // Fallback: try to parse manually if JSON decode fails
+        final categoryMatch = RegExp(
+          r'"category"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+        final priorityMatch = RegExp(
+          r'"priority"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+        final kpaMatch = RegExp(
+          r'"kpa"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+
+        suggestions = {};
+        if (categoryMatch != null) {
+          suggestions['category'] = categoryMatch.group(1);
+        }
+        if (priorityMatch != null) {
+          suggestions['priority'] = priorityMatch.group(1);
+        }
+        if (kpaMatch != null) {
+          suggestions['kpa'] = kpaMatch.group(1);
+        }
+      }
+
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+      }
+
+      // Apply suggestions
+      if (mounted) {
+        setState(() {
+          final category = suggestions['category']?.toString().trim();
+          if (category != null) {
+            if (category == 'Other') {
+              _isOtherCategorySelected = true;
+              _goalCategory = 'Other';
+              _customCategory = null;
+              _customCategoryController.clear();
+            } else if (_goalCategories.contains(category)) {
+              _goalCategory = category;
+              _isOtherCategorySelected = false;
+              _customCategory = null;
+              _customCategoryController.clear();
+            }
+          }
+
+          final priority = suggestions['priority']?.toString().trim();
+          if (priority != null &&
+              ['High', 'Medium', 'Low'].contains(priority)) {
+            _currentStatus = priority;
+          }
+
+          final kpa = suggestions['kpa']?.toString().trim();
+          if (kpa != null && _kpaOptions.contains(kpa)) {
+            _kpa = kpa.toLowerCase();
+          }
+        });
+
+        // Show success message in centered dialog
+        if (mounted) {
+          await _showCenteredSuccessDialog(
+            // ignore: use_build_context_synchronously
+            context,
+            'Suggestions applied successfully!',
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        await _showCenteredErrorDialog(
+          // ignore: use_build_context_synchronously
+          context,
+          'Error generating suggestions: $e',
+        );
+      }
+    }
   }
 
   Widget _buildSmartCriteriaSection() {
@@ -902,8 +1349,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       if (user == null) return;
 
       // Map category to GoalCategory enum
+      // Use custom category if "Other" is selected, otherwise use selected category
+      final categoryValue =
+          _isOtherCategorySelected &&
+              _customCategory != null &&
+              _customCategory!.isNotEmpty
+          ? _customCategory!.toLowerCase()
+          : _goalCategory?.toLowerCase() ?? '';
+
       GoalCategory category;
-      switch (_goalCategory?.toLowerCase()) {
+      switch (categoryValue) {
         case 'career':
           category = GoalCategory.work;
           break;
@@ -912,7 +1367,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           category = GoalCategory.learning;
           break;
         case 'wellness':
+        case 'health':
           category = GoalCategory.health;
+          break;
+        case 'finance':
+        case 'financial':
+          category = GoalCategory.personal; // Map finance to personal
           break;
         default:
           category = GoalCategory.personal;
