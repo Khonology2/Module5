@@ -1250,7 +1250,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Goal Workspace',
-                  icon: Icons.add,
                   onPressed: () {
                     Navigator.pushNamed(context, '/my_goal_workspace');
                   },
@@ -1260,7 +1259,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Progress Visuals',
-                  icon: Icons.bar_chart,
                   onPressed: () {
                     Navigator.pushNamed(context, '/progress_visuals');
                   },
@@ -1274,7 +1272,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Leaderboard',
-                  icon: Icons.leaderboard,
                   onPressed: () {
                     Navigator.pushNamed(context, '/leaderboard');
                   },
@@ -1284,7 +1281,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Badges & Points',
-                  icon: Icons.workspace_premium,
                   onPressed: () {
                     Navigator.pushNamed(context, '/badges_points');
                   },

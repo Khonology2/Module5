@@ -1225,7 +1225,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Manager Review',
-                  icon: Icons.dashboard,
                   onPressed: () {
                     Navigator.pushNamed(
                       context,
@@ -1238,7 +1237,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Progress Visuals',
-                  icon: Icons.bar_chart,
                   onPressed: () {
                     Navigator.pushNamed(context, '/progress_visuals');
                   },
@@ -1252,7 +1250,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Leaderboard',
-                  icon: Icons.leaderboard,
                   onPressed: () {
                     Navigator.pushNamed(context, '/manager_leaderboard');
                   },
@@ -1262,7 +1259,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               Expanded(
                 child: AppComponents.primaryButton(
                   label: 'Badges & Points',
-                  icon: Icons.workspace_premium,
                   onPressed: () {
                     Navigator.pushNamed(context, '/manager_badges_points');
                   },
