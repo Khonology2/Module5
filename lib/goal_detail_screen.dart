@@ -1404,10 +1404,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 try {
                   // ignore: use_build_context_synchronously
                   // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
                   Navigator.of(dialogContext).pop();
                   // Use dialogContext for ScaffoldMessenger since we're in dialog scope
                   // ignore: use_build_context_synchronously
                   // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       content: Text(
@@ -1426,6 +1428,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 try {
                   // ignore: use_build_context_synchronously
                   // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(content: Text('Failed to save milestone: $e')),
                   );
