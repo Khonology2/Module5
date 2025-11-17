@@ -131,34 +131,47 @@ class DatabaseService {
     required String managerId,
     required String managerName,
   }) async {
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    await goalRef.update({
-      'approvalStatus': GoalApprovalStatus.approved.name,
-      'approvedByUserId': managerId,
-      'approvedByName': managerName,
-      'approvedAt': FieldValue.serverTimestamp(),
-      'rejectionReason': null,
-    });
-    try {
-      final doc = await goalRef.get();
-      final data = doc.data();
-      if (data != null) {
-        await AlertService.createGoalApprovalDecisionAlert(
-          employeeId: (data['userId'] ?? '') as String,
-          goalId: goalId,
-          goalTitle: (data['title'] ?? '') as String,
-          approved: true,
-        );
-        // Also send the employee a 'New Goal Created' alert upon approval
-        try {
-          final goal = Goal.fromMap(data, id: goalId);
-          await AlertService.createGoalAlert(
-            userId: goal.userId,
-            goal: goal,
-            type: AlertType.goalCreated,
-          );
-        } catch (_) {}
+    final firestore = FirebaseFirestore.instance;
+    final goalRef = firestore.collection('goals').doc(goalId);
+    Map<String, dynamic>? goalData;
+    await firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(goalRef);
+      if (!snapshot.exists) {
+        throw StateError('Goal not found');
       }
+      final data = snapshot.data();
+      final currentStatus =
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+      if (currentStatus == GoalApprovalStatus.approved.name ||
+          currentStatus == GoalApprovalStatus.rejected.name) {
+        throw StateError('Goal has already been finalized');
+      }
+      goalData = data;
+      transaction.update(goalRef, {
+        'approvalStatus': GoalApprovalStatus.approved.name,
+        'approvedByUserId': managerId,
+        'approvedByName': managerName,
+        'approvedAt': FieldValue.serverTimestamp(),
+        'rejectionReason': null,
+      });
+    });
+    if (goalData == null) return;
+    try {
+      await AlertService.createGoalApprovalDecisionAlert(
+        employeeId: (goalData!['userId'] ?? '') as String,
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String,
+        approved: true,
+      );
+      // Also send the employee a 'New Goal Created' alert upon approval
+      try {
+        final goal = Goal.fromMap(goalData!, id: goalId);
+        await AlertService.createGoalAlert(
+          userId: goal.userId,
+          goal: goal,
+          type: AlertType.goalCreated,
+        );
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -168,26 +181,39 @@ class DatabaseService {
     required String managerName,
     String? reason,
   }) async {
-    final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    await goalRef.update({
-      'approvalStatus': GoalApprovalStatus.rejected.name,
-      'approvedByUserId': managerId,
-      'approvedByName': managerName,
-      'approvedAt': FieldValue.serverTimestamp(),
-      'rejectionReason': reason,
-    });
-    try {
-      final doc = await goalRef.get();
-      final data = doc.data();
-      if (data != null) {
-        await AlertService.createGoalApprovalDecisionAlert(
-          employeeId: (data['userId'] ?? '') as String,
-          goalId: goalId,
-          goalTitle: (data['title'] ?? '') as String,
-          approved: false,
-          reason: reason,
-        );
+    final firestore = FirebaseFirestore.instance;
+    final goalRef = firestore.collection('goals').doc(goalId);
+    Map<String, dynamic>? goalData;
+    await firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(goalRef);
+      if (!snapshot.exists) {
+        throw StateError('Goal not found');
       }
+      final data = snapshot.data();
+      final currentStatus =
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+      if (currentStatus == GoalApprovalStatus.approved.name ||
+          currentStatus == GoalApprovalStatus.rejected.name) {
+        throw StateError('Goal has already been finalized');
+      }
+      goalData = data;
+      transaction.update(goalRef, {
+        'approvalStatus': GoalApprovalStatus.rejected.name,
+        'approvedByUserId': managerId,
+        'approvedByName': managerName,
+        'approvedAt': FieldValue.serverTimestamp(),
+        'rejectionReason': reason,
+      });
+    });
+    if (goalData == null) return;
+    try {
+      await AlertService.createGoalApprovalDecisionAlert(
+        employeeId: (goalData!['userId'] ?? '') as String,
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String,
+        approved: false,
+        reason: reason,
+      );
     } catch (_) {}
   }
 

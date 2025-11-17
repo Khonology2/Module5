@@ -1213,6 +1213,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Widget _buildGoalMilestonesSection() {
     final user = FirebaseAuth.instance.currentUser;
     final bool canManage = user?.uid == currentGoal.userId;
+    final bool canAddMilestones =
+        canManage && currentGoal.status != GoalStatus.completed;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1247,7 +1249,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   ],
                 ),
               ),
-              if (canManage)
+              if (canAddMilestones)
                 TextButton.icon(
                   onPressed: () => _showMilestoneDialog(),
                   style: TextButton.styleFrom(
@@ -1281,7 +1283,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                   ),
                   child: Text(
-                    canManage
+                    canAddMilestones
                         ? 'No milestones yet. Use “Add Milestone” to map the steps for this goal.'
                         : 'Milestones will appear here once the employee adds them.',
                     style: AppTypography.bodyMedium.copyWith(
@@ -1320,6 +1322,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You must be signed in to manage milestones.')),
+      );
+      return;
+    }
+    if (milestone == null && currentGoal.status == GoalStatus.completed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Completed goals can no longer accept new milestones.'),
+        ),
       );
       return;
     }
@@ -1453,7 +1463,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<GoalMilestoneStatus>(
-                      value: status,
+                      initialValue: status,
                       decoration: const InputDecoration(
                         labelText: 'Status',
                       ),
