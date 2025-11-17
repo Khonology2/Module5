@@ -12,6 +12,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
+import 'package:pdh/design_system/app_typography.dart';
 
 void main() {
   runApp(const MyApp());
@@ -419,12 +420,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 'Profile',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 32.0,
-                  fontWeight: FontWeight.bold,
+                style: AppTypography.heading2.copyWith(
                   color: Colors.white,
                 ),
               ),
@@ -690,7 +688,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
       body: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
-        child: _buildProfileContent(),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
+          child: _buildProfileContent(),
+        ),
       ),
     );
   }
