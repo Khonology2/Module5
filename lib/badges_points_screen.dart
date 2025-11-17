@@ -12,6 +12,7 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/rarity_badges_list_screen.dart';
@@ -650,6 +651,18 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             (snap.data ?? RoleService.instance.cachedRole ?? 'employee')
                 .toLowerCase();
         final isManager = role == 'manager';
+        // Get tutorial state from global service (only for employees)
+        final tutorialService = EmployeeTutorialService.instance;
+        if (!isManager && tutorialService.isTutorialActive) {
+          tutorialService.setCurrentContext(context);
+        }
+        final tutorialParams = !isManager ? tutorialService.getTutorialParams() : {
+          'tutorialStepIndex': null,
+          'sidebarTutorialKeys': null,
+          'onTutorialNext': null,
+          'onTutorialSkip': null,
+        };
+        
         return AppScaffold(
           title: 'Badges & Points',
           showAppBar: false,
@@ -660,6 +673,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           currentRouteName: isManager
               ? '/manager_badges_points'
               : '/badges_points',
+          tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
+          sidebarTutorialKeys: tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
+          onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
             final current = ModalRoute.of(context)?.settings.name;
             if (current != route) {
@@ -694,13 +711,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Badges & Points',
-                            style: AppTypography.heading2.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
                           _buildPointsAndLevelCard(),
                           const SizedBox(height: AppSpacing.xl),
                           _buildSectionHeader('Your Badges'),
@@ -1395,7 +1405,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       Expanded(
                         child: ListView.separated(
                           itemCount: badges.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final sorted = [...badges]

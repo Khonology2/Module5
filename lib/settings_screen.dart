@@ -11,6 +11,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/utils/download_helper.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,8 +23,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   late final TextEditingController _resetEmailController;
-  
-  
+
   bool _isLoading = false;
   UserSettings? _currentSettings;
 
@@ -32,6 +32,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _initializeControllers();
     _loadCurrentUser();
+    // Ensure role is loaded
+    RoleService.instance.ensureRoleLoaded();
   }
 
   void _initializeControllers() {
@@ -81,7 +83,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             builder: (context, settingsSnapshot) {
               if (settingsSnapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                  child: CircularProgressIndicator(color: AppColors.activeColor),
+                  child: CircularProgressIndicator(
+                    color: AppColors.activeColor,
+                  ),
                 );
               }
 
@@ -95,7 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
 
               return StreamBuilder<String?>(
-        stream: RoleService.instance.roleStream(),
+                stream: RoleService.instance.roleStream(),
                 builder: (context, roleSnapshot) {
                   final role = roleSnapshot.data;
                   final isManager = role == 'manager';
@@ -141,11 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.error_outline,
-              color: AppColors.dangerColor,
-              size: 48,
-            ),
+            Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
             const SizedBox(height: 16),
             Text(
               'Error Loading Settings',
@@ -158,10 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Unable to load your settings. Please check your connection and try again.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -181,10 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               'Error: $error',
-              style: TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 10,
-              ),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 10),
               textAlign: TextAlign.center,
             ),
           ],
@@ -194,43 +188,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildHeader(bool isManager) {
-          return Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-        Text(
-          'Settings & Privacy',
-          style: AppTypography.heading2.copyWith(
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 12),
-              Container(
+      children: [
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/Account_User_Profile/Profile.png',
-                      width: 20,
-                      height: 20,
-                      fit: BoxFit.contain,
-                    ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/Account_User_Profile/Profile.png',
+                width: 20,
+                height: 20,
+                fit: BoxFit.contain,
+              ),
               const SizedBox(width: 8),
-                    Text(
+              Text(
                 isManager ? 'Manager Settings' : 'Employee Settings',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
-                    ),
-                  ],
-                ),
               ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -300,13 +287,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Leaderboard Participation',
           subtitle: 'Show your progress on the leaderboard',
           value: settings.leaderboardParticipation,
-          onChanged: (value) => _updateSetting('leaderboardParticipation', value),
+          onChanged: (value) =>
+              _updateSetting('leaderboardParticipation', value),
         ),
         _buildSwitchTile(
           title: 'Profile Visibility',
           subtitle: 'Make your profile visible to other users',
           value: settings.profileVisible,
           onChanged: (value) => _updateSetting('profileVisible', value),
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<String?>(
+          stream: RoleService.instance.roleStream(),
+          builder: (context, roleSnapshot) {
+            // Use stream data, fallback to cached role
+            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+
+            // Only hide tutorial controls if we're certain user is NOT an employee
+            // If role is null or unknown, show controls (default to employee)
+            if (role != null && role != 'employee') {
+              return const SizedBox.shrink();
+            }
+
+            return Column(
+              children: [
+                _buildSwitchTile(
+                  title: 'Enable Tutorial',
+                  subtitle: 'Show sidebar navigation tutorial when enabled',
+                  value: settings.tutorialEnabled,
+                  onChanged: (value) async {
+                    if (value) {
+                      // Show confirmation dialog when enabling
+                      final confirmed = await _showTutorialConfirmationDialog(
+                        context,
+                      );
+                      if (!confirmed) {
+                        // User cancelled - don't update the setting
+                        // The switch will revert to false automatically
+                        return;
+                      }
+                      // If confirmed, dialog already handled enabling and navigation
+                    } else {
+                      // Disable tutorial - mark as completed so it won't show on next login
+                      await _toggleTutorial(false);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.school_outlined,
+                    color: AppColors.textPrimary,
+                  ),
+                  title: const Text(
+                    'Restart Sidebar Tutorial',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
+                  subtitle: const Text(
+                    'Show the sidebar navigation tutorial again',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: () async {
+                      await _restartSidebarTutorial(context);
+                    },
+                  ),
+                  onTap: () async {
+                    await _restartSidebarTutorial(context);
+                  },
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -364,7 +425,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Speech Recognition',
           subtitle: 'Enable voice input for goal creation',
           value: settings.speechRecognitionEnabled,
-          onChanged: (value) => _updateSetting('speechRecognitionEnabled', value),
+          onChanged: (value) =>
+              _updateSetting('speechRecognitionEnabled', value),
         ),
         _buildSwitchTile(
           title: 'Celebration Feed',
@@ -394,6 +456,197 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<bool> _showTutorialConfirmationDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (context) => Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 280, maxHeight: 320),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: AppColors.backgroundColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.activeColor.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  'assets/chat_bot.png',
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Start Sidebar Tutorial?',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This tutorial will guide you through all the sidebar navigation options. You can skip it at any time.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          side: BorderSide(
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.activeColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          minimumSize: const Size(0, 36),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Start Tutorial',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      // Enable tutorial and reset completion status so it will start immediately
+      await SettingsService.updateSetting('tutorialEnabled', true);
+      await EmployeeTutorialService.instance.resetTutorialCompletion();
+
+      if (context.mounted) {
+        // Navigate to dashboard where tutorial will start immediately
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      }
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _toggleTutorial(bool enabled) async {
+    // Update the setting
+    await _updateSetting('tutorialEnabled', enabled);
+
+    // Handle tutorial completion status
+    if (enabled) {
+      // When enabling, reset completion status so tutorial will show
+      // But don't navigate here - let the confirmation dialog handle navigation
+      await EmployeeTutorialService.instance.resetTutorialCompletion();
+    } else {
+      // When disabling, mark as completed so it won't show even on next login
+      await EmployeeTutorialService.instance.markTutorialCompleted();
+    }
+  }
+
+  Future<void> _restartSidebarTutorial(BuildContext context) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.backgroundColor,
+        title: const Text(
+          'Restart Sidebar Tutorial',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'This will reset the sidebar tutorial completion status. The tutorial will appear the next time you visit the dashboard.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Restart',
+              style: TextStyle(color: AppColors.activeColor),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      // Enable tutorial and reset completion status
+      await SettingsService.updateSetting('tutorialEnabled', true);
+      await EmployeeTutorialService.instance.resetTutorialCompletion();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sidebar tutorial reset. It will appear on your next dashboard visit.',
+            ),
+            backgroundColor: AppColors.activeColor,
+          ),
+        );
+        // Navigate to dashboard to show tutorial immediately
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      }
+    }
+  }
+
   Widget _buildManagerSection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
 
@@ -406,13 +659,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           leading: Icon(Icons.download, color: AppColors.activeColor),
           title: Text(
             'Export Team Data',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           subtitle: Text(
             'Download team performance data',
             style: TextStyle(color: AppColors.textSecondary),
           ),
-          trailing: Icon(Icons.arrow_forward_ios, color: AppColors.textMuted, size: 16),
+          trailing: Icon(
+            Icons.arrow_forward_ios,
+            color: AppColors.textMuted,
+            size: 16,
+          ),
           onTap: _exportTeamData,
         ),
         const Divider(color: AppColors.borderColor),
@@ -421,13 +681,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           leading: Icon(Icons.analytics, color: AppColors.activeColor),
           title: Text(
             'Team Analytics',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           subtitle: Text(
             'View detailed team performance metrics',
             style: TextStyle(color: AppColors.textSecondary),
           ),
-          trailing: Icon(Icons.arrow_forward_ios, color: AppColors.textMuted, size: 16),
+          trailing: Icon(
+            Icons.arrow_forward_ios,
+            color: AppColors.textMuted,
+            size: 16,
+          ),
           onTap: _viewTeamAnalytics,
         ),
       ],
@@ -442,10 +709,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       icon: Icons.security_outlined,
       children: [
         _buildTextField(
-                controller: _resetEmailController,
+          controller: _resetEmailController,
           label: 'Email for Password Reset',
           icon: Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
+          keyboardType: TextInputType.emailAddress,
           readOnly: true,
         ),
         const SizedBox(height: 16),
@@ -489,7 +756,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               DropdownMenuItem(value: '60', child: Text('1 hour')),
               DropdownMenuItem(value: '120', child: Text('2 hours')),
             ],
-            onChanged: (value) => _updateSetting('sessionTimeoutMinutes', int.parse(value!)),
+            onChanged: (value) =>
+                _updateSetting('sessionTimeoutMinutes', int.parse(value!)),
           ),
         ],
       ],
@@ -541,9 +809,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: _deleteAccount,
             icon: const Icon(Icons.delete_forever),
             label: const Text('Delete Account'),
-                style: ElevatedButton.styleFrom(
+            style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.dangerColor,
-                  foregroundColor: Colors.white,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -593,7 +861,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: AppColors.activeColor),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
       style: TextStyle(color: AppColors.textPrimary),
     );
@@ -697,13 +968,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               fillColor: Colors.black.withValues(alpha: 0.4),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.2),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: AppColors.activeColor),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
             ),
             dropdownColor: Colors.black.withValues(alpha: 0.9),
             style: TextStyle(color: AppColors.textPrimary),
@@ -719,7 +995,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
     try {
       await SettingsService.updateSetting(key, value);
-      
+
       // Show success messages for important settings changes
       if (mounted) {
         String message = _getSuccessMessage(key, value);
@@ -750,37 +1026,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _getSuccessMessage(String key, dynamic value) {
     switch (key) {
       case 'leaderboardParticipation':
-        return value == true 
-          ? 'Leaderboard participation enabled! Your progress will now appear on the leaderboard.'
-          : 'Leaderboard participation disabled.';
+        return value == true
+            ? 'Leaderboard participation enabled! Your progress will now appear on the leaderboard.'
+            : 'Leaderboard participation disabled.';
       case 'privateGoals':
-        return value == true 
-          ? 'Goals are now private and hidden from team members.'
-          : 'Goals are now visible to team members.';
+        return value == true
+            ? 'Goals are now private and hidden from team members.'
+            : 'Goals are now visible to team members.';
       case 'managerOnly':
-        return value == true 
-          ? 'Goals are now only visible to managers.'
-          : 'Goal visibility restored to normal.';
+        return value == true
+            ? 'Goals are now only visible to managers.'
+            : 'Goal visibility restored to normal.';
       case 'pushNotifications':
-        return value == true 
-          ? 'Push notifications enabled.'
-          : 'Push notifications disabled.';
+        return value == true
+            ? 'Push notifications enabled.'
+            : 'Push notifications disabled.';
       case 'emailNotifications':
-        return value == true 
-          ? 'Email notifications enabled.'
-          : 'Email notifications disabled.';
+        return value == true
+            ? 'Email notifications enabled.'
+            : 'Email notifications disabled.';
       case 'soundAlerts':
-        return value == true 
-          ? 'Sound alerts enabled.'
-          : 'Sound alerts disabled.';
+        return value == true
+            ? 'Sound alerts enabled.'
+            : 'Sound alerts disabled.';
       case 'twoFactorAuth':
-        return value == true 
-          ? 'Two-factor authentication enabled for enhanced security.'
-          : 'Two-factor authentication disabled.';
+        return value == true
+            ? 'Two-factor authentication enabled for enhanced security.'
+            : 'Two-factor authentication disabled.';
       case 'sessionTimeout':
-        return value == true 
-          ? 'Session timeout enabled.'
-          : 'Session timeout disabled.';
+        return value == true
+            ? 'Session timeout enabled.'
+            : 'Session timeout disabled.';
       default:
         return 'Setting updated successfully.';
     }
@@ -788,30 +1064,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _getSettingName(String key) {
     switch (key) {
-      case 'leaderboardParticipation': return 'Leaderboard Participation';
-      case 'privateGoals': return 'Private Goals';
-      case 'managerOnly': return 'Manager Only Visibility';
-      case 'teamShare': return 'Team Sharing';
-      case 'profileVisible': return 'Profile Visibility';
-      case 'pushNotifications': return 'Push Notifications';
-      case 'emailNotifications': return 'Email Notifications';
-      case 'soundAlerts': return 'Sound Alerts';
-      case 'goalReminders': return 'Goal Reminders';
-      case 'weeklyReports': return 'Weekly Reports';
-      case 'speechRecognitionEnabled': return 'Speech Recognition';
-      case 'celebrationFeed': return 'Celebration Feed';
-      case 'autoSync': return 'Auto Sync';
-      case 'language': return 'Language';
-      case 'twoFactorAuth': return 'Two-Factor Authentication';
-      case 'sessionTimeout': return 'Session Timeout';
-      case 'sessionTimeoutMinutes': return 'Session Timeout Duration';
-      default: return key;
+      case 'leaderboardParticipation':
+        return 'Leaderboard Participation';
+      case 'privateGoals':
+        return 'Private Goals';
+      case 'managerOnly':
+        return 'Manager Only Visibility';
+      case 'teamShare':
+        return 'Team Sharing';
+      case 'profileVisible':
+        return 'Profile Visibility';
+      case 'pushNotifications':
+        return 'Push Notifications';
+      case 'emailNotifications':
+        return 'Email Notifications';
+      case 'soundAlerts':
+        return 'Sound Alerts';
+      case 'goalReminders':
+        return 'Goal Reminders';
+      case 'weeklyReports':
+        return 'Weekly Reports';
+      case 'speechRecognitionEnabled':
+        return 'Speech Recognition';
+      case 'celebrationFeed':
+        return 'Celebration Feed';
+      case 'autoSync':
+        return 'Auto Sync';
+      case 'language':
+        return 'Language';
+      case 'twoFactorAuth':
+        return 'Two-Factor Authentication';
+      case 'sessionTimeout':
+        return 'Session Timeout';
+      case 'sessionTimeoutMinutes':
+        return 'Session Timeout Duration';
+      default:
+        return key;
     }
   }
 
   Future<void> _resetPassword() async {
     if (!mounted) return;
-    
+
     final emailText = _resetEmailController.text;
     if (emailText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -852,7 +1146,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Navigator.of(context, rootNavigator: true).pop();
       // Trigger JSON file download on web
       if (kIsWeb) {
-        final filename = 'pdh-export-${DateTime.now().millisecondsSinceEpoch}.json';
+        final filename =
+            'pdh-export-${DateTime.now().millisecondsSinceEpoch}.json';
         downloadJsonFile(filename, _prettyJson(data));
       }
       // Show success dialog centred
@@ -864,10 +1159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       // Close loading if still open
       Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(
-        context,
-        'Error exporting data: $e',
-      );
+      await _showCenterNotice(context, 'Error exporting data: $e');
     }
   }
 
@@ -907,7 +1199,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
+  void _showLoadingDialog(
+    BuildContext context, {
+    String message = 'Loading...',
+  }) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -920,7 +1215,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               width: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -961,7 +1258,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warningColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warningColor,
+            ),
             child: const Text('Sign Out'),
           ),
         ],
@@ -994,7 +1293,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: AppColors.cardBackground,
         title: Text(
           'Delete Account',
-          style: TextStyle(color: AppColors.dangerColor, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.dangerColor,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1021,7 +1323,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.dangerColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.dangerColor,
+            ),
             child: const Text('Delete Account'),
           ),
         ],
@@ -1038,7 +1342,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (mounted) {
           String message = 'Error deleting account: $e';
           if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
-            message = 'For your security, please sign in again and then delete your account.';
+            message =
+                'For your security, please sign in again and then delete your account.';
           }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1050,5 +1355,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-
 }

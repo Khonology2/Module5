@@ -17,6 +17,10 @@ class AppScaffold extends StatelessWidget {
     this.showAppBar = false,
     this.topRightAction,
     this.embedded = false,
+    this.tutorialStepIndex,
+    this.sidebarTutorialKeys,
+    this.onTutorialNext,
+    this.onTutorialSkip,
   });
 
   final String title;
@@ -28,6 +32,10 @@ class AppScaffold extends StatelessWidget {
   final bool showAppBar;
   final Widget? topRightAction;
   final bool embedded;
+  final int? tutorialStepIndex;
+  final List<GlobalKey>? sidebarTutorialKeys;
+  final VoidCallback? onTutorialNext;
+  final VoidCallback? onTutorialSkip;
 
   @override
   Widget build(BuildContext context) {
@@ -68,24 +76,32 @@ class AppScaffold extends StatelessWidget {
                 onNavigate(r);
               },
               onLogout: onLogout,
+              tutorialStepIndex: tutorialStepIndex,
+              sidebarTutorialKeys: sidebarTutorialKeys,
+              onTutorialNext: onTutorialNext,
+              onTutorialSkip: onTutorialSkip,
             ),
           ),
         ),
-      body: SafeArea(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: content,
+        body: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: FocusTraversalGroup(
+                  policy: WidgetOrderTraversalPolicy(),
+                  child: Focus(
+                    canRequestFocus: true,
+                    descendantsAreFocusable: true,
+                    child: content,
+                  ),
+                ),
               ),
-            ),
-            if (topRightAction != null)
-              Positioned(top: 8, right: 8, child: topRightAction!),
-          ],
+              if (topRightAction != null)
+                Positioned(top: 8, right: 8, child: topRightAction!),
+            ],
+          ),
         ),
-      ),
       );
     }
 
@@ -128,6 +144,10 @@ class AppScaffold extends StatelessWidget {
                         currentRouteName: currentRouteName,
                         onNavigate: onNavigate,
                         onLogout: onLogout,
+                        tutorialStepIndex: tutorialStepIndex,
+                        sidebarTutorialKeys: sidebarTutorialKeys,
+                        onTutorialNext: onTutorialNext,
+                        onTutorialSkip: onTutorialSkip,
                       ),
                     ),
                   ),
