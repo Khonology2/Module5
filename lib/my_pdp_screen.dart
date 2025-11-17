@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
