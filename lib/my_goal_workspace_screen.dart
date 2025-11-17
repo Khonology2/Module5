@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -129,12 +130,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         final tutorialService = EmployeeTutorialService.instance;
         if (role == 'employee' && tutorialService.isTutorialActive) {
           tutorialService.setCurrentContext(context);
-          
+
           // Check if we should show tutorial popup for this screen
           // This happens after navigation when the new screen builds
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted || !tutorialService.isTutorialActive) return;
-            
+
             // Check if current route matches the tutorial step
             final currentRoute = ModalRoute.of(context)?.settings.name;
             if (currentRoute != null &&
@@ -157,13 +158,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             }
           });
         }
-        final tutorialParams = role == 'employee' ? tutorialService.getTutorialParams() : {
-          'tutorialStepIndex': null,
-          'sidebarTutorialKeys': null,
-          'onTutorialNext': null,
-          'onTutorialSkip': null,
-        };
-        
+        final tutorialParams = role == 'employee'
+            ? tutorialService.getTutorialParams()
+            : {
+                'tutorialStepIndex': null,
+                'sidebarTutorialKeys': null,
+                'onTutorialNext': null,
+                'onTutorialSkip': null,
+              };
+
         return AppScaffold(
           title: 'Goal Workspace',
           showAppBar: false,
@@ -171,7 +174,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           items: items,
           currentRouteName: '/my_goal_workspace',
           tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
-          sidebarTutorialKeys: tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          sidebarTutorialKeys:
+              tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
           onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
@@ -203,9 +207,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionCard(
                     children: [
-                      _buildTextField(
+                      _buildTextFieldWithGenerate(
                         controller: _goalTitleController,
                         hintText: 'Enter your development goal title',
+                        onGenerate: () =>
+                            _showGenerateDescriptionDialog(context),
                       ),
                       _buildTextField(
                         controller: _goalDescriptionController,
@@ -368,6 +374,226 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextFieldWithGenerate({
+    required TextEditingController controller,
+    required String hintText,
+    required VoidCallback onGenerate,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: TextField(
+          controller: controller,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.auto_awesome,
+                color: AppColors.activeColor,
+              ),
+              onPressed: onGenerate,
+              tooltip: 'Generate description',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGenerateDescriptionDialog(BuildContext context) async {
+    final titleController = TextEditingController(
+      text: _goalTitleController.text.trim(),
+    );
+    bool isGenerating = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> generateDescription() async {
+              final goalTitle = titleController.text.trim();
+              if (goalTitle.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a goal title'),
+                    backgroundColor: AppColors.dangerColor,
+                  ),
+                );
+                return;
+              }
+
+              setDialogState(() => isGenerating = true);
+
+              try {
+                // Initialize Firebase AI model
+                final model = FirebaseAI.googleAI().generativeModel(
+                  model: 'gemini-2.5-flash',
+                  systemInstruction: Content.text(
+                    'You are an AI assistant specialized in creating personal development goal descriptions. '
+                    'Generate a detailed and actionable description for the given goal title. '
+                    'The description should be comprehensive, motivating, and include specific steps or considerations. '
+                    'IMPORTANT: The description must be no more than 5 sentences. Be concise but thorough.',
+                  ),
+                );
+
+                final prompt = [
+                  Content.text(
+                    'Generate a detailed description for this personal development goal: $goalTitle',
+                  ),
+                ];
+
+                final response = await model.generateContent(prompt);
+                final generatedDescription =
+                    response.text?.replaceAll('*', '') ?? '';
+
+                if (mounted) {
+                  // Update the goal title if it was changed in the dialog
+                  if (titleController.text.trim() !=
+                      _goalTitleController.text.trim()) {
+                    _goalTitleController.text = titleController.text.trim();
+                  }
+
+                  // Place the generated description in the description field
+                  _goalDescriptionController.text = generatedDescription;
+
+                  // Close the dialog
+                  // ignore: use_build_context_synchronously
+                  Navigator.of(dialogContext).pop();
+
+                  // Show success message
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Goal description generated successfully!'),
+                      backgroundColor: AppColors.successColor,
+                    ),
+                  );
+                }
+              } catch (e) {
+                setDialogState(() => isGenerating = false);
+                if (mounted) {
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error generating description: $e'),
+                      backgroundColor: AppColors.dangerColor,
+                    ),
+                  );
+                }
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: AppColors.elevatedBackground,
+              title: Text(
+                'Generate Goal Description',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Goal Title',
+                        labelStyle: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        hintText: 'Enter the goal title',
+                        hintStyle: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                    if (isGenerating) ...[
+                      const SizedBox(height: 16),
+                      const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.activeColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Generating description...',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isGenerating
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isGenerating ? null : generateDescription,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Generate'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
