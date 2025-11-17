@@ -74,7 +74,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             builder: (context, roleSnapshot) {
               // role stream is observed to ensure auth context is alive; defaulting prevents spinners
               roleSnapshot.data ?? 'employee';
-              
+
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) {
                 return Center(
@@ -148,7 +148,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
                       final alerts = alertsSnapshot.data ?? [];
                       // Filter: hide overdue goal alerts in this view
-                      final filtered = alerts.where((a) => a.type != AlertType.goalOverdue).toList();
+                      final filtered = alerts
+                          .where((a) => a.type != AlertType.goalOverdue)
+                          .toList();
 
                       return Column(
                         children: [
@@ -587,7 +589,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               final goal = Goal.fromFirestore(doc);
                               navigator.push(
                                 MaterialPageRoute(
-                                  builder: (context) => GoalDetailScreen(goal: goal),
+                                  builder: (context) =>
+                                      GoalDetailScreen(goal: goal),
                                 ),
                               );
                               return;
@@ -709,6 +712,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.timeline);
       case AlertType.seasonCompleted:
         return Icon(Icons.emoji_events_outlined);
+      case AlertType.goalMilestoneCompleted:
+        return Icon(Icons.fact_check);
     }
   }
 

@@ -1,10 +1,6 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
-import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/role_service.dart';
 
@@ -20,7 +16,6 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 }
 
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
-  UserProfile? _manager;
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastTeam = const [];
 
@@ -28,7 +23,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    _loadManagerProfile();
   }
 
   
@@ -80,33 +74,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
   }
 
-  Future<void> _loadManagerProfile() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      setState(() {
-        _manager = UserProfile.fromFirestore(doc);
-      });
-    } catch (e) {
-      developer.log('Error loading manager profile: $e');
-    }
-  }
-
   // Removed unused legacy query function to avoid linter warning
 
   @override
   Widget build(BuildContext context) {
-    final String? dept = (_manager == null || _manager!.department.isEmpty)
-        ? null
-        : _manager!.department;
-
     final content = StreamBuilder<List<EmployeeData>>(
       stream: ManagerRealtimeService.getTeamDataStream(
-        department: dept,
+        department: null,
         timeFilter: TimeFilter.month,
       ),
       builder: (context, snapshot) {

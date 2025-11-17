@@ -48,7 +48,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Profile_White.png',
       red: 'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'MyPdp',
+      label: 'Goal Workspace',
       route: '/my_pdp',
     ),
     itemWithAssets(
@@ -60,7 +60,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
       red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
-      label: 'Goal Workspace',
+      label: 'MyPdp',
       route: '/my_goal_workspace',
     ),
     itemWithAssets(
@@ -115,6 +115,11 @@ class SidebarConfig {
       icon: Icons.manage_accounts,
       label: 'My Profile',
       route: '/manager_profile',
+    ),
+    SidebarItem(
+      icon: Icons.inbox_outlined,
+      label: 'Inbox',
+      route: '/manager_inbox',
     ),
     SidebarItem(
       icon: Icons.emoji_events,
