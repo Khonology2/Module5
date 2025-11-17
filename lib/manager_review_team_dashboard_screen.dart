@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -29,10 +30,13 @@ class _ManagerReviewTeamDashboardScreenState
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
         automaticallyImplyLeading: false, // Remove back arrow button
-        title: const Text(
+        title: Text(
           'Manager Review',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: AppTypography.heading2.copyWith(
+            color: Colors.white,
+          ),
         ),
+        centerTitle: false,
         actions: [
           _buildProfileButton(context), // Use the new profile button widget
         ],

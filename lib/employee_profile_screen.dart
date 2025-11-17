@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -469,12 +470,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           children: [
             Text(
               'Profile',
-              style: const TextStyle(
+              style: AppTypography.heading2.copyWith(
                 color: Colors.white,
-                fontSize: 32, // match manager
-                fontWeight: FontWeight.bold,
               ),
-              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(

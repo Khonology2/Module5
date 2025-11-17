@@ -8,6 +8,7 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
@@ -76,7 +77,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: StreamBuilder<UserSettings?>(
             stream: SettingsService.getUserSettingsStream(),
             builder: (context, settingsSnapshot) {
@@ -190,6 +191,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'Settings & Privacy',
+          style: AppTypography.heading2.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(

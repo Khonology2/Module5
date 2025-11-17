@@ -33,6 +33,7 @@ import 'package:pdh/auth_wrapper.dart'; // Import AuthWrapper
 import 'package:pdh/ai_chatbot.dart'
     hide ChatMessage; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
+import 'package:pdh/team_chats.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
@@ -44,7 +45,6 @@ import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal C
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
-import 'package:pdh/team_chats.dart' hide ChatMessage;
 import 'package:pdh/design_system/app_colors.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =

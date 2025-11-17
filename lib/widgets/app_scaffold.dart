@@ -160,11 +160,7 @@ class AppScaffold extends StatelessWidget {
                         Positioned.fill(
                           child: FocusTraversalGroup(
                             policy: WidgetOrderTraversalPolicy(),
-                            child: Focus(
-                              canRequestFocus: true,
-                              descendantsAreFocusable: true,
-                              child: content,
-                            ),
+                            child: content,
                           ),
                         ),
                         if (topRightAction != null)
