@@ -7,6 +7,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -16,7 +17,8 @@ enum LeaderboardFilter {
   myTeam,
   organization,
 }
-enum LeaderboardMetric { points, level, badges }
+
+enum LeaderboardMetric { points, level, badges, streaks }
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -55,6 +57,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _topHoverController.dispose();
     super.dispose();
   }
+
   Future<void> _loadCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -78,6 +81,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (_selectedFilters.contains(filter)) {
         _selectedFilters.remove(filter);
       } else {
+        // Handle mutually exclusive filters
+        if (filter == LeaderboardFilter.thisMonth) {
+          _selectedFilters.remove(LeaderboardFilter.allTime);
+        } else if (filter == LeaderboardFilter.allTime) {
+          _selectedFilters.remove(LeaderboardFilter.thisMonth);
+        } else if (filter == LeaderboardFilter.points) {
+          _selectedFilters.remove(LeaderboardFilter.streaks);
+        } else if (filter == LeaderboardFilter.streaks) {
+          _selectedFilters.remove(LeaderboardFilter.points);
+        }
         _selectedFilters.add(filter);
       }
     });
@@ -96,9 +109,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       'users',
     );
 
-    // For non-managers, we'll filter in the processing step instead of in the query
-    // This avoids issues with missing fields in the database
-    // Note: role-specific filtering is handled later; no need to store here
+    // For employees, filter to only show employees (not managers)
+    final isManager = userRole == 'manager';
+    if (!isManager) {
+      query = query.where('role', isEqualTo: 'employee');
+    }
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
@@ -109,7 +124,56 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
     // Use a simple query without ordering to avoid field existence issues
     // We'll handle sorting in the processing step
-    return query.limit(100);
+    // Increased limit to 10000 to show all employees in Full Leaderboard
+    return query.limit(10000);
+  }
+
+  // Calculate monthly points from daily points data
+  int _calculateMonthlyPoints(Map<String, dynamic> data) {
+    try {
+      final now = DateTime.now();
+      final currentMonth = now.month;
+      final currentYear = now.year;
+
+      // Get daily points from metrics.points.daily
+      final metrics = data['metrics'] as Map<String, dynamic>?;
+      if (metrics == null) return 0;
+
+      final points = metrics['points'] as Map<String, dynamic>?;
+      if (points == null) return 0;
+
+      final daily = points['daily'] as Map<String, dynamic>?;
+      if (daily == null) return 0;
+
+      int monthlyTotal = 0;
+
+      // Iterate through daily points and sum up current month's points
+      daily.forEach((dateKey, value) {
+        try {
+          // Date key format: YYYYMMDD (e.g., "20240115")
+          if (dateKey.length == 8) {
+            final year = int.tryParse(dateKey.substring(0, 4));
+            final month = int.tryParse(dateKey.substring(4, 6));
+
+            if (year == currentYear && month == currentMonth) {
+              final pointsValue = value is num
+                  ? value.toInt()
+                  : (value is int
+                        ? value
+                        : (int.tryParse(value.toString()) ?? 0));
+              monthlyTotal += pointsValue;
+            }
+          }
+        } catch (e) {
+          // Skip invalid date keys
+        }
+      });
+
+      return monthlyTotal;
+    } catch (e) {
+      developer.log('Error calculating monthly points: $e');
+      return 0;
+    }
   }
 
   List<Map<String, dynamic>> _processLeaderboardData(
@@ -125,6 +189,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         return [];
       }
 
+      // Determine filter states
+      final isThisMonth = _selectedFilters.contains(
+        LeaderboardFilter.thisMonth,
+      );
+      final isAllTime = _selectedFilters.contains(LeaderboardFilter.allTime);
+      final isPoints = _selectedFilters.contains(LeaderboardFilter.points);
+      final isStreaks = _selectedFilters.contains(LeaderboardFilter.streaks);
+
+      // Determine time period: if thisMonth is selected (and allTime is not), use monthly; otherwise use all-time
+      final useThisMonth = isThisMonth && !isAllTime;
+
+      // Determine metric: if streaks is selected (and points is not), use streaks; otherwise use points
+      final useStreaks = isStreaks && !isPoints;
+      final usePoints =
+          !useStreaks; // Default to points if streaks not selected
+
       // Use the role parameter instead of checking filters
       final isManager = userRole == 'manager';
       List<QueryDocumentSnapshot> filteredDocs;
@@ -133,16 +213,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (isManager) {
         filteredDocs = docs;
       } else {
-        // For regular users, filter for users who have opted into the leaderboard
+        // For employees, show ALL employees in the Full Leaderboard
+        // Filter to ensure we only have employees (role check is already in query, but double-check here)
         filteredDocs = docs.where((doc) {
           try {
             final data = doc.data() as Map<String, dynamic>?;
             if (data != null) {
-              // Check both field names for compatibility and default to false if field doesn't exist
-              final opted =
-                  (data['leaderboardParticipation'] == true) ||
-                  (data['leaderboardOptin'] == true);
-              return opted;
+              // Ensure we only show employees (not managers)
+              final role = data['role']?.toString() ?? 'employee';
+              return role == 'employee';
             }
             return false;
           } catch (e) {
@@ -177,18 +256,22 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           developer.log('Error processing badges for user ${doc.id}: $e');
         }
 
-        // Ensure numeric fields have valid defaults
+        // Calculate points based on time filter
         num points = 0;
-        num level = 1;
-
-        try {
-          if (data['totalPoints'] is num) {
-            points = data['totalPoints'] as num;
+        if (useThisMonth) {
+          points = _calculateMonthlyPoints(data);
+        } else {
+          // All time - use totalPoints
+          try {
+            if (data['totalPoints'] is num) {
+              points = data['totalPoints'] as num;
+            }
+          } catch (e) {
+            developer.log('Error processing points for user ${doc.id}: $e');
           }
-        } catch (e) {
-          developer.log('Error processing points for user ${doc.id}: $e');
         }
 
+        num level = 1;
         try {
           if (data['level'] is num) {
             level = data['level'] as num;
@@ -197,40 +280,93 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           developer.log('Error processing level for user ${doc.id}: $e');
         }
 
+        // Extract streak data
+        int currentStreak = 0;
+        int longestStreak = 0;
+        try {
+          currentStreak = (data['currentStreak'] is num)
+              ? (data['currentStreak'] as num).toInt()
+              : (data['currentStreak'] is int
+                    ? data['currentStreak'] as int
+                    : 0);
+          longestStreak = (data['longestStreak'] is num)
+              ? (data['longestStreak'] as num).toInt()
+              : (data['longestStreak'] is int
+                    ? data['longestStreak'] as int
+                    : 0);
+        } catch (e) {
+          developer.log('Error processing streaks for user ${doc.id}: $e');
+        }
+
         return {
           'userId': doc.id,
           'name': data['displayName']?.toString() ?? 'Anonymous',
           'points': points,
           'level': level,
           'badges': badgeCount,
+          'currentStreak': currentStreak,
+          'longestStreak': longestStreak,
           'department': data['department']?.toString() ?? 'Unknown',
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
         };
       }).toList();
 
-      // Sort by the selected metric
-      switch (_currentMetric) {
-        case LeaderboardMetric.points:
-          processedData.sort((a, b) {
-            final aPoints = (a['points'] as num?) ?? 0;
-            final bPoints = (b['points'] as num?) ?? 0;
-            return bPoints.compareTo(aPoints);
-          });
-          break;
-        case LeaderboardMetric.level:
-          processedData.sort((a, b) {
-            final aLevel = (a['level'] as num?) ?? 1;
-            final bLevel = (b['level'] as num?) ?? 1;
-            return bLevel.compareTo(aLevel);
-          });
-          break;
-        case LeaderboardMetric.badges:
-          processedData.sort((a, b) {
-            final aBadges = (a['badges'] as int?) ?? 0;
-            final bBadges = (b['badges'] as int?) ?? 0;
-            return bBadges.compareTo(aBadges);
-          });
-          break;
+      // Sort by the selected metric based on filters
+      // Priority: Filter selections > Dropdown menu selection
+      if (useStreaks) {
+        // Sort by streaks (use currentStreak, fallback to longestStreak)
+        processedData.sort((a, b) {
+          final aStreak =
+              (a['currentStreak'] as int?) ?? (a['longestStreak'] as int?) ?? 0;
+          final bStreak =
+              (b['currentStreak'] as int?) ?? (b['longestStreak'] as int?) ?? 0;
+          return bStreak.compareTo(aStreak);
+        });
+      } else if (usePoints) {
+        // Sort by points (already calculated based on time filter - monthly or all-time)
+        processedData.sort((a, b) {
+          final aPoints = (a['points'] as num?) ?? 0;
+          final bPoints = (b['points'] as num?) ?? 0;
+          return bPoints.compareTo(aPoints);
+        });
+      } else {
+        // Fallback to current metric (from dropdown menu)
+        switch (_currentMetric) {
+          case LeaderboardMetric.points:
+            processedData.sort((a, b) {
+              final aPoints = (a['points'] as num?) ?? 0;
+              final bPoints = (b['points'] as num?) ?? 0;
+              return bPoints.compareTo(aPoints);
+            });
+            break;
+          case LeaderboardMetric.level:
+            processedData.sort((a, b) {
+              final aLevel = (a['level'] as num?) ?? 1;
+              final bLevel = (b['level'] as num?) ?? 1;
+              return bLevel.compareTo(aLevel);
+            });
+            break;
+          case LeaderboardMetric.badges:
+            processedData.sort((a, b) {
+              final aBadges = (a['badges'] as int?) ?? 0;
+              final bBadges = (b['badges'] as int?) ?? 0;
+              return bBadges.compareTo(aBadges);
+            });
+            break;
+          case LeaderboardMetric.streaks:
+            processedData.sort((a, b) {
+              final aStreak =
+                  (a['currentStreak'] as int?) ??
+                  (a['longestStreak'] as int?) ??
+                  0;
+              final bStreak =
+                  (b['currentStreak'] as int?) ??
+                  (b['longestStreak'] as int?) ??
+                  0;
+              return bStreak.compareTo(aStreak);
+            });
+            break;
+        }
       }
 
       // Add rankings
@@ -252,71 +388,78 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       color: Colors.transparent,
       child: StreamBuilder<String?>(
-          stream: RoleService.instance.roleStream(),
-          builder: (context, roleSnapshot) {
-            final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        stream: RoleService.instance.roleStream(),
+        builder: (context, roleSnapshot) {
+          final role =
+              roleSnapshot.data ??
+              RoleService.instance.cachedRole ??
+              'employee';
 
-            final isManager = role == 'manager';
+          final isManager = role == 'manager';
 
-            return StreamBuilder<QuerySnapshot>(
-              stream: _buildQuery(userRole: role).snapshots(),
-              builder: (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
-                if (leaderboardSnapshot.hasError) {
-                  developer.log(
-                    'Leaderboard error: ${leaderboardSnapshot.error}',
-                  );
-                  developer.log(
-                    'Error details: ${leaderboardSnapshot.error.toString()}',
-                  );
-                  return _buildErrorState();
-                }
-
-                List<Map<String, dynamic>> leaderboardData;
-                try {
-                  final docs = leaderboardSnapshot.hasData
-                      ? leaderboardSnapshot.data!.docs.toList()
-                      : const <QueryDocumentSnapshot>[];
-                  if (docs.isNotEmpty) {
-                    leaderboardData = _processLeaderboardData(docs, userRole: role);
-                    _lastLeaderboardData = leaderboardData;
-                  } else {
-                    leaderboardData = _lastLeaderboardData;
+          return StreamBuilder<QuerySnapshot>(
+            stream: _buildQuery(userRole: role).snapshots(),
+            builder:
+                (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
+                  if (leaderboardSnapshot.hasError) {
+                    developer.log(
+                      'Leaderboard error: ${leaderboardSnapshot.error}',
+                    );
+                    developer.log(
+                      'Error details: ${leaderboardSnapshot.error.toString()}',
+                    );
+                    return _buildErrorState();
                   }
-                } catch (e) {
-                  developer.log('Error processing leaderboard data: $e');
-                  return _buildErrorState();
-                }
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 20),
-                      _buildFiltersBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      leaderboardData.isEmpty
-                          ? _buildEmptyState()
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildPodium(leaderboardData),
-                                const SizedBox(height: 20),
-                                _buildLeaderList(
-                                  leaderboardData,
-                                  isManager: isManager,
-                                ),
-                              ],
-                            ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+                  List<Map<String, dynamic>> leaderboardData;
+                  try {
+                    final docs = leaderboardSnapshot.hasData
+                        ? leaderboardSnapshot.data!.docs.toList()
+                        : const <QueryDocumentSnapshot>[];
+                    if (docs.isNotEmpty) {
+                      leaderboardData = _processLeaderboardData(
+                        docs,
+                        userRole: role,
+                      );
+                      _lastLeaderboardData = leaderboardData;
+                    } else {
+                      leaderboardData = _lastLeaderboardData;
+                    }
+                  } catch (e) {
+                    developer.log('Error processing leaderboard data: $e');
+                    return _buildErrorState();
+                  }
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildHeader(),
+                        const SizedBox(height: 20),
+                        _buildFiltersBar(isManager: isManager),
+                        const SizedBox(height: 16),
+                        leaderboardData.isEmpty
+                            ? _buildEmptyState()
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildPodium(leaderboardData),
+                                  const SizedBox(height: 20),
+                                  _buildLeaderList(
+                                    leaderboardData,
+                                    isManager: isManager,
+                                  ),
+                                ],
+                              ),
+                      ],
+                    ),
+                  );
+                },
+          );
+        },
       ),
     );
   }
@@ -334,9 +477,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         children: [
           Text(
             'Leaderboard',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: AppTypography.heading2.copyWith(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
             ),
           ),
           Row(
@@ -455,6 +597,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       'Sort by Badges',
                       style: TextStyle(
                         color: _currentMetric == LeaderboardMetric.badges
+                            ? AppColors.activeColor
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: LeaderboardMetric.streaks,
+                    child: Text(
+                      'Sort by Streaks',
+                      style: TextStyle(
+                        color: _currentMetric == LeaderboardMetric.streaks
                             ? AppColors.activeColor
                             : AppColors.textSecondary,
                       ),
