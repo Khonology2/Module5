@@ -51,7 +51,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
     _insightsStream = _realtime.teamInsightsStream();
-    
+
     // Check if tutorial should be shown
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
@@ -628,11 +628,33 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       "Small nudges create big momentum.",
       "Celebrate progress, not just outcomes.",
       "Lead with clarity, empathy, and action.",
+      "The best leaders are those who develop other leaders.",
+      "Your team's growth reflects your leadership excellence.",
+      "Listen to understand, not just to respond.",
+      "Delegate with trust, support with guidance.",
+      "A great leader takes people where they don't necessarily want to go, but ought to be.",
+      "Build bridges, not walls, within your team.",
+      "Your vision becomes reality when your team believes in it.",
+      "Leadership is about making others better as a result of your presence.",
+      "Invest in your team's development; it's your greatest asset.",
+      "Clear communication is the foundation of effective leadership.",
+      "Recognize effort, reward achievement, inspire excellence.",
+      "The best leaders create more leaders, not more followers.",
+      "Your team's success is a reflection of your leadership.",
+      "Lead by example, not by command.",
+      "Empathy and strength together create unstoppable leadership.",
+      "Your decisions today shape your team's tomorrow.",
+      "Great leaders don't create followers; they create more leaders.",
+      "Trust your team, and they will trust you.",
+      "The mark of a great leader is the ability to bring out the best in others.",
+      "Your leadership legacy is built one interaction at a time.",
+      "Challenge your team to grow, support them to succeed.",
+      "Effective leadership is about influence, not authority.",
+      "Your team's potential is unlimited when you unlock it.",
     ];
-    final dayOfYear = DateTime.now()
-        .difference(DateTime(DateTime.now().year, 1, 1))
-        .inDays;
-    return motivations[dayOfYear % motivations.length];
+    // Use day of month to get consistent daily motivation (1-30)
+    final dayOfMonth = DateTime.now().day;
+    return motivations[(dayOfMonth - 1) % motivations.length];
   }
 
   Stream<UserProfile?> _getManagerProfileStream() {
