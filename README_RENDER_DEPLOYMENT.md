@@ -8,6 +8,8 @@ This guide explains how to deploy your Flutter web application on Render.
 2. Your Flutter project pushed to a GitHub repository
 3. Environment variables configured (if needed)
 
+> **Note for Windows Users:** You don't need the Render CLI to deploy! You can deploy directly through Render's web dashboard. See [RENDER_CLI_WINDOWS.md](./RENDER_CLI_WINDOWS.md) if you want to install the CLI, but it's optional.
+
 ## Deployment Steps
 
 ### Option 1: Using render.yaml (Recommended)
@@ -23,7 +25,11 @@ This guide explains how to deploy your Flutter web application on Render.
    - Go to [Render Dashboard](https://dashboard.render.com)
    - Click "New +" → "Web Service"
    - Connect your GitHub repository
-   - Render will automatically detect the `render.yaml` file
+   - **Important:** Make sure Render detects your `render.yaml` file
+   - If it doesn't auto-detect, you may need to manually set:
+     - **Build Command:** (from render.yaml - see below)
+     - **Publish Directory:** `build/web`
+   - **OR** use the "Infrastructure as Code" option to import from `render.yaml`
 
 3. **Configure Environment Variables:**
    - In the Render dashboard, go to your service → Environment
