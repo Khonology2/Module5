@@ -49,7 +49,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - .env
     - assets/
     - assets/Account_User_Profile/
     - assets/1.Audio_Sound.png
