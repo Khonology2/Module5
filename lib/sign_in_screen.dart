@@ -487,6 +487,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   .set({
                                                     'lastLoginAt':
                                                         FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName != null)
+                                                      'displayName': user.displayName,
                                                   }, SetOptions(merge: true));
                                               try {
                                                 await FirebaseFirestore.instance
@@ -592,6 +596,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   .set({
                                                     'lastLoginAt':
                                                         FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName != null)
+                                                      'displayName': user.displayName,
                                                   }, SetOptions(merge: true));
                                               try {
                                                 await FirebaseFirestore.instance
@@ -696,6 +704,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                   .set({
                                                     'lastLoginAt':
                                                         FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName != null)
+                                                      'displayName': user.displayName,
                                                   }, SetOptions(merge: true));
                                               try {
                                                 await FirebaseFirestore.instance
