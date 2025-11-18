@@ -6,6 +6,7 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/season_details_screen.dart';
 import 'package:pdh/season_celebration_screen.dart';
+import 'package:pdh/season_management_screen.dart';
 import 'package:pdh/services/role_service.dart';
 
 class TeamChallengesSeasonsScreen extends StatefulWidget {
@@ -110,161 +111,122 @@ class _TeamChallengesSeasonsScreenState
   }
 
   Widget _buildActiveSeasonsTab() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        48,
-        AppSpacing.lg,
-        AppSpacing.xxl,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              vertical: AppSpacing.xs,
-              horizontal: AppSpacing.lg,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.activeColor.withValues(alpha: 0.1),
-                  AppColors.successColor.withValues(alpha: 0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.activeColor.withValues(alpha: 0.3),
-              ),
-            ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            48,
+            AppSpacing.lg,
+            AppSpacing.xxl,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.emoji_events,
-                      color: AppColors.activeColor,
-                      size: 28,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      'Growth Seasons',
-                      style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Create themed challenges that employees can opt into. Each season has milestones, badges, and team progress tracking.',
-                  style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textSecondary,
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.xs,
+                    horizontal: AppSpacing.lg,
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-
-          Text(
-            'Active Seasons',
-            style: AppTypography.heading3.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          Expanded(
-            child: StreamBuilder<List<Season>>(
-              stream: SeasonService.getManagerSeasonsStream(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.activeColor,
-                      ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.activeColor.withValues(alpha: 0.1),
+                        AppColors.successColor.withValues(alpha: 0.1),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return SingleChildScrollView(
-                    child: Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
                           Icon(
-                            Icons.error_outline,
-                            size: 48,
-                            color: AppColors.dangerColor,
+                            Icons.emoji_events,
+                            color: AppColors.activeColor,
+                            size: 28,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(width: AppSpacing.sm),
                           Text(
-                            'Error loading seasons',
-                            style: AppTypography.heading4,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Flexible(
-                            child: Text(
-                              snapshot.error.toString(),
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
+                            'Growth Seasons',
+                            style: AppTypography.heading2.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }
-
-                final seasons = snapshot.data ?? [];
-                final activeSeasons = seasons
-                    .where((s) => s.status == SeasonStatus.active)
-                    .toList();
-                final filteredSeasons =
-                    activeSeasons.where(_applyFilters).toList();
-
-                if (filteredSeasons.isEmpty) {
-                  return _buildEmptyActiveSeasonsState();
-                }
-
-                return Column(
-                  children: [
-                    _buildSeasonFilters(activeSeasons),
-                    const SizedBox(height: AppSpacing.sm),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filteredSeasons.length,
-                        itemBuilder: (context, index) {
-                          return Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.md),
-                            child: _buildSeasonCard(filteredSeasons[index]),
-                          );
-                        },
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Create themed challenges that employees can opt into. Each season has milestones, badges, and team progress tracking.',
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Active Seasons',
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                StreamBuilder<List<Season>>(
+                  stream: SeasonService.getManagerSeasonsStream(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildActiveSeasonsLoading();
+                    }
+
+                    if (snapshot.hasError) {
+                      return _buildActiveSeasonsError(snapshot.error.toString());
+                    }
+
+                    final seasons = snapshot.data ?? [];
+                    final activeSeasons = seasons
+                        .where((s) => s.status == SeasonStatus.active)
+                        .toList();
+                    final filteredSeasons =
+                        activeSeasons.where(_applyFilters).toList();
+
+                    if (filteredSeasons.isEmpty) {
+                      return _buildEmptyActiveSeasonsState();
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSeasonFilters(activeSeasons),
+                        const SizedBox(height: AppSpacing.md),
+                        ...filteredSeasons.map(
+                          (season) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
+                            child: _buildSeasonCard(season),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -453,50 +415,98 @@ class _TeamChallengesSeasonsScreenState
   }
 
   Widget _buildEmptyActiveSeasonsState() {
-    return SingleChildScrollView(
-      child: Container(
-        height: 300,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.event_note, size: 60, color: AppColors.textSecondary),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'No Active Seasons',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        color: AppColors.cardBackground.withValues(alpha: 0.4),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.event_note, size: 60, color: AppColors.textSecondary),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'No Active Seasons',
+            style: AppTypography.heading3.copyWith(
+              color: AppColors.textPrimary,
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Flexible(
-              child: Text(
-                'Create your first growth season to engage your team',
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Create your first growth season to engage your team',
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ElevatedButton.icon(
+            onPressed: () => _tabController.animateTo(1),
+            icon: const Icon(Icons.add),
+            label: const Text('Create Season'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.activeColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            ElevatedButton.icon(
-              onPressed: () => _tabController.animateTo(1),
-              icon: const Icon(Icons.add),
-              label: const Text('Create Season'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.activeColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
-                ),
-              ),
-            ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveSeasonsLoading() {
+    return SizedBox(
+      height: 200,
+      child: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(
+            AppColors.activeColor,
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActiveSeasonsError(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.dangerColor.withValues(alpha: 0.2)),
+        color: AppColors.cardBackground,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: AppColors.dangerColor,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Error loading seasons',
+            style: AppTypography.heading4,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -662,9 +672,6 @@ class _TeamChallengesSeasonsScreenState
           ),
           const SizedBox(height: AppSpacing.md),
 
-          _buildManagerQuickActions(season, isPaused),
-          const SizedBox(height: AppSpacing.md),
-
           // Metrics row
           Row(
             children: [
@@ -696,107 +703,6 @@ class _TeamChallengesSeasonsScreenState
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-
-          // Employee Progress Section
-          if (season.participantIds.isNotEmpty) ...[
-            Text(
-              'Employee Progress',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 120),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: season.participantIds.length,
-                itemBuilder: (context, index) {
-                  final participantId = season.participantIds[index];
-                  final participation = season.participations[participantId];
-                  if (participation == null) return const SizedBox.shrink();
-
-                  final participantProgress = _calculateParticipantProgress(
-                    participation,
-                    season,
-                  );
-
-                  final displayName = (participation.userName).trim().isNotEmpty
-                      ? participation.userName
-                      : 'Employee ${participantId.substring(0, participantId.length >= 6 ? 6 : participantId.length)}';
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.xs),
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundColor: AppColors.activeColor,
-                          child: Text(
-                            displayName.isNotEmpty
-                                ? displayName[0].toUpperCase()
-                                : 'E',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                displayName,
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textPrimary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              LinearProgressIndicator(
-                                value: participantProgress,
-                                backgroundColor: AppColors.borderColor,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  participantProgress >= 1.0
-                                      ? AppColors.successColor
-                                      : AppColors.activeColor,
-                                ),
-                                minHeight: 3,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          '${(participantProgress * 100).toInt()}%',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: participantProgress >= 1.0
-                                ? AppColors.successColor
-                                : AppColors.textSecondary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-          ],
 
           // Action buttons
           Row(
@@ -1213,54 +1119,6 @@ class _TeamChallengesSeasonsScreenState
     );
   }
 
-  Widget _buildManagerQuickActions(Season season, bool isPaused) {
-    return Wrap(
-      spacing: AppSpacing.md.toDouble(),
-      runSpacing: AppSpacing.sm.toDouble(),
-      children: [
-        OutlinedButton.icon(
-          onPressed: () => _handleTogglePause(season, !isPaused),
-          icon: Icon(isPaused ? Icons.play_arrow : Icons.pause),
-          label: Text(isPaused ? 'Resume' : 'Pause'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor:
-                isPaused ? AppColors.successColor : AppColors.warningColor,
-            side: BorderSide(
-              color: isPaused ? AppColors.successColor : AppColors.warningColor,
-            ),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: () => _handleExtendSeason(season),
-          icon: const Icon(Icons.event),
-          label: const Text('Extend'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.activeColor,
-            side: BorderSide(color: AppColors.activeColor),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: () => _viewSeasonCelebration(season),
-          icon: const Icon(Icons.celebration),
-          label: const Text('Celebrate'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.warningColor,
-            side: BorderSide(color: AppColors.warningColor),
-          ),
-        ),
-        OutlinedButton.icon(
-          onPressed: () => _handleRecomputeMetrics(season),
-          icon: const Icon(Icons.refresh),
-          label: const Text('Recompute'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.infoColor,
-            side: BorderSide(color: AppColors.infoColor),
-          ),
-        ),
-      ],
-    );
-  }
-
   MapEntry<DateTime, String>? _getLastActivityInfo(Season season) {
     MapEntry<DateTime, String>? latest;
     season.participations.forEach((_, participation) {
@@ -1280,95 +1138,6 @@ class _TeamChallengesSeasonsScreenState
     return 'Just now';
   }
 
-  Future<void> _handleTogglePause(Season season, bool paused) async {
-    try {
-      await SeasonService.setSeasonPaused(season.id, paused);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(paused ? 'Season paused' : 'Season resumed'),
-            backgroundColor: paused
-                ? AppColors.warningColor
-                : AppColors.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update pause: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleExtendSeason(Season season) async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: season.endDate.isAfter(DateTime.now())
-          ? season.endDate
-          : DateTime.now().add(const Duration(days: 7)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    );
-    if (picked == null) return;
-    try {
-      await SeasonService.extendSeason(season.id, picked);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season extended'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to extend season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleRecomputeMetrics(Season season) async {
-    final navigator = Navigator.of(context);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-    try {
-      await SeasonService.recomputeSeasonMetrics(season.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season metrics recomputed'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to recompute metrics: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
-    } finally {
-      navigator.pop();
-    }
-  }
 }
 
 // Create Season Form Widget
@@ -1607,24 +1376,5 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
         _isCreating = false;
       });
     }
-  }
-}
-
-// Season Management Screen
-class SeasonManagementScreen extends StatelessWidget {
-  final Season season;
-
-  const SeasonManagementScreen({super.key, required this.season});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Manage ${season.title}'),
-        backgroundColor: AppColors.activeColor,
-        foregroundColor: Colors.white,
-      ),
-      body: const Center(child: Text('Season Management Screen - Coming Soon')),
-    );
   }
 }

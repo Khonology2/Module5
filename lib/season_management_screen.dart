@@ -66,19 +66,25 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   Widget build(BuildContext context) {
     if (_season == null) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundColor,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Season Management'),
           backgroundColor: AppColors.activeColor,
           foregroundColor: Colors.white,
           elevation: 0,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: _buildSeasonBackground(
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text('Manage ${_season!.title}'),
         backgroundColor: AppColors.activeColor,
@@ -96,13 +102,40 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildOverviewTab(),
-          _buildParticipantsTab(),
-          _buildActionsTab(),
-        ],
+      body: _buildSeasonBackground(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildOverviewTab(),
+            _buildParticipantsTab(),
+            _buildActionsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeasonBackground({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [
+              Color(0x880A0F1F),
+              Color(0x88040610),
+            ],
+            stops: [0.0, 1.0],
+          ),
+        ),
+        child: child,
       ),
     );
   }
@@ -115,6 +148,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
         children: [
           // Season Status Card
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -288,6 +324,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
             final isCompleted = progress >= 1.0;
 
             return Card(
+              color: _glassCardColor,
+              elevation: 0,
+              shape: _glassCardShape(),
               margin: const EdgeInsets.only(bottom: AppSpacing.md),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
@@ -435,6 +474,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
 
           // Complete Season Action
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -494,6 +536,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
 
           // Extend Season Action
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -545,6 +590,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           // View Celebration Action
           if (_season!.status == SeasonStatus.completed)
             Card(
+              color: _glassCardColor,
+              elevation: 0,
+              shape: _glassCardShape(),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
@@ -602,7 +650,11 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
     required IconData icon,
     required Color color,
   }) {
+    final cardColor = _glassCardColor;
     return Card(
+      color: cardColor,
+      elevation: 0,
+      shape: _glassCardShape(radius: 14),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -632,6 +684,17 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
+
+  ShapeBorder _glassCardShape({double radius = 16}) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(
+        color: Colors.white.withValues(alpha: 0.2),
       ),
     );
   }

@@ -453,113 +453,144 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     }
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.backgroundColor,
-            AppColors.backgroundColor.withValues(alpha: 0.8),
-          ],
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
         ),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: AppSpacing.screenPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: const SizedBox.shrink(),
-                    ),
-                    TextButton.icon(
-                      onPressed: _bulkMarking
-                          ? null
-                          : () async {
-                              final user = FirebaseAuth.instance.currentUser;
-                              if (user == null) return;
-                              setState(() => _bulkMarking = true);
-                              await AlertService.markAllAsRead(user.uid);
-                              if (!mounted) return;
-                              setState(() => _bulkMarking = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('All alerts marked as read')),
-                              );
-                            },
-                      icon: _bulkMarking
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.mark_email_read_outlined),
-                      label: const Text('Mark all as read'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _buildFilters(),
-              ],
-            ),
-          ),
-          Expanded(
-            child: StreamBuilder<List<Alert>>(
-              stream: AlertService.getManagerInboxStream(
-                managerId: user.uid,
-                personal: _personal,
-                // Apply the selected type filter directly ('alert' | 'nudge' | 'approval_request' | null)
-                typeFilter: _typeFilter,
-                limit: 200,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-                    ),
-                  );
-                }
-                var items = snapshot.data ?? const <Alert>[];
-
-                if (_unreadOnly) {
-                  items = items.where((a) => !a.isRead).toList();
-                }
-                if (_priorityFilter != null) {
-                  items = items.where((a) => a.priority == _priorityFilter).toList();
-                }
-                if (_search.isNotEmpty) {
-                  final q = _search.toLowerCase();
-                  items = items.where((a) =>
-                    a.title.toLowerCase().contains(q) ||
-                    a.message.toLowerCase().contains(q)
-                  ).toList();
-                }
-
-                if (items.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: AppSpacing.screenPadding,
-                      child: Text(
-                        'No items',
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerScrolled) {
+          return [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: _glassCardDecoration(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _personal ? 'Personal Inbox' : 'Team Inbox',
+                                style: AppTypography.heading3.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Review alerts, nudges, and approvals in one place.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _bulkMarking
+                                ? null
+                                : () async {
+                                    final user = FirebaseAuth.instance.currentUser;
+                                    if (user == null) return;
+                                    setState(() => _bulkMarking = true);
+                                    await AlertService.markAllAsRead(user.uid);
+                                    if (!mounted) return;
+                                    setState(() => _bulkMarking = false);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('All alerts marked as read')),
+                                    );
+                                  },
+                            icon: _bulkMarking
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.mark_email_read_outlined),
+                            label: const Text('Mark all as read'),
+                          ),
+                        ],
                       ),
-                    ),
-                  );
-                }
-
-                return ListView.separated(
-                  padding: AppSpacing.screenPadding,
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (context, i) => _buildInboxCard(items[i]),
-                );
-              },
+                      const SizedBox(height: AppSpacing.md),
+                      _buildFilters(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ];
+        },
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.1,
+              colors: [
+                Color(0x880A0F1F),
+                Color(0x88040610),
+              ],
+              stops: [0.0, 1.0],
             ),
           ),
-        ],
+          child: StreamBuilder<List<Alert>>(
+            stream: AlertService.getManagerInboxStream(
+              managerId: user.uid,
+              personal: _personal,
+              typeFilter: _typeFilter,
+              limit: 200,
+            ),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  ),
+                );
+              }
+              var items = snapshot.data ?? const <Alert>[];
+
+              if (_unreadOnly) {
+                items = items.where((a) => !a.isRead).toList();
+              }
+              if (_priorityFilter != null) {
+                items = items.where((a) => a.priority == _priorityFilter).toList();
+              }
+              if (_search.isNotEmpty) {
+                final q = _search.toLowerCase();
+                items = items.where((a) =>
+                  a.title.toLowerCase().contains(q) ||
+                  a.message.toLowerCase().contains(q)
+                ).toList();
+              }
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: AppSpacing.screenPadding,
+                    child: Text(
+                      'No inbox items match your filters.',
+                      style: AppTypography.bodyMedium.copyWith(color: Colors.white70),
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                padding: AppSpacing.screenPadding,
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (context, i) => _buildInboxCard(items[i]),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -570,20 +601,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       children: [
         Row(
           children: [
-            ChoiceChip(
-              label: const Text('Personal'),
+            _inboxChoiceChip(
+              label: 'Personal',
               selected: _personal,
-              onSelected: (_) => setState(() => _personal = true),
+              onSelected: () => setState(() => _personal = true),
             ),
             const SizedBox(width: 8),
-            ChoiceChip(
-              label: const Text('Team'),
+            _inboxChoiceChip(
+              label: 'Team',
               selected: !_personal,
-              onSelected: (_) => setState(() => _personal = false),
+              onSelected: () => setState(() => _personal = false),
             ),
             const Spacer(),
-            FilterChip(
-              label: const Text('Unread'),
+            _inboxFilterChip(
+              label: 'Unread',
               selected: _unreadOnly,
               onSelected: (v) => setState(() => _unreadOnly = v),
             ),
@@ -593,25 +624,25 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         Wrap(
           spacing: 8,
           children: [
-            ChoiceChip(
-              label: const Text('All'),
+            _inboxChoiceChip(
+              label: 'All',
               selected: _typeFilter == null,
-              onSelected: (_) => setState(() => _typeFilter = null),
+              onSelected: () => setState(() => _typeFilter = null),
             ),
-            ChoiceChip(
-              label: const Text('Alerts'),
+            _inboxChoiceChip(
+              label: 'Alerts',
               selected: _typeFilter == 'alert',
-              onSelected: (_) => setState(() => _typeFilter = 'alert'),
+              onSelected: () => setState(() => _typeFilter = 'alert'),
             ),
-            ChoiceChip(
-              label: const Text('Nudges'),
+            _inboxChoiceChip(
+              label: 'Nudges',
               selected: _typeFilter == 'nudge',
-              onSelected: (_) => setState(() => _typeFilter = 'nudge'),
+              onSelected: () => setState(() => _typeFilter = 'nudge'),
             ),
-            ChoiceChip(
-              label: const Text('Approvals'),
+            _inboxChoiceChip(
+              label: 'Approvals',
               selected: _typeFilter == 'approval_request',
-              onSelected: (_) => setState(() => _typeFilter = 'approval_request'),
+              onSelected: () => setState(() => _typeFilter = 'approval_request'),
             ),
           ],
         ),
@@ -624,13 +655,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search...',
                   prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  filled: true,
+                  fillColor: _glassFieldColor,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -643,16 +676,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             const SizedBox(width: AppSpacing.sm),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderColor),
-              ),
+              decoration: _glassCardDecoration(radius: 8),
               child: DropdownButton<AlertPriority?>(
                 value: _priorityFilter,
                 underline: const SizedBox(),
                 hint: Text('Priority', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                dropdownColor: Colors.black.withValues(alpha: 0.9),
+                style: AppTypography.bodyMedium.copyWith(color: Colors.white),
                 onChanged: (p) => setState(() => _priorityFilter = p),
                 items: [
                   const DropdownMenuItem<AlertPriority?>(value: null, child: Text('All Priorities')),
@@ -672,13 +702,10 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: alert.isRead ? AppColors.borderColor : color.withValues(alpha: 0.3),
-          width: alert.isRead ? 1 : 2,
-        ),
+      decoration: _glassCardDecoration(
+        borderColor: alert.isRead
+            ? Colors.white.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,7 +715,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color, size: 16),
@@ -717,14 +744,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           const SizedBox(height: 6),
           Text(
             alert.message,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               Text(
                 _getTimeAgo(alert.createdAt),
-                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodySmall.copyWith(color: Colors.white54),
               ),
               const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested)
@@ -768,6 +795,60 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       ),
     );
   }
+
+  ChoiceChip _inboxChoiceChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: AppColors.activeColor.withValues(alpha: 0.35),
+      backgroundColor: _glassFieldColor,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: selected ? Colors.white : AppColors.textSecondary,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      ),
+    );
+  }
+
+  FilterChip _inboxFilterChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      selectedColor: AppColors.warningColor.withValues(alpha: 0.3),
+      checkmarkColor: Colors.white,
+      backgroundColor: _glassFieldColor,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: Colors.white,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      ),
+    );
+  }
+
+  BoxDecoration _glassCardDecoration({
+    double radius = 12,
+    Color? borderColor,
+  }) {
+    return BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.15),
+      ),
+    );
+  }
+
+  Color get _glassFieldColor => Colors.black.withValues(alpha: 0.35);
 
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {
