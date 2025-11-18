@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/season_celebration_screen.dart';
 
 class SeasonDetailsScreen extends StatefulWidget {
   final Season season;
@@ -36,22 +37,37 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       stream: SeasonService.getSeasonStream(widget.season.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: AppColors.cardBackground,
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildSeasonBackground(
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
+                ),
+              ),
+            ),
           );
         }
         if (!snapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: AppColors.cardBackground,
-            body: Center(child: Text('Season not found')), 
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildSeasonBackground(
+              child: const Center(
+                child: Text(
+                  'Season not found',
+                  style: AppTypography.heading4,
+                ),
+              ),
+            ),
           );
         }
 
         final season = snapshot.data!;
 
         return Scaffold(
-          backgroundColor: AppColors.cardBackground,
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
             title: Text(season.title),
             backgroundColor: AppColors.activeColor,
@@ -69,13 +85,15 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ],
             ),
           ),
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildOverviewTab(season),
-              _buildChallengesTab(season),
-              _buildParticipantsTab(season),
-            ],
+          body: _buildSeasonBackground(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(season),
+                _buildChallengesTab(season),
+                _buildParticipantsTab(season),
+              ],
+            ),
           ),
         );
       },
@@ -91,11 +109,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -136,6 +150,24 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.warningColor,
                   side: BorderSide(color: AppColors.warningColor),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _onViewSeasonCelebration(season),
+                icon: const Icon(Icons.celebration, size: 18),
+                label: const Text('Celebrate'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.warningColor,
+                  side: BorderSide(color: AppColors.warningColor),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _onRecomputeMetrics(season),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Recompute'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.infoColor,
+                  side: BorderSide(color: AppColors.infoColor),
                 ),
               ),
               if (season.status == SeasonStatus.active)
@@ -332,6 +364,43 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     }
   }
 
+  Future<void> _onViewSeasonCelebration(Season season) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SeasonCelebrationScreen(season: season),
+      ),
+    );
+  }
+
+  Future<void> _onRecomputeMetrics(Season season) async {
+    final navigator = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      await SeasonService.recomputeSeasonMetrics(season.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Season metrics recomputed'),
+          backgroundColor: AppColors.successColor,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to recompute metrics: $e'),
+          backgroundColor: AppColors.dangerColor,
+        ),
+      );
+    } finally {
+      navigator.pop();
+    }
+  }
+
   Widget _buildOverviewTab(Season season) {
     final now = DateTime.now();
     final daysLeft = season.endDate.difference(now).inDays;
@@ -368,19 +437,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.activeColor.withValues(alpha: 0.1),
-                  AppColors.successColor.withValues(alpha: 0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.activeColor.withValues(alpha: 0.3),
-              ),
+            decoration: _glassBoxDecoration(
+              borderColor: AppColors.activeColor.withValues(alpha: 0.4),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,11 +529,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           const SizedBox(height: AppSpacing.md),
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
-            ),
+            decoration: _glassBoxDecoration(),
             child: Column(
               children: [
                 Row(
@@ -674,11 +728,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           const SizedBox(height: AppSpacing.md),
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
-            ),
+            decoration: _glassBoxDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -814,11 +864,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -866,11 +912,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1039,11 +1081,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Row(
         children: [
           Container(
@@ -1117,6 +1155,46 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonBackground({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [
+              Color(0x880A0F1F),
+              Color(0x88040610),
+            ],
+            stops: [0.0, 1.0],
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
+
+  BoxDecoration _glassBoxDecoration({
+    double radius = 12,
+    Color? borderColor,
+  }) {
+    return BoxDecoration(
+      color: _glassCardColor,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.2),
       ),
     );
   }

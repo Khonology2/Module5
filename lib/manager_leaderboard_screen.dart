@@ -220,20 +220,40 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       );
     }
 
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'Top Team Performers',
-            style: AppTypography.heading2.copyWith(
-              color: AppColors.textPrimary,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Top Team Performers',
+                  style: AppTypography.heading2.copyWith(
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Switch metrics to compare different dimensions of impact.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        metricChip('Points', LeaderboardMetric.points),
-        metricChip('Streaks', LeaderboardMetric.streaks),
-        metricChip('Progress', LeaderboardMetric.progress),
-      ],
+          metricChip('Points', LeaderboardMetric.points),
+          metricChip('Streaks', LeaderboardMetric.streaks),
+          metricChip('Progress', LeaderboardMetric.progress),
+        ],
+      ),
     );
   }
 
@@ -281,15 +301,22 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color, width: 2),
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
-                      radius: 18,
+                      radius: 20,
                       backgroundColor: color,
                       child: Text(
                         e.profile.displayName.isNotEmpty
@@ -301,17 +328,18 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       e.profile.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 12,
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -320,7 +348,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         Text(
                           '${e.totalPoints} pts',
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
+                            color: Colors.white70,
                             fontSize: 11,
                           ),
                         ),
@@ -365,12 +393,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
       child: Row(
         children: [
           CircleAvatar(
@@ -402,7 +430,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 Text(
                   e.profile.department,
                   style: const TextStyle(
-                    color: AppColors.textSecondary,
+                    color: Colors.white60,
                     fontSize: 12,
                   ),
                 ),
@@ -412,7 +440,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           Text(
             rightText,
             style: const TextStyle(
-              color: AppColors.textPrimary,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
