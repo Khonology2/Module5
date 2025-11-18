@@ -148,11 +148,24 @@ class _PersonalDevelopmentHubScreenState
             'Landing screen: Token decrypted and decoded successfully',
           );
 
-          // Extract email from decoded token
-          email =
-              decodedToken['email'] as String? ??
-              decodedToken['sub'] as String? ??
-              decodedToken['user_email'] as String?;
+          // Extract user info from decoded token (matches Khonobuzz JWT structure)
+          // JWT payload contains: user_id, email, module_role, exp, iat
+          final userInfo = TokenAuthService.instance.extractUserInfo(
+            decodedToken,
+          );
+          if (userInfo != null) {
+            email = userInfo['email'] as String?;
+            final userId = userInfo['userId'] as String?;
+            final moduleRole = userInfo['moduleRole'] as String?;
+            debugPrint(
+              'Landing screen: Extracted user info - email: $email, userId: $userId, moduleRole: $moduleRole',
+            );
+          } else {
+            // Fallback: try to get email directly from token
+            email =
+                decodedToken['email'] as String? ??
+                decodedToken['user_id'] as String?; // user_id might be email
+          }
 
           if (email != null && email.isNotEmpty) {
             debugPrint(
@@ -178,6 +191,7 @@ class _PersonalDevelopmentHubScreenState
       // Step 4: Validate token with onboarding collection and get moduleAccessRole
       // This is the critical step - checking the database to verify the token
       // We can validate by token directly, even if we don't have email from JWT
+      // Try both encrypted token (as received) and decrypted JWT (if available)
       debugPrint(
         'Landing screen: Validating token with onboarding collection...',
       );
@@ -185,8 +199,25 @@ class _PersonalDevelopmentHubScreenState
         'Landing screen: Using email from token: ${email ?? "not available"}',
       );
 
-      final onboardingData = await TokenAuthService.instance
+      // Try validating with the encrypted token first (as stored in database)
+      Map<String, dynamic>? onboardingData = await TokenAuthService.instance
           .validateTokenWithOnboarding(token, email);
+
+      // If that fails and we have a decrypted JWT, try with the decrypted token
+      if (onboardingData == null && decodedToken != null) {
+        debugPrint(
+          'Landing screen: Trying validation with decrypted JWT token...',
+        );
+        // Get the decrypted JWT string from the processEncryptedToken result
+        // We need to decrypt again to get the JWT string
+        final decryptedJwt = await TokenAuthService.instance.decryptToken(
+          token,
+        );
+        if (decryptedJwt != null) {
+          onboardingData = await TokenAuthService.instance
+              .validateTokenWithOnboarding(decryptedJwt, email);
+        }
+      }
 
       if (onboardingData == null) {
         debugPrint(
@@ -209,7 +240,24 @@ class _PersonalDevelopmentHubScreenState
         );
       }
 
-      final moduleAccessRole = onboardingData['moduleAccessRole'] as String;
+      // Extract module role from JWT token or onboarding data
+      final moduleAccessRole = TokenAuthService.instance.extractModuleRole(
+        decodedToken,
+        onboardingData,
+      );
+
+      if (moduleAccessRole == null) {
+        debugPrint(
+          'Landing screen: No module role found in token or onboarding data',
+        );
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
       debugPrint(
         'Landing screen: Token validated successfully. ModuleAccessRole: $moduleAccessRole',
       );

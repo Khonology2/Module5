@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:pdh/services/backend_auth_service.dart';
@@ -13,22 +14,37 @@ class TokenAuthService {
   TokenAuthService._internal();
   static final TokenAuthService instance = TokenAuthService._internal();
 
-  // TODO: Set these keys from environment variables or secure storage
-  // These should match the keys used by the external system that generates tokens
+  // ⚠️ CRITICAL: These keys MUST match the Khonobuzz backend keys
+  // Set these from environment variables or secure storage
+  //
+  // Required keys from Khonobuzz backend:
+  // - ENCRYPTION_KEY: Fernet encryption key (base64 encoded, 32 bytes)
+  // - JWT_SECRET_KEY: JWT signature verification key
+  //
+  // Example values (DO NOT use these in production - get from Khonobuzz):
+  // ENCRYPTION_KEY=6KZRT0MgboM5dmkwTLmHlh81o1P1huopTO3OspUz7LI=
+  // JWT_SECRET_KEY=HQZsb5lAThMYaDU_9YEAQcFtkIRCbyXSHXS7_ac9O0g
   static String? get _encryptionKey {
-    // Set your Fernet encryption key here (32 bytes, base64 encoded)
-    // Example: 'your-32-byte-base64-encoded-encryption-key-here'
-    const String? envKey = null; // Set to your ENCRYPTION_KEY
+    // Load from .env file (flutter_dotenv)
+    // Falls back to null if not set
+    final envKey = dotenv.env['ENCRYPTION_KEY'];
+    if (envKey == null || envKey.isEmpty) {
+      debugPrint('ENCRYPTION_KEY not found in .env file');
+      return null;
+    }
     return envKey;
   }
 
-  // TODO: Implement JWT signature verification using this key
-  // This will be used to verify the JWT signature after decryption
+  // Reserved for future JWT signature verification
   // ignore: unused_element
   static String? get _jwtSecretKey {
-    // Set your JWT secret key here
-    // This is used to verify the JWT signature
-    const String? envKey = null; // Set to your JWT_SECRET_KEY
+    // Load from .env file (flutter_dotenv)
+    // Falls back to null if not set
+    final envKey = dotenv.env['JWT_SECRET_KEY'];
+    if (envKey == null || envKey.isEmpty) {
+      debugPrint('JWT_SECRET_KEY not found in .env file');
+      return null;
+    }
     return envKey;
   }
 
@@ -40,18 +56,20 @@ class TokenAuthService {
       if (kIsWeb) {
         // For web, use Uri to parse current URL
         final uri = Uri.base;
-        
+
         // Try to get token from query parameters
         String? token = uri.queryParameters['token'];
-        
+
         // If token is found, decode it (in case it's URL-encoded)
         if (token != null && token.isNotEmpty) {
           // Uri.queryParameters already decodes URL-encoded values, but let's ensure it's clean
           token = Uri.decodeComponent(token);
-          debugPrint('Token extracted from query parameters: ${token.substring(0, token.length > 50 ? 50 : token.length)}...');
+          debugPrint(
+            'Token extracted from query parameters: ${token.substring(0, token.length > 50 ? 50 : token.length)}...',
+          );
           return token;
         }
-        
+
         // Also check hash fragment for SPA routing (common in single-page apps)
         final hash = uri.fragment;
         if (hash.isNotEmpty) {
@@ -61,12 +79,14 @@ class TokenAuthService {
             token = hashParams['token'];
             if (token != null && token.isNotEmpty) {
               token = Uri.decodeComponent(token);
-              debugPrint('Token extracted from hash fragment: ${token.substring(0, token.length > 50 ? 50 : token.length)}...');
+              debugPrint(
+                'Token extracted from hash fragment: ${token.substring(0, token.length > 50 ? 50 : token.length)}...',
+              );
               return token;
             }
           }
         }
-        
+
         // Also check the full URL string in case token is embedded differently
         final fullUrl = uri.toString();
         if (fullUrl.contains('token=')) {
@@ -74,11 +94,13 @@ class TokenAuthService {
           token = urlUri.queryParameters['token'];
           if (token != null && token.isNotEmpty) {
             token = Uri.decodeComponent(token);
-            debugPrint('Token extracted from full URL: ${token.substring(0, token.length > 50 ? 50 : token.length)}...');
+            debugPrint(
+              'Token extracted from full URL: ${token.substring(0, token.length > 50 ? 50 : token.length)}...',
+            );
             return token;
           }
         }
-        
+
         debugPrint('No token found in URL');
         return null;
       } else {
@@ -93,7 +115,7 @@ class TokenAuthService {
       return null;
     }
   }
-  
+
   /// Extract token from a specific URL string (useful for deep links)
   String? extractTokenFromUrlString(String urlString) {
     try {
@@ -133,7 +155,7 @@ class TokenAuthService {
           base64Decoded = utf8.encode(encryptedToken);
         }
       }
-      
+
       // Step 2: Fernet decrypt
       debugPrint('Decrypting token: Step 2 - Fernet decryption...');
       final key = encrypt.Key.fromBase64(encryptionKey);
@@ -142,13 +164,15 @@ class TokenAuthService {
       // Fernet.decrypt() returns Uint8List, convert to String
       final decryptedBytes = fernet.decrypt(encrypted);
       final decryptedString = utf8.decode(decryptedBytes);
-      
+
       debugPrint('Token decrypted successfully');
       return decryptedString;
     } catch (e) {
       debugPrint('Error decrypting token: $e');
       // If decryption fails, try treating token as already decrypted (for backward compatibility)
-      debugPrint('Attempting to use token as-is (assuming already decrypted)...');
+      debugPrint(
+        'Attempting to use token as-is (assuming already decrypted)...',
+      );
       return encryptedToken;
     }
   }
@@ -161,14 +185,18 @@ class TokenAuthService {
       // First, check if token looks like a JWT (has 3 parts separated by dots)
       final parts = jwtToken.split('.');
       if (parts.length != 3) {
-        debugPrint('Token does not have JWT format (expected 3 parts, got ${parts.length})');
+        debugPrint(
+          'Token does not have JWT format (expected 3 parts, got ${parts.length})',
+        );
         return false;
       }
 
       // Try to decode to check if it's valid
       try {
         final decoded = JwtDecoder.decode(jwtToken);
-        debugPrint('Token decoded successfully. Claims: ${decoded.keys.join(", ")}');
+        debugPrint(
+          'Token decoded successfully. Claims: ${decoded.keys.join(", ")}',
+        );
       } catch (decodeError) {
         debugPrint('Token decode failed: $decodeError');
         return false;
@@ -184,25 +212,89 @@ class TokenAuthService {
       return true;
     } catch (e) {
       debugPrint('Error validating token structure: $e');
-      debugPrint('Token value (first 50 chars): ${jwtToken.length > 50 ? jwtToken.substring(0, 50) : jwtToken}...');
+      debugPrint(
+        'Token value (first 50 chars): ${jwtToken.length > 50 ? jwtToken.substring(0, 50) : jwtToken}...',
+      );
       return false;
     }
   }
 
   /// Decode JWT token to extract user information
   /// Note: Token should be decrypted before calling this method
+  ///
+  /// Expected JWT payload structure (from Khonobuzz):
+  /// {
+  ///   "user_id": "firebase_user_id",
+  ///   "email": "user@example.com",
+  ///   "module_role": "PDH - Employee" or "PDH - Manager",
+  ///   "exp": 1234567890,  // Expiration timestamp
+  ///   "iat": 1234567890   // Issued at timestamp
+  /// }
   Map<String, dynamic>? decodeToken(String jwtToken) {
     try {
-      return JwtDecoder.decode(jwtToken);
+      // Check expiration first
+      if (JwtDecoder.isExpired(jwtToken)) {
+        debugPrint('JWT token is expired');
+        return null;
+      }
+
+      // Decode the JWT (without signature verification for now)
+      // Note: jwt_decoder doesn't verify signatures, but we check expiration
+      final decoded = JwtDecoder.decode(jwtToken);
+
+      // Validate required fields
+      if (!decoded.containsKey('email') && !decoded.containsKey('user_id')) {
+        debugPrint('JWT token missing required fields (email or user_id)');
+        return null;
+      }
+
+      debugPrint(
+        'JWT decoded successfully. Fields: ${decoded.keys.join(", ")}',
+      );
+      return decoded;
     } catch (e) {
       debugPrint('Error decoding JWT token: $e');
       return null;
     }
   }
 
+  /// Extract user information from decoded JWT payload
+  /// Matches the Khonobuzz JWT payload structure
+  Map<String, dynamic>? extractUserInfo(Map<String, dynamic> decodedToken) {
+    try {
+      final userId = decodedToken['user_id'] as String?;
+      final email = decodedToken['email'] as String?;
+      final moduleRole = decodedToken['module_role'] as String?;
+      final exp = decodedToken['exp'] as int?;
+      final iat = decodedToken['iat'] as int?;
+
+      if (email == null && userId == null) {
+        debugPrint('JWT token missing both email and user_id');
+        return null;
+      }
+
+      return {
+        'userId': userId,
+        'email': email,
+        'moduleRole': moduleRole,
+        'expiresAt': exp != null
+            ? DateTime.fromMillisecondsSinceEpoch(exp * 1000)
+            : null,
+        'issuedAt': iat != null
+            ? DateTime.fromMillisecondsSinceEpoch(iat * 1000)
+            : null,
+      };
+    } catch (e) {
+      debugPrint('Error extracting user info from JWT: $e');
+      return null;
+    }
+  }
+
   /// Process encrypted token: decrypt and decode
   /// Handles the full flow: Base64 decode -> Fernet decrypt -> JWT decode
-  Future<Map<String, dynamic>?> processEncryptedToken(String encryptedToken) async {
+  Future<Map<String, dynamic>?> processEncryptedToken(
+    String encryptedToken,
+  ) async {
     try {
       // Step 1: Decrypt the token
       final decryptedJwt = await decryptToken(encryptedToken);
@@ -234,7 +326,7 @@ class TokenAuthService {
     try {
       // First, try to query by token directly (most reliable)
       QuerySnapshot querySnapshot;
-      
+
       try {
         querySnapshot = await FirebaseFirestore.instance
             .collection('onboarding')
@@ -245,22 +337,24 @@ class TokenAuthService {
         if (querySnapshot.docs.isNotEmpty) {
           final doc = querySnapshot.docs.first;
           final data = doc.data() as Map<String, dynamic>?;
-          
+
           if (data == null) {
             debugPrint('Onboarding document has no data');
             return null;
           }
-          
+
           // Get email and moduleAccessRole from the document
           final docEmail = data['email'] as String?;
           final moduleAccessRole = data['moduleAccessRole'] as String?;
-          
+
           if (moduleAccessRole == null) {
             debugPrint('No moduleAccessRole found in onboarding document');
             return null;
           }
 
-          debugPrint('Token validated successfully by querying onboarding collection directly');
+          debugPrint(
+            'Token validated successfully by querying onboarding collection directly',
+          );
           return {
             'email': docEmail ?? email ?? '',
             'moduleAccessRole': moduleAccessRole,
@@ -308,7 +402,9 @@ class TokenAuthService {
             return null;
           }
 
-          debugPrint('Token validated successfully by querying onboarding collection by email');
+          debugPrint(
+            'Token validated successfully by querying onboarding collection by email',
+          );
           return {
             'email': email,
             'moduleAccessRole': moduleAccessRole,
@@ -320,7 +416,9 @@ class TokenAuthService {
         }
       }
 
-      debugPrint('Token validation failed - token not found in onboarding collection');
+      debugPrint(
+        'Token validation failed - token not found in onboarding collection',
+      );
       return null;
     } catch (e) {
       debugPrint('Error validating token with onboarding: $e');
@@ -328,13 +426,98 @@ class TokenAuthService {
     }
   }
 
+  /// Extract module role from JWT token or onboarding data
+  /// Handles both 'module_role' (from JWT) and 'moduleAccessRole' (from database)
+  /// Also handles comma-separated roles and extracts the PDH role
+  String? extractModuleRole(
+    Map<String, dynamic>? jwtToken,
+    Map<String, dynamic>? onboardingData,
+  ) {
+    // First try JWT token (module_role)
+    if (jwtToken != null) {
+      final moduleRole = jwtToken['module_role'] as String?;
+      if (moduleRole != null && moduleRole.isNotEmpty) {
+        // Extract PDH role from comma-separated list if needed
+        final pdhRole = _extractPdhRole(moduleRole);
+        if (pdhRole != null) {
+          debugPrint(
+            'Module role found in JWT token: $pdhRole (extracted from: $moduleRole)',
+          );
+          return pdhRole;
+        }
+      }
+    }
+
+    // Fallback to onboarding collection (moduleAccessRole)
+    if (onboardingData != null) {
+      final moduleAccessRole = onboardingData['moduleAccessRole'] as String?;
+      if (moduleAccessRole != null && moduleAccessRole.isNotEmpty) {
+        // Extract PDH role from comma-separated list if needed
+        final pdhRole = _extractPdhRole(moduleAccessRole);
+        if (pdhRole != null) {
+          debugPrint(
+            'Module role found in onboarding data: $pdhRole (extracted from: $moduleAccessRole)',
+          );
+          return pdhRole;
+        }
+      }
+    }
+
+    debugPrint('No module role found in JWT token or onboarding data');
+    return null;
+  }
+
+  /// Extract PDH role from a comma-separated list of roles
+  /// Looks for "PDH - Employee" or "PDH - Manager" in the string
+  String? _extractPdhRole(String rolesString) {
+    if (rolesString.isEmpty) return null;
+
+    // Split by comma and trim each role
+    final roles = rolesString.split(',').map((r) => r.trim()).toList();
+
+    // Look for PDH roles
+    for (final role in roles) {
+      if (role.contains('PDH')) {
+        // Extract the full PDH role (e.g., "PDH - Employee" or "PDH - Manager")
+        if (role.contains('PDH - Employee') || role.contains('PDH-Employee')) {
+          return 'PDH - Employee';
+        } else if (role.contains('PDH - Manager') ||
+            role.contains('PDH-Manager')) {
+          return 'PDH - Manager';
+        } else if (role.contains('PDH')) {
+          // If it just says "PDH", try to determine from context
+          // Check if it's followed by Employee or Manager
+          final lowerRole = role.toLowerCase();
+          if (lowerRole.contains('employee')) {
+            return 'PDH - Employee';
+          } else if (lowerRole.contains('manager')) {
+            return 'PDH - Manager';
+          }
+        }
+      }
+    }
+
+    // If no PDH role found, return the original string (for backward compatibility)
+    return rolesString;
+  }
+
   /// Map moduleAccessRole to internal role
-  String? mapModuleAccessRoleToRole(String moduleAccessRole) {
-    if (moduleAccessRole == 'PDH - Employee') {
+  /// Handles both database field (moduleAccessRole) and JWT field (module_role)
+  String? mapModuleAccessRoleToRole(String? moduleAccessRole) {
+    if (moduleAccessRole == null || moduleAccessRole.isEmpty) {
+      return null;
+    }
+
+    // Normalize the role string (trim whitespace, handle variations)
+    final normalized = moduleAccessRole.trim();
+
+    if (normalized == 'PDH - Employee' || normalized == 'PDH-Employee') {
       return 'employee';
-    } else if (moduleAccessRole == 'PDH - Manager') {
+    } else if (normalized == 'PDH - Manager' || normalized == 'PDH-Manager') {
       return 'manager';
     }
+
+    debugPrint('Unknown moduleAccessRole: $moduleAccessRole');
     return null;
   }
 
@@ -354,21 +537,21 @@ class TokenAuthService {
       }
 
       // Extract email from token (adjust field name based on your JWT structure)
-      final email = decodedToken['email'] as String? ??
+      final email =
+          decodedToken['email'] as String? ??
           decodedToken['sub'] as String? ??
           decodedToken['user_email'] as String?;
-      
+
       if (email == null || email.isEmpty) {
         return {'success': false, 'error': 'Email not found in token'};
       }
 
       // Step 3: Validate token with onboarding collection
-      final onboardingData =
-          await validateTokenWithOnboarding(token, email);
+      final onboardingData = await validateTokenWithOnboarding(token, email);
       if (onboardingData == null) {
         return {
           'success': false,
-          'error': 'Token validation failed or user not found in onboarding'
+          'error': 'Token validation failed or user not found in onboarding',
         };
       }
 
@@ -378,7 +561,7 @@ class TokenAuthService {
       if (role == null) {
         return {
           'success': false,
-          'error': 'Invalid moduleAccessRole: $moduleAccessRole'
+          'error': 'Invalid moduleAccessRole: $moduleAccessRole',
         };
       }
 
@@ -388,10 +571,11 @@ class TokenAuthService {
       // This method is kept for backward compatibility but should use
       // BackendAuthService.instance.signInWithCustomToken() instead
       UserCredential? userCredential;
-      
+
       // Try to use backend service to get custom token
       try {
-        userCredential = await BackendAuthService.instance.signInWithCustomToken(token);
+        userCredential = await BackendAuthService.instance
+            .signInWithCustomToken(token);
         if (userCredential == null) {
           debugPrint('Backend service not available for custom token creation');
         }
@@ -441,7 +625,8 @@ class TokenAuthService {
         return {'success': false, 'error': 'Failed to decode token'};
       }
 
-      final email = decodedToken['email'] as String? ??
+      final email =
+          decodedToken['email'] as String? ??
           decodedToken['sub'] as String? ??
           decodedToken['user_email'] as String?;
 
@@ -452,15 +637,12 @@ class TokenAuthService {
       // Validate with onboarding
       final onboardingData = await validateTokenWithOnboarding(token, email);
       if (onboardingData == null) {
-        return {
-          'success': false,
-          'error': 'Token validation failed'
-        };
+        return {'success': false, 'error': 'Token validation failed'};
       }
 
       // Get current user or find by email
       User? user = FirebaseAuth.instance.currentUser;
-      
+
       // If no current user, try to find user by email
       if (user == null) {
         // Note: Firebase Auth doesn't provide a direct way to get user by email
@@ -478,7 +660,7 @@ class TokenAuthService {
       if (role == null) {
         return {
           'success': false,
-          'error': 'Invalid moduleAccessRole: $moduleAccessRole'
+          'error': 'Invalid moduleAccessRole: $moduleAccessRole',
         };
       }
 
@@ -503,4 +685,3 @@ class TokenAuthService {
     }
   }
 }
-

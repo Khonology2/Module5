@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment variables (contains sensitive keys)
+.env
+.env.local
+.env.*.local
+
+# Keep example and scripts
+!.env.example
+!scripts/

@@ -39,6 +39,7 @@ dependencies:
   jwt_decoder: ^2.0.1 # For JWT token decoding
   encrypt: ^5.0.3 # For Fernet encryption/decryption
   crypto: ^3.0.6 # For cryptographic operations (already included via other packages)
+  flutter_dotenv: ^5.1.0 # For loading environment variables from .env file
 
 dev_dependencies:
   flutter_test:
@@ -48,6 +49,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - .env
     - assets/
     - assets/Account_User_Profile/
     - assets/1.Audio_Sound.png

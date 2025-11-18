@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
@@ -61,6 +62,27 @@ final ValueNotifier<String?> speechRecognitionStatusNotifier =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables from .env file
+  try {
+    if (kIsWeb) {
+      // For web, load from assets (flutter_dotenv automatically looks in assets)
+      await dotenv.load(fileName: ".env");
+      debugPrint('Environment variables loaded successfully from assets');
+    } else {
+      // For mobile/desktop, load from file system
+      await dotenv.load(fileName: ".env");
+      debugPrint('Environment variables loaded successfully from file system');
+    }
+  } catch (e) {
+    debugPrint('Warning: Could not load .env file: $e');
+    debugPrint('Token decryption may not work without ENCRYPTION_KEY');
+    debugPrint(
+      'App will fall back to database validation for token authentication',
+    );
+    // Don't fail the app - it can still work with database validation
+  }
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
