@@ -23,7 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   late final TextEditingController _resetEmailController;
 
-  bool _isLoading = false;
+  // Removed unused _isLoading field
   UserSettings? _currentSettings;
 
   @override
@@ -80,21 +80,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: StreamBuilder<UserSettings?>(
             stream: SettingsService.getUserSettingsStream(),
             builder: (context, settingsSnapshot) {
-              if (settingsSnapshot.connectionState == ConnectionState.waiting) {
+              // Prefer last known settings to avoid full-screen flicker while waiting
+              if (settingsSnapshot.hasError) {
+                return _buildErrorState(settingsSnapshot.error.toString());
+              }
+
+              final streamed = settingsSnapshot.data;
+              final settings = streamed ?? _currentSettings;
+              if (streamed != null && _currentSettings != streamed && mounted) {
+                _currentSettings = streamed;
+              }
+
+              if (settings == null) {
                 return const Center(
                   child: CircularProgressIndicator(
                     color: AppColors.activeColor,
                   ),
                 );
-              }
-
-              if (settingsSnapshot.hasError) {
-                return _buildErrorState(settingsSnapshot.error.toString());
-              }
-
-              final settings = settingsSnapshot.data;
-              if (settings != null && _currentSettings != settings && mounted) {
-                _currentSettings = settings;
               }
 
               return StreamBuilder<String?>(
@@ -190,6 +192,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'Settings & Privacy',
+          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
@@ -444,12 +451,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Language',
           value: settings.language,
           items: const [
-            DropdownMenuItem(value: 'en', child: Text('English')),
-            DropdownMenuItem(value: 'es', child: Text('Spanish')),
-            DropdownMenuItem(value: 'fr', child: Text('French')),
-            DropdownMenuItem(value: 'de', child: Text('German')),
+            DropdownMenuItem<String>(value: 'en', child: Text('English')),
+            DropdownMenuItem<String>(value: 'es', child: Text('Spanish')),
+            DropdownMenuItem<String>(value: 'fr', child: Text('French')),
+            DropdownMenuItem<String>(value: 'de', child: Text('German')),
           ],
-          onChanged: (value) => _updateSetting('language', value),
+          onChanged: (value) {
+            if (value != null) {
+              _updateSetting('language', value);
+            }
+          },
         ),
       ],
     );
@@ -750,13 +761,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Timeout Duration',
             value: settings.sessionTimeoutMinutes.toString(),
             items: const [
-              DropdownMenuItem(value: '15', child: Text('15 minutes')),
-              DropdownMenuItem(value: '30', child: Text('30 minutes')),
-              DropdownMenuItem(value: '60', child: Text('1 hour')),
-              DropdownMenuItem(value: '120', child: Text('2 hours')),
+              DropdownMenuItem<String>(value: '15', child: Text('15 minutes')),
+              DropdownMenuItem<String>(value: '30', child: Text('30 minutes')),
+              DropdownMenuItem<String>(value: '60', child: Text('1 hour')),
+              DropdownMenuItem<String>(value: '120', child: Text('2 hours')),
             ],
-            onChanged: (value) =>
-                _updateSetting('sessionTimeoutMinutes', int.parse(value!)),
+            onChanged: (value) {
+              if (value != null) {
+                _updateSetting('sessionTimeoutMinutes', int.parse(value));
+              }
+            },
           ),
         ],
       ],
@@ -902,36 +916,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          Stack(
-            children: [
-              Switch(
-                value: value,
-                onChanged: _isLoading ? null : onChanged,
-                activeThumbColor: AppColors.activeColor,
-                activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
-                inactiveThumbColor: AppColors.textMuted,
-                inactiveTrackColor: AppColors.textMuted.withValues(alpha: 0.3),
-              ),
-              if (_isLoading)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.activeColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: AppColors.activeColor,
+            activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
+            inactiveThumbColor: AppColors.textMuted,
+            inactiveTrackColor: AppColors.textMuted.withValues(alpha: 0.3),
           ),
         ],
       ),
@@ -942,7 +933,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String value,
     required List<DropdownMenuItem<String>> items,
-    required Function(String?) onChanged,
+    required ValueChanged<String?> onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -958,30 +949,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: value,
-            items: items,
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.black.withValues(alpha: 0.4),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.2),
+          Builder(
+            builder: (context) {
+              final values = items
+                  .map((e) => e.value)
+                  .whereType<String>()
+                  .toList();
+              final safeValue = values.contains(value)
+                  ? value
+                  : (values.isNotEmpty ? values.first : null);
+              return DropdownButtonFormField<String>(
+                initialValue: safeValue,
+                items: items,
+                onChanged: onChanged,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.black.withValues(alpha: 0.4),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.activeColor),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                 ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.activeColor),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            dropdownColor: Colors.black.withValues(alpha: 0.9),
-            style: TextStyle(color: AppColors.textPrimary),
+                dropdownColor: Colors.black.withValues(alpha: 0.9),
+                style: TextStyle(color: AppColors.textPrimary),
+              );
+            },
           ),
         ],
       ),
@@ -991,34 +993,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Action methods
 
   Future<void> _updateSetting(String key, dynamic value) async {
-    setState(() => _isLoading = true);
     try {
       await SettingsService.updateSetting(key, value);
-
       // Show success messages for important settings changes
       if (mounted) {
-        String message = _getSuccessMessage(key, value);
+        final message = _getSuccessMessage(key, value);
         if (message.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: AppColors.successColor,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showCenterOverlay(message);
+            }
+          });
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating ${_getSettingName(key)}: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showCenterOverlay('Error updating ${_getSettingName(key)}: $e');
+          }
+        });
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // no-op, already handled above to prevent double setState around dialogs
     }
   }
 
@@ -1107,30 +1104,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final emailText = _resetEmailController.text;
     if (emailText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email address')),
-      );
+      await _showCenterNotice(context, 'Please enter your email address');
       return;
     }
 
     try {
       await SettingsService.resetPassword(emailText);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Password reset email sent to $emailText'),
-            backgroundColor: AppColors.successColor,
-          ),
+        await _showCenterNotice(
+          context,
+          'Password reset email sent to $emailText',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error sending password reset: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error sending password reset: $e');
       }
     }
   }
@@ -1164,22 +1152,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _exportTeamData() async {
     // Placeholder for team data export
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Team data export feature coming soon!')),
-    );
+    await _showCenterNotice(context, 'Team data export feature coming soon!');
   }
 
   Future<void> _viewTeamAnalytics() async {
     // Placeholder for team analytics
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Team analytics feature coming soon!')),
-    );
+    await _showCenterNotice(context, 'Team analytics feature coming soon!');
   }
 
   // Dialog helpers
+  Future<void> _showCenterOverlay(
+    String message, {
+    Duration autoClose = const Duration(milliseconds: 1600),
+  }) async {
+    if (!mounted) return;
+    final overlayState = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (ctx) {
+        return IgnorePointer(
+          ignoring: true,
+          child: Center(
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 260, maxWidth: 420),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textPrimary),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    overlayState.insert(entry);
+    await Future.delayed(autoClose);
+    if (mounted) {
+      entry.remove();
+    }
+  }
+
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
+      barrierColor: Colors.black54,
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: AppColors.cardBackground,
