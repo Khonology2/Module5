@@ -6,7 +6,6 @@ import 'dart:developer' as developer;
 // Web-only API for downloads (Flutter Web)
 import 'dart:html' as html;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:pdh/models/repository_goal.dart';
@@ -25,33 +24,23 @@ class RepositoryExportService {
   }
 
   // -------------------- Manager Verified Audit Entries Export --------------------
-  static Future<String?> _getManagerDepartment() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return null;
-      final doc = await _firestore.collection('users').doc(uid).get();
-      return (doc.data() ?? const {})['department'] as String?;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> _fetchVerifiedAuditEntriesForDept({
+  static Future<List<Map<String, dynamic>>> _fetchVerifiedAuditEntries({
     String? department,
     String? search,
     String? monthFilter, // YYYY-MM
     double? minScore,
     int limit = 1000,
   }) async {
-    final dept = department ?? await _getManagerDepartment();
-    if (dept == null || dept.isEmpty) return [];
+    Query query = _firestore.collection('audit_entries').where(
+          'status',
+          isEqualTo: 'verified',
+        );
 
-    Query query = _firestore
-        .collection('audit_entries')
-        .where('userDepartment', isEqualTo: dept)
-        .where('status', isEqualTo: 'verified')
-        .orderBy('submittedDate', descending: true)
-        .limit(limit);
+    if (department != null && department.isNotEmpty) {
+      query = query.where('userDepartment', isEqualTo: department);
+    }
+
+    query = query.orderBy('submittedDate', descending: true).limit(limit);
 
     final snap = await query.get();
     var items = snap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
@@ -99,7 +88,7 @@ class RepositoryExportService {
     double? minScore,
   }) async {
     try {
-      final items = await _fetchVerifiedAuditEntriesForDept(
+      final items = await _fetchVerifiedAuditEntries(
         department: department,
         search: search,
         monthFilter: monthFilter,
@@ -168,7 +157,7 @@ class RepositoryExportService {
     double? minScore,
   }) async {
     try {
-      final items = await _fetchVerifiedAuditEntriesForDept(
+      final items = await _fetchVerifiedAuditEntries(
         department: department,
         search: search,
         monthFilter: monthFilter,

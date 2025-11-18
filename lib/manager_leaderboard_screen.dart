@@ -1,9 +1,6 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/role_service.dart';
 
@@ -19,7 +16,6 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 }
 
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
-  UserProfile? _manager;
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastTeam = const [];
 
@@ -27,7 +23,6 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    _loadManagerProfile();
   }
 
   
@@ -79,33 +74,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
   }
 
-  Future<void> _loadManagerProfile() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      setState(() {
-        _manager = UserProfile.fromFirestore(doc);
-      });
-    } catch (e) {
-      developer.log('Error loading manager profile: $e');
-    }
-  }
-
   // Removed unused legacy query function to avoid linter warning
 
   @override
   Widget build(BuildContext context) {
-    final String? dept = (_manager == null || _manager!.department.isEmpty)
-        ? null
-        : _manager!.department;
-
     final content = StreamBuilder<List<EmployeeData>>(
       stream: ManagerRealtimeService.getTeamDataStream(
-        department: dept,
+        department: null,
         timeFilter: TimeFilter.month,
       ),
       builder: (context, snapshot) {
@@ -170,7 +145,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
         if (team.isEmpty) {
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
               _buildHeaderWithFilters(),
               const SizedBox(height: 16),
@@ -184,7 +159,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         final rest = team.skip(3).toList();
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           children: [
             _buildHeaderWithFilters(),
             const SizedBox(height: 16),
@@ -204,7 +179,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.backgroundColor,
-        title: const Text('Manager Leaderboard'),
+        title: Text(
+          'Manager Leaderboard',
+          style: AppTypography.heading2.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        centerTitle: false,
       ),
       body: content,
     );
@@ -241,13 +222,11 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Text(
             'Top Team Performers',
-            style: TextStyle(
+            style: AppTypography.heading2.copyWith(
               color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
             ),
           ),
         ),

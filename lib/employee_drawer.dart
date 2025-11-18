@@ -44,14 +44,14 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.person_outline,
-            text: 'Profile.',
+            text: 'Goal Workspace',
             route: '/my_pdp',
             isSelected: currentRoute == '/my_pdp',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.track_changes,
-            text: 'Goal Workspace',
+            text: 'MyPdp',
             route: '/my_goal_workspace',
             isSelected: currentRoute == '/my_goal_workspace',
           ),
