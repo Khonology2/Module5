@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: pdh-flutter-web
+    env: static
+    buildCommand: |
+      if [ ! -d "flutter" ]; then
+        git clone https://github.com/flutter/flutter.git -b stable --depth 1
+      else
+        cd flutter && git pull && cd ..
+      fi
+      export PATH="$PATH:`pwd`/flutter/bin"
+      flutter doctor
+      flutter pub get
+      flutter build web --release --base-href /
+    staticPublishPath: build/web
+    # Note: For static sites, no start command is needed
+    # Render automatically serves static files
+

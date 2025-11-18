@@ -308,12 +308,12 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ),
                               ),
                               if (_emailLinkSent) ...[
-                                const SizedBox(height: 20),
+                              const SizedBox(height: 20),
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     color: Colors.green.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: Colors.green.withOpacity(0.5),
                                     ),
@@ -328,11 +328,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       Expanded(
                                         child: Text(
                                           'Sign-in link sent to ${_emailController.text}. Please check your email and click the link to sign in.',
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                    style: const TextStyle(
+                                      color: Colors.white,
                                             fontSize: 14,
-                                            fontFamily: 'Poppins',
-                                          ),
+                                      fontFamily: 'Poppins',
+                                    ),
                                         ),
                                       ),
                                     ],
@@ -397,20 +397,20 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                       emailLink: uri.toString(),
                                                     );
                                                     
-                                                    final user = cred.user;
-                                                    if (user != null) {
-                                                      await FirebaseFirestore.instance
-                                                          .collection('users')
-                                                          .doc(user.uid)
-                                                          .set({
+                                              final user = cred.user;
+                                              if (user != null) {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .set({
                                                             'lastLoginAt': FieldValue.serverTimestamp(),
-                                                          }, SetOptions(merge: true));
+                                                    }, SetOptions(merge: true));
                                                       
                                                       if (!mounted) return;
                                                       await _handlePostLoginNavigation(context);
                                                     }
                                                   } catch (e) {
-                                                    if (!mounted) return;
+                                              if (!mounted) return;
                                                     await _showCenterNotice(
                                                       'Error signing in with email link: ${e.toString()}',
                                                     );
@@ -442,9 +442,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               await _showCenterNotice(
                                                 'An unexpected error occurred: ${e.toString()}',
                                               );
-                                              setState(() {
-                                                _isSigningIn = false;
-                                              });
+                                                setState(() {
+                                                  _isSigningIn = false;
+                                                });
                                             }
                                           }
                                         },

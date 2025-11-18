@@ -343,23 +343,52 @@ class TokenAuthService {
             return null;
           }
 
-          // Get email and moduleAccessRole from the document
-          final docEmail = data['email'] as String?;
+          // Get fields from onboarding document based on actual collection structure
+          // Fields: email, moduleAccessRole, status, user_id, token, etc.
+          final docEmail = (data['email'] as String?)?.trim();
           final moduleAccessRole = data['moduleAccessRole'] as String?;
+          final status = data['status'] as String?;
+          final userId = data['user_id'] as String?;
 
           if (moduleAccessRole == null) {
             debugPrint('No moduleAccessRole found in onboarding document');
             return null;
           }
 
+          // Check if user status is Active (required for login)
+          if (status != null && status != 'Active') {
+            debugPrint(
+              'User status is not Active: $status. Cannot proceed with login.',
+            );
+            return null;
+          }
+
           debugPrint(
             'Token validated successfully by querying onboarding collection directly',
           );
+
+          // Get the best available email - prioritize document email
+          final finalEmail = (docEmail != null && docEmail.isNotEmpty)
+              ? docEmail
+              : ((email != null && email.isNotEmpty) ? email : null);
+
+          debugPrint(
+            'Onboarding validation - Email from doc: $docEmail, Email from param: $email, Final email: $finalEmail',
+          );
+          debugPrint(
+            'Onboarding validation - Status: $status, User ID: $userId',
+          );
+          debugPrint('Onboarding document fields: ${data.keys.join(", ")}');
+
+          // Return all relevant data from onboarding collection
           return {
-            'email': docEmail ?? email ?? '',
+            'email': finalEmail ?? '',
             'moduleAccessRole': moduleAccessRole,
             'token': token,
             'onboardingDocId': doc.id,
+            'status': status,
+            'userId': userId,
+            'user_id': userId, // Include both for compatibility
           };
         }
       } catch (e) {

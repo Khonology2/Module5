@@ -231,13 +231,45 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
 
-      // Get email from onboarding data if we didn't get it from token
+      // Get email from onboarding data - this is the primary source after validation
+      // The onboarding collection has: email, moduleAccessRole, status, user_id, etc.
       final onboardingEmail = onboardingData['email'] as String?;
       if (onboardingEmail != null && onboardingEmail.isNotEmpty) {
-        email = onboardingEmail;
+        email = onboardingEmail.trim();
         debugPrint(
           'Landing screen: Email retrieved from onboarding collection: $email',
         );
+      } else {
+        debugPrint('Landing screen: Email not found in onboarding data');
+        debugPrint(
+          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
+        );
+        debugPrint('Landing screen: Email value: ${onboardingData['email']}');
+        debugPrint(
+          'Landing screen: Email type: ${onboardingData['email'].runtimeType}',
+        );
+      }
+
+      // Check user status - must be Active
+      final status = onboardingData['status'] as String?;
+      if (status != null && status != 'Active') {
+        debugPrint(
+          'Landing screen: User status is $status, not Active. Cannot proceed with login.',
+        );
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
+      // Get user_id if available
+      final userId =
+          onboardingData['user_id'] as String? ??
+          onboardingData['userId'] as String?;
+      if (userId != null) {
+        debugPrint('Landing screen: User ID from onboarding: $userId');
       }
 
       // Extract module role from JWT token or onboarding data
@@ -265,6 +297,15 @@ class _PersonalDevelopmentHubScreenState
       // Ensure we have email for user creation
       if (email == null || email.isEmpty) {
         debugPrint('Landing screen: Cannot proceed without email');
+        debugPrint(
+          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
+        );
+        debugPrint(
+          'Landing screen: Onboarding data email value: ${onboardingData['email']}',
+        );
+        debugPrint(
+          'Landing screen: Onboarding data email type: ${onboardingData['email'].runtimeType}',
+        );
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -272,6 +313,8 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
+
+      debugPrint('Landing screen: Email confirmed: $email');
 
       // Step 5: Map moduleAccessRole to internal role
       final role = TokenAuthService.instance.mapModuleAccessRoleToRole(
