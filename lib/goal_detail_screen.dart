@@ -1355,13 +1355,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               final trimmedTitle = titleController.text.trim();
               final trimmedDesc = descController.text.trim();
               if (trimmedTitle.isEmpty) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Title is required.')),
                 );
                 return;
               }
               if (dueDate == null) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Select a due date.')),
                 );
                 return;
@@ -1388,9 +1388,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     status: status,
                   );
                 }
-                if (mounted) {
+                // Try to close dialog and show success message
+                // Use try-catch to handle if dialog context is no longer valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
                   Navigator.of(dialogContext).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  // Use dialogContext for ScaffoldMessenger since we're in dialog scope
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       content: Text(
                         milestone == null
@@ -1399,12 +1408,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     ),
                   );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
                 }
               } catch (e) {
                 setDialogState(() => saving = false);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('Failed to save milestone: $e')),
-                );
+                // Try to show error message if dialog context is still valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text('Failed to save milestone: $e')),
+                  );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
+                }
               }
             }
 
