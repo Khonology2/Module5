@@ -20,6 +20,8 @@ class _TeamChallengesSeasonsScreenState
     extends State<TeamChallengesSeasonsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  String _themeFilter = 'All Themes';
+  bool _showPausedOnly = false;
 
   @override
   void initState() {
@@ -233,19 +235,30 @@ class _TeamChallengesSeasonsScreenState
                 final activeSeasons = seasons
                     .where((s) => s.status == SeasonStatus.active)
                     .toList();
+                final filteredSeasons =
+                    activeSeasons.where(_applyFilters).toList();
 
-                if (activeSeasons.isEmpty) {
+                if (filteredSeasons.isEmpty) {
                   return _buildEmptyActiveSeasonsState();
                 }
 
-                return ListView.builder(
-                  itemCount: activeSeasons.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildSeasonCard(activeSeasons[index]),
-                    );
-                  },
+                return Column(
+                  children: [
+                    _buildSeasonFilters(activeSeasons),
+                    const SizedBox(height: AppSpacing.sm),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filteredSeasons.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _buildSeasonCard(filteredSeasons[index]),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -494,6 +507,19 @@ class _TeamChallengesSeasonsScreenState
     final progress = season.metrics.totalChallenges > 0
         ? (season.metrics.completedChallenges / season.metrics.totalChallenges)
         : 0.0;
+    final bool isPaused = (season.settings['paused'] == true);
+    final lastActivityInfo = _getLastActivityInfo(season);
+    final avgParticipantProgress = season.participations.isNotEmpty
+        ? season.participations.values
+                .map(
+                  (p) => _calculateParticipantProgress(
+                    p,
+                    season,
+                  ),
+                )
+                .fold<double>(0.0, (sum, value) => sum + value) /
+            season.participations.length
+        : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -543,6 +569,24 @@ class _TeamChallengesSeasonsScreenState
                   ],
                 ),
               ),
+              if (isPaused)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.warningColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'PAUSED',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.warningColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppSpacing.sm,
@@ -572,6 +616,13 @@ class _TeamChallengesSeasonsScreenState
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          _buildManagerStatsRow(
+            season: season,
+            avgParticipantProgress: avgParticipantProgress,
+            lastActivityInfo: lastActivityInfo,
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -609,6 +660,9 @@ class _TeamChallengesSeasonsScreenState
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+
+          _buildManagerQuickActions(season, isPaused),
           const SizedBox(height: AppSpacing.md),
 
           // Metrics row
@@ -1028,6 +1082,292 @@ class _TeamChallengesSeasonsScreenState
         builder: (context) => SeasonCelebrationScreen(season: season),
       ),
     );
+  }
+
+  Widget _buildSeasonFilters(List<Season> seasons) {
+    final themes = <String>{'All Themes'}..addAll(seasons.map((s) => s.theme));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Wrap(
+        spacing: AppSpacing.md.toDouble(),
+        runSpacing: AppSpacing.sm.toDouble(),
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          DropdownButton<String>(
+            value: _themeFilter,
+            items: themes
+                .map(
+                  (theme) => DropdownMenuItem(
+                    value: theme,
+                    child: Text(theme),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _themeFilter = value;
+              });
+            },
+          ),
+          FilterChip(
+            selected: _showPausedOnly,
+            onSelected: (value) {
+              setState(() {
+                _showPausedOnly = value;
+              });
+            },
+            label: const Text('Paused only'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _applyFilters(Season season) {
+    if (_showPausedOnly && season.settings['paused'] != true) {
+      return false;
+    }
+    if (_themeFilter != 'All Themes' && season.theme != _themeFilter) {
+      return false;
+    }
+    return true;
+  }
+
+  Widget _buildManagerStatsRow({
+    required Season season,
+    required double avgParticipantProgress,
+    MapEntry<DateTime, String>? lastActivityInfo,
+  }) {
+    return Wrap(
+      spacing: AppSpacing.md.toDouble(),
+      runSpacing: AppSpacing.sm.toDouble(),
+      children: [
+        _buildManagerStatChip(
+          icon: Icons.emoji_events,
+          color: AppColors.activeColor,
+          title: 'Challenge Completions',
+          value:
+              '${season.metrics.completedChallenges}/${season.metrics.totalChallenges}',
+        ),
+        _buildManagerStatChip(
+          icon: Icons.track_changes,
+          color: AppColors.infoColor,
+          title: 'Avg Progress',
+          value: '${(avgParticipantProgress * 100).round()}%',
+        ),
+        _buildManagerStatChip(
+          icon: Icons.history,
+          color: AppColors.warningColor,
+          title: 'Last Activity',
+          value: lastActivityInfo != null
+              ? '${_formatRelativeTime(lastActivityInfo.key)} • ${lastActivityInfo.value}'
+              : 'No activity yet',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManagerStatChip({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: AppSpacing.xs),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                value,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManagerQuickActions(Season season, bool isPaused) {
+    return Wrap(
+      spacing: AppSpacing.md.toDouble(),
+      runSpacing: AppSpacing.sm.toDouble(),
+      children: [
+        OutlinedButton.icon(
+          onPressed: () => _handleTogglePause(season, !isPaused),
+          icon: Icon(isPaused ? Icons.play_arrow : Icons.pause),
+          label: Text(isPaused ? 'Resume' : 'Pause'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor:
+                isPaused ? AppColors.successColor : AppColors.warningColor,
+            side: BorderSide(
+              color: isPaused ? AppColors.successColor : AppColors.warningColor,
+            ),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _handleExtendSeason(season),
+          icon: const Icon(Icons.event),
+          label: const Text('Extend'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.activeColor,
+            side: BorderSide(color: AppColors.activeColor),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _viewSeasonCelebration(season),
+          icon: const Icon(Icons.celebration),
+          label: const Text('Celebrate'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.warningColor,
+            side: BorderSide(color: AppColors.warningColor),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _handleRecomputeMetrics(season),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Recompute'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.infoColor,
+            side: BorderSide(color: AppColors.infoColor),
+          ),
+        ),
+      ],
+    );
+  }
+
+  MapEntry<DateTime, String>? _getLastActivityInfo(Season season) {
+    MapEntry<DateTime, String>? latest;
+    season.participations.forEach((_, participation) {
+      final activity = participation.lastActivity ?? participation.joinedAt;
+      if (latest == null || activity.isAfter(latest!.key)) {
+        latest = MapEntry(activity, participation.userName);
+      }
+    });
+    return latest;
+  }
+
+  String _formatRelativeTime(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays >= 1) return '${diff.inDays}d ago';
+    if (diff.inHours >= 1) return '${diff.inHours}h ago';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
+    return 'Just now';
+  }
+
+  Future<void> _handleTogglePause(Season season, bool paused) async {
+    try {
+      await SeasonService.setSeasonPaused(season.id, paused);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(paused ? 'Season paused' : 'Season resumed'),
+            backgroundColor: paused
+                ? AppColors.warningColor
+                : AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update pause: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleExtendSeason(Season season) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: season.endDate.isAfter(DateTime.now())
+          ? season.endDate
+          : DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+    try {
+      await SeasonService.extendSeason(season.id, picked);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Season extended'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to extend season: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleRecomputeMetrics(Season season) async {
+    final navigator = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    try {
+      await SeasonService.recomputeSeasonMetrics(season.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Season metrics recomputed'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to recompute metrics: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    } finally {
+      navigator.pop();
+    }
   }
 }
 

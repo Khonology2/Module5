@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
@@ -645,9 +646,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             children: [
               Text(
                 'My Personal Development Plan',
-                style: AppTypography.heading2.copyWith(
-                  color: Colors.white,
-                ),
+                style: AppTypography.heading2.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 20),
               _buildExcellenceArea(
@@ -942,57 +941,62 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     )
                                   : null,
                             ),
-                            Builder(builder: (context) {
-                              bool isHovered = false;
-                              return StatefulBuilder(
-                                builder: (context, localSetState) => MouseRegion(
-                                  onEnter: (_) {
-                                    if (goal.evidence.isNotEmpty) {
-                                      localSetState(() {
-                                        isHovered = true;
-                                      });
-                                    }
-                                  },
-                                  onExit: (_) {
-                                    if (goal.evidence.isNotEmpty) {
-                                      localSetState(() {
-                                        isHovered = false;
-                                      });
-                                    }
-                                  },
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => goal.evidence.isNotEmpty
-                                        ? _showChangeEvidenceDialog(context, goal)
-                                        : _attachEvidence(context, goal),
-                                    icon: Icon(
-                                      goal.evidence.isNotEmpty
-                                          ? Icons.check_circle
-                                          : Icons.attach_file,
-                                      size: 18,
-                                    ),
-                                    label: Text(
-                                      goal.evidence.isNotEmpty
-                                          ? (isHovered
-                                              ? 'Change evidence'
-                                              : 'Evidence submitted')
-                                          : 'Attach evidence',
-                                    ),
-                                    style: goal.evidence.isNotEmpty
-                                        ? OutlinedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.green.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            foregroundColor: Colors.green,
-                                            side: const BorderSide(
-                                              color: Colors.green,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                              );
-                            }),
+                            Builder(
+                              builder: (context) {
+                                bool isHovered = false;
+                                return StatefulBuilder(
+                                  builder: (context, localSetState) =>
+                                      MouseRegion(
+                                        onEnter: (_) {
+                                          if (goal.evidence.isNotEmpty) {
+                                            localSetState(() {
+                                              isHovered = true;
+                                            });
+                                          }
+                                        },
+                                        onExit: (_) {
+                                          if (goal.evidence.isNotEmpty) {
+                                            localSetState(() {
+                                              isHovered = false;
+                                            });
+                                          }
+                                        },
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              goal.evidence.isNotEmpty
+                                              ? _showChangeEvidenceDialog(
+                                                  context,
+                                                  goal,
+                                                )
+                                              : _attachEvidence(context, goal),
+                                          icon: Icon(
+                                            goal.evidence.isNotEmpty
+                                                ? Icons.check_circle
+                                                : Icons.attach_file,
+                                            size: 18,
+                                          ),
+                                          label: Text(
+                                            goal.evidence.isNotEmpty
+                                                ? (isHovered
+                                                      ? 'Change evidence'
+                                                      : 'Evidence submitted')
+                                                : 'Attach evidence',
+                                          ),
+                                          style: goal.evidence.isNotEmpty
+                                              ? OutlinedButton.styleFrom(
+                                                  backgroundColor: Colors.green
+                                                      .withValues(alpha: 0.1),
+                                                  foregroundColor: Colors.green,
+                                                  side: const BorderSide(
+                                                    color: Colors.green,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                );
+                              },
+                            ),
                             StreamBuilder<List<AuditEntry>>(
                               stream:
                                   AuditService.getEmployeeAuditEntriesStream(),

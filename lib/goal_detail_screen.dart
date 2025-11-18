@@ -491,7 +491,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildActionButtons(),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildGoalMilestonesSection(),
+          _buildGoalMilestonesSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildMilestoneTracker(),
                 ],
@@ -1174,6 +1174,35 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildGoalMilestonesSection() {
+    if (_isSeasonGoal) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Season Challenge Milestones',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This goal is linked to a Season Challenge. Milestones are predefined by your manager. '
+              'Use the Season Challenges → My Seasons screen to update milestone progress.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final user = FirebaseAuth.instance.currentUser;
     final bool isOwner = user?.uid == currentGoal.userId;
     final bool isGoalCompleted = currentGoal.status == GoalStatus.completed;
