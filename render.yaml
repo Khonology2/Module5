@@ -2,47 +2,7 @@ services:
   - type: web
     name: pdh-flutter-web
     env: static
-    buildCommand: |
-      set -e
-      echo "Starting Flutter build process..."
-      
-      # Remove existing flutter directory if it exists (may be corrupted)
-      if [ -d "flutter" ]; then
-        echo "Removing existing flutter directory..."
-        rm -rf flutter
-      fi
-      
-      # Install Flutter SDK
-      echo "Installing Flutter SDK..."
-      git clone https://github.com/flutter/flutter.git -b stable --depth 1
-      
-      # Add Flutter to PATH and verify
-      export PATH="$PATH:$(pwd)/flutter/bin"
-      echo "Flutter path: $(which flutter)"
-      
-      # Verify Flutter is accessible
-      if ! command -v flutter &> /dev/null; then
-        echo "ERROR: Flutter command not found after installation"
-        exit 1
-      fi
-      
-      # Verify Flutter installation
-      echo "Running flutter doctor..."
-      flutter doctor -v || true
-      
-      # Accept Flutter licenses
-      echo "Accepting Flutter licenses..."
-      yes | flutter doctor --android-licenses || true
-      
-      # Get dependencies
-      echo "Getting Flutter dependencies..."
-      flutter pub get
-      
-      # Build web app
-      echo "Building Flutter web app..."
-      flutter build web --release --base-href /
-      
-      echo "Build completed successfully!"
+    buildCommand: rm -rf flutter && git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH="$PATH:$(pwd)/flutter/bin" && flutter doctor -v || true && flutter pub get && flutter build web --release --base-href /
     staticPublishPath: build/web
     # Note: For static sites, no start command is needed
     # Render automatically serves static files
