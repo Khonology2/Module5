@@ -34,6 +34,13 @@ class DatabaseService {
     return '${dt.year}W$w';
   }
 
+  static int _coerceInt(dynamic value, [int fallback = 0]) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value == null) return fallback;
+    return int.tryParse(value.toString()) ?? fallback;
+  }
+
   // Safely increment user points enforcing daily/weekly caps; returns awarded amount
   static Future<int> _incrementUserPointsCapped({
     required String userId,
@@ -486,6 +493,22 @@ class DatabaseService {
     DateTime? dueDate,
     GoalMilestoneStatus? status,
   }) async {
+    Map<String, dynamic>? goalData;
+    bool goalCompleted = false;
+    try {
+      final goalSnap =
+          await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      if (!goalSnap.exists) {
+        throw Exception('Goal not found');
+      }
+      goalData = goalSnap.data();
+      final String rawStatus =
+          (goalData?['status'] ?? GoalStatus.notStarted.name).toString();
+      goalCompleted = rawStatus == GoalStatus.completed.name;
+    } catch (e) {
+      throw Exception('Failed to load goal for milestone update: $e');
+    }
+
     final docRef = _goalMilestonesRef(goalId).doc(milestoneId);
     GoalMilestoneStatus? previousStatus;
     try {
@@ -494,6 +517,15 @@ class DatabaseService {
         previousStatus = GoalMilestone.fromFirestore(beforeSnap).status;
       }
     } catch (_) {}
+
+    if (goalCompleted &&
+        status != null &&
+        previousStatus == GoalMilestoneStatus.completed &&
+        status != GoalMilestoneStatus.completed) {
+      throw Exception(
+        'Completed goals cannot reopen completed milestones.',
+      );
+    }
 
     final Map<String, dynamic> updates = {
       'updatedAt': FieldValue.serverTimestamp(),
@@ -593,35 +625,44 @@ class DatabaseService {
   static Future<void> _syncGoalProgressWithMilestones(String goalId) async {
     try {
       final snapshot = await _goalMilestonesRef(goalId).get();
-      if (snapshot.docs.isEmpty) return;
       final total = snapshot.docs.length;
-      if (total == 0) return;
       final completed = snapshot.docs.where((doc) {
         final status = (doc.data()['status'] ?? '').toString();
         return status == GoalMilestoneStatus.completed.name;
       }).length;
 
-      final percent = ((completed / total) * 100).round();
-      final snapped = ((percent / 10).round() * 10).clamp(0, 100);
+      final int rawPercent =
+          total == 0 ? 0 : ((completed / total) * 100).round();
+      final int percent = rawPercent.clamp(0, 100);
+
+      final summary = <String, dynamic>{
+        'total': total,
+        'completed': completed,
+        'percentage': percent,
+      };
 
       final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
       final goalSnap = await goalRef.get();
       if (!goalSnap.exists) return;
       final data = goalSnap.data() as Map<String, dynamic>;
-      final progressRaw = data['progress'];
-      final current =
-          progressRaw is num ? progressRaw.round() : int.tryParse('$progressRaw') ?? 0;
-      if (snapped <= current) return;
-
-      final updates = <String, dynamic>{
-        'progress': snapped,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-      final currentStatus = (data['status'] ?? GoalStatus.notStarted.name).toString();
-      if (snapped > 0 && currentStatus == GoalStatus.notStarted.name) {
-        updates['status'] = GoalStatus.inProgress.name;
+      final current = data['milestoneSummary'];
+      bool alreadySynced = false;
+      if (current is Map<String, dynamic>) {
+        final totalMatch = _coerceInt(current['total']) == total;
+        final completedMatch = _coerceInt(current['completed']) == completed;
+        final percentMatch =
+            _coerceInt(current['percentage'] ?? current['percent']) == percent;
+        alreadySynced = totalMatch && completedMatch && percentMatch;
       }
-      await goalRef.update(updates);
+      if (alreadySynced) return;
+
+      await goalRef.set(
+        {
+          'milestoneSummary': summary,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     } catch (e) {
       developer.log('syncGoalProgressWithMilestones error: $e');
     }
@@ -636,56 +677,6 @@ class DatabaseService {
       'evidence': FieldValue.arrayUnion(evidence),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-
-    // After attaching evidence: if this is a non-season goal at >=90% and in progress, set to 100% and complete
-    try {
-      final doc = await goalRef.get();
-      final data = doc.data();
-      if (data != null) {
-        final bool isSeason = (data['isSeasonGoal'] == true);
-        if (!isSeason) {
-          final String status = (data['status'] ?? 'notStarted').toString();
-          final dynamic pRaw = data['progress'];
-          final int pNow = pRaw is int
-              ? pRaw
-              : (pRaw is num ? pRaw.round() : 0);
-          final String? userId = data['userId'] as String?;
-          if (status == GoalStatus.inProgress.name &&
-              pNow >= 90 &&
-              userId != null &&
-              userId.isNotEmpty) {
-            // Ensure 100% before completing
-            if (pNow < 100) {
-              await goalRef.update({'progress': 100});
-            }
-            await completeGoal(goalId, userId);
-            // Notify user: completion and points (UI expectation is +100)
-            try {
-              final goal = Goal.fromFirestore(doc);
-              await AlertService.createGoalAlert(
-                userId: userId,
-                goal: goal.copyWith(
-                  status: GoalStatus.completed,
-                  progress: 100,
-                ),
-                type: AlertType.goalCompleted,
-              );
-              await AlertService.createPointsAlert(
-                userId: userId,
-                pointsEarned: 100,
-                reason: 'completing "${goal.title}"',
-              );
-            } catch (e) {
-              developer.log('attachGoalEvidence completion alerts failed: $e');
-            }
-          }
-        }
-      }
-    } catch (e) {
-      developer.log(
-        'attachGoalEvidence post-update completion attempt failed: $e',
-      );
-    }
   }
 
   static Future<void> clearGoalEvidence({required String goalId}) async {
@@ -720,8 +711,6 @@ class DatabaseService {
     final goalRef = goals.doc(goalId);
     String? userId;
     bool evidenceExists = false;
-    int appliedProgress = snapped;
-    bool wasInProgress = false;
 
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -749,8 +738,6 @@ class DatabaseService {
           toApply = 90;
         }
         tx.update(goalRef, {'progress': toApply});
-        appliedProgress = toApply;
-        wasInProgress = (currentStatus == GoalStatus.inProgress.name);
 
         // Auto-transition: if progress > 0 and goal was not started, mark inProgress
         // For season goals, do NOT award regular user points on start
@@ -784,20 +771,6 @@ class DatabaseService {
       });
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
-    }
-
-    // If we successfully reached 100% with evidence on a non-season goal, auto-complete it
-    try {
-      if (!isSeason &&
-          evidenceExists &&
-          appliedProgress == 100 &&
-          userId != null &&
-          userId!.isNotEmpty &&
-          wasInProgress) {
-        await completeGoal(goalId, userId!);
-      }
-    } catch (e) {
-      developer.log('updateGoalProgress auto-complete failed: $e');
     }
 
     // Record daily activity for streak tracking when making progress
