@@ -43,7 +43,6 @@ import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal C
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
-import 'package:pdh/team_chats.dart' hide ChatMessage;
 import 'package:pdh/widgets/khonnect_chat_widget.dart'; // Import the chat modal helper
 import 'package:pdh/design_system/app_colors.dart';
 

@@ -161,6 +161,47 @@ class AlertService {
     await _createAlert(alert);
   }
 
+  static Future<void> createManagerMilestoneAlert({
+    required Goal goal,
+    required String milestoneTitle,
+  }) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(goal.userId).get();
+      final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
+      final dept = userDoc.data()?['department'] as String?;
+
+      Query mgrQuery =
+          _firestore.collection('users').where('role', isEqualTo: 'manager');
+      if (dept != null && dept.isNotEmpty) {
+        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
+      }
+      final mgrs = await mgrQuery.get();
+      if (mgrs.docs.isEmpty) return;
+
+      for (final mgr in mgrs.docs) {
+        await _firestore.collection('alerts').add({
+          'userId': mgr.id,
+          'type': AlertType.goalMilestoneCompleted.name,
+          'priority': AlertPriority.medium.name,
+          'title': 'Milestone Completed',
+          'message':
+              '$employeeName finished "$milestoneTitle" for goal "${goal.title}".',
+          'actionText': 'Review Goal',
+          'actionRoute': '/manager_portal',
+          'actionData': {'initialRoute': '/manager_review_team_dashboard'},
+          'relatedGoalId': goal.id,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'isDismissed': false,
+          'expiresAt':
+              Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+        });
+      }
+    } catch (e) {
+      developer.log('Error creating manager milestone alert: $e');
+    }
+  }
+
   static Future<void> createPointsAlert({
     required String userId,
     required int pointsEarned,
@@ -553,6 +594,7 @@ class AlertService {
         AlertType.seasonJoined,
         AlertType.seasonProgressUpdate,
         AlertType.seasonCompleted,
+        AlertType.goalMilestoneCompleted,
       };
 
       if (typeFilter != null) {

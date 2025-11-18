@@ -12,6 +12,7 @@ import 'package:pdh/services/repository_service.dart';
 import 'package:pdh/models/repository_goal.dart';
 import 'package:pdh/services/repository_export_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
@@ -109,15 +110,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Repository & Audit',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: AppTypography.heading2.copyWith(
                   color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 20),
@@ -467,10 +467,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             Expanded(
               child: Text(
                 'Completed Goals Archive',
-                style: TextStyle(
+                style: AppTypography.heading4.copyWith(
                   color: AppColors.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
@@ -721,141 +719,134 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       'rejected': 0,
     };
 
-    final stream = isManager
-        ? Stream.value(emptyStats).asyncExpand((_) {
-            return Stream.fromFuture(_getManagerDept()).asyncExpand((dept) {
-              if (dept == null || dept.isEmpty) {
-                return Stream.value(emptyStats);
+    if (isManager) {
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('audit_entries')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            developer.log(
+              'Error loading manager audit entries: ${snapshot.error}',
+              name: 'RepositoryAuditScreen',
+            );
+            return _buildStatsContainer(emptyStats, isManager: true);
+          }
+
+          final entries = <AuditEntry>[];
+          if (snapshot.hasData) {
+            for (final doc in snapshot.data!.docs) {
+              try {
+                entries.add(AuditEntry.fromFirestore(doc));
+              } catch (e) {
+                developer.log(
+                  'Error parsing audit entry ${doc.id}: $e',
+                );
               }
-              // Create a realtime stream from audit entries for the department
-              return FirebaseFirestore.instance
-                  .collection('audit_entries')
-                  .where('userDepartment', isEqualTo: dept)
-                  .snapshots()
-                  .map((snapshot) {
-                    final entries = <AuditEntry>[];
-                    for (final doc in snapshot.docs) {
-                      try {
-                        entries.add(AuditEntry.fromFirestore(doc));
-                      } catch (e) {
-                        developer.log(
-                          'Error parsing audit entry ${doc.id}: $e',
-                        );
-                      }
-                    }
+            }
+          }
 
-                    return <String, int>{
-                      'total': entries.length,
-                      'verified': entries
-                          .where((e) => e.status == 'verified')
-                          .length,
-                      'pending': entries
-                          .where((e) => e.status == 'pending')
-                          .length,
-                      'rejected': entries
-                          .where((e) => e.status == 'rejected')
-                          .length,
-                    };
-                  });
-            });
-          })
-        : Stream.value(emptyStats).asyncExpand((_) {
-            // Get all entries without status filter for accurate counts
-            return AuditService.getEmployeeAuditEntriesStream(
-                  status: null, // Get all statuses for accurate counts
-                )
-                .map((entries) {
-                  developer.log(
-                    'Employee summary: Total entries=${entries.length}, '
-                    'Pending=${entries.where((e) => e.status == 'pending').length}, '
-                    'Verified=${entries.where((e) => e.status == 'verified').length}, '
-                    'Rejected=${entries.where((e) => e.status == 'rejected').length}',
-                    name: 'RepositoryAuditScreen',
-                  );
-                  return <String, int>{
-                    'total': entries.length,
-                    'verified': entries
-                        .where((e) => e.status == 'verified')
-                        .length,
-                    'pending': entries
-                        .where((e) => e.status == 'pending')
-                        .length,
-                    'rejected': entries
-                        .where((e) => e.status == 'rejected')
-                        .length,
-                  };
-                })
-                .handleError((error, stackTrace) {
-                  developer.log(
-                    'Error in employee audit entries stream: $error',
-                    name: 'RepositoryAuditScreen',
-                    error: error,
-                    stackTrace: stackTrace,
-                  );
-                  return emptyStats;
-                });
-          });
+          final stats = <String, int>{
+            'total': entries.length,
+            'verified':
+                entries.where((e) => e.status == 'verified').length,
+            'pending':
+                entries.where((e) => e.status == 'pending').length,
+            'rejected':
+                entries.where((e) => e.status == 'rejected').length,
+          };
 
-    return StreamBuilder<Map<String, int>>(
-      stream: stream,
-      builder: (context, snapshot) {
-        final stats =
-            snapshot.data ?? {'verified': 0, 'pending': 0, 'rejected': 0};
+          return _buildStatsContainer(stats, isManager: true);
+        },
+      );
+    } else {
+      // For employees, use the existing service stream
+      return StreamBuilder<List<AuditEntry>>(
+        stream: AuditService.getEmployeeAuditEntriesStream(
+          status: null, // Get all statuses for accurate counts
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            developer.log(
+              'Error in employee audit entries stream: ${snapshot.error}',
+              name: 'RepositoryAuditScreen',
+            );
+            return _buildStatsContainer(emptyStats, isManager: false);
+          }
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          final entries = snapshot.data ?? [];
+          final stats = <String, int>{
+            'total': entries.length,
+            'verified': entries
+                .where((e) => e.status == 'verified')
+                .length,
+            'pending': entries
+                .where((e) => e.status == 'pending')
+                .length,
+            'rejected': entries
+                .where((e) => e.status == 'rejected')
+                .length,
+          };
+
+          return _buildStatsContainer(stats, isManager: false);
+        },
+      );
+    }
+  }
+
+  Widget _buildStatsContainer(Map<String, int> stats, {required bool isManager}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(
-                    isManager ? Icons.manage_accounts : Icons.person,
-                    color: AppColors.textPrimary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'My Goals Progress',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
+              Icon(
+                isManager ? Icons.manage_accounts : Icons.person,
+                color: AppColors.textPrimary,
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildStatusChip(
-                    'Verified',
-                    stats['verified'] ?? 0,
-                    AppColors.successColor,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'My Goals Progress',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
                   ),
-                  _buildStatusChip(
-                    'Pending',
-                    stats['pending'] ?? 0,
-                    AppColors.warningColor,
-                  ),
-                  _buildStatusChip(
-                    'Rejected',
-                    stats['rejected'] ?? 0,
-                    AppColors.dangerColor,
-                  ),
-                ],
+                ),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildStatusChip(
+                'Verified',
+                stats['verified'] ?? 0,
+                AppColors.successColor,
+              ),
+              _buildStatusChip(
+                'Pending',
+                stats['pending'] ?? 0,
+                AppColors.warningColor,
+              ),
+              _buildStatusChip(
+                'Rejected',
+                stats['rejected'] ?? 0,
+                AppColors.dangerColor,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -964,76 +955,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildEmptyState({bool isManager = false}) {
-    return FutureBuilder<String?>(
-      future: isManager ? _getManagerDept() : Future.value(null),
-      builder: (context, deptSnapshot) {
-        final managerDept = deptSnapshot.data;
-        final hasDept = managerDept != null && managerDept.isNotEmpty;
-
-        return Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.archive_outlined,
+            color: AppColors.textMuted,
+            size: 48,
           ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.archive_outlined,
-                color: AppColors.textMuted,
-                size: 48,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No audit entries found',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (isManager && !hasDept) ...[
-                Text(
-                  'Your department is not set. Please update your profile to view employee submissions.',
-                  style: TextStyle(color: AppColors.warningColor, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/settings');
-                  },
-                  icon: const Icon(Icons.settings, size: 18),
-                  label: const Text('Go to Settings'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.activeColor,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ] else if (isManager && hasDept) ...[
-                Text(
-                  'No employee submissions found for your department ($managerDept).',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Employees must submit goals for audit to appear here.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ] else ...[
-                Text(
-                  'Complete some goals to see them here for audit',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                ),
-              ],
-            ],
+          const SizedBox(height: 16),
+          Text(
+            'No audit entries found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Text(
+            isManager
+                ? 'No employee submissions available yet. Once employees submit goals, they will appear here.'
+                : 'Complete some goals to see them here for audit.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

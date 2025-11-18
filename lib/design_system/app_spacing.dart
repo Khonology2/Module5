@@ -42,7 +42,7 @@ class AppSpacing {
   static const EdgeInsets cardPaddingLarge = EdgeInsets.all(xl);
 
   /// Screen padding
-  static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(lg, 100, lg, xxl);
+  static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(xxl, 100, xxl, xxl);
 
   /// Screen padding for mobile
   static const EdgeInsets screenPaddingMobile = EdgeInsets.fromLTRB(
