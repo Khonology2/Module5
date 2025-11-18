@@ -269,7 +269,12 @@ class SettingsService {
         updateData['leaderboardOptin'] = value;
       }
 
-      await _firestore.collection('users').doc(user.uid).update(updateData);
+      // Use set with merge to handle both create and update cases
+      // This ensures the document exists even if it wasn't created yet
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .set(updateData, SetOptions(merge: true));
 
       // Save locally if it's a critical setting
       if (_criticalSettings.contains(key)) {
