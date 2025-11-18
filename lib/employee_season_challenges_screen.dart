@@ -8,6 +8,7 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/widgets/season_milestone_progress_card.dart';
 
 class EmployeeSeasonChallengesScreen extends StatefulWidget {
   const EmployeeSeasonChallengesScreen({super.key});
@@ -409,9 +410,157 @@ class _EmployeeSeasonChallengesScreenState
                 ),
               ],
             ),
+            if (season.challenges.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                'Challenges & Milestones',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              ...season.challenges.map(
+                (challenge) => _buildChallengeMilestoneTile(
+                  season,
+                  challenge,
+                  participation,
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildChallengeMilestoneTile(
+    Season season,
+    SeasonChallenge challenge,
+    SeasonParticipation? participation,
+  ) {
+    final totalMilestones = challenge.milestones.length;
+    final completedMilestones =
+        _completedMilestonesForChallenge(challenge, participation);
+    final progress =
+        totalMilestones > 0 ? completedMilestones / totalMilestones : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.flag_circle,
+                color: AppColors.activeColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  challenge.title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Text(
+                '${(progress * 100).round()}%',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.activeColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          if (challenge.description.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              challenge.description,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.xs),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.borderColor,
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            minHeight: 4,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$completedMilestones/$totalMilestones milestones',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _currentUserId == null
+                    ? null
+                    : () => _openMilestoneSheet(season, challenge),
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Update'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.activeColor,
+                  side: BorderSide(color: AppColors.activeColor),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _completedMilestonesForChallenge(
+    SeasonChallenge challenge,
+    SeasonParticipation? participation,
+  ) {
+    if (participation == null) return 0;
+    final statuses = participation.milestoneProgress;
+    int completed = 0;
+    for (final milestone in challenge.milestones) {
+      final keyDot = '${challenge.id}.${milestone.id}';
+      final status = statuses[keyDot] ?? statuses[milestone.id];
+      if (status == MilestoneStatus.completed) {
+        completed++;
+      }
+    }
+    return completed;
+  }
+
+  void _openMilestoneSheet(Season season, SeasonChallenge challenge) {
+    if (_currentUserId == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: SeasonMilestoneProgressCard(
+              season: season,
+              challenge: challenge,
+              userId: _currentUserId!,
+            ),
+          ),
+        );
+      },
     );
   }
 

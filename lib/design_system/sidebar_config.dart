@@ -81,6 +81,11 @@ class SidebarConfig {
       label: 'Badges & Points',
       route: '/badges_points',
     ),
+    SidebarItem(
+      icon: Icons.emoji_events_outlined,
+      label: 'Season Challenges',
+      route: '/season_challenges',
+    ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
       red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
