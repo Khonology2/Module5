@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -98,50 +99,158 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
     });
   }
 
-  /// Check for token in URL and auto-login if present
+  /// Check for token in URL, validate with onboarding collection, and auto-login
   Future<void> _checkTokenAndAutoLogin() async {
     try {
       setState(() {
         _isCheckingToken = true;
       });
 
-      // Extract token from URL
+      // Step 1: Extract token from URL
       final token = await TokenAuthService.instance.extractTokenFromUrl();
       
-      if (token != null && token.isNotEmpty) {
-        // Authenticate with token
-        final result = await TokenAuthService.instance
-            .authenticateExistingUserWithToken(token);
+      if (token == null || token.isEmpty) {
+        // No token found, show landing screen
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
 
-        if (result != null && result['success'] == true) {
-          final role = result['role'] as String?;
-          final email = result['email'] as String?;
+      debugPrint('Token found on landing screen, validating...');
 
-          if (role != null && email != null) {
-            // Get current user
-            User? user = FirebaseAuth.instance.currentUser;
+      // Step 2: Validate token structure
+      if (!TokenAuthService.instance.validateTokenStructure(token)) {
+        debugPrint('Token is invalid or expired');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
 
-            if (user != null) {
-              // User is already logged in, update role and navigate
-              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                'email': email,
-                'role': role,
-                'tokenAuthenticated': true,
-                'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-              
-              await RoleService.instance.getRole(refresh: true);
-              
-              if (mounted) {
-                _navigateToDashboard(role);
-                return;
-              }
+      // Step 3: Decode token to get email
+      final decodedToken = TokenAuthService.instance.decodeToken(token);
+      if (decodedToken == null) {
+        debugPrint('Failed to decode token');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
+      final email = decodedToken['email'] as String? ??
+          decodedToken['sub'] as String? ??
+          decodedToken['user_email'] as String?;
+
+      if (email == null || email.isEmpty) {
+        debugPrint('Email not found in token');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
+      debugPrint('Email extracted from token: $email');
+
+      // Step 4: Validate token with onboarding collection and get moduleAccessRole
+      final onboardingData = await TokenAuthService.instance
+          .validateTokenWithOnboarding(token, email);
+
+      if (onboardingData == null) {
+        debugPrint('Token validation failed with onboarding collection');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
+      final moduleAccessRole = onboardingData['moduleAccessRole'] as String;
+      debugPrint('ModuleAccessRole found: $moduleAccessRole');
+
+      // Step 5: Map moduleAccessRole to role
+      final role = TokenAuthService.instance
+          .mapModuleAccessRoleToRole(moduleAccessRole);
+      
+      if (role == null) {
+        debugPrint('Invalid moduleAccessRole: $moduleAccessRole');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+
+      debugPrint('Mapped role: $role');
+
+      // Step 6: Check if user is already logged in
+      User? user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        // User is already logged in, update role and navigate
+        debugPrint('User already logged in, updating role...');
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'email': email,
+          'role': role,
+          'tokenAuthenticated': true,
+          'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        
+        await RoleService.instance.getRole(refresh: true);
+        
+        if (mounted) {
+          _navigateToDashboard(role);
+          return;
+        }
+      } else {
+        // User is not logged in, try to sign in with custom token from backend
+        debugPrint('User not logged in, attempting to sign in with custom token...');
+        try {
+          final userCredential = await BackendAuthService.instance
+              .signInWithCustomToken(token);
+          
+          if (userCredential != null && userCredential.user != null) {
+            // Successfully signed in with custom token
+            debugPrint('Successfully signed in with custom token');
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userCredential.user!.uid)
+                .set({
+              'email': email,
+              'role': role,
+              'tokenAuthenticated': true,
+              'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            
+            await RoleService.instance.getRole(refresh: true);
+            
+            if (mounted) {
+              _navigateToDashboard(role);
+              return;
             }
+          } else {
+            // Backend service not available or failed
+            debugPrint('Backend service not available, cannot auto-login');
+            // Store token info for later use when user manually logs in
+            // For now, just show landing screen
           }
+        } catch (e) {
+          debugPrint('Error signing in with custom token: $e');
+          // Continue to show landing screen
         }
       }
 
-      // No token or token auth failed
+      // Token check complete (whether successful or not)
       if (mounted) {
         setState(() {
           _isCheckingToken = false;
