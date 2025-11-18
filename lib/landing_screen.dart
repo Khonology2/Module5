@@ -2,6 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
+import 'package:pdh/services/token_auth_service.dart';
+import 'package:pdh/services/role_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -39,10 +43,12 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
   late List<String> inspirationalLines;
   int _currentLineIndex = 0;
   late Timer _timer;
+  bool _isCheckingToken = false;
 
   @override
   void initState() {
     super.initState();
+    _checkTokenAndAutoLogin();
     inspirationalLines = [
       "Cultivate your mind, blossom your potential.",
       "Every step forward is a victory.",
@@ -92,6 +98,78 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
     });
   }
 
+  /// Check for token in URL and auto-login if present
+  Future<void> _checkTokenAndAutoLogin() async {
+    try {
+      setState(() {
+        _isCheckingToken = true;
+      });
+
+      // Extract token from URL
+      final token = await TokenAuthService.instance.extractTokenFromUrl();
+      
+      if (token != null && token.isNotEmpty) {
+        // Authenticate with token
+        final result = await TokenAuthService.instance
+            .authenticateExistingUserWithToken(token);
+
+        if (result != null && result['success'] == true) {
+          final role = result['role'] as String?;
+          final email = result['email'] as String?;
+
+          if (role != null && email != null) {
+            // Get current user
+            User? user = FirebaseAuth.instance.currentUser;
+
+            if (user != null) {
+              // User is already logged in, update role and navigate
+              await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                'email': email,
+                'role': role,
+                'tokenAuthenticated': true,
+                'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+              
+              await RoleService.instance.getRole(refresh: true);
+              
+              if (mounted) {
+                _navigateToDashboard(role);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // No token or token auth failed
+      if (mounted) {
+        setState(() {
+          _isCheckingToken = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking token on landing: $e');
+      if (mounted) {
+        setState(() {
+          _isCheckingToken = false;
+        });
+      }
+    }
+  }
+
+  /// Navigate to appropriate dashboard based on role
+  void _navigateToDashboard(String role) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      if (role == 'manager') {
+        Navigator.pushReplacementNamed(context, '/manager_portal');
+      } else if (role == 'employee') {
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      }
+    });
+  }
+
   @override
   void dispose() {
     _timer.cancel();
@@ -100,6 +178,18 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
 
   @override
   Widget build(BuildContext context) {
+    // Show loading while checking token
+    if (_isCheckingToken) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0A1931),
+        body: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [

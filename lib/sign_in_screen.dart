@@ -43,12 +43,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSigningIn = false;
+  bool _emailLinkSent = false;
 
-  final microsoftProvider = MicrosoftAuthProvider();
-  final githubProvider = GithubAuthProvider();
+  // OAuth providers kept for potential future use but hidden from UI
+  // final microsoftProvider = MicrosoftAuthProvider();
+  // final githubProvider = GithubAuthProvider();
 
   // Using FirebaseAuth OAuth providers across platforms
 
@@ -61,7 +62,6 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -257,6 +257,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   child: TextFormField(
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
+                                    enabled: !_emailLinkSent,
                                     decoration: InputDecoration(
                                       filled: true,
                                       fillColor: Colors.black.withOpacity(0.3),
@@ -306,61 +307,38 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Password input field
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 8.0,
-                                    sigmaY: 8.0,
+                              if (_emailLinkSent) ...[
+                                const SizedBox(height: 20),
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.green.withOpacity(0.5),
+                                    ),
                                   ),
-                                  child: TextFormField(
-                                    controller: _passwordController,
-                                    obscureText: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: Colors.black.withOpacity(0.3),
-                                      hintText: 'Password',
-                                      hintStyle: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 16,
-                                        fontFamily: 'Poppins',
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: Colors.green,
                                       ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: Colors.white.withOpacity(0.2),
-                                          width: 1.0,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(
-                                          color: Color(0xFFC10D00),
-                                          width: 2.0,
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 16,
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Sign-in link sent to ${_emailController.text}. Please check your email and click the link to sign in.',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontFamily: 'Poppins',
                                           ),
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontFamily: 'Poppins',
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your password';
-                                      }
-                                      return null;
-                                    },
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ),
+                              ],
                               const SizedBox(height: 30),
                               // Primary Sign In button
                               Container(
@@ -380,7 +358,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   ],
                                 ),
                                 child: TextButton(
-                                  onPressed: _isSigningIn
+                                  onPressed: (_isSigningIn || _emailLinkSent)
                                       ? null
                                       : () async {
                                           if (_formKey.currentState!
@@ -389,90 +367,84 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               _isSigningIn = true;
                                             });
                                             try {
-                                              final cred = await FirebaseAuth
-                                                  .instance
-                                                  .signInWithEmailAndPassword(
-                                                    email:
-                                                        _emailController.text,
-                                                    password:
-                                                        _passwordController
-                                                            .text,
-                                                  );
-                                              // Store lastLoginAt and record daily login activity
-                                              final user = cred.user;
-                                              if (user != null) {
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .set({
-                                                      'lastLoginAt':
-                                                          FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                                // Also record a light-weight daily activity for streaks
-                                                try {
-                                                  await FirebaseFirestore
-                                                      .instance
-                                                      .collection('users')
-                                                      .doc(user.uid)
-                                                      .collection(
-                                                        'daily_activities',
-                                                      )
-                                                      .doc(
-                                                        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-                                                      )
-                                                      .set({
-                                                        'date':
-                                                            FieldValue.serverTimestamp(),
-                                                        'activities':
-                                                            FieldValue.arrayUnion(
-                                                              ['login'],
-                                                            ),
-                                                        'createdAt':
-                                                            FieldValue.serverTimestamp(),
-                                                      }, SetOptions(merge: true));
-                                                } catch (_) {}
-                                              }
-                                              if (!mounted) return;
-                                              await _handlePostLoginNavigation(
-                                                context,
+                                              // Send sign-in link to email
+                                              final email = _emailController.text;
+                                              final actionCodeSettings = ActionCodeSettings(
+                                                url: 'https://pdh-fe6eb.firebaseapp.com/?email=$email',
+                                                handleCodeInApp: true,
                                               );
-                                            } on FirebaseAuthException catch (
-                                              e
-                                            ) {
+
+                                              await FirebaseAuth.instance
+                                                  .sendSignInLinkToEmail(
+                                                    email: email,
+                                                    actionCodeSettings: actionCodeSettings,
+                                                  );
+
+                                              setState(() {
+                                                _emailLinkSent = true;
+                                                _isSigningIn = false;
+                                              });
+
+                                              // Check if user clicked the link (for web)
+                                              if (kIsWeb) {
+                                                // Check if we're coming from an email link
+                                                final uri = Uri.base;
+                                                if (FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
+                                                  // User clicked the link, sign them in
+                                                  try {
+                                                    final cred = await FirebaseAuth.instance.signInWithEmailLink(
+                                                      email: email,
+                                                      emailLink: uri.toString(),
+                                                    );
+                                                    
+                                                    final user = cred.user;
+                                                    if (user != null) {
+                                                      await FirebaseFirestore.instance
+                                                          .collection('users')
+                                                          .doc(user.uid)
+                                                          .set({
+                                                            'lastLoginAt': FieldValue.serverTimestamp(),
+                                                          }, SetOptions(merge: true));
+                                                      
+                                                      if (!mounted) return;
+                                                      await _handlePostLoginNavigation(context);
+                                                    }
+                                                  } catch (e) {
+                                                    if (!mounted) return;
+                                                    await _showCenterNotice(
+                                                      'Error signing in with email link: ${e.toString()}',
+                                                    );
+                                                  }
+                                                }
+                                              }
+                                            } on FirebaseAuthException catch (e) {
                                               String message;
                                               switch (e.code) {
-                                                case 'user-not-found':
-                                                case 'wrong-password':
-                                                case 'invalid-credential':
-                                                case 'invalid-login-credentials':
-                                                  message =
-                                                      'Email or password is incorrect. Please try again.';
-                                                  break;
-                                                case 'too-many-requests':
-                                                  message =
-                                                      'Too many attempts. Please wait a moment and try again.';
+                                                case 'invalid-email':
+                                                  message = 'Please enter a valid email address.';
                                                   break;
                                                 case 'user-disabled':
-                                                  message =
-                                                      'This account is disabled. Please contact support.';
+                                                  message = 'This account is disabled. Please contact support.';
+                                                  break;
+                                                case 'too-many-requests':
+                                                  message = 'Too many requests. Please wait a moment and try again.';
                                                   break;
                                                 default:
-                                                  message =
-                                                      'We couldn\'t sign you in right now. Please try again.';
+                                                  message = 'We couldn\'t send the sign-in link. Please try again.';
                                               }
                                               if (!mounted) return;
                                               await _showCenterNotice(message);
+                                              setState(() {
+                                                _isSigningIn = false;
+                                              });
                                             } catch (e) {
                                               if (!mounted) return;
                                               await _showCenterNotice(
                                                 'An unexpected error occurred: ${e.toString()}',
                                               );
-                                            } finally {
-                                              if (mounted) {
-                                                setState(() {
-                                                  _isSigningIn = false;
-                                                });
-                                              }
+                                              setState(() {
+                                                _isSigningIn = false;
+                                              });
                                             }
                                           }
                                         },
@@ -488,9 +460,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                 ),
                                           ),
                                         )
-                                      : const Text(
-                                          'SIGN IN',
-                                          style: TextStyle(
+                                      : Text(
+                                          _emailLinkSent ? 'LINK SENT' : 'SEND SIGN-IN LINK',
+                                          style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 18,
                                             fontWeight: FontWeight.w700,
@@ -500,419 +472,8 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         ),
                                 ),
                               ),
-                              const SizedBox(height: 30),
-                              // Divider with "or" text
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      height: 1,
-                                      color: Colors.white.withOpacity(0.2),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    child: Text(
-                                      'or',
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.7),
-                                        fontSize: 14,
-                                        fontFamily: 'Poppins',
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Container(
-                                      height: 1,
-                                      color: Colors.white.withOpacity(0.2),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 30),
-                              // Google Sign In button
-                              Container(
-                                width: double.infinity,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                    width: 1.5,
-                                  ),
-                                  color: Colors.transparent,
-                                ),
-                                child: TextButton(
-                                  onPressed: _isSigningIn
-                                      ? null
-                                      : () async {
-                                          try {
-                                            UserCredential cred;
-                                            if (kIsWeb) {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithPopup(
-                                                    GoogleAuthProvider(),
-                                                  );
-                                            } else {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithProvider(
-                                                    GoogleAuthProvider(),
-                                                  );
-                                            }
-                                            // Store lastLoginAt and record daily login activity
-                                            final user = cred.user;
-                                            if (user != null) {
-                                              await FirebaseFirestore.instance
-                                                  .collection('users')
-                                                  .doc(user.uid)
-                                                  .set({
-                                                    'lastLoginAt':
-                                                        FieldValue.serverTimestamp(),
-                                                  }, SetOptions(merge: true));
-                                              try {
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .collection(
-                                                      'daily_activities',
-                                                    )
-                                                    .doc(
-                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-                                                    )
-                                                    .set({
-                                                      'date':
-                                                          FieldValue.serverTimestamp(),
-                                                      'activities':
-                                                          FieldValue.arrayUnion(
-                                                            ['login'],
-                                                          ),
-                                                      'createdAt':
-                                                          FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                              } catch (_) {}
-                                            }
-                                            if (!mounted) return;
-                                            await _handlePostLoginNavigation(
-                                              context,
-                                            );
-                                          } on FirebaseAuthException catch (e) {
-                                            String message =
-                                                e.message ??
-                                                'Google Sign-In failed.';
-                                            if (e.code ==
-                                                'popup-closed-by-user') {
-                                              message =
-                                                  'Popup closed before completing sign-in.';
-                                            } else if (e.code ==
-                                                'network-request-failed') {
-                                              message =
-                                                  'Network error. Check internet and authorized domains.';
-                                            } else if (e.code ==
-                                                'unauthorized-domain') {
-                                              message =
-                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
-                                            }
-                                            if (!mounted) return;
-                                            await _showCenterNotice(message);
-                                          } catch (e) {
-                                            if (!mounted) return;
-                                            await _showCenterNotice(
-                                              'An unexpected error occurred: ${e.toString()}',
-                                            );
-                                          }
-                                        },
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Image.asset(
-                                        'assets/Google_Icon.png',
-                                        height: 20.0,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Text(
-                                        'Continue with Google',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Poppins',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Microsoft Sign In button
-                              Container(
-                                width: double.infinity,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                    width: 1.5,
-                                  ),
-                                  color: Colors.transparent,
-                                ),
-                                child: TextButton(
-                                  onPressed: _isSigningIn
-                                      ? null
-                                      : () async {
-                                          try {
-                                            setState(() {
-                                              _isSigningIn = true;
-                                            });
-                                            UserCredential cred;
-                                            if (kIsWeb) {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithPopup(
-                                                    microsoftProvider,
-                                                  );
-                                            } else {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithProvider(
-                                                    microsoftProvider,
-                                                  );
-                                            }
-                                            final user = cred.user;
-                                            if (user != null) {
-                                              await FirebaseFirestore.instance
-                                                  .collection('users')
-                                                  .doc(user.uid)
-                                                  .set({
-                                                    'lastLoginAt':
-                                                        FieldValue.serverTimestamp(),
-                                                  }, SetOptions(merge: true));
-                                              try {
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .collection(
-                                                      'daily_activities',
-                                                    )
-                                                    .doc(
-                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-                                                    )
-                                                    .set({
-                                                      'date':
-                                                          FieldValue.serverTimestamp(),
-                                                      'activities':
-                                                          FieldValue.arrayUnion(
-                                                            ['login'],
-                                                          ),
-                                                      'createdAt':
-                                                          FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                              } catch (_) {}
-                                            }
-                                            if (!mounted) return;
-                                            await _handlePostLoginNavigation(
-                                              context,
-                                            );
-                                          } on FirebaseAuthException catch (e) {
-                                            setState(() {
-                                              _isSigningIn = false;
-                                            });
-                                            String message =
-                                                e.message ??
-                                                'Microsoft Sign-In failed.';
-                                            if (e.code ==
-                                                'popup-closed-by-user') {
-                                              message =
-                                                  'Popup closed before completing sign-in.';
-                                            } else if (e.code ==
-                                                'network-request-failed') {
-                                              message =
-                                                  'Network error. Check internet and authorized domains.';
-                                            } else if (e.code ==
-                                                'unauthorized-domain') {
-                                              message =
-                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
-                                            }
-                                            if (!mounted) return;
-                                            await _showCenterNotice(message);
-                                          } catch (e) {
-                                            setState(() {
-                                              _isSigningIn = false;
-                                            });
-                                            if (!mounted) return;
-                                            await _showCenterNotice(
-                                              'An unexpected error occurred: ${e.toString()}',
-                                            );
-                                          }
-                                        },
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Image.asset(
-                                        'assets/mslogo.png',
-                                        height: 20.0,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Text(
-                                        'Continue with Microsoft',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Poppins',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // GitHub Sign In button
-                              Container(
-                                width: double.infinity,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(28),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.3),
-                                    width: 1.5,
-                                  ),
-                                  color: Colors.transparent,
-                                ),
-                                child: TextButton(
-                                  onPressed: _isSigningIn
-                                      ? null
-                                      : () async {
-                                          try {
-                                            UserCredential cred;
-                                            if (kIsWeb) {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithPopup(
-                                                    githubProvider,
-                                                  );
-                                            } else {
-                                              cred = await FirebaseAuth.instance
-                                                  .signInWithProvider(
-                                                    githubProvider,
-                                                  );
-                                            }
-                                            final user = cred.user;
-                                            if (user != null) {
-                                              await FirebaseFirestore.instance
-                                                  .collection('users')
-                                                  .doc(user.uid)
-                                                  .set({
-                                                    'lastLoginAt':
-                                                        FieldValue.serverTimestamp(),
-                                                  }, SetOptions(merge: true));
-                                              try {
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .collection(
-                                                      'daily_activities',
-                                                    )
-                                                    .doc(
-                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-                                                    )
-                                                    .set({
-                                                      'date':
-                                                          FieldValue.serverTimestamp(),
-                                                      'activities':
-                                                          FieldValue.arrayUnion(
-                                                            ['login'],
-                                                          ),
-                                                      'createdAt':
-                                                          FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                              } catch (_) {}
-                                            }
-                                            if (!mounted) return;
-                                            await _handlePostLoginNavigation(
-                                              context,
-                                            );
-                                          } on FirebaseAuthException catch (e) {
-                                            String message =
-                                                e.message ??
-                                                'GitHub Sign-In failed.';
-                                            if (e.code ==
-                                                'popup-closed-by-user') {
-                                              message =
-                                                  'Popup closed before completing sign-in.';
-                                            } else if (e.code ==
-                                                'network-request-failed') {
-                                              message =
-                                                  'Network error. Check internet and authorized domains.';
-                                            } else if (e.code ==
-                                                'unauthorized-domain') {
-                                              message =
-                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
-                                            }
-                                            if (!mounted) return;
-                                            await _showCenterNotice(message);
-                                          } catch (e) {
-                                            if (!mounted) return;
-                                            await _showCenterNotice(
-                                              'An unexpected error occurred: ${e.toString()}',
-                                            );
-                                          }
-                                        },
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Image.asset(
-                                        'assets/github_icon_2.png',
-                                        height: 20.0,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      const Text(
-                                        'Continue with GitHub',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Poppins',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 30),
-                              // Register link
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    "Don't have an account? ",
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.8),
-                                      fontSize: 14,
-                                      fontFamily: 'Poppins',
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.pushNamed(context, '/register');
-                                    },
-                                    style: TextButton.styleFrom(
-                                      padding: EdgeInsets.zero,
-                                      minimumSize: Size.zero,
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: const Text(
-                                      'SIGN UP',
-                                      style: TextStyle(
-                                        color: Color(0xFFC10D00),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'Poppins',
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              // OAuth buttons and register link are hidden but code is preserved for future use
+                              // All authentication methods (Google, Microsoft, GitHub) and registration are hidden
                               const SizedBox(height: 20),
                             ],
                           ),
