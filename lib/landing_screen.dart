@@ -233,6 +233,7 @@ class _PersonalDevelopmentHubScreenState
 
       // Get email from onboarding data - this is the primary source after validation
       // The onboarding collection has: email, moduleAccessRole, status, user_id, etc.
+      // Note: validateTokenWithOnboarding now also tries to get email from users collection
       final onboardingEmail = onboardingData['email'] as String?;
       if (onboardingEmail != null && onboardingEmail.isNotEmpty) {
         email = onboardingEmail.trim();
@@ -248,6 +249,15 @@ class _PersonalDevelopmentHubScreenState
         debugPrint(
           'Landing screen: Email type: ${onboardingData['email'].runtimeType}',
         );
+        // Email might have been retrieved from users collection in validateTokenWithOnboarding
+        // Check again after validation
+        if (onboardingData['email'] != null) {
+          final emailValue = onboardingData['email'];
+          if (emailValue is String && emailValue.isNotEmpty) {
+            email = emailValue.trim();
+            debugPrint('Landing screen: Email found after re-check: $email');
+          }
+        }
       }
 
       // Check user status - must be Active

@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:pdh/services/backend_auth_service.dart';
+import 'package:pdh/config/env_config.dart';
 
 /// Service to handle token-based authentication from external systems
 /// Tokens are: Base64 encoded -> Fernet encrypted -> JWT format
@@ -25,27 +26,41 @@ class TokenAuthService {
   // ENCRYPTION_KEY=6KZRT0MgboM5dmkwTLmHlh81o1P1huopTO3OspUz7LI=
   // JWT_SECRET_KEY=HQZsb5lAThMYaDU_9YEAQcFtkIRCbyXSHXS7_ac9O0g
   static String? get _encryptionKey {
-    // Load from .env file (flutter_dotenv)
-    // Falls back to null if not set
-    final envKey = dotenv.env['ENCRYPTION_KEY'];
-    if (envKey == null || envKey.isEmpty) {
-      debugPrint('ENCRYPTION_KEY not found in .env file');
-      return null;
+    // Priority 1: Try build-time injected config (for web deployments on Render)
+    if (EnvConfig.encryptionKey != null && EnvConfig.encryptionKey!.isNotEmpty) {
+      debugPrint('ENCRYPTION_KEY loaded from build-time config');
+      return EnvConfig.encryptionKey;
     }
-    return envKey;
+    
+    // Priority 2: Try .env file (for local development)
+    final envKey = dotenv.env['ENCRYPTION_KEY'];
+    if (envKey != null && envKey.isNotEmpty) {
+      debugPrint('ENCRYPTION_KEY loaded from .env file');
+      return envKey;
+    }
+    
+    debugPrint('ENCRYPTION_KEY not found - token decryption will not work');
+    return null;
   }
 
   // Reserved for future JWT signature verification
   // ignore: unused_element
   static String? get _jwtSecretKey {
-    // Load from .env file (flutter_dotenv)
-    // Falls back to null if not set
-    final envKey = dotenv.env['JWT_SECRET_KEY'];
-    if (envKey == null || envKey.isEmpty) {
-      debugPrint('JWT_SECRET_KEY not found in .env file');
-      return null;
+    // Priority 1: Try build-time injected config (for web deployments on Render)
+    if (EnvConfig.jwtSecretKey != null && EnvConfig.jwtSecretKey!.isNotEmpty) {
+      debugPrint('JWT_SECRET_KEY loaded from build-time config');
+      return EnvConfig.jwtSecretKey;
     }
-    return envKey;
+    
+    // Priority 2: Try .env file (for local development)
+    final envKey = dotenv.env['JWT_SECRET_KEY'];
+    if (envKey != null && envKey.isNotEmpty) {
+      debugPrint('JWT_SECRET_KEY loaded from .env file');
+      return envKey;
+    }
+    
+    debugPrint('JWT_SECRET_KEY not found - JWT verification will not work');
+    return null;
   }
 
   /// Extract token from URL query parameters
@@ -344,14 +359,32 @@ class TokenAuthService {
           }
 
           // Get fields from onboarding document based on actual collection structure
-          // Fields: email, moduleAccessRole, status, user_id, token, etc.
-          final docEmail = (data['email'] as String?)?.trim();
-          final moduleAccessRole = data['moduleAccessRole'] as String?;
+          // Fields: email, moduleAccessRole (or role), status, user_id, token, etc.
+          // Note: Some documents may use 'role' instead of 'moduleAccessRole'
+          // Read email field - handle different possible types
+          String? docEmail;
+          final emailValue = data['email'];
+          if (emailValue != null) {
+            if (emailValue is String) {
+              docEmail = emailValue.trim();
+            } else {
+              // Try to convert to string if it's not already
+              docEmail = emailValue.toString().trim();
+            }
+          }
+          
+          // Try moduleAccessRole first, then fall back to role
+          final moduleAccessRole = data['moduleAccessRole'] as String? ?? 
+                                   data['moduleRole'] as String? ??
+                                   data['role'] as String?;
           final status = data['status'] as String?;
-          final userId = data['user_id'] as String?;
+          final userId = data['user_id'] as String? ?? 
+                        data['userId'] as String? ??
+                        data['onboarding_id'] as String?;
 
-          if (moduleAccessRole == null) {
-            debugPrint('No moduleAccessRole found in onboarding document');
+          if (moduleAccessRole == null || moduleAccessRole.isEmpty) {
+            debugPrint('No moduleAccessRole/role found in onboarding document');
+            debugPrint('Available fields: ${data.keys.join(", ")}');
             return null;
           }
 
@@ -376,13 +409,37 @@ class TokenAuthService {
             'Onboarding validation - Email from doc: $docEmail, Email from param: $email, Final email: $finalEmail',
           );
           debugPrint(
-            'Onboarding validation - Status: $status, User ID: $userId',
+            'Onboarding validation - Status: $status, User ID: $userId, ModuleAccessRole: $moduleAccessRole',
           );
           debugPrint('Onboarding document fields: ${data.keys.join(", ")}');
+          debugPrint('Onboarding document email field value: ${data['email']}');
+          debugPrint('Onboarding document email field type: ${data['email']?.runtimeType}');
+
+          // If email is still missing, try to get it from users collection using user_id
+          String? resolvedEmail = finalEmail;
+          if ((resolvedEmail == null || resolvedEmail.isEmpty) && userId != null && userId.isNotEmpty) {
+            try {
+              debugPrint('Email not found in onboarding document, trying to get from users collection using user_id: $userId');
+              final userDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .get();
+              if (userDoc.exists) {
+                final userData = userDoc.data();
+                final userEmail = (userData is Map<String, dynamic>) ? userData['email'] as String? : null;
+                if (userEmail != null && userEmail.isNotEmpty) {
+                  resolvedEmail = userEmail.trim();
+                  debugPrint('Email retrieved from users collection: $resolvedEmail');
+                }
+              }
+            } catch (e) {
+              debugPrint('Error querying users collection for email: $e');
+            }
+          }
 
           // Return all relevant data from onboarding collection
           return {
-            'email': finalEmail ?? '',
+            'email': resolvedEmail ?? '',
             'moduleAccessRole': moduleAccessRole,
             'token': token,
             'onboardingDocId': doc.id,
@@ -424,10 +481,13 @@ class TokenAuthService {
             return null;
           }
 
-          // Get moduleAccessRole
-          final moduleAccessRole = data['moduleAccessRole'] as String?;
-          if (moduleAccessRole == null) {
-            debugPrint('No moduleAccessRole found for email: $email');
+          // Get moduleAccessRole - try multiple field names
+          final moduleAccessRole = data['moduleAccessRole'] as String? ?? 
+                                   data['moduleRole'] as String? ??
+                                   data['role'] as String?;
+          if (moduleAccessRole == null || moduleAccessRole.isEmpty) {
+            debugPrint('No moduleAccessRole/role found for email: $email');
+            debugPrint('Available fields: ${data.keys.join(", ")}');
             return null;
           }
 
@@ -477,9 +537,12 @@ class TokenAuthService {
       }
     }
 
-    // Fallback to onboarding collection (moduleAccessRole)
+    // Fallback to onboarding collection (moduleAccessRole, moduleRole, or role)
     if (onboardingData != null) {
-      final moduleAccessRole = onboardingData['moduleAccessRole'] as String?;
+      // Try multiple field names for module access role
+      final moduleAccessRole = onboardingData['moduleAccessRole'] as String? ??
+                               onboardingData['moduleRole'] as String? ??
+                               onboardingData['role'] as String?;
       if (moduleAccessRole != null && moduleAccessRole.isNotEmpty) {
         // Extract PDH role from comma-separated list if needed
         final pdhRole = _extractPdhRole(moduleAccessRole);

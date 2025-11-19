@@ -64,11 +64,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables from .env file
+  // Note: On web, .env is not bundled as an asset (for security)
+  // Environment variables should be set in the deployment platform (e.g., Render)
+  // For web builds, we skip loading .env and rely on platform environment variables
   try {
     if (kIsWeb) {
-      // For web, load from assets (flutter_dotenv automatically looks in assets)
-      await dotenv.load(fileName: ".env");
-      debugPrint('Environment variables loaded successfully from assets');
+      // On web, don't try to load .env from assets (it's not included for security)
+      // Environment variables should be available via platform (Render dashboard)
+      // flutter_dotenv on web would try to load from assets, which we don't include
+      debugPrint('Web platform: Skipping .env file load (use platform environment variables)');
     } else {
       // For mobile/desktop, load from file system
       await dotenv.load(fileName: ".env");
