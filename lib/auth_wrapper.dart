@@ -169,7 +169,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (!mounted) return;
       
       if (role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_portal');
+        Navigator.pushReplacementNamed(context, '/manager_dashboard');
       } else if (role == 'employee') {
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else {
@@ -253,7 +253,7 @@ class _AuthenticatedWrapperState extends State<_AuthenticatedWrapper> {
 
       // Navigate based on role
       if (role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_portal');
+        Navigator.pushReplacementNamed(context, '/manager_dashboard');
       } else {
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }

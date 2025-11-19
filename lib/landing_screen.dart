@@ -127,47 +127,26 @@ class _PersonalDevelopmentHubScreenState
       debugPrint('Landing screen: Token found in URL, starting validation...');
       debugPrint('Landing screen: Token length: ${token.length}');
 
-      // Step 2: Decrypt and decode the encrypted token
-      // Token format: Base64 encoded -> Fernet encrypted -> JWT
-      debugPrint(
-        'Landing screen: Decrypting token (Base64 -> Fernet -> JWT)...',
-      );
+      // Step 2: Decode JWT token directly (no decryption needed)
+      debugPrint('Landing screen: Decoding JWT token...');
       String? email;
       Map<String, dynamic>? decodedToken;
 
       try {
-        // Process encrypted token: decrypt and decode
-        decodedToken = await TokenAuthService.instance.processEncryptedToken(
-          token,
-        );
+        // Decode JWT token directly
+        decodedToken = await TokenAuthService.instance.processJwtToken(token);
 
         if (decodedToken != null) {
-          debugPrint(
-            'Landing screen: Token decrypted and decoded successfully',
-          );
+          debugPrint('Landing screen: JWT token decoded successfully');
 
-          // Extract user info from decoded token (matches Khonobuzz JWT structure)
-          // JWT payload contains: user_id, email, module_role, exp, iat
-          final userInfo = TokenAuthService.instance.extractUserInfo(
-            decodedToken,
-          );
-          if (userInfo != null) {
-            email = userInfo['email'] as String?;
-            final userId = userInfo['userId'] as String?;
-            final moduleRole = userInfo['moduleRole'] as String?;
-            debugPrint(
-              'Landing screen: Extracted user info - email: $email, userId: $userId, moduleRole: $moduleRole',
-            );
-          } else {
-            // Fallback: try to get email directly from token
-            email =
-                decodedToken['email'] as String? ??
-                decodedToken['user_id'] as String?; // user_id might be email
-          }
+          // Extract email from decoded token
+          email =
+              decodedToken['email'] as String? ??
+              decodedToken['user_id'] as String?;
 
           if (email != null && email.isNotEmpty) {
             debugPrint(
-              'Landing screen: Email extracted from decrypted token: $email',
+              'Landing screen: Email extracted from JWT token: $email',
             );
           } else {
             debugPrint(
@@ -176,20 +155,17 @@ class _PersonalDevelopmentHubScreenState
           }
         } else {
           debugPrint(
-            'Landing screen: Failed to decrypt/decode token, will try direct onboarding validation',
+            'Landing screen: Failed to decode token, will try direct onboarding validation',
           );
         }
       } catch (e) {
-        debugPrint('Landing screen: Error during token decryption: $e');
+        debugPrint('Landing screen: Error during token decoding: $e');
         debugPrint(
           'Landing screen: Will proceed with onboarding collection validation by token',
         );
       }
 
-      // Step 4: Validate token with onboarding collection and get moduleAccessRole
-      // This is the critical step - checking the database to verify the token
-      // We can validate by token directly, even if we don't have email from JWT
-      // Try both encrypted token (as received) and decrypted JWT (if available)
+      // Step 3: Validate token with onboarding Firestore collection
       debugPrint(
         'Landing screen: Validating token with onboarding collection...',
       );
@@ -197,25 +173,9 @@ class _PersonalDevelopmentHubScreenState
         'Landing screen: Using email from token: ${email ?? "not available"}',
       );
 
-      // Try validating with the encrypted token first (as stored in database)
+      // Validate token with onboarding collection using email
       Map<String, dynamic>? onboardingData = await TokenAuthService.instance
           .validateTokenWithOnboarding(token, email);
-
-      // If that fails and we have a decrypted JWT, try with the decrypted token
-      if (onboardingData == null && decodedToken != null) {
-        debugPrint(
-          'Landing screen: Trying validation with decrypted JWT token...',
-        );
-        // Get the decrypted JWT string from the processEncryptedToken result
-        // We need to decrypt again to get the JWT string
-        final decryptedJwt = await TokenAuthService.instance.decryptToken(
-          token,
-        );
-        if (decryptedJwt != null) {
-          onboardingData = await TokenAuthService.instance
-              .validateTokenWithOnboarding(decryptedJwt, email);
-        }
-      }
 
       if (onboardingData == null) {
         debugPrint(
@@ -237,7 +197,7 @@ class _PersonalDevelopmentHubScreenState
           onboardingData['userId'] as String? ??
           onboardingData['onboarding_id'] as String? ??
           onboardingData['onboardingDocId'] as String?;
-      
+
       if (userId == null || userId.isEmpty) {
         debugPrint('Landing screen: Cannot proceed without user_id');
         debugPrint(
@@ -250,9 +210,9 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
-      
+
       debugPrint('Landing screen: User ID confirmed: $userId');
-      
+
       // Try to get email from users collection (optional - for user document)
       final onboardingEmail = onboardingData['email'] as String?;
       if (onboardingEmail != null && onboardingEmail.isNotEmpty) {
@@ -262,7 +222,9 @@ class _PersonalDevelopmentHubScreenState
         );
       } else {
         // Email is optional - we can proceed without it using user_id
-        debugPrint('Landing screen: Email not found, but proceeding with user_id: $userId');
+        debugPrint(
+          'Landing screen: Email not found, but proceeding with user_id: $userId',
+        );
       }
 
       // Check user status - must be Active
@@ -329,24 +291,28 @@ class _PersonalDevelopmentHubScreenState
         'tokenAuthenticated': true,
         'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
       };
-      
+
       // Add email if available (optional)
       if (email != null && email.isNotEmpty) {
         userData['email'] = email;
       }
-      
+
       // Use user_id as the document ID
-      await FirebaseFirestore.instance.collection('users').doc(userId).set(
-        userData,
-        SetOptions(merge: true),
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .set(userData, SetOptions(merge: true));
+
+      debugPrint(
+        'Landing screen: User document created/updated in Firestore with user_id: $userId',
       );
-      
-      debugPrint('Landing screen: User document created/updated in Firestore with user_id: $userId');
 
       // Step 7: Set role in service and navigate to dashboard
       // Since we're using user_id-based authentication, we need to set the role directly
-      debugPrint('Landing screen: User document created, setting role in service...');
-      
+      debugPrint(
+        'Landing screen: User document created, setting role in service...',
+      );
+
       // Set the role directly in RoleService using user_id
       try {
         await RoleService.instance.setRoleByUserId(userId, role);
@@ -355,11 +321,15 @@ class _PersonalDevelopmentHubScreenState
         debugPrint('Landing screen: Error setting role in RoleService: $e');
         // Continue anyway - we have the role and can navigate
       }
-      
+
       // Navigate immediately to the appropriate dashboard
       if (mounted) {
-        debugPrint('Landing screen: Navigating to $role dashboard immediately...');
-        debugPrint('Landing screen: User ID: $userId, Role: $role, Email: ${email ?? "not set"}');
+        debugPrint(
+          'Landing screen: Navigating to $role dashboard immediately...',
+        );
+        debugPrint(
+          'Landing screen: User ID: $userId, Role: $role, Email: ${email ?? "not set"}',
+        );
         // Navigate immediately - no delay needed
         _navigateToDashboard(role);
         return;
@@ -387,26 +357,46 @@ class _PersonalDevelopmentHubScreenState
       debugPrint('Landing screen: Cannot navigate - widget not mounted');
       return;
     }
-    
+
     debugPrint('Landing screen: _navigateToDashboard called with role: $role');
-    
+
     try {
       // Navigate immediately without waiting for post-frame callback
       if (role == 'manager') {
-        debugPrint('Landing screen: Navigating to manager portal...');
-        Navigator.pushReplacementNamed(context, '/manager_portal')
-            .then((_) => debugPrint('Landing screen: Navigation to manager portal completed'))
-            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+        debugPrint('Landing screen: Navigating to manager dashboard...');
+        Navigator.pushReplacementNamed(context, '/manager_dashboard')
+            .then(
+              (_) => debugPrint(
+                'Landing screen: Navigation to manager dashboard completed',
+              ),
+            )
+            .catchError(
+              (e) => debugPrint('Landing screen: Navigation error: $e'),
+            );
       } else if (role == 'employee') {
         debugPrint('Landing screen: Navigating to employee dashboard...');
         Navigator.pushReplacementNamed(context, '/employee_dashboard')
-            .then((_) => debugPrint('Landing screen: Navigation to employee dashboard completed'))
-            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+            .then(
+              (_) => debugPrint(
+                'Landing screen: Navigation to employee dashboard completed',
+              ),
+            )
+            .catchError(
+              (e) => debugPrint('Landing screen: Navigation error: $e'),
+            );
       } else {
-        debugPrint('Landing screen: Unknown role: $role, defaulting to employee dashboard');
+        debugPrint(
+          'Landing screen: Unknown role: $role, defaulting to employee dashboard',
+        );
         Navigator.pushReplacementNamed(context, '/employee_dashboard')
-            .then((_) => debugPrint('Landing screen: Navigation to employee dashboard completed'))
-            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+            .then(
+              (_) => debugPrint(
+                'Landing screen: Navigation to employee dashboard completed',
+              ),
+            )
+            .catchError(
+              (e) => debugPrint('Landing screen: Navigation error: $e'),
+            );
       }
     } catch (e) {
       debugPrint('Landing screen: Error during navigation: $e');

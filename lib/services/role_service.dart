@@ -280,7 +280,10 @@ class _Unauthorized extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   if (role == 'manager') {
-                    Navigator.pushReplacementNamed(context, '/manager_portal');
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/manager_dashboard',
+                    );
                   } else {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }

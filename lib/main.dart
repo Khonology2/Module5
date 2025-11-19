@@ -21,6 +21,7 @@ import 'package:pdh/leaderboard_screen.dart';
 import 'package:pdh/manager_leaderboard_screen.dart';
 import 'package:pdh/employee_dashboard_screen.dart';
 import 'package:pdh/manager_portal_screen.dart';
+import 'package:pdh/manager_dashboard_screen.dart';
 import 'package:pdh/dashboard_screen.dart';
 import 'package:pdh/manager_alerts_nudges_screen.dart';
 import 'package:pdh/manager_inbox_screen.dart';
@@ -64,15 +65,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables from .env file
-  // Note: On web, .env is not bundled as an asset (for security)
-  // Environment variables should be set in the deployment platform (e.g., Render)
-  // For web builds, we skip loading .env and rely on platform environment variables
+  // For web, load from assets/.env (as configured in pubspec.yaml)
+  // For mobile/desktop, load from file system
   try {
     if (kIsWeb) {
-      // On web, don't try to load .env from assets (it's not included for security)
-      // Environment variables should be available via platform (Render dashboard)
-      // flutter_dotenv on web would try to load from assets, which we don't include
-      debugPrint('Web platform: Skipping .env file load (use platform environment variables)');
+      // On web, load from assets/.env
+      await dotenv.load(fileName: "assets/.env");
+      debugPrint('Environment variables loaded successfully from assets/.env');
     } else {
       // For mobile/desktop, load from file system
       await dotenv.load(fileName: ".env");
@@ -80,7 +79,6 @@ void main() async {
     }
   } catch (e) {
     debugPrint('Warning: Could not load .env file: $e');
-    debugPrint('Token decryption may not work without ENCRYPTION_KEY');
     debugPrint(
       'App will fall back to database validation for token authentication',
     );
@@ -264,6 +262,10 @@ class _MyAppState extends State<MyApp> {
                 '/manager_portal': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
                   child: const ManagerPortalScreen(),
+                ),
+                '/manager_dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerDashboardScreen(),
                 ),
                 '/dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
