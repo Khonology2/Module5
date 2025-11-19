@@ -218,14 +218,14 @@ def validate_user_and_get_roles(
     Validate user against Firestore and extract role information
     
     This function:
-    1. Queries onboarding collection by user_id (primary) or email (fallback)
+    1. Queries onboarding collection by user_id (primary) or email (fallback if provided)
     2. Validates user status is 'Active'
     3. Extracts moduleAccessRole
-    4. Optionally queries users collection for additional email verification
+    4. Resolves email from users collection if not provided in JWT
     
     Args:
-        user_id: User ID from JWT token
-        email: Email from JWT token
+        user_id: User ID from JWT token (required)
+        email: Email from JWT token (optional - will be resolved from Firestore if missing)
         
     Returns:
         Dictionary with user_id, email, roles, and status
@@ -233,17 +233,19 @@ def validate_user_and_get_roles(
     Raises:
         FirestoreServiceError: If user not found or validation fails
     """
-    # Try to get onboarding data by user_id first
+    # Try to get onboarding data by user_id first (most reliable)
     onboarding_data = get_onboarding_by_user_id(user_id)
     
-    # If not found by user_id, try by email
-    if not onboarding_data:
+    # If not found by user_id and email is provided, try by email
+    if not onboarding_data and email:
         onboarding_data = get_onboarding_by_email(email)
     
     if not onboarding_data:
-        raise FirestoreServiceError(
-            f"User not found in onboarding collection (user_id: {user_id}, email: {email})"
-        )
+        error_msg = f"User not found in onboarding collection (user_id: {user_id}"
+        if email:
+            error_msg += f", email: {email}"
+        error_msg += ")"
+        raise FirestoreServiceError(error_msg)
     
     # Validate user status
     if not validate_user_status(onboarding_data):
@@ -261,13 +263,24 @@ def validate_user_and_get_roles(
     # Get roles list
     roles = get_user_roles_from_onboarding(onboarding_data)
     
-    # Try to get email from users collection if not in onboarding
+    # Resolve email: priority order:
+    # 1. Email from JWT token (if provided)
+    # 2. Email from onboarding document
+    # 3. Email from users collection
     resolved_email = email
-    if not onboarding_data.get('email'):
+    if not resolved_email:
+        resolved_email = onboarding_data.get('email')
+    
+    if not resolved_email:
         user_data = get_user_by_id(user_id)
         if user_data and user_data.get('email'):
             resolved_email = user_data['email']
             logger.info(f"Resolved email from users collection: {resolved_email}")
+    
+    # If still no email, use empty string (email is optional for some use cases)
+    if not resolved_email:
+        logger.warning(f"Email not found in JWT, onboarding, or users collection for user_id: {user_id}")
+        resolved_email = ""
     
     return {
         'user_id': user_id,

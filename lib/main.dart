@@ -64,10 +64,10 @@ final ValueNotifier<String?> speechRecognitionStatusNotifier =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables from .env file
+  // Load environment variables from backend/.env file
   // For web, environment variables should be set via platform (Render dashboard)
   // and are accessible via dotenv.env without loading a file
-  // For mobile/desktop, load from file system
+  // For mobile/desktop, load from backend/.env file system
   try {
     if (kIsWeb) {
       // On web, don't load .env file (security - env vars should be set via platform)
@@ -76,12 +76,31 @@ void main() async {
         'Web platform: Using platform environment variables (set in Render dashboard)',
       );
     } else {
-      // For mobile/desktop, load from file system
-      await dotenv.load(fileName: ".env");
-      debugPrint('Environment variables loaded successfully from file system');
+      // For mobile/desktop, load from backend/.env file
+      await dotenv.load(fileName: "backend/.env");
+      debugPrint(
+        'Environment variables loaded successfully from backend/.env file',
+      );
+
+      // Verify BACKEND_URL is loaded and clean it
+      final backendUrl =
+          dotenv.env['BACKEND_URL'] ?? dotenv.env['BACKEND_API_URL'];
+      if (backendUrl != null && backendUrl.isNotEmpty) {
+        // Clean the URL: remove quotes, trim whitespace, remove trailing slash
+        String cleanedUrl = backendUrl.trim();
+        if ((cleanedUrl.startsWith('"') && cleanedUrl.endsWith('"')) ||
+            (cleanedUrl.startsWith("'") && cleanedUrl.endsWith("'"))) {
+          cleanedUrl = cleanedUrl.substring(1, cleanedUrl.length - 1);
+        }
+        cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/$'), '');
+        debugPrint('Backend URL loaded and cleaned: $cleanedUrl');
+        debugPrint('Backend will be called at: $cleanedUrl/validate-token');
+      } else {
+        debugPrint('Warning: BACKEND_URL not found in backend/.env');
+      }
     }
   } catch (e) {
-    debugPrint('Warning: Could not load .env file: $e');
+    debugPrint('Warning: Could not load backend/.env file: $e');
     debugPrint(
       'App will fall back to database validation for token authentication',
     );

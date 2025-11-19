@@ -93,26 +93,50 @@ def extract_user_info(decoded_token: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extract user information from decoded JWT token
     
+    Handles multiple field name variations:
+    - user_id, uid, sub (for user ID)
+    - email, user_email (for email)
+    
+    Email is optional and can be resolved from Firestore if missing.
+    User ID is required for Firebase custom token generation.
+    
     Args:
         decoded_token: Decoded JWT payload
         
     Returns:
-        Dictionary with user_id and email
+        Dictionary with user_id (required) and email (optional)
         
     Raises:
-        JWTValidationError: If required fields are missing
+        JWTValidationError: If user_id is missing
     """
-    user_id = decoded_token.get('user_id')
-    email = decoded_token.get('email')
+    # Try multiple field names for user_id
+    user_id = (
+        decoded_token.get('user_id') or
+        decoded_token.get('uid') or
+        decoded_token.get('sub') or
+        decoded_token.get('userId')
+    )
     
+    # Try multiple field names for email (optional)
+    email = (
+        decoded_token.get('email') or
+        decoded_token.get('user_email') or
+        decoded_token.get('email_address')
+    )
+    
+    # User ID is required (needed for Firebase custom token)
     if not user_id:
-        raise JWTValidationError("Token missing required field: user_id")
+        raise JWTValidationError(
+            "Token missing required field: user_id (or uid/sub). "
+            "Available fields: " + ", ".join(decoded_token.keys())
+        )
     
-    if not email:
-        raise JWTValidationError("Token missing required field: email")
+    # Email is optional - can be resolved from Firestore
+    # Convert to string and return empty string if None
+    email_str = str(email) if email else ""
     
     return {
         'user_id': str(user_id),
-        'email': str(email),
+        'email': email_str,
     }
 

@@ -35,16 +35,21 @@ router = APIRouter(tags=["authentication"])
     },
     summary="Validate JWT token and generate Firebase custom token",
     description="""
-    Validates a JWT token from Khonobuzz and generates a Firebase custom token for auto-login.
+    Validates a JWT token from Khonobuzz/ConoBuzz and generates a Firebase custom token for auto-login.
     
     **Process:**
     1. Validates JWT token signature and expiration using JWT_SECRET
-    2. Extracts user_id and email from token
-    3. Queries Firestore onboarding collection to verify user exists
+    2. Extracts user_id (required) and email (optional) from token
+       - Supports multiple field names: user_id/uid/sub for user ID, email/user_email for email
+    3. Queries Firestore onboarding collection by user_id (or email if user_id not found)
     4. Validates user status is 'Active'
     5. Extracts moduleAccessRole from onboarding document
-    6. Generates Firebase custom token using user_id
-    7. Returns Firebase token, user_id, email, and roles
+    6. Resolves email from Firestore if missing from JWT token
+    7. Generates Firebase custom token using user_id
+    8. Returns Firebase token, user_id, email, and roles
+    
+    **Note:** Email is optional in the JWT token. If missing, it will be resolved from 
+    the onboarding or users collection in Firestore.
     
     **Error Codes:**
     - 400: Missing or invalid token in request
@@ -80,9 +85,10 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         user_id = user_info['user_id']
         email = user_info['email']
         
-        logger.info(f"Token validated for user_id: {user_id}, email: {email}")
+        logger.info(f"Token validated for user_id: {user_id}, email: {email or 'not provided (will resolve from Firestore)'}")
         
         # Step 3: Validate user against Firestore and get roles
+        # Note: email is optional - validate_user_and_get_roles will resolve it from Firestore if missing
         logger.info(f"Querying Firestore for user_id: {user_id}")
         user_data = validate_user_and_get_roles(user_id, email)
         

@@ -2,65 +2,40 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service to handle backend API calls for token authentication
 /// This service calls a backend endpoint to create Firebase custom tokens
 ///
-/// To configure your backend URL, set the BACKEND_API_URL environment variable
-/// or update the _backendBaseUrl constant below.
-/// If no backend URL is configured, the service will return null for custom token requests.
+/// Backend URL is hardcoded to: https://pdh-backend.onrender.com
 class BackendAuthService {
   BackendAuthService._internal();
   static final BackendAuthService instance = BackendAuthService._internal();
 
   /// Backend API base URL for token authentication
-  /// Set this to your actual backend API URL, or leave as null if not using backend
-  /// Example: 'https://api.yourdomain.com/api' or 'https://your-backend-api.com/api'
-  ///
-  /// You can also set this via environment variable BACKEND_API_URL
-  static String? get _backendBaseUrl {
-    // Get backend URL from .env file
-    // Checks for BACKEND_API_URL first, then falls back to BACKEND_URL
-    try {
-      final envBackendUrl =
-          dotenv.env['BACKEND_API_URL'] ?? dotenv.env['BACKEND_URL'];
-      if (envBackendUrl != null && envBackendUrl.isNotEmpty) {
-        debugPrint(
-          'Backend URL loaded from environment variable: $envBackendUrl',
-        );
-        return envBackendUrl;
-      } else {
-        debugPrint('BACKEND_URL or BACKEND_API_URL not found in .env file');
-      }
-    } catch (e) {
-      debugPrint('Error reading backend URL from .env: $e');
-    }
-
-    // Return null if not configured (service will handle gracefully)
-    return null;
+  /// Hardcoded to use the production backend URL: https://pdh-backend.onrender.com
+  static String get _backendBaseUrl {
+    // Hardcoded production backend URL
+    const String backendUrl = 'https://pdh-backend.onrender.com';
+    debugPrint('Using hardcoded backend URL: $backendUrl');
+    return backendUrl;
   }
 
   /// Get Firebase custom token from backend using the JWT token
   /// This allows us to sign in users without passwords
-  /// Returns null if backend URL is not configured
   ///
   /// The backend validates the JWT token, queries Firestore, and generates
   /// a Firebase custom token for secure auto-login.
   Future<String?> getCustomTokenFromBackend(String jwtToken) async {
     final baseUrl = _backendBaseUrl;
-    if (baseUrl == null || baseUrl.isEmpty) {
-      debugPrint(
-        'Backend API URL not configured. Skipping custom token request.',
-      );
-      return null;
-    }
 
     try {
       // Call the /validate-token endpoint
+      final endpointUrl = '$baseUrl/validate-token';
+      debugPrint('Calling backend endpoint: $endpointUrl');
+
       final response = await http
           .post(
-            Uri.parse('$baseUrl/validate-token'),
+            Uri.parse(endpointUrl),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'token': jwtToken}),
           )
@@ -124,18 +99,18 @@ class BackendAuthService {
   }
 
   /// Validate token with backend (optional - if you want backend validation)
-  /// Returns false if backend URL is not configured
   Future<bool> validateTokenWithBackend(String token) async {
     final baseUrl = _backendBaseUrl;
-    if (baseUrl == null || baseUrl.isEmpty) {
-      debugPrint('Backend API URL not configured. Skipping token validation.');
-      return false;
-    }
 
     try {
+      // Note: This endpoint path should match the backend route
+      // The backend endpoint is at /validate-token (not /auth/validate-token)
+      final endpointUrl = '$baseUrl/validate-token';
+      debugPrint('Calling backend validation endpoint: $endpointUrl');
+
       final response = await http
           .post(
-            Uri.parse('$baseUrl/auth/validate-token'),
+            Uri.parse(endpointUrl),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'token': token}),
           )
