@@ -232,9 +232,12 @@ class _PersonalDevelopmentHubScreenState
 
       // Get user_id from onboarding data - this is the primary identifier
       // Email is optional and will be retrieved from users collection if available
+      // Try multiple field names and use onboardingDocId as fallback
       final userId =
           onboardingData['user_id'] as String? ??
-          onboardingData['userId'] as String?;
+          onboardingData['userId'] as String? ??
+          onboardingData['onboarding_id'] as String? ??
+          onboardingData['onboardingDocId'] as String?;
       
       if (userId == null || userId.isEmpty) {
         debugPrint('Landing screen: Cannot proceed without user_id');

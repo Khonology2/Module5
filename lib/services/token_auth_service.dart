@@ -368,9 +368,11 @@ class TokenAuthService {
                                    data['moduleRole'] as String? ??
                                    data['role'] as String?;
           final status = data['status'] as String?;
+          // Try multiple field names for user_id, and use document ID as fallback
           final userId = data['user_id'] as String? ?? 
                         data['userId'] as String? ??
-                        data['onboarding_id'] as String?;
+                        data['onboarding_id'] as String? ??
+                        doc.id; // Use document ID as fallback if no user_id field exists
 
           if (moduleAccessRole == null || moduleAccessRole.isEmpty) {
             debugPrint('No moduleAccessRole/role found in onboarding document');
@@ -391,7 +393,8 @@ class TokenAuthService {
           );
 
           // Validate that user_id exists (required for authentication)
-          if (userId == null || userId.isEmpty) {
+          // Since we use doc.id as fallback, userId should always have a value, but check for empty string
+          if (userId.isEmpty) {
             debugPrint('No user_id found in onboarding document - cannot proceed with authentication');
             debugPrint('Available fields: ${data.keys.join(", ")}');
             return null;
