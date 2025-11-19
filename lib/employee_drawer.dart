@@ -65,7 +65,7 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.notifications_none,
-            text: 'Alerts & Visuals.',
+          text: 'Alerts & Nudges.',
             route: '/alerts_nudges',
             isSelected: currentRoute == '/alerts_nudges',
           ),

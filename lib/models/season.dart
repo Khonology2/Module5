@@ -315,6 +315,7 @@ class SeasonMetrics {
   final int totalTeamPoints;
   final int completedTeamChallenges;
   final List<String> managerBadgesEarned;
+  final int managerPointsEarned;
 
   const SeasonMetrics({
     required this.totalParticipants,
@@ -328,6 +329,7 @@ class SeasonMetrics {
     this.totalTeamPoints = 0,
     this.completedTeamChallenges = 0,
     this.managerBadgesEarned = const [],
+    this.managerPointsEarned = 0,
   });
 
   factory SeasonMetrics.fromMap(Map<String, dynamic> map) {
@@ -354,6 +356,7 @@ class SeasonMetrics {
       totalTeamPoints: map['totalTeamPoints'] ?? 0,
       completedTeamChallenges: map['completedTeamChallenges'] ?? 0,
       managerBadgesEarned: List<String>.from(map['managerBadgesEarned'] ?? []),
+      managerPointsEarned: map['managerPointsEarned'] ?? 0,
     );
   }
 
@@ -372,6 +375,7 @@ class SeasonMetrics {
       'totalTeamPoints': totalTeamPoints,
       'completedTeamChallenges': completedTeamChallenges,
       'managerBadgesEarned': managerBadgesEarned,
+      'managerPointsEarned': managerPointsEarned,
     };
   }
 }

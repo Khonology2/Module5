@@ -72,7 +72,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
       red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
-      label: 'Alerts & Visuals',
+      label: 'Alerts & Nudges',
       route: '/alerts_nudges',
     ),
     itemWithAssets(

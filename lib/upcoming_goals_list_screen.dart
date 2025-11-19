@@ -1,9 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/auth_service.dart';
@@ -75,40 +78,65 @@ class UpcomingGoalsListScreen extends StatelessWidget {
                 );
               }
               final goals = snapshot.data ?? const <Goal>[];
-              return Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.backgroundColor,
-                      AppColors.backgroundColor.withValues(alpha: 0.9),
-                    ],
-                  ),
-                ),
-                child: ListView.builder(
-                  padding: AppSpacing.screenPadding,
-                  itemCount: goals.length + 1,
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                        child: Text(
-                          'All Upcoming Goals',
-                          style: AppTypography.heading2.copyWith(
-                            color: AppColors.textPrimary,
+              return AppComponents.backgroundWithImage(
+                imagePath: 'assets/khono_bg.png',
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: AppSpacing.md),
+                      Center(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: () {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/employee_dashboard',
+                            );
+                          },
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: Image.asset(
+                                'assets/BackButton-Red.png',
+                                width: 24,
+                                height: 24,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),
                           ),
                         ),
-                      );
-                    }
-                    final goal = goals[index - 1];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _GoalListItem(goal: goal),
-                    );
-                  },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: AppSpacing.screenPadding,
+                          itemCount: goals.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: AppSpacing.lg),
+                                child: Text(
+                                  'All Upcoming Goals',
+                                  style: AppTypography.heading2.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            }
+                            final goal = goals[index - 1];
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _GoalListItem(goal: goal),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -176,9 +204,9 @@ class _GoalListItem extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
