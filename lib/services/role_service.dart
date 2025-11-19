@@ -121,6 +121,7 @@ class RoleGate extends StatefulWidget {
 
 class _RoleGateState extends State<RoleGate> {
   bool _isInitializing = true;
+  bool _hasTokenAuth = false;
 
   @override
   void initState() {
@@ -129,8 +130,42 @@ class _RoleGateState extends State<RoleGate> {
   }
 
   Future<void> _initializeRole() async {
-    // Ensure role is loaded before showing the stream
-    await RoleService.instance.ensureRoleLoaded();
+    // Check for Firebase Auth user first
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null) {
+      // Traditional Firebase Auth - ensure role is loaded
+      await RoleService.instance.ensureRoleLoaded();
+      if (mounted) {
+        setState(() {
+          _isInitializing = false;
+        });
+      }
+      return;
+    }
+
+    // If no Firebase Auth user, check for token-based authentication
+    // Look for user document with tokenAuthenticated flag
+    try {
+      // Try to find a user document that was created via token authentication
+      // We'll check the cached role first, then query Firestore
+      if (RoleService.instance.cachedRole != null) {
+        // Role is already cached from token authentication
+        _hasTokenAuth = true;
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+          });
+        }
+        return;
+      }
+
+      // If no cached role, the role should have been set by landing screen
+      // If it's not cached, we'll rely on the cached role check below
+      // The landing screen should have already set it via setRoleByUserId()
+    } catch (e) {
+      debugPrint('RoleGate: Error checking token auth: $e');
+    }
+
     if (mounted) {
       setState(() {
         _isInitializing = false;
@@ -149,8 +184,13 @@ class _RoleGateState extends State<RoleGate> {
       return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
     }
 
-    // If not authenticated, redirect to sign in
-    final isAuthenticated = FirebaseAuth.instance.currentUser != null;
+    // Check authentication - either Firebase Auth or token-based
+    final isFirebaseAuthenticated = FirebaseAuth.instance.currentUser != null;
+    final isAuthenticated =
+        isFirebaseAuthenticated ||
+        _hasTokenAuth ||
+        RoleService.instance.cachedRole != null;
+
     if (!isAuthenticated) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
@@ -164,6 +204,25 @@ class _RoleGateState extends State<RoleGate> {
       return const SizedBox.shrink();
     }
 
+    // For token-based auth, use cached role directly (no stream needed)
+    // For Firebase Auth, use the stream
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null && RoleService.instance.cachedRole != null) {
+      // Token-based authentication - use cached role
+      final role = RoleService.instance.cachedRole;
+      if (widget.requiredRole == RequiredRole.any) return widget.child;
+      if (role == null) {
+        if (widget.requiredRole == RequiredRole.employee) return widget.child;
+        return widget.unauthorized ?? _Unauthorized(role: role);
+      }
+      final ok =
+          (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
+          (widget.requiredRole == RequiredRole.employee && role == 'employee');
+      if (ok) return widget.child;
+      return widget.unauthorized ?? _Unauthorized(role: role);
+    }
+
+    // Firebase Auth - use stream
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {

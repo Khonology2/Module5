@@ -359,12 +359,9 @@ class _PersonalDevelopmentHubScreenState
       // Navigate immediately to the appropriate dashboard
       if (mounted) {
         debugPrint('Landing screen: Navigating to $role dashboard immediately...');
-        // Use a small delay to ensure the widget tree is ready
-        Future.microtask(() {
-          if (mounted) {
-            _navigateToDashboard(role);
-          }
-        });
+        debugPrint('Landing screen: User ID: $userId, Role: $role, Email: ${email ?? "not set"}');
+        // Navigate immediately - no delay needed
+        _navigateToDashboard(role);
         return;
       }
 
@@ -386,20 +383,34 @@ class _PersonalDevelopmentHubScreenState
 
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String role) {
-    if (!mounted) return;
+    if (!mounted) {
+      debugPrint('Landing screen: Cannot navigate - widget not mounted');
+      return;
+    }
     
     debugPrint('Landing screen: _navigateToDashboard called with role: $role');
     
-    // Navigate immediately without waiting for post-frame callback
-    if (role == 'manager') {
-      debugPrint('Landing screen: Navigating to manager portal...');
-      Navigator.pushReplacementNamed(context, '/manager_portal');
-    } else if (role == 'employee') {
-      debugPrint('Landing screen: Navigating to employee dashboard...');
-      Navigator.pushReplacementNamed(context, '/employee_dashboard');
-    } else {
-      debugPrint('Landing screen: Unknown role: $role, defaulting to employee dashboard');
-      Navigator.pushReplacementNamed(context, '/employee_dashboard');
+    try {
+      // Navigate immediately without waiting for post-frame callback
+      if (role == 'manager') {
+        debugPrint('Landing screen: Navigating to manager portal...');
+        Navigator.pushReplacementNamed(context, '/manager_portal')
+            .then((_) => debugPrint('Landing screen: Navigation to manager portal completed'))
+            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+      } else if (role == 'employee') {
+        debugPrint('Landing screen: Navigating to employee dashboard...');
+        Navigator.pushReplacementNamed(context, '/employee_dashboard')
+            .then((_) => debugPrint('Landing screen: Navigation to employee dashboard completed'))
+            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+      } else {
+        debugPrint('Landing screen: Unknown role: $role, defaulting to employee dashboard');
+        Navigator.pushReplacementNamed(context, '/employee_dashboard')
+            .then((_) => debugPrint('Landing screen: Navigation to employee dashboard completed'))
+            .catchError((e) => debugPrint('Landing screen: Navigation error: $e'));
+      }
+    } catch (e) {
+      debugPrint('Landing screen: Error during navigation: $e');
+      debugPrint('Landing screen: Stack trace: ${StackTrace.current}');
     }
   }
 
