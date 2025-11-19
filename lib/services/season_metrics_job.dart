@@ -28,6 +28,7 @@ class SeasonMetricsJob {
             metrics.challengeCompletions.map((key, value) => MapEntry(key.name, value)),
         'metrics.totalTeamPoints': metrics.totalTeamPoints,
         'metrics.completedTeamChallenges': metrics.completedTeamChallenges,
+        'metrics.managerPointsEarned': metrics.managerPointsEarned,
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       };
 
@@ -116,6 +117,7 @@ class SeasonMetricsJob {
       totalTeamPoints: totalPointsEarned,
       completedTeamChallenges:
           challengeCompletionsByType.values.fold(0, (sum, value) => sum + value),
+      managerPointsEarned: season.metrics.managerPointsEarned,
       completedChallengesPerParticipant: completedChallengesPerParticipant,
     );
   }
@@ -169,6 +171,7 @@ class _RecomputedMetrics {
   final Map<ChallengeType, int> challengeCompletions;
   final int totalTeamPoints;
   final int completedTeamChallenges;
+  final int managerPointsEarned;
   final Map<String, int> completedChallengesPerParticipant;
 
   _RecomputedMetrics({
@@ -181,6 +184,7 @@ class _RecomputedMetrics {
     required this.challengeCompletions,
     required this.totalTeamPoints,
     required this.completedTeamChallenges,
+    required this.managerPointsEarned,
     required this.completedChallengesPerParticipant,
   });
 }

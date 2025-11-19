@@ -101,8 +101,6 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildManagerActions(Season season, double challengeProgress) {
-    final now = DateTime.now();
-    final hasEnded = now.isAfter(season.endDate);
     final isCompleted = season.status == SeasonStatus.completed;
     final isPaused = (season.settings['paused'] == true);
     final canComplete = !isCompleted; // allow at any progress; confirm if <100%
@@ -133,7 +131,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                   foregroundColor: Colors.white,
                 ),
               ),
-              if (hasEnded && !isCompleted)
+              if (!isCompleted)
                 OutlinedButton.icon(
                   onPressed: () => _onExtendSeason(season),
                   icon: const Icon(Icons.event, size: 18),

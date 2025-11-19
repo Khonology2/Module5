@@ -11,6 +11,40 @@ class SeasonService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  static const int _managerSeasonCreationBonus = 100;
+  static const int _managerSeasonExtensionBonus = 30;
+  static const int _managerSeasonCompletionBonus = 150;
+
+  static const Map<String, SeasonBadge> _managerActionBadges = {
+    'season_architect': SeasonBadge(
+      id: 'season_architect',
+      name: 'Season Architect',
+      description: 'Launched a growth season for your team',
+      icon: '🏗️',
+      color: '#9B59B6',
+      points: 75,
+      criteria: {'action': 'create'},
+    ),
+    'season_guardian': SeasonBadge(
+      id: 'season_guardian',
+      name: 'Season Guardian',
+      description: 'Extended a season to give your team more time',
+      icon: '🛡️',
+      color: '#1ABC9C',
+      points: 40,
+      criteria: {'action': 'extend'},
+    ),
+    'season_closer': SeasonBadge(
+      id: 'season_closer',
+      name: 'Season Closer',
+      description: 'Successfully completed a team season',
+      icon: '🏁',
+      color: '#E74C3C',
+      points: 100,
+      criteria: {'action': 'complete'},
+    ),
+  };
+
   // Create a new season
   static Future<String> createSeason({
     required String title,
@@ -59,6 +93,13 @@ class SeasonService {
           .collection('seasons')
           .doc(seasonId)
           .set(season.toFirestore());
+
+      await _awardManagerActionBadge(season, 'season_architect');
+      await _awardManagerSeasonPoints(
+        season: season,
+        points: _managerSeasonCreationBonus,
+        reason: 'Season created',
+      );
 
       // Record activity
       await ManagerRealtimeService.recordEmployeeActivity(
@@ -364,10 +405,22 @@ class SeasonService {
 
   // Extend a season end date
   static Future<void> extendSeason(String seasonId, DateTime newEndDate) async {
-    await _firestore.collection('seasons').doc(seasonId).update({
+    final doc = await _firestore.collection('seasons').doc(seasonId).get();
+    if (!doc.exists) {
+      throw Exception('Season not found');
+    }
+    final season = Season.fromFirestore(doc);
+    await doc.reference.update({
       'endDate': Timestamp.fromDate(newEndDate),
       'metrics.lastUpdated': FieldValue.serverTimestamp(),
     });
+
+    await _awardManagerActionBadge(season, 'season_guardian');
+    await _awardManagerSeasonPoints(
+      season: season,
+      points: _managerSeasonExtensionBonus,
+      reason: 'Season extended',
+    );
   }
 
   // Pause or resume season via settings.paused flag (non-breaking)
@@ -505,6 +558,10 @@ class SeasonService {
         averageProgress: season.metrics.averageProgress,
         challengeCompletions: season.metrics.challengeCompletions,
         lastUpdated: DateTime.now(),
+        totalTeamPoints: season.metrics.totalTeamPoints,
+        completedTeamChallenges: season.metrics.completedTeamChallenges,
+        managerBadgesEarned: season.metrics.managerBadgesEarned,
+        managerPointsEarned: season.metrics.managerPointsEarned,
       );
 
       batch.update(seasonRef, {'metrics': updatedMetrics.toMap()});
@@ -684,6 +741,82 @@ class SeasonService {
     }
   }
 
+  static Future<void> _awardManagerActionBadge(
+    Season season,
+    String badgeId,
+  ) async {
+    try {
+      final badge = _managerActionBadges[badgeId];
+      if (badge == null) return;
+      final managerId = season.createdBy;
+      if (managerId.isEmpty) return;
+      if (season.metrics.managerBadgesEarned.contains(badgeId)) {
+        return;
+      }
+
+      await _firestore.collection('seasons').doc(season.id).update({
+        'metrics.managerBadgesEarned': FieldValue.arrayUnion([badgeId]),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await _syncBadgeWithEmployeeSystem(
+        managerId,
+        badge,
+        season,
+        isManager: true,
+      );
+    } catch (e) {
+      developer.log('Error awarding manager action badge $badgeId: $e');
+    }
+  }
+
+  static Future<void> _awardManagerSeasonPoints({
+    required Season season,
+    required int points,
+    String reason = '',
+    bool logActivity = true,
+  }) async {
+    if (points <= 0) return;
+    final managerId = season.createdBy;
+    if (managerId.isEmpty) return;
+
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+      final managerRef = _firestore.collection('users').doc(managerId);
+
+      final batch = _firestore.batch();
+      batch.set(managerRef, {
+        'totalPoints': FieldValue.increment(points),
+        'managerSeasonPoints': FieldValue.increment(points),
+      }, SetOptions(merge: true));
+      batch.update(seasonRef, {
+        'metrics.managerPointsEarned': FieldValue.increment(points),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      if (logActivity) {
+        final description = reason.isNotEmpty
+            ? 'Earned $points pts · $reason'
+            : 'Earned $points manager season pts';
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: managerId,
+          activityType: 'manager_season_points',
+          description: description,
+          metadata: {
+            'seasonId': season.id,
+            'seasonTitle': season.title,
+            'points': points,
+            if (reason.isNotEmpty) 'reason': reason,
+          },
+        );
+      }
+    } catch (e) {
+      developer.log('Error awarding manager season points: $e');
+    }
+  }
+
   // Check and award badges for managers
   static Future<void> _checkAndAwardManagerBadges(Season season) async {
     try {
@@ -767,6 +900,15 @@ class SeasonService {
         'metrics.completedTeamChallenges': FieldValue.increment(1),
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       });
+
+      if (pointsAwarded > 0) {
+        await _awardManagerSeasonPoints(
+          season: season,
+          points: pointsAwarded,
+          reason: 'Team milestone progress',
+          logActivity: false,
+        );
+      }
 
       // Refetch season data to get the latest metrics
       final updatedSeasonDoc = await seasonRef.get();
@@ -996,6 +1138,11 @@ class SeasonService {
       }
 
       await batch.commit();
+
+      await _updateTeamMetricsAndCheckManagerBadges(
+        season,
+        totalMilestonePoints,
+      );
 
       // Check for badge awards
       await _checkAndAwardBadges(season, userId, batch);
@@ -1299,6 +1446,11 @@ class SeasonService {
     SeasonStatus status,
   ) async {
     try {
+      Season? existingSeason;
+      if (status == SeasonStatus.completed) {
+        existingSeason = await getSeason(seasonId);
+      }
+
       await _firestore.collection('seasons').doc(seasonId).update({
         'status': status.name,
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
@@ -1311,6 +1463,15 @@ class SeasonService {
             .set(celebration);
         await SeasonMetricsJob.recomputeSeasonMetrics(seasonId);
         await refreshParticipantDisplayNames(seasonId);
+
+        if (existingSeason != null) {
+          await _awardManagerActionBadge(existingSeason, 'season_closer');
+          await _awardManagerSeasonPoints(
+            season: existingSeason,
+            points: _managerSeasonCompletionBonus,
+            reason: 'Season completed',
+          );
+        }
       }
       developer.log('Updated season $seasonId status to ${status.name}');
     } catch (e) {
