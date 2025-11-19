@@ -43,26 +43,50 @@ class Settings(BaseSettings):
         
         # Read from environment variables and map to field names
         # Always read directly from os.getenv() to ensure we get the values
+        # Support both JWT_SECRET and JWT_SECRET_KEY for compatibility
         env_mapping = {
             'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
             'JWT_SECRET': 'jwt_secret',
+            'JWT_SECRET_KEY': 'jwt_secret',  # Alternative name used in Render
             'BACKEND_URL': 'backend_url',
         }
         
         result = dict(data)
+        
+        # Special handling for jwt_secret - check both JWT_SECRET and JWT_SECRET_KEY
+        jwt_secret = os.getenv('JWT_SECRET') or os.getenv('JWT_SECRET_KEY')
+        if jwt_secret is not None:
+            result['jwt_secret'] = jwt_secret
+        
+        # Handle other environment variables
         for env_var, field_name in env_mapping.items():
-            # Always read from environment variable directly (most reliable)
+            # Skip jwt_secret as we already handled it above
+            if field_name == 'jwt_secret':
+                continue
+                
+            # Priority 1: Read directly from environment variable (most reliable)
             env_value = os.getenv(env_var)
-            if env_value is not None:  # Check for None, not falsy (empty string is valid)
+            if env_value is not None:
                 result[field_name] = env_value
-            # Fallback: check if BaseSettings already read it with uppercase name
-            elif env_var in result and result[env_var] is not None:
+                continue
+            
+            # Priority 2: Check if BaseSettings already converted it (uppercase -> lowercase)
+            # BaseSettings with case_sensitive=False converts FIREBASE_SERVICE_ACCOUNT_JSON -> firebase_service_account_json
+            if field_name in result and result[field_name] is not None:
+                # Already set by BaseSettings, keep it
+                continue
+            
+            # Priority 3: Check if it's in data with uppercase name (before BaseSettings conversion)
+            if env_var in result and result[env_var] is not None:
                 result[field_name] = result[env_var]
-            # Fallback: check if it's already in the result with the field name
-            elif field_name not in result:
-                # If not found anywhere, check if it's in data with uppercase
-                # This handles case where BaseSettings might have already processed it
-                pass
+                continue
+            
+            # Priority 4: Check all possible case variations
+            # BaseSettings might have converted it to different case
+            for key in list(result.keys()):
+                if key.upper() == env_var.upper() and result[key] is not None:
+                    result[field_name] = result[key]
+                    break
         
         return result
 
