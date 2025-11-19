@@ -82,7 +82,6 @@ flutter:
     - assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png
     - assets/videos/Ai_Avatar.gif
     - assets/khono_bg.png
-    - assets/.env
 
 
 

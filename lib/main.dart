@@ -65,13 +65,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables from .env file
-  // For web, load from assets/.env (as configured in pubspec.yaml)
+  // For web, environment variables should be set via platform (Render dashboard)
+  // and are accessible via dotenv.env without loading a file
   // For mobile/desktop, load from file system
   try {
     if (kIsWeb) {
-      // On web, load from assets/.env
-      await dotenv.load(fileName: "assets/.env");
-      debugPrint('Environment variables loaded successfully from assets/.env');
+      // On web, don't load .env file (security - env vars should be set via platform)
+      // Environment variables set in Render dashboard are accessible via dotenv.env
+      debugPrint(
+        'Web platform: Using platform environment variables (set in Render dashboard)',
+      );
     } else {
       // For mobile/desktop, load from file system
       await dotenv.load(fileName: ".env");
