@@ -42,6 +42,7 @@ class Settings(BaseSettings):
             data = {}
         
         # Read from environment variables and map to field names
+        # Always read directly from os.getenv() to ensure we get the values
         env_mapping = {
             'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
             'JWT_SECRET': 'jwt_secret',
@@ -50,11 +51,18 @@ class Settings(BaseSettings):
         
         result = dict(data)
         for env_var, field_name in env_mapping.items():
-            # Use environment variable if field not already set
-            if field_name not in result or not result.get(field_name):
-                env_value = os.getenv(env_var)
-                if env_value:
-                    result[field_name] = env_value
+            # Always read from environment variable directly (most reliable)
+            env_value = os.getenv(env_var)
+            if env_value is not None:  # Check for None, not falsy (empty string is valid)
+                result[field_name] = env_value
+            # Fallback: check if BaseSettings already read it with uppercase name
+            elif env_var in result and result[env_var] is not None:
+                result[field_name] = result[env_var]
+            # Fallback: check if it's already in the result with the field name
+            elif field_name not in result:
+                # If not found anywhere, check if it's in data with uppercase
+                # This handles case where BaseSettings might have already processed it
+                pass
         
         return result
 
