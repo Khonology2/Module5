@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // The main entry point for the Flutter application.
@@ -344,48 +343,29 @@ class _PersonalDevelopmentHubScreenState
       
       debugPrint('Landing screen: User document created/updated in Firestore with user_id: $userId');
 
-      // Step 7: Check if user is already logged in with Firebase Auth
-      User? user = FirebaseAuth.instance.currentUser;
-
-      if (user != null) {
-        // User is already logged in, update role and navigate
-        debugPrint(
-          'Landing screen: User already logged in, updating role and redirecting...',
-        );
-        
-        // Also update the Firebase Auth user's document if UID differs from user_id
-        if (user.uid != userId) {
-          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-            'user_id': userId,
-            'role': role,
-            'tokenAuthenticated': true,
-            'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-            if (email != null && email.isNotEmpty) 'email': email,
-          }, SetOptions(merge: true));
-        }
-        
-        await RoleService.instance.getRole(refresh: true);
-
-        if (mounted) {
-          _navigateToDashboard(role);
-          return;
-        }
-      } else {
-        // User is not logged in with Firebase Auth
-        // Since we're using user_id, we can proceed without Firebase Auth login
-        // The user document is already created in Firestore above
-        debugPrint(
-          'Landing screen: User not logged in with Firebase Auth, but user document created. Proceeding with navigation...',
-        );
-        
-        // Update role service with the role
-        await RoleService.instance.getRole(refresh: true);
-        
-        if (mounted) {
-          debugPrint('Landing screen: Redirecting to $role dashboard...');
-          _navigateToDashboard(role);
-          return;
-        }
+      // Step 7: Set role in service and navigate to dashboard
+      // Since we're using user_id-based authentication, we need to set the role directly
+      debugPrint('Landing screen: User document created, setting role in service...');
+      
+      // Set the role directly in RoleService using user_id
+      try {
+        await RoleService.instance.setRoleByUserId(userId, role);
+        debugPrint('Landing screen: Role set in RoleService successfully');
+      } catch (e) {
+        debugPrint('Landing screen: Error setting role in RoleService: $e');
+        // Continue anyway - we have the role and can navigate
+      }
+      
+      // Navigate immediately to the appropriate dashboard
+      if (mounted) {
+        debugPrint('Landing screen: Navigating to $role dashboard immediately...');
+        // Use a small delay to ensure the widget tree is ready
+        Future.microtask(() {
+          if (mounted) {
+            _navigateToDashboard(role);
+          }
+        });
+        return;
       }
 
       // Token check complete (whether successful or not)
@@ -406,15 +386,21 @@ class _PersonalDevelopmentHubScreenState
 
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String role) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      if (role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_portal');
-      } else if (role == 'employee') {
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      }
-    });
+    if (!mounted) return;
+    
+    debugPrint('Landing screen: _navigateToDashboard called with role: $role');
+    
+    // Navigate immediately without waiting for post-frame callback
+    if (role == 'manager') {
+      debugPrint('Landing screen: Navigating to manager portal...');
+      Navigator.pushReplacementNamed(context, '/manager_portal');
+    } else if (role == 'employee') {
+      debugPrint('Landing screen: Navigating to employee dashboard...');
+      Navigator.pushReplacementNamed(context, '/employee_dashboard');
+    } else {
+      debugPrint('Landing screen: Unknown role: $role, defaulting to employee dashboard');
+      Navigator.pushReplacementNamed(context, '/employee_dashboard');
+    }
   }
 
   @override

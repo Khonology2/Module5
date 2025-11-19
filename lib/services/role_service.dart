@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
@@ -61,6 +62,42 @@ class RoleService {
       await getRole();
     }
   }
+
+  // Method to set role directly using user_id (for token-based auth without Firebase Auth)
+  Future<void> setRoleByUserId(String userId, String role) async {
+    try {
+      // Store role in Firestore using user_id
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'role': role,
+        'user_id': userId,
+      }, SetOptions(merge: true));
+
+      // Cache the role locally
+      _cachedRole = role;
+      debugPrint('RoleService: Role set to $role for user_id: $userId');
+    } catch (e) {
+      debugPrint('RoleService: Error setting role by user_id: $e');
+      // Still cache the role locally even if Firestore update fails
+      _cachedRole = role;
+    }
+  }
+
+  // Method to get role by user_id (for token-based auth without Firebase Auth)
+  Future<String?> getRoleByUserId(String userId) async {
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(userId);
+      final snap = await ref.get();
+      String? role = snap.data()?['role'] as String?;
+      if (role != null && role.isNotEmpty) {
+        _cachedRole = role;
+        return role;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('RoleService: Error getting role by user_id: $e');
+      return null;
+    }
+  }
 }
 
 enum RequiredRole { manager, employee, any }
@@ -70,7 +107,12 @@ class RoleGate extends StatefulWidget {
   final Widget child;
   final Widget? unauthorized;
 
-  const RoleGate({super.key, required this.requiredRole, required this.child, this.unauthorized});
+  const RoleGate({
+    super.key,
+    required this.requiredRole,
+    required this.child,
+    this.unauthorized,
+  });
 
   @override
   State<RoleGate> createState() => _RoleGateState();
@@ -99,12 +141,11 @@ class _RoleGateState extends State<RoleGate> {
   Widget build(BuildContext context) {
     if (_isInitializing) {
       // Do not block employee views during initial role warm-up
-      if (widget.requiredRole == RequiredRole.employee || widget.requiredRole == RequiredRole.any) {
+      if (widget.requiredRole == RequiredRole.employee ||
+          widget.requiredRole == RequiredRole.any) {
         return widget.child;
       }
-      return Center(
-        child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-      );
+      return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
     }
 
     // If not authenticated, redirect to sign in
@@ -112,7 +153,11 @@ class _RoleGateState extends State<RoleGate> {
     if (!isAuthenticated) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
-          Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (route) => false);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            '/sign_in',
+            (route) => false,
+          );
         }
       });
       return const SizedBox.shrink();
@@ -127,8 +172,11 @@ class _RoleGateState extends State<RoleGate> {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
-        final ok = (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
-            (widget.requiredRole == RequiredRole.employee && role == 'employee');
+        final ok =
+            (widget.requiredRole == RequiredRole.manager &&
+                role == 'manager') ||
+            (widget.requiredRole == RequiredRole.employee &&
+                role == 'employee');
         if (ok) return widget.child;
         return widget.unauthorized ?? _Unauthorized(role: role);
       },
@@ -147,15 +195,27 @@ class _Unauthorized extends StatelessWidget {
       body: Center(
         child: Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: const Color(0xFF1F2840), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2840),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.lock_outline, color: Colors.orangeAccent),
               const SizedBox(height: 12),
-              const Text('Access restricted', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const Text(
+                'Access restricted',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 6),
-              Text('Your role (${role ?? "unknown"}) does not have access to this page.', style: const TextStyle(color: Colors.white70)),
+              Text(
+                'Your role (${role ?? "unknown"}) does not have access to this page.',
+                style: const TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () {
@@ -165,9 +225,12 @@ class _Unauthorized extends StatelessWidget {
                     Navigator.pushReplacementNamed(context, '/employee_portal');
                   }
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC10D00), foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                ),
                 child: const Text('Go to my portal'),
-              )
+              ),
             ],
           ),
         ),
