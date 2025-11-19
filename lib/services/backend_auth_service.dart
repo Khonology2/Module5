@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Service to handle backend API calls for token authentication
 /// This service calls a backend endpoint to create Firebase custom tokens
@@ -19,13 +20,25 @@ class BackendAuthService {
   ///
   /// You can also set this via environment variable BACKEND_API_URL
   static String? get _backendBaseUrl {
-    // Check for environment variable first (if using flutter_dotenv or similar)
-    // For now, set your backend URL here:
-    const String? envBackendUrl =
-        null; // Set to your backend URL, e.g., 'https://api.yourdomain.com/api'
+    // Get backend URL from .env file
+    // Checks for BACKEND_API_URL first, then falls back to BACKEND_URL
+    try {
+      final envBackendUrl =
+          dotenv.env['BACKEND_API_URL'] ?? dotenv.env['BACKEND_URL'];
+      if (envBackendUrl != null && envBackendUrl.isNotEmpty) {
+        debugPrint(
+          'Backend URL loaded from environment variable: $envBackendUrl',
+        );
+        return envBackendUrl;
+      } else {
+        debugPrint('BACKEND_URL or BACKEND_API_URL not found in .env file');
+      }
+    } catch (e) {
+      debugPrint('Error reading backend URL from .env: $e');
+    }
 
-    // Return configured URL or null if not set
-    return envBackendUrl;
+    // Return null if not configured (service will handle gracefully)
+    return null;
   }
 
   /// Get Firebase custom token from backend using the JWT token
