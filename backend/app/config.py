@@ -4,7 +4,7 @@ Configuration module for loading and validating environment variables
 import os
 import json
 from typing import Optional, Dict, Any
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
@@ -18,16 +18,45 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
+        # Explicitly map environment variables to field names
+        env_ignore_empty=True,
     )
     
     # Firebase service account JSON (can be a JSON string or path to JSON file)
-    firebase_service_account_json: str = Field(..., validation_alias="FIREBASE_SERVICE_ACCOUNT_JSON")
+    # Environment variable: FIREBASE_SERVICE_ACCOUNT_JSON
+    firebase_service_account_json: str
     
     # JWT secret for validating tokens from Khonobuzz
-    jwt_secret: str = Field(..., validation_alias="JWT_SECRET")
+    # Environment variable: JWT_SECRET
+    jwt_secret: str
     
     # Optional backend URL
-    backend_url: Optional[str] = Field(None, validation_alias="BACKEND_URL")
+    # Environment variable: BACKEND_URL
+    backend_url: Optional[str] = None
+    
+    @model_validator(mode='before')
+    @classmethod
+    def read_env_vars(cls, data: Any) -> Dict[str, Any]:
+        """Read environment variables explicitly and map them to field names"""
+        if not isinstance(data, dict):
+            data = {}
+        
+        # Read from environment variables and map to field names
+        env_mapping = {
+            'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
+            'JWT_SECRET': 'jwt_secret',
+            'BACKEND_URL': 'backend_url',
+        }
+        
+        result = dict(data)
+        for env_var, field_name in env_mapping.items():
+            # Use environment variable if field not already set
+            if field_name not in result or not result.get(field_name):
+                env_value = os.getenv(env_var)
+                if env_value:
+                    result[field_name] = env_value
+        
+        return result
 
 
 # Global settings instance
