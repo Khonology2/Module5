@@ -50,7 +50,10 @@ app.*.map.json
 .env.*.local
 
 # Generated config file (contains sensitive keys from build-time injection)
-lib/config/env_config.dart
+# Note: We DO commit the placeholder version (with null values) so the code compiles
+# The build script will overwrite it with actual values during build
+# DO NOT ignore this file - we need the placeholder in the repo
+# lib/config/env_config.dart
 
 # Keep example and scripts
 !.env.example
