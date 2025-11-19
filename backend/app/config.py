@@ -4,7 +4,8 @@ Configuration module for loading and validating environment variables
 import os
 import json
 from typing import Optional, Dict, Any
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (for local development)
@@ -14,24 +15,19 @@ load_dotenv()
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+    )
+    
     # Firebase service account JSON (can be a JSON string or path to JSON file)
-    firebase_service_account_json: str
+    firebase_service_account_json: str = Field(..., validation_alias="FIREBASE_SERVICE_ACCOUNT_JSON")
     
     # JWT secret for validating tokens from Khonobuzz
-    jwt_secret: str
+    jwt_secret: str = Field(..., validation_alias="JWT_SECRET")
     
     # Optional backend URL
-    backend_url: Optional[str] = None
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        # Map environment variable names
-        fields = {
-            'firebase_service_account_json': {'env': 'FIREBASE_SERVICE_ACCOUNT_JSON'},
-            'jwt_secret': {'env': 'JWT_SECRET'},
-            'backend_url': {'env': 'BACKEND_URL'},
-        }
+    backend_url: Optional[str] = Field(None, validation_alias="BACKEND_URL")
 
 
 # Global settings instance
