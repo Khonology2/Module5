@@ -359,19 +359,9 @@ class TokenAuthService {
           }
 
           // Get fields from onboarding document based on actual collection structure
-          // Fields: email, moduleAccessRole (or role), status, user_id, token, etc.
+          // Fields: moduleAccessRole (or role), status, user_id, token, etc.
           // Note: Some documents may use 'role' instead of 'moduleAccessRole'
-          // Read email field - handle different possible types
-          String? docEmail;
-          final emailValue = data['email'];
-          if (emailValue != null) {
-            if (emailValue is String) {
-              docEmail = emailValue.trim();
-            } else {
-              // Try to convert to string if it's not already
-              docEmail = emailValue.toString().trim();
-            }
-          }
+          // Email is optional and will be retrieved from users collection if needed
           
           // Try moduleAccessRole first, then fall back to role
           final moduleAccessRole = data['moduleAccessRole'] as String? ?? 
@@ -400,52 +390,51 @@ class TokenAuthService {
             'Token validated successfully by querying onboarding collection directly',
           );
 
-          // Get the best available email - prioritize document email
-          final finalEmail = (docEmail != null && docEmail.isNotEmpty)
-              ? docEmail
-              : ((email != null && email.isNotEmpty) ? email : null);
+          // Validate that user_id exists (required for authentication)
+          if (userId == null || userId.isEmpty) {
+            debugPrint('No user_id found in onboarding document - cannot proceed with authentication');
+            debugPrint('Available fields: ${data.keys.join(", ")}');
+            return null;
+          }
 
-          debugPrint(
-            'Onboarding validation - Email from doc: $docEmail, Email from param: $email, Final email: $finalEmail',
-          );
           debugPrint(
             'Onboarding validation - Status: $status, User ID: $userId, ModuleAccessRole: $moduleAccessRole',
           );
           debugPrint('Onboarding document fields: ${data.keys.join(", ")}');
-          debugPrint('Onboarding document email field value: ${data['email']}');
-          debugPrint('Onboarding document email field type: ${data['email']?.runtimeType}');
 
-          // If email is still missing, try to get it from users collection using user_id
-          String? resolvedEmail = finalEmail;
-          if ((resolvedEmail == null || resolvedEmail.isEmpty) && userId != null && userId.isNotEmpty) {
+          // Try to get email from users collection using user_id (optional, for user document)
+          String? resolvedEmail;
+          if (userId.isNotEmpty) {
             try {
-              debugPrint('Email not found in onboarding document, trying to get from users collection using user_id: $userId');
+              debugPrint('Checking users collection for user_id: $userId');
               final userDoc = await FirebaseFirestore.instance
                   .collection('users')
                   .doc(userId)
                   .get();
               if (userDoc.exists) {
                 final userData = userDoc.data();
-                final userEmail = (userData is Map<String, dynamic>) ? userData['email'] as String? : null;
-                if (userEmail != null && userEmail.isNotEmpty) {
-                  resolvedEmail = userEmail.trim();
-                  debugPrint('Email retrieved from users collection: $resolvedEmail');
+                if (userData is Map<String, dynamic>) {
+                  resolvedEmail = userData['email'] as String?;
+                  if (resolvedEmail != null && resolvedEmail.isNotEmpty) {
+                    debugPrint('Email retrieved from users collection: $resolvedEmail');
+                  }
                 }
               }
             } catch (e) {
-              debugPrint('Error querying users collection for email: $e');
+              debugPrint('Error querying users collection: $e');
             }
           }
 
           // Return all relevant data from onboarding collection
+          // user_id is the primary identifier, email is optional
           return {
-            'email': resolvedEmail ?? '',
+            'email': resolvedEmail ?? '', // Optional - may be empty
             'moduleAccessRole': moduleAccessRole,
             'token': token,
             'onboardingDocId': doc.id,
             'status': status,
             'userId': userId,
-            'user_id': userId, // Include both for compatibility
+            'user_id': userId, // Primary identifier - required
           };
         }
       } catch (e) {

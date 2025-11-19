@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
-import 'package:pdh/services/backend_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -231,33 +230,37 @@ class _PersonalDevelopmentHubScreenState
         return;
       }
 
-      // Get email from onboarding data - this is the primary source after validation
-      // The onboarding collection has: email, moduleAccessRole, status, user_id, etc.
-      // Note: validateTokenWithOnboarding now also tries to get email from users collection
+      // Get user_id from onboarding data - this is the primary identifier
+      // Email is optional and will be retrieved from users collection if available
+      final userId =
+          onboardingData['user_id'] as String? ??
+          onboardingData['userId'] as String?;
+      
+      if (userId == null || userId.isEmpty) {
+        debugPrint('Landing screen: Cannot proceed without user_id');
+        debugPrint(
+          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
+        );
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+          });
+        }
+        return;
+      }
+      
+      debugPrint('Landing screen: User ID confirmed: $userId');
+      
+      // Try to get email from users collection (optional - for user document)
       final onboardingEmail = onboardingData['email'] as String?;
       if (onboardingEmail != null && onboardingEmail.isNotEmpty) {
         email = onboardingEmail.trim();
         debugPrint(
-          'Landing screen: Email retrieved from onboarding collection: $email',
+          'Landing screen: Email retrieved from onboarding data: $email',
         );
       } else {
-        debugPrint('Landing screen: Email not found in onboarding data');
-        debugPrint(
-          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
-        );
-        debugPrint('Landing screen: Email value: ${onboardingData['email']}');
-        debugPrint(
-          'Landing screen: Email type: ${onboardingData['email'].runtimeType}',
-        );
-        // Email might have been retrieved from users collection in validateTokenWithOnboarding
-        // Check again after validation
-        if (onboardingData['email'] != null) {
-          final emailValue = onboardingData['email'];
-          if (emailValue is String && emailValue.isNotEmpty) {
-            email = emailValue.trim();
-            debugPrint('Landing screen: Email found after re-check: $email');
-          }
-        }
+        // Email is optional - we can proceed without it using user_id
+        debugPrint('Landing screen: Email not found, but proceeding with user_id: $userId');
       }
 
       // Check user status - must be Active
@@ -272,14 +275,6 @@ class _PersonalDevelopmentHubScreenState
           });
         }
         return;
-      }
-
-      // Get user_id if available
-      final userId =
-          onboardingData['user_id'] as String? ??
-          onboardingData['userId'] as String?;
-      if (userId != null) {
-        debugPrint('Landing screen: User ID from onboarding: $userId');
       }
 
       // Extract module role from JWT token or onboarding data
@@ -303,28 +298,7 @@ class _PersonalDevelopmentHubScreenState
       debugPrint(
         'Landing screen: Token validated successfully. ModuleAccessRole: $moduleAccessRole',
       );
-
-      // Ensure we have email for user creation
-      if (email == null || email.isEmpty) {
-        debugPrint('Landing screen: Cannot proceed without email');
-        debugPrint(
-          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
-        );
-        debugPrint(
-          'Landing screen: Onboarding data email value: ${onboardingData['email']}',
-        );
-        debugPrint(
-          'Landing screen: Onboarding data email type: ${onboardingData['email'].runtimeType}',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-          });
-        }
-        return;
-      }
-
-      debugPrint('Landing screen: Email confirmed: $email');
+      debugPrint('Landing screen: User ID confirmed: $userId');
 
       // Step 5: Map moduleAccessRole to internal role
       final role = TokenAuthService.instance.mapModuleAccessRoleToRole(
@@ -345,8 +319,29 @@ class _PersonalDevelopmentHubScreenState
 
       debugPrint('Landing screen: Role mapped successfully: $role');
 
-      // Step 6: Automatically sign in the user
-      // Check if user is already logged in
+      // Step 6: Create or update user document in Firestore using user_id
+      // This ensures the user exists in the users collection
+      final userData = <String, dynamic>{
+        'user_id': userId,
+        'role': role,
+        'tokenAuthenticated': true,
+        'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+      };
+      
+      // Add email if available (optional)
+      if (email != null && email.isNotEmpty) {
+        userData['email'] = email;
+      }
+      
+      // Use user_id as the document ID
+      await FirebaseFirestore.instance.collection('users').doc(userId).set(
+        userData,
+        SetOptions(merge: true),
+      );
+      
+      debugPrint('Landing screen: User document created/updated in Firestore with user_id: $userId');
+
+      // Step 7: Check if user is already logged in with Firebase Auth
       User? user = FirebaseAuth.instance.currentUser;
 
       if (user != null) {
@@ -354,13 +349,18 @@ class _PersonalDevelopmentHubScreenState
         debugPrint(
           'Landing screen: User already logged in, updating role and redirecting...',
         );
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'email': email,
-          'role': role,
-          'tokenAuthenticated': true,
-          'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
+        
+        // Also update the Firebase Auth user's document if UID differs from user_id
+        if (user.uid != userId) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'user_id': userId,
+            'role': role,
+            'tokenAuthenticated': true,
+            'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+            if (email != null && email.isNotEmpty) 'email': email,
+          }, SetOptions(merge: true));
+        }
+        
         await RoleService.instance.getRole(refresh: true);
 
         if (mounted) {
@@ -368,44 +368,20 @@ class _PersonalDevelopmentHubScreenState
           return;
         }
       } else {
-        // User is not logged in - automatically sign them in using backend custom token
+        // User is not logged in with Firebase Auth
+        // Since we're using user_id, we can proceed without Firebase Auth login
+        // The user document is already created in Firestore above
         debugPrint(
-          'Landing screen: User not logged in, attempting automatic sign-in with custom token...',
+          'Landing screen: User not logged in with Firebase Auth, but user document created. Proceeding with navigation...',
         );
-        try {
-          final userCredential = await BackendAuthService.instance
-              .signInWithCustomToken(token);
-
-          if (userCredential != null && userCredential.user != null) {
-            // Successfully signed in automatically
-            debugPrint('Landing screen: Automatic sign-in successful!');
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(userCredential.user!.uid)
-                .set({
-                  'email': email,
-                  'role': role,
-                  'tokenAuthenticated': true,
-                  'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
-
-            await RoleService.instance.getRole(refresh: true);
-
-            if (mounted) {
-              debugPrint('Landing screen: Redirecting to $role dashboard...');
-              _navigateToDashboard(role);
-              return;
-            }
-          } else {
-            // Backend service not available - cannot auto-login without backend
-            debugPrint(
-              'Landing screen: Backend service not available - cannot auto-login. User must sign in manually.',
-            );
-            // Show landing screen so user can manually sign in
-          }
-        } catch (e) {
-          debugPrint('Landing screen: Error during automatic sign-in: $e');
-          // Continue to show landing screen
+        
+        // Update role service with the role
+        await RoleService.instance.getRole(refresh: true);
+        
+        if (mounted) {
+          debugPrint('Landing screen: Redirecting to $role dashboard...');
+          _navigateToDashboard(role);
+          return;
         }
       }
 
