@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
@@ -173,11 +171,11 @@ class _PersonalDevelopmentHubScreenState
       }
 
       // Extract data from backend response
-      final firebaseToken = validationResponse['firebase_token'] as String?;
+      final firebaseTokenRaw = validationResponse['firebase_token'] as String?;
       final email = validationResponse['email'] as String?;
       final roles = validationResponse['roles'] as List<dynamic>?;
 
-      if (firebaseToken == null || firebaseToken.isEmpty) {
+      if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
         debugPrint('Landing screen: No firebase_token in response');
         if (mounted) {
           setState(() {
@@ -187,6 +185,45 @@ class _PersonalDevelopmentHubScreenState
         }
         return;
       }
+
+      // Clean the token: trim whitespace and remove any quotes
+      String firebaseToken = firebaseTokenRaw.trim();
+      if (firebaseToken.startsWith('"') && firebaseToken.endsWith('"')) {
+        firebaseToken = firebaseToken.substring(1, firebaseToken.length - 1);
+      }
+      if (firebaseToken.startsWith("'") && firebaseToken.endsWith("'")) {
+        firebaseToken = firebaseToken.substring(1, firebaseToken.length - 1);
+      }
+      firebaseToken = firebaseToken.trim();
+
+      debugPrint(
+        'Landing screen: Firebase token extracted (length: ${firebaseToken.length})',
+      );
+      debugPrint(
+        'Landing screen: Token preview - first 50 chars: ${firebaseToken.substring(0, firebaseToken.length > 50 ? 50 : firebaseToken.length)}...',
+      );
+
+      // Validate token format (should be a JWT with 3 parts)
+      final tokenParts = firebaseToken.split('.');
+      if (tokenParts.length != 3) {
+        debugPrint(
+          'Landing screen: Invalid Firebase token format - expected 3 parts, got ${tokenParts.length}',
+        );
+        debugPrint(
+          'Landing screen: Token parts: ${tokenParts.map((p) => p.length).join(", ")}',
+        );
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _isProcessingButton = false;
+          });
+        }
+        return;
+      }
+
+      debugPrint(
+        'Landing screen: Token format valid - 3 parts with lengths: ${tokenParts.map((p) => p.length).join(", ")}',
+      );
 
       // Extract PDH role from roles list
       String? pdhRole;

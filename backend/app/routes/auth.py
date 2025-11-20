@@ -107,7 +107,21 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         
         # Step 5: Return response
         # Ensure custom_token is a string (it should be, but handle edge cases)
-        firebase_token = custom_token if isinstance(custom_token, str) else str(custom_token)
+        # If it's bytes, decode it; otherwise convert to string
+        if isinstance(custom_token, bytes):
+            firebase_token = custom_token.decode('utf-8')
+        elif isinstance(custom_token, str):
+            firebase_token = custom_token
+        else:
+            firebase_token = str(custom_token)
+        
+        # Validate token format (should be a JWT with 3 parts)
+        token_parts = firebase_token.split('.')
+        if len(token_parts) != 3:
+            logger.error(f"Invalid Firebase token format - expected 3 parts, got {len(token_parts)}")
+            raise ValueError("Invalid Firebase custom token format")
+        
+        logger.info(f"Firebase token validated - length: {len(firebase_token)}, parts: {len(token_parts)}")
         
         return TokenValidationResponse(
             firebase_token=firebase_token,

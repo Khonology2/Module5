@@ -60,12 +60,41 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       // Extract data from backend response
-      final firebaseToken = validationResponse['firebase_token'] as String?;
+      final firebaseTokenRaw = validationResponse['firebase_token'] as String?;
       final email = validationResponse['email'] as String?;
       final roles = validationResponse['roles'] as List<dynamic>?;
 
-      if (firebaseToken == null || firebaseToken.isEmpty) {
+      if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
         debugPrint('Backend validation failed - no firebase_token in response');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _tokenAuthInProgress = false;
+          });
+        }
+        return;
+      }
+
+      // Clean the token: trim whitespace and remove any quotes
+      String firebaseToken = firebaseTokenRaw.trim();
+      if (firebaseToken.startsWith('"') && firebaseToken.endsWith('"')) {
+        firebaseToken = firebaseToken.substring(1, firebaseToken.length - 1);
+      }
+      if (firebaseToken.startsWith("'") && firebaseToken.endsWith("'")) {
+        firebaseToken = firebaseToken.substring(1, firebaseToken.length - 1);
+      }
+      firebaseToken = firebaseToken.trim();
+
+      debugPrint(
+        'AuthWrapper: Firebase token extracted (length: ${firebaseToken.length}, starts with: ${firebaseToken.substring(0, firebaseToken.length > 20 ? 20 : firebaseToken.length)}...)',
+      );
+
+      // Validate token format (should be a JWT with 3 parts)
+      final tokenParts = firebaseToken.split('.');
+      if (tokenParts.length != 3) {
+        debugPrint(
+          'AuthWrapper: Invalid Firebase token format - expected 3 parts, got ${tokenParts.length}',
+        );
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
