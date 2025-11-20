@@ -32,8 +32,8 @@ class SeasonMetricsJob {
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       };
 
-      metrics.completedChallengesPerParticipant.forEach((userId, count) {
-        updates['participations.$userId.completedChallenges'] = count;
+      metrics.completedChallengesPerParticipant.forEach((userId, challengeCount) {
+        updates['participations.$userId.completedChallenges'] = challengeCount;
       });
 
       await doc.reference.update(updates);
@@ -109,14 +109,14 @@ class SeasonMetricsJob {
       totalParticipants: totalParticipants,
       activeParticipants: activeParticipants,
       completedChallenges:
-          completedChallengesPerParticipant.values.fold(0, (sum, value) => sum + value),
+          completedChallengesPerParticipant.values.fold(0, (total, value) => total + value),
       totalChallenges: totalChallenges,
       totalPointsEarned: totalPointsEarned,
       averageProgress: averageProgress,
       challengeCompletions: challengeCompletionsByType,
       totalTeamPoints: totalPointsEarned,
       completedTeamChallenges:
-          challengeCompletionsByType.values.fold(0, (sum, value) => sum + value),
+          challengeCompletionsByType.values.fold(0, (total, value) => total + value),
       managerPointsEarned: season.metrics.managerPointsEarned,
       completedChallengesPerParticipant: completedChallengesPerParticipant,
     );
