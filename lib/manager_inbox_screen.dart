@@ -503,6 +503,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     await AlertService.markAllAsRead(user.uid);
                                     if (!mounted) return;
                                     setState(() => _bulkMarking = false);
+                                    if (!mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('All alerts marked as read')),
                                     );
@@ -585,7 +586,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               return ListView.separated(
                 padding: AppSpacing.screenPadding,
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, i) => _buildInboxCard(items[i]),
               );
             },

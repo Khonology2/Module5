@@ -15,6 +15,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/widgets/ai_generation_indicator.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -1516,6 +1517,7 @@ class _EmployeeProgressVisualsContentState
   GoalStatus? _selectedStatusFilter;
   String? _aiProgressSummary;
   bool _isGeneratingSummary = false;
+  String _currentInsightPhase = '';
 
   @override
   Widget build(BuildContext context) {
@@ -1669,42 +1671,24 @@ class _EmployeeProgressVisualsContentState
                 ),
               ),
               const Spacer(),
-              if (_isGeneratingSummary)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  color: AppColors.activeColor,
-                  onPressed: () => _generateProgressSummary(goals),
-                  tooltip: 'Generate Summary',
-                ),
+              // Reload button removed - AI insights button handles generation
             ],
           ),
           const SizedBox(height: 12),
           if (_aiProgressSummary == null && !_isGeneratingSummary)
             Text(
-              'Click the refresh icon to generate an AI-powered summary of your progress.',
+              'Click the AI Insights button to generate an AI-powered summary of your progress.',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             )
           else if (_isGeneratingSummary)
-            Text(
-              'Generating your personalized progress summary...',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-                fontStyle: FontStyle.italic,
-              ),
+            AIGenerationIndicator(
+              currentPhase: _currentInsightPhase,
+              onPhaseChange: (phase) {
+                setState(() => _currentInsightPhase = phase);
+              },
             )
           else
             Text(
@@ -1718,15 +1702,33 @@ class _EmployeeProgressVisualsContentState
     );
   }
 
-  Future<void> _generateProgressSummary(List<Goal> goals) async {
+  Future<void> _generateProgressSummary(List<Goal> goals, {bool keepGeneratingState = false}) async {
     if (goals.isEmpty) return;
 
-    setState(() {
-      _isGeneratingSummary = true;
-    });
+    if (!keepGeneratingState) {
+      setState(() {
+        _isGeneratingSummary = true;
+        _currentInsightPhase = 'Analyzing progress data...';
+      });
+    }
+
+    // Simulate phase progression (only if not already in generating state)
+    Future<void> updatePhase(String phase) async {
+      if (mounted && !keepGeneratingState) {
+        setState(() => _currentInsightPhase = phase);
+      }
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
 
     try {
+      if (!keepGeneratingState) {
+        await updatePhase('Collecting progress data...');
+      }
       final progressData = _collectProgressData(goals);
+      
+      if (!keepGeneratingState) {
+        await updatePhase('Generating summary...');
+      }
       final model = FirebaseAI.googleAI().generativeModel(
         model: 'gemini-2.5-flash',
         systemInstruction: Content.text(
@@ -1746,19 +1748,30 @@ class _EmployeeProgressVisualsContentState
         ),
       ];
 
+      await updatePhase('Finalizing summary...');
+      
       final response = await model.generateContent(prompt);
       final summary = response.text?.replaceAll('*', '').trim() ?? '';
+
+      if (!keepGeneratingState) {
+        await updatePhase('Complete!');
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
 
       if (mounted) {
         setState(() {
           _aiProgressSummary = summary;
-          _isGeneratingSummary = false;
+          if (!keepGeneratingState) {
+            _isGeneratingSummary = false;
+            _currentInsightPhase = '';
+          }
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isGeneratingSummary = false;
+          _currentInsightPhase = '';
         });
         await _showCenteredErrorDialog(context, 'Error generating summary: $e');
       }
@@ -1781,74 +1794,141 @@ class _EmployeeProgressVisualsContentState
       return;
     }
 
-    // Show loading dialog
-    if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    final loadingDialogContext = context;
-    showDialog(
-      // ignore: use_build_context_synchronously
-      context: loadingDialogContext,
+    bool isGenerating = false;
+    String currentPhase = '';
+
+    await showDialog<void>(
+      context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-        ),
-      ),
-    );
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Start generating immediately
+            Future<void> generateInsights() async {
+              // Simulate phase progression
+              Future<void> updatePhase(String phase) async {
+                setDialogState(() {
+                  currentPhase = phase;
+                });
+                await Future.delayed(const Duration(milliseconds: 800));
+              }
 
-    try {
-      final progressData = _collectProgressData(goals);
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
-          'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
-          '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
-          '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
-          '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
-          '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
-          '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
-          'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
-        ),
-      );
+              setDialogState(() {
+                isGenerating = true;
+                currentPhase = 'Analyzing progress data...';
+              });
 
-      final prompt = [
-        Content.text(
-          'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
-          'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
-        ),
-      ];
+              try {
+                // Generate summary first (shown in AI Progress Summary section)
+                await updatePhase('Generating progress summary...');
+                await _generateProgressSummary(goals, keepGeneratingState: true);
+                
+                // Then generate insights
+                await updatePhase('Collecting progress data...');
+                final progressData = _collectProgressData(goals);
+                
+                await updatePhase('Generating personalized insights...');
+                final model = FirebaseAI.googleAI().generativeModel(
+                  model: 'gemini-2.5-flash',
+                  systemInstruction: Content.text(
+                    'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
+                    'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
+                    '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
+                    '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
+                    '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
+                    '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
+                    '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
+                    'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
+                  ),
+                );
 
-      final response = await model.generateContent(prompt);
-      final insights = response.text?.replaceAll('*', '').trim() ?? '';
+                final prompt = [
+                  Content.text(
+                    'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
+                    'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
+                  ),
+                ];
 
-      // Close loading dialog
-      if (mounted) {
-        // ignore: use_build_context_synchronously
-        Navigator.of(loadingDialogContext).pop();
-      }
+                await updatePhase('Finalizing insights...');
+                
+                final response = await model.generateContent(prompt);
+                final insights = response.text?.replaceAll('*', '').trim() ?? '';
 
-      // Show insights in dialog
-      if (mounted) {
-        // ignore: use_build_context_synchronously
-        await _showInsightsDialog(context, insights);
-      }
-    } catch (e) {
-      // Close loading dialog
-      if (mounted) {
-        // ignore: use_build_context_synchronously
-        Navigator.of(loadingDialogContext).pop();
-      }
+                await updatePhase('Complete!');
+                await Future.delayed(const Duration(milliseconds: 500));
 
-      if (mounted) {
-        // ignore: use_build_context_synchronously
-        await _showCenteredErrorDialog(
-          // ignore: use_build_context_synchronously
-          context,
-          'Error generating insights: $e',
+                // Close the dialog
+                if (mounted) {
+                  // ignore: use_build_context_synchronously
+                  Navigator.of(dialogContext).pop();
+                }
+
+                // Show insights in dialog
+                if (mounted) {
+                  // ignore: use_build_context_synchronously
+                  await _showInsightsDialog(context, insights);
+                }
+              } catch (e) {
+                setDialogState(() => isGenerating = false);
+                if (mounted) {
+                  // ignore: use_build_context_synchronously
+                  Navigator.of(dialogContext).pop();
+                  // ignore: use_build_context_synchronously
+                  await _showCenteredErrorDialog(
+                    // ignore: use_build_context_synchronously
+                    context,
+                    'Error generating insights: $e',
+                  );
+                }
+              }
+            }
+
+            // Start generating immediately when dialog opens
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!isGenerating) {
+                generateInsights();
+              }
+            });
+
+            return AlertDialog(
+              backgroundColor: AppColors.elevatedBackground,
+              title: Text(
+                'Generating AI Insights',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AIGenerationIndicator(
+                      currentPhase: currentPhase.isEmpty 
+                          ? 'Analyzing progress data...' 
+                          : currentPhase,
+                      onPhaseChange: (phase) {
+                        setDialogState(() => currentPhase = phase);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isGenerating
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            );
+          },
         );
-      }
-    }
+      },
+    );
   }
 
   String _collectProgressData(List<Goal> goals) {

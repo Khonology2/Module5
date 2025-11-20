@@ -1516,7 +1516,7 @@ class SeasonService {
 
       final totalBadges = season.participations.values
           .map((p) => p.badgesEarned.length)
-          .fold<int>(0, (sum, count) => sum + count);
+          .fold<int>(0, (total, badgeCount) => total + badgeCount);
 
       // Summary based on metrics
       final summary = {
