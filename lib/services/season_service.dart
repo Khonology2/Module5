@@ -5,10 +5,45 @@ import 'package:pdh/models/season.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/season_metrics_job.dart';
 
 class SeasonService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static const int _managerSeasonCreationBonus = 100;
+  static const int _managerSeasonExtensionBonus = 30;
+  static const int _managerSeasonCompletionBonus = 150;
+
+  static const Map<String, SeasonBadge> _managerActionBadges = {
+    'season_architect': SeasonBadge(
+      id: 'season_architect',
+      name: 'Season Architect',
+      description: 'Launched a growth season for your team',
+      icon: '🏗️',
+      color: '#9B59B6',
+      points: 75,
+      criteria: {'action': 'create'},
+    ),
+    'season_guardian': SeasonBadge(
+      id: 'season_guardian',
+      name: 'Season Guardian',
+      description: 'Extended a season to give your team more time',
+      icon: '🛡️',
+      color: '#1ABC9C',
+      points: 40,
+      criteria: {'action': 'extend'},
+    ),
+    'season_closer': SeasonBadge(
+      id: 'season_closer',
+      name: 'Season Closer',
+      description: 'Successfully completed a team season',
+      icon: '🏁',
+      color: '#E74C3C',
+      points: 100,
+      criteria: {'action': 'complete'},
+    ),
+  };
 
   // Create a new season
   static Future<String> createSeason({
@@ -59,6 +94,13 @@ class SeasonService {
           .doc(seasonId)
           .set(season.toFirestore());
 
+      await _awardManagerActionBadge(season, 'season_architect');
+      await _awardManagerSeasonPoints(
+        season: season,
+        points: _managerSeasonCreationBonus,
+        reason: 'Season created',
+      );
+
       // Record activity
       await ManagerRealtimeService.recordEmployeeActivity(
         employeeId: currentUser.uid,
@@ -76,7 +118,45 @@ class SeasonService {
       developer.log('Error creating season: $e');
       rethrow;
     }
+  }
 
+  static Future<void> recomputeSeasonMetrics(String seasonId) async {
+    try {
+      await SeasonMetricsJob.recomputeSeasonMetrics(seasonId);
+      await refreshParticipantDisplayNames(seasonId);
+      developer.log('Manually recomputed metrics for season $seasonId');
+    } catch (e) {
+      developer.log('Error recomputing metrics for season $seasonId: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> refreshParticipantDisplayNames(String seasonId) async {
+    try {
+      final seasonDoc = await _firestore
+          .collection('seasons')
+          .doc(seasonId)
+          .get();
+      if (!seasonDoc.exists) return;
+      final season = Season.fromFirestore(seasonDoc);
+      final Map<String, dynamic> updates = {};
+      for (final entry in season.participations.entries) {
+        final resolved = await _resolveUserDisplayName(
+          entry.key,
+          fallback: entry.value.userName,
+        );
+        if (resolved.trim().isEmpty || resolved == entry.value.userName) {
+          continue;
+        }
+        updates['participations.${entry.key}.userName'] = resolved;
+      }
+      if (updates.isNotEmpty) {
+        await seasonDoc.reference.update(updates);
+        developer.log('Refreshed participant names for season $seasonId');
+      }
+    } catch (e) {
+      developer.log('Error refreshing participant names: $e');
+    }
   }
 
   static Future<void> deleteSeasonAndNotify(String seasonId) async {
@@ -95,11 +175,14 @@ class SeasonService {
             'type': AlertType.seasonCompleted.name,
             'priority': AlertPriority.medium.name,
             'title': 'Season Deleted',
-            'message': 'The season "${season.title}" has been deleted by your manager.',
+            'message':
+                'The season "${season.title}" has been deleted by your manager.',
             'createdAt': FieldValue.serverTimestamp(),
             'isRead': false,
             'isDismissed': false,
-            'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+            'expiresAt': Timestamp.fromDate(
+              DateTime.now().add(const Duration(days: 7)),
+            ),
             'metadata': {
               'seasonId': season.id,
               'seasonTitle': season.title,
@@ -117,11 +200,14 @@ class SeasonService {
           'type': AlertType.seasonCompleted.name,
           'priority': AlertPriority.medium.name,
           'title': 'Season Deleted',
-          'message': 'You deleted the season "${season.title}". Participants were notified.',
+          'message':
+              'You deleted the season "${season.title}". Participants were notified.',
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
           'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 7)),
+          ),
           'metadata': {
             'seasonId': season.id,
             'seasonTitle': season.title,
@@ -200,7 +286,9 @@ class SeasonService {
   }
 
   // Evaluate if a season is eligible for completion and find zero-progress participants
-  static Future<Map<String, dynamic>> evaluateSeasonCompletion(String seasonId) async {
+  static Future<Map<String, dynamic>> evaluateSeasonCompletion(
+    String seasonId,
+  ) async {
     final season = await getSeason(seasonId);
     if (season == null) throw Exception('Season not found');
 
@@ -241,7 +329,9 @@ class SeasonService {
     if (season == null) throw Exception('Season not found');
 
     final result = await evaluateSeasonCompletion(seasonId);
-    final List<String> zeroIds = List<String>.from(result['zeroProgressIds'] as List);
+    final List<String> zeroIds = List<String>.from(
+      result['zeroProgressIds'] as List,
+    );
 
     final seasonRef = _firestore.collection('seasons').doc(seasonId);
     final batch = _firestore.batch();
@@ -261,7 +351,8 @@ class SeasonService {
     for (final userId in zeroIds) {
       await AlertService.createMotivationalAlert(
         userId: userId,
-        message: 'You were removed from the season "${season.title}" due to zero progress. You can rejoin future seasons and try again!',
+        message:
+            'You were removed from the season "${season.title}" due to zero progress. You can rejoin future seasons and try again!',
       );
     }
 
@@ -270,7 +361,9 @@ class SeasonService {
     final bool allCompleteNow = reevaluated['allComplete'] as bool;
 
     if (!allCompleteNow) {
-      throw Exception('Season cannot be completed until all remaining participants reach 100%.');
+      throw Exception(
+        'Season cannot be completed until all remaining participants reach 100%.',
+      );
     }
 
     await updateSeasonStatus(seasonId, SeasonStatus.completed);
@@ -282,7 +375,8 @@ class SeasonService {
         final p = entry.value;
         await AlertService.createMotivationalAlert(
           userId: p.userId,
-          message: 'Congratulations! "${updatedSeason.title}" has been completed. Great work this season! 🎉',
+          message:
+              'Congratulations! "${updatedSeason.title}" has been completed. Great work this season! 🎉',
         );
       }
 
@@ -293,11 +387,14 @@ class SeasonService {
           'type': AlertType.seasonCompleted.name,
           'priority': AlertPriority.high.name,
           'title': 'Season Completed 🎉',
-          'message': 'Your season "${updatedSeason.title}" has been completed by all participants.',
+          'message':
+              'Your season "${updatedSeason.title}" has been completed by all participants.',
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
           'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 7)),
+          ),
           'metadata': {
             'seasonId': updatedSeason.id,
             'seasonTitle': updatedSeason.title,
@@ -309,10 +406,22 @@ class SeasonService {
 
   // Extend a season end date
   static Future<void> extendSeason(String seasonId, DateTime newEndDate) async {
-    await _firestore.collection('seasons').doc(seasonId).update({
+    final doc = await _firestore.collection('seasons').doc(seasonId).get();
+    if (!doc.exists) {
+      throw Exception('Season not found');
+    }
+    final season = Season.fromFirestore(doc);
+    await doc.reference.update({
       'endDate': Timestamp.fromDate(newEndDate),
       'metrics.lastUpdated': FieldValue.serverTimestamp(),
     });
+
+    await _awardManagerActionBadge(season, 'season_guardian');
+    await _awardManagerSeasonPoints(
+      season: season,
+      points: _managerSeasonExtensionBonus,
+      reason: 'Season extended',
+    );
   }
 
   // Pause or resume season via settings.paused flag (non-breaking)
@@ -322,6 +431,7 @@ class SeasonService {
       'metrics.lastUpdated': FieldValue.serverTimestamp(),
     });
   }
+
   // Get season by ID
   static Future<Season?> getSeason(String seasonId) async {
     try {
@@ -364,6 +474,10 @@ class SeasonService {
                 .toList();
             // Sort in memory to avoid composite index requirement
             seasons.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            for (final season in seasons) {
+              // ignore: unawaited_futures
+              refreshParticipantDisplayNames(season.id);
+            }
             return seasons;
           });
     } catch (e) {
@@ -375,22 +489,22 @@ class SeasonService {
   // Get active seasons for employees
   static Stream<List<Season>> getActiveSeasonsStream({String? department}) {
     try {
-      Query query = _firestore
+      return _firestore
           .collection('seasons')
-          .where('status', isEqualTo: SeasonStatus.active.name);
-
-      if (department != null && department.isNotEmpty) {
-        query = query.where('department', isEqualTo: department);
-      }
-
-      return query.snapshots().map((snapshot) {
-        final seasons = snapshot.docs
-            .map((doc) => Season.fromFirestore(doc))
-            .toList();
-        // Sort in memory to avoid composite index requirement
-        seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
-        return seasons;
-      });
+          .where('status', isEqualTo: SeasonStatus.active.name)
+          .snapshots()
+          .map((snapshot) {
+            final seasons = snapshot.docs
+                .map((doc) => Season.fromFirestore(doc))
+                .toList();
+            // Sort in memory to avoid composite index requirement
+            seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
+            for (final season in seasons) {
+              // ignore: unawaited_futures
+              refreshParticipantDisplayNames(season.id);
+            }
+            return seasons;
+          });
     } catch (e) {
       developer.log('Error getting active seasons: $e');
       return const Stream.empty();
@@ -415,17 +529,23 @@ class SeasonService {
       }
       final season = Season.fromFirestore(seasonDoc);
 
+      final resolvedName = await _resolveUserDisplayName(
+        userId,
+        fallback: userName,
+      );
+
       // Add user to participants
       batch.update(seasonRef, {
         'participantIds': FieldValue.arrayUnion([userId]),
         'participations.$userId': SeasonParticipation(
           userId: userId,
-          userName: userName,
+          userName: resolvedName,
           joinedAt: DateTime.now(),
           milestoneProgress: {},
           customGoals: customGoals,
           totalPoints: 0,
           badgesEarned: [],
+          completedChallenges: 0,
         ).toMap(),
       });
 
@@ -439,6 +559,10 @@ class SeasonService {
         averageProgress: season.metrics.averageProgress,
         challengeCompletions: season.metrics.challengeCompletions,
         lastUpdated: DateTime.now(),
+        totalTeamPoints: season.metrics.totalTeamPoints,
+        completedTeamChallenges: season.metrics.completedTeamChallenges,
+        managerBadgesEarned: season.metrics.managerBadgesEarned,
+        managerPointsEarned: season.metrics.managerPointsEarned,
       );
 
       batch.update(seasonRef, {'metrics': updatedMetrics.toMap()});
@@ -457,26 +581,21 @@ class SeasonService {
       );
 
       // Notify manager that an employee joined this season
-      try {
-        final managerId = season.createdBy;
-        await _firestore.collection('alerts').add({
-          'userId': managerId,
-          'type': AlertType.seasonJoined.name,
-          'priority': AlertPriority.medium.name,
-          'title': 'Employee Joined Season',
-          'message': '$userName joined the season "${season.title}"',
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
-          'metadata': {
-            'seasonId': seasonId,
-            'seasonTitle': season.title,
-            'employeeId': userId,
-            'employeeName': userName,
-          },
-        });
-      } catch (_) {}
+      await _createSeasonAlert(
+        userId: season.createdBy,
+        type: AlertType.seasonJoined,
+        priority: AlertPriority.medium,
+        title: 'Employee Joined Season',
+        message: '$userName joined the season "${season.title}"',
+        actionText: 'View Season',
+        actionRoute: '/team_challenges_seasons',
+        metadata: {
+          'seasonId': seasonId,
+          'seasonTitle': season.title,
+          'employeeId': userId,
+          'employeeName': userName,
+        },
+      );
 
       developer.log('User $userId joined season $seasonId');
     } catch (e) {
@@ -510,11 +629,13 @@ class SeasonService {
 
           // Find the milestone that was completed
           SeasonMilestone? completedMilestone;
+          SeasonChallenge? parentChallenge;
           ChallengeType? completedChallengeType;
           for (var challenge in season.challenges) {
             for (var milestone in challenge.milestones) {
               if (milestone.id == milestoneId) {
                 completedMilestone = milestone;
+                parentChallenge = challenge;
                 completedChallengeType = challenge.type;
                 break;
               }
@@ -522,18 +643,41 @@ class SeasonService {
             if (completedMilestone != null) break;
           }
 
-          if (completedMilestone != null) {
+          if (completedMilestone != null && parentChallenge != null) {
             // Update points for the user
             batch.update(seasonRef, {
-              'participations.$userId.totalPoints': FieldValue.increment(completedMilestone.points),
+              'participations.$userId.totalPoints': FieldValue.increment(
+                completedMilestone.points,
+              ),
             });
 
             // Update season metrics: total points and challenge-type completions
             if (completedChallengeType != null) {
               batch.update(seasonRef, {
-                'metrics.totalPointsEarned': FieldValue.increment(completedMilestone.points),
-                'metrics.challengeCompletions.${completedChallengeType.name}': FieldValue.increment(1),
+                'metrics.totalPointsEarned': FieldValue.increment(
+                  completedMilestone.points,
+                ),
                 'metrics.lastUpdated': FieldValue.serverTimestamp(),
+              });
+            }
+
+            final participation = season.participations[userId];
+            if (participation != null &&
+                _didNewlyCompleteChallenge(
+                  participation: participation,
+                  challenge: parentChallenge,
+                  newlyCompletedMilestones: {milestoneId},
+                )) {
+              batch.update(seasonRef, {
+                'metrics.completedChallenges': FieldValue.increment(1),
+                'participations.$userId.completedChallenges':
+                    FieldValue.increment(1),
+              });
+            }
+            if (completedChallengeType != null) {
+              batch.update(seasonRef, {
+                'metrics.challengeCompletions.${completedChallengeType.name}':
+                    FieldValue.increment(1),
               });
             }
 
@@ -553,6 +697,25 @@ class SeasonService {
             await _updateTeamMetricsAndCheckManagerBadges(
               season,
               completedMilestone.points,
+            );
+
+            final participantName =
+                season.participations[userId]?.userName ?? 'Employee';
+            await _createSeasonAlert(
+              userId: season.createdBy,
+              type: AlertType.seasonProgressUpdate,
+              priority: AlertPriority.low,
+              title: 'Milestone Completed',
+              message:
+                  '$participantName completed "${completedMilestone.title}" in "${season.title}".',
+              metadata: {
+                'seasonId': season.id,
+                'seasonTitle': season.title,
+                'employeeId': userId,
+                'employeeName': participantName,
+                'milestoneId': milestoneId,
+                'milestoneTitle': completedMilestone.title,
+              },
             );
           }
         }
@@ -576,6 +739,82 @@ class SeasonService {
     } catch (e) {
       developer.log('Error updating milestone progress: $e');
       rethrow;
+    }
+  }
+
+  static Future<void> _awardManagerActionBadge(
+    Season season,
+    String badgeId,
+  ) async {
+    try {
+      final badge = _managerActionBadges[badgeId];
+      if (badge == null) return;
+      final managerId = season.createdBy;
+      if (managerId.isEmpty) return;
+      if (season.metrics.managerBadgesEarned.contains(badgeId)) {
+        return;
+      }
+
+      await _firestore.collection('seasons').doc(season.id).update({
+        'metrics.managerBadgesEarned': FieldValue.arrayUnion([badgeId]),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await _syncBadgeWithEmployeeSystem(
+        managerId,
+        badge,
+        season,
+        isManager: true,
+      );
+    } catch (e) {
+      developer.log('Error awarding manager action badge $badgeId: $e');
+    }
+  }
+
+  static Future<void> _awardManagerSeasonPoints({
+    required Season season,
+    required int points,
+    String reason = '',
+    bool logActivity = true,
+  }) async {
+    if (points <= 0) return;
+    final managerId = season.createdBy;
+    if (managerId.isEmpty) return;
+
+    try {
+      final seasonRef = _firestore.collection('seasons').doc(season.id);
+      final managerRef = _firestore.collection('users').doc(managerId);
+
+      final batch = _firestore.batch();
+      batch.set(managerRef, {
+        'totalPoints': FieldValue.increment(points),
+        'managerSeasonPoints': FieldValue.increment(points),
+      }, SetOptions(merge: true));
+      batch.update(seasonRef, {
+        'metrics.managerPointsEarned': FieldValue.increment(points),
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      if (logActivity) {
+        final description = reason.isNotEmpty
+            ? 'Earned $points pts · $reason'
+            : 'Earned $points manager season pts';
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: managerId,
+          activityType: 'manager_season_points',
+          description: description,
+          metadata: {
+            'seasonId': season.id,
+            'seasonTitle': season.title,
+            'points': points,
+            if (reason.isNotEmpty) 'reason': reason,
+          },
+        );
+      }
+    } catch (e) {
+      developer.log('Error awarding manager season points: $e');
     }
   }
 
@@ -663,6 +902,15 @@ class SeasonService {
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       });
 
+      if (pointsAwarded > 0) {
+        await _awardManagerSeasonPoints(
+          season: season,
+          points: pointsAwarded,
+          reason: 'Team milestone progress',
+          logActivity: false,
+        );
+      }
+
       // Refetch season data to get the latest metrics
       final updatedSeasonDoc = await seasonRef.get();
       if (!updatedSeasonDoc.exists) return;
@@ -678,9 +926,9 @@ class SeasonService {
   static Future<void> _syncBadgeWithEmployeeSystem(
     String userId,
     SeasonBadge seasonBadge,
-    Season season,
-    {bool isManager = false}
-  ) async {
+    Season season, {
+    bool isManager = false,
+  }) async {
     try {
       // Create a badge in the employee's badge collection
       final badgeRef = _firestore.collection('badges').doc();
@@ -845,6 +1093,10 @@ class SeasonService {
       final batch = _firestore.batch();
       final seasonRef = _firestore.collection('seasons').doc(seasonId);
 
+      final newlyCompletedMilestoneIds = challenge.milestones
+          .map((m) => m.id)
+          .toSet();
+
       // Mark all milestones for this challenge as completed (flat keys by milestone id)
       for (final milestone in challenge.milestones) {
         batch.update(seasonRef, {
@@ -868,11 +1120,30 @@ class SeasonService {
       // Update season metrics for bulk completion via goal
       batch.update(seasonRef, {
         'metrics.totalPointsEarned': FieldValue.increment(totalMilestonePoints),
-        'metrics.challengeCompletions.${challenge.type.name}': FieldValue.increment(challenge.milestones.length),
+        'metrics.challengeCompletions.${challenge.type.name}':
+            FieldValue.increment(challenge.milestones.length),
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       });
 
+      final participation = season.participations[userId];
+      if (participation != null &&
+          _didNewlyCompleteChallenge(
+            participation: participation,
+            challenge: challenge,
+            newlyCompletedMilestones: newlyCompletedMilestoneIds,
+          )) {
+        batch.update(seasonRef, {
+          'metrics.completedChallenges': FieldValue.increment(1),
+          'participations.$userId.completedChallenges': FieldValue.increment(1),
+        });
+      }
+
       await batch.commit();
+
+      await _updateTeamMetricsAndCheckManagerBadges(
+        season,
+        totalMilestonePoints,
+      );
 
       // Check for badge awards
       await _checkAndAwardBadges(season, userId, batch);
@@ -960,35 +1231,27 @@ class SeasonService {
       }
 
       // Create alert for manager
-      final alertRef = _firestore.collection('alerts').doc();
-      await alertRef.set({
-        'userId': managerId,
-        'type': (allParticipantsCompleted
-                ? AlertType.seasonCompleted
-                : AlertType.seasonProgressUpdate)
-            .name,
-        'priority': allParticipantsCompleted
-            ? AlertPriority.high.name
-            : AlertPriority.medium.name,
-        'title': allParticipantsCompleted
+      await _createSeasonAlert(
+        userId: managerId,
+        type: allParticipantsCompleted
+            ? AlertType.seasonCompleted
+            : AlertType.seasonProgressUpdate,
+        priority: allParticipantsCompleted
+            ? AlertPriority.high
+            : AlertPriority.medium,
+        title: allParticipantsCompleted
             ? 'Season Ready for Completion! 🎉'
             : 'Season Progress Update 📈',
-        'message': allParticipantsCompleted
+        message: allParticipantsCompleted
             ? 'All employees have completed their goals in "${season.title}". You can now complete the season!'
             : '$employeeName completed "$goalTitle" in "${season.title}". Progress: $completedParticipants/${allParticipants.length} employees completed.',
-        'actionText': allParticipantsCompleted
+        actionText: allParticipantsCompleted
             ? 'Complete Season'
             : 'View Progress',
-        'actionRoute': allParticipantsCompleted
+        actionRoute: allParticipantsCompleted
             ? '/season_management'
             : '/team_challenges_seasons',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
-        'metadata': {
+        metadata: {
           'seasonId': seasonId,
           'seasonTitle': season.title,
           'employeeId': employeeId,
@@ -998,7 +1261,7 @@ class SeasonService {
           'totalParticipants': allParticipants.length,
           'allCompleted': allParticipantsCompleted,
         },
-      });
+      );
 
       developer.log(
         'Notified manager $managerId about goal completion by $employeeId',
@@ -1184,6 +1447,11 @@ class SeasonService {
     SeasonStatus status,
   ) async {
     try {
+      Season? existingSeason;
+      if (status == SeasonStatus.completed) {
+        existingSeason = await getSeason(seasonId);
+      }
+
       await _firestore.collection('seasons').doc(seasonId).update({
         'status': status.name,
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
@@ -1194,6 +1462,17 @@ class SeasonService {
             .collection('season_celebrations')
             .doc(seasonId)
             .set(celebration);
+        await SeasonMetricsJob.recomputeSeasonMetrics(seasonId);
+        await refreshParticipantDisplayNames(seasonId);
+
+        if (existingSeason != null) {
+          await _awardManagerActionBadge(existingSeason, 'season_closer');
+          await _awardManagerSeasonPoints(
+            season: existingSeason,
+            points: _managerSeasonCompletionBonus,
+            reason: 'Season completed',
+          );
+        }
       }
       developer.log('Updated season $seasonId status to ${status.name}');
     } catch (e) {
@@ -1203,7 +1482,9 @@ class SeasonService {
   }
 
   // Build a celebration summary for a season
-  static Future<Map<String, dynamic>> getSeasonCelebration(String seasonId) async {
+  static Future<Map<String, dynamic>> getSeasonCelebration(
+    String seasonId,
+  ) async {
     try {
       final season = await getSeason(seasonId);
       if (season == null) {
@@ -1213,12 +1494,17 @@ class SeasonService {
       // Compute top performers from participations
       final participants = season.participations.values.toList();
       participants.sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
-      final topPerformers = participants.take(5).map((p) => {
-            'userId': p.userId,
-            'userName': p.userName,
-            'totalPoints': p.totalPoints,
-            'badgesEarned': p.badgesEarned.length,
-          }).toList();
+      final topPerformers = participants
+          .take(5)
+          .map(
+            (p) => {
+              'userId': p.userId,
+              'userName': p.userName,
+              'totalPoints': p.totalPoints,
+              'badgesEarned': p.badgesEarned.length,
+            },
+          )
+          .toList();
 
       // Challenge breakdown by type using available metrics if present
       final Map<String, dynamic> challengeBreakdown = {};
@@ -1228,6 +1514,10 @@ class SeasonService {
         challengeBreakdown[type.name] = completions;
       }
 
+      final totalBadges = season.participations.values
+          .map((p) => p.badgesEarned.length)
+          .fold<int>(0, (sum, count) => sum + count);
+
       // Summary based on metrics
       final summary = {
         'totalParticipants': season.metrics.totalParticipants,
@@ -1236,6 +1526,7 @@ class SeasonService {
         'totalPointsEarned': season.metrics.totalPointsEarned,
         'averageProgress': season.metrics.averageProgress,
         'lastUpdated': season.metrics.lastUpdated.toIso8601String(),
+        'badgesAwarded': totalBadges,
       };
 
       return {
@@ -1250,6 +1541,52 @@ class SeasonService {
       developer.log('Error building season celebration: $e');
       rethrow;
     }
+  }
+
+  static Future<Map<String, dynamic>?> getSeasonCelebrationDocument(
+    String seasonId,
+  ) async {
+    try {
+      final doc = await _firestore
+          .collection('season_celebrations')
+          .doc(seasonId)
+          .get();
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      developer.log('Error fetching celebration doc: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getOrCreateSeasonCelebrationDoc(
+    String seasonId,
+  ) async {
+    final existing = await getSeasonCelebrationDocument(seasonId);
+    if (existing != null) return existing;
+    final generated = await getSeasonCelebration(seasonId);
+    await _firestore
+        .collection('season_celebrations')
+        .doc(seasonId)
+        .set(generated);
+    return generated;
+  }
+
+  static Stream<Map<String, dynamic>?> watchSeasonCelebrationDocument(
+    String seasonId,
+  ) {
+    return _firestore
+        .collection('season_celebrations')
+        .doc(seasonId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          final data = doc.data();
+          if (data == null) return null;
+          return Map<String, dynamic>.from(data);
+        });
   }
 
   static Future<void> _notifyEmployeesAboutNewSeason(
@@ -1271,7 +1608,8 @@ class SeasonService {
           'type': 'season_available',
           'priority': 'high',
           'title': 'New Season Started! 🎉',
-          'message': 'A new "$title" season on theme "$theme" has started. Join and earn points!',
+          'message':
+              'A new "$title" season on theme "$theme" has started. Join and earn points!',
           'actionText': 'View Seasons',
           'actionRoute': '/season_challenges',
           'createdAt': FieldValue.serverTimestamp(),
@@ -1340,7 +1678,9 @@ class SeasonService {
         orElse: () => throw Exception('Challenge not found'),
       );
       final milestonesCount = challenge.milestones.length;
-      final increment = milestonesCount > 0 ? (100 / milestonesCount).round() : 0;
+      final increment = milestonesCount > 0
+          ? (100 / milestonesCount).round()
+          : 0;
 
       final goalsQuery = await _firestore
           .collection('goals')
@@ -1398,6 +1738,78 @@ class SeasonService {
     }
   }
 
+  static bool _didNewlyCompleteChallenge({
+    required SeasonParticipation participation,
+    required SeasonChallenge challenge,
+    required Set<String> newlyCompletedMilestones,
+  }) {
+    bool wasComplete = true;
+    bool completeAfter = true;
+
+    for (final milestone in challenge.milestones) {
+      final keyDot = '${challenge.id}.${milestone.id}';
+      final status =
+          participation.milestoneProgress[keyDot] ??
+          participation.milestoneProgress[milestone.id];
+      final completedBefore = status == MilestoneStatus.completed;
+      if (!completedBefore) {
+        wasComplete = false;
+      }
+      final completedAfter =
+          completedBefore || newlyCompletedMilestones.contains(milestone.id);
+      if (!completedAfter) {
+        completeAfter = false;
+      }
+    }
+
+    return completeAfter && !wasComplete;
+  }
+
+  static bool _hasCompletedChallenge(
+    SeasonParticipation participation,
+    SeasonChallenge challenge,
+  ) {
+    for (final milestone in challenge.milestones) {
+      final keyDot = '${challenge.id}.${milestone.id}';
+      final status =
+          participation.milestoneProgress[keyDot] ??
+          participation.milestoneProgress[milestone.id];
+      if (status != MilestoneStatus.completed) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static Future<void> backfillChallengeCompletionMetrics() async {
+    final seasonsSnapshot = await _firestore.collection('seasons').get();
+    for (final doc in seasonsSnapshot.docs) {
+      final season = Season.fromFirestore(doc);
+      if (season.challenges.isEmpty || season.participations.isEmpty) continue;
+
+      int totalCompletedChallenges = 0;
+      final Map<String, dynamic> updates = {
+        'metrics.lastUpdated': FieldValue.serverTimestamp(),
+      };
+
+      season.participations.forEach((userId, participation) {
+        int participantCompleted = 0;
+        for (final challenge in season.challenges) {
+          if (_hasCompletedChallenge(participation, challenge)) {
+            participantCompleted++;
+          }
+        }
+        totalCompletedChallenges += participantCompleted;
+        updates['participations.$userId.completedChallenges'] =
+            participantCompleted;
+      });
+
+      updates['metrics.completedChallenges'] = totalCompletedChallenges;
+      await doc.reference.update(updates);
+      developer.log('Backfilled challenge metrics for season ${season.id}');
+    }
+  }
+
   static Future<void> _checkSeasonCompletion(
     String seasonId,
     String userId,
@@ -1448,7 +1860,8 @@ class SeasonService {
             'type': 'season_completed',
             'priority': 'high',
             'title': 'Season Completed 🎉',
-            'message': 'All employees completed their goals in "${season.title}". The season has been marked as completed.',
+            'message':
+                'All employees completed their goals in "${season.title}". The season has been marked as completed.',
             'actionText': 'View Summary',
             'actionRoute': '/season_management',
             'createdAt': FieldValue.serverTimestamp(),
@@ -1469,10 +1882,82 @@ class SeasonService {
           developer.log('Error notifying manager about season completion: $e');
         }
 
-        developer.log('Season $seasonId completed after user $userId goal completion');
+        developer.log(
+          'Season $seasonId completed after user $userId goal completion',
+        );
       }
     } catch (e) {
       developer.log('Error checking season completion: $e');
     }
+  }
+
+  static Future<void> _createSeasonAlert({
+    required String userId,
+    required AlertType type,
+    required AlertPriority priority,
+    required String title,
+    required String message,
+    String? actionText,
+    String? actionRoute,
+    Map<String, dynamic>? metadata,
+    Duration ttl = const Duration(days: 7),
+  }) async {
+    try {
+      await _firestore.collection('alerts').add({
+        'userId': userId,
+        'type': type.name,
+        'priority': priority.name,
+        'title': title,
+        'message': message,
+        'actionText': actionText,
+        'actionRoute': actionRoute,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'isDismissed': false,
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+        'metadata': metadata ?? {},
+      });
+    } catch (e) {
+      developer.log('Error creating season alert: $e');
+    }
+  }
+
+  static Future<String> _resolveUserDisplayName(
+    String userId, {
+    String? fallback,
+  }) async {
+    final defaultName = fallback?.trim().isNotEmpty == true
+        ? fallback!.trim()
+        : _fallbackEmployeeName(userId);
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists) return defaultName;
+      final data = doc.data() ?? {};
+      final candidates = [
+        data['displayName'],
+        data['fullName'],
+        data['badgeName'],
+        data['preferredName'],
+        data['firstName'],
+        data['lastName'],
+        data['email'],
+      ];
+      for (final candidate in candidates) {
+        if (candidate is String && candidate.trim().isNotEmpty) {
+          return candidate.trim();
+        }
+      }
+      return defaultName;
+    } catch (e) {
+      developer.log('Error resolving display name for $userId: $e');
+      return defaultName;
+    }
+  }
+
+  static String _fallbackEmployeeName(String userId) {
+    final suffix = userId.isNotEmpty
+        ? userId.substring(0, userId.length >= 6 ? 6 : userId.length)
+        : '000000';
+    return 'Employee #$suffix';
   }
 }

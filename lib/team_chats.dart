@@ -8,7 +8,9 @@ import 'package:pdh/services/database_service.dart';
 // --- 1. Custom Color Definitions (Based on HTML/Tailwind) ---
 const Color chatPrimary = Color(0xFF4F46E5); // Indigo-600
 const Color chatBgDark = Color(0xFF1F2937); // Dark Slate Background
-const Color translucentLayerColor = Color(0xE61E293B); // 90% opacity dark slate for blur effect
+const Color translucentLayerColor = Color(
+  0xE61E293B,
+); // 90% opacity dark slate for blur effect
 
 // --- Mock Data Structure and Logic (Simulating Firebase/Auth) ---
 class ChatMessage {
@@ -79,8 +81,6 @@ class _TypingIndicatorState extends State<_TypingIndicator> {
     );
   }
 }
-
- 
 
 // --- Team Chats Screen Widget ---
 class TeamChatsScreen extends StatefulWidget {
@@ -165,7 +165,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         if (_replyingTo != null) {
           payload['replyTo'] = _replyingTo!.id;
           payload['replyToText'] = _replyingTo!.text;
-          payload['replyToSender'] = _replyingTo!.senderName ?? _replyingTo!.senderId;
+          payload['replyToSender'] =
+              _replyingTo!.senderName ?? _replyingTo!.senderId;
         }
         await FirebaseFirestore.instance.collection('team.chat').add(payload);
         _textController.clear();
@@ -185,9 +186,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         });
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
       }
     }();
   }
@@ -196,10 +197,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
-        child: Container(
-          color: translucentLayerColor,
-          child: child,
-        ),
+        child: Container(color: translucentLayerColor, child: child),
       ),
     );
   }
@@ -214,8 +212,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final senderLabel = isMine
         ? 'You'
         : ((msg.senderName != null && msg.senderName!.isNotEmpty)
-            ? msg.senderName!
-            : displaySenderId);
+              ? msg.senderName!
+              : displaySenderId);
 
     final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
     return Align(
@@ -227,14 +225,15 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             : null,
         child: Container(
           key: bubbleKey,
-          constraints:
-              BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             color: isMine
                 ? const Color(0xFFC10D00)
-                : Colors.grey[700]!.withValues(alpha:0.7),
+                : Colors.grey[700]!.withValues(alpha: 0.7),
             borderRadius: BorderRadius.only(
               topLeft: const Radius.circular(16),
               topRight: const Radius.circular(16),
@@ -243,7 +242,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha:0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -253,12 +252,13 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (msg.replyTo != null && (msg.replyToText != null || msg.replyToSender != null))
+              if (msg.replyTo != null &&
+                  (msg.replyToText != null || msg.replyToSender != null))
                 Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha:0.15),
+                    color: Colors.black.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.white24, width: 0.5),
                   ),
@@ -267,21 +267,34 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                     children: [
                       Text(
                         msg.replyToSender ?? 'Reply',
-                        style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        (msg.replyToText ?? '').isEmpty ? '(attachment)' : msg.replyToText!,
+                        (msg.replyToText ?? '').isEmpty
+                            ? '(attachment)'
+                            : msg.replyToText!,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.white60, fontStyle: FontStyle.italic),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white60,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                       if (msg.replyTo != null)
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () => _scrollToMessage(msg.replyTo!),
-                            child: const Text('View', style: TextStyle(fontSize: 11)),
+                            child: const Text(
+                              'View',
+                              style: TextStyle(fontSize: 11),
+                            ),
                           ),
                         ),
                     ],
@@ -318,7 +331,13 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                       ),
                       if (msg.editedAt != null) ...[
                         const SizedBox(width: 6),
-                        Text('(edited)', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        Text(
+                          '(edited)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -328,14 +347,21 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
               msg.isTyping
                   ? _TypingIndicator()
                   : (msg.isDeleted
-                      ? const Text(
-                          'Message deleted',
-                          style: TextStyle(color: Colors.grey, fontSize: 15, fontStyle: FontStyle.italic),
-                        )
-                      : Text(
-                          msg.text,
-                          style: const TextStyle(color: Colors.white, fontSize: 15),
-                        )),
+                        ? const Text(
+                            'Message deleted',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 15,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          )
+                        : Text(
+                            msg.text,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                          )),
               if (msg.reactions.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -345,17 +371,32 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                     children: msg.reactions.entries.map((e) {
                       final emoji = e.key;
                       final count = e.value.length;
-                      final mine = currentUserId != null && e.value.contains(currentUserId);
+                      final mine =
+                          currentUserId != null &&
+                          e.value.contains(currentUserId);
                       return GestureDetector(
                         onTap: () => _toggleReaction(msg, emoji),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: mine ? Colors.white.withValues(alpha:0.15) : Colors.black.withValues(alpha:0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: mine ? Border.all(color: Colors.white24) : null,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          child: Text('$emoji $count', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          decoration: BoxDecoration(
+                            color: mine
+                                ? Colors.white.withValues(alpha: 0.15)
+                                : Colors.black.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: mine
+                                ? Border.all(color: Colors.white24)
+                                : null,
+                          ),
+                          child: Text(
+                            '$emoji $count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -369,7 +410,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   }
 
   Future<void> _showMessageActions(ChatMessage msg, bool isMine) async {
-    final canEdit = isMine && !msg.isDeleted && DateTime.now().difference(msg.timestamp) <= const Duration(minutes: 10);
+    final canEdit =
+        isMine &&
+        !msg.isDeleted &&
+        DateTime.now().difference(msg.timestamp) <= const Duration(minutes: 10);
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) {
@@ -379,24 +423,36 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.reply, color: Colors.white),
-                title: const Text('Reply', style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'Reply',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.pop(context, 'reply'),
               ),
               ListTile(
                 leading: const Icon(Icons.emoji_emotions, color: Colors.white),
-                title: const Text('React', style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'React',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () => Navigator.pop(context, 'react'),
               ),
               if (canEdit)
                 ListTile(
                   leading: const Icon(Icons.edit, color: Colors.white),
-                  title: const Text('Edit', style: TextStyle(color: Colors.white)),
+                  title: const Text(
+                    'Edit',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () => Navigator.pop(context, 'edit'),
                 ),
               if (isMine && !msg.isDeleted)
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.redAccent),
-                  title: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.redAccent),
+                  ),
                   onTap: () => Navigator.pop(context, 'delete'),
                 ),
             ],
@@ -430,7 +486,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   }
 
   Future<void> _pickReaction(ChatMessage msg) async {
-    const emojis = ['👍','❤️','😂','🎉','😮','🙏'];
+    const emojis = ['👍', '❤️', '😂', '🎉', '😮', '🙏'];
     final chosen = await showModalBottomSheet<String>(
       context: context,
       builder: (_) => SafeArea(
@@ -439,10 +495,14 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           color: const Color(0xFF0F1629),
           child: Wrap(
             spacing: 12,
-            children: emojis.map((e) => GestureDetector(
-              onTap: () => Navigator.pop(context, e),
-              child: Text(e, style: const TextStyle(fontSize: 28)),
-            )).toList(),
+            children: emojis
+                .map(
+                  (e) => GestureDetector(
+                    onTap: () => Navigator.pop(context, e),
+                    child: Text(e, style: const TextStyle(fontSize: 28)),
+                  ),
+                )
+                .toList(),
           ),
         ),
       ),
@@ -456,7 +516,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     try {
-      final docRef = FirebaseFirestore.instance.collection('team.chat').doc(msg.id);
+      final docRef = FirebaseFirestore.instance
+          .collection('team.chat')
+          .doc(msg.id);
       await FirebaseFirestore.instance.runTransaction((tx) async {
         final snap = await tx.get(docRef);
         if (!snap.exists) return;
@@ -469,7 +531,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         String? existingEmojiOfUser;
         final updated = <String, List<String>>{};
         rawReactions.forEach((k, v) {
-          final list = (v is List) ? v.whereType<String>().toList() : <String>[];
+          final list = (v is List)
+              ? v.whereType<String>().toList()
+              : <String>[];
           if (list.contains(uid)) existingEmojiOfUser = k;
           updated[k] = list.where((x) => x != uid).toList();
         });
@@ -491,7 +555,9 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to react: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to react: $e')));
     }
   }
 
@@ -509,8 +575,14 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             decoration: const InputDecoration(hintText: 'Update your message'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Save'),
+            ),
           ],
         );
       },
@@ -518,13 +590,15 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     if (newText == null) return;
     if (newText.isEmpty || newText == msg.text) return;
     try {
-      await FirebaseFirestore.instance.collection('team.chat').doc(msg.id).update({
-        'text': newText,
-        'editedAt': FieldValue.serverTimestamp(),
-      });
+      await FirebaseFirestore.instance
+          .collection('team.chat')
+          .doc(msg.id)
+          .update({'text': newText, 'editedAt': FieldValue.serverTimestamp()});
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to edit: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to edit: $e')));
     }
   }
 
@@ -533,7 +607,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     if (key != null) {
       final ctx = key.currentContext;
       if (ctx != null) {
-        await Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300));
+        await Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+        );
       }
     }
   }
@@ -615,15 +692,15 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             .collection('team.chat')
             .doc(msg.id)
             .update({
-          'isDeleted': true,
-          'deletedAt': FieldValue.serverTimestamp(),
-          'deletedBy': FirebaseAuth.instance.currentUser?.uid,
-        });
+              'isDeleted': true,
+              'deletedAt': FieldValue.serverTimestamp(),
+              'deletedBy': FirebaseAuth.instance.currentUser?.uid,
+            });
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
       }
     }
   }
@@ -635,18 +712,12 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: Image.asset(
-              'assets/khono_bg.png',
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
           ),
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  Color(0xFF0A0F1F),
-                  Color(0x001F2840),
-                ],
+                colors: [Color(0xFF0A0F1F), Color(0x001F2840)],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),

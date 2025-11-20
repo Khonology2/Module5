@@ -10,21 +10,21 @@ class UserSettings {
   final String? photoURL;
   final String? department;
   final String? jobTitle;
-  
+
   // Privacy Settings
   final bool privateGoals;
   final bool managerOnly;
   final bool teamShare;
   final bool leaderboardParticipation;
   final bool profileVisible;
-  
+
   // Notification Settings
   final bool pushNotifications;
   final bool emailNotifications;
   final bool soundAlerts;
   final bool goalReminders;
   final bool weeklyReports;
-  
+
   // App Settings
   final bool darkMode;
   final bool speechRecognitionEnabled;
@@ -32,7 +32,8 @@ class UserSettings {
   final bool autoSync;
   final String language;
   final String timeZone;
-  
+  final bool tutorialEnabled;
+
   // Security Settings
   final bool twoFactorAuth;
   final bool sessionTimeout;
@@ -62,6 +63,7 @@ class UserSettings {
     this.autoSync = true,
     this.language = 'en',
     this.timeZone = 'UTC',
+    this.tutorialEnabled = false,
     this.twoFactorAuth = false,
     this.sessionTimeout = false,
     this.sessionTimeoutMinutes = 30,
@@ -93,6 +95,7 @@ class UserSettings {
       autoSync: data['autoSync'] ?? true,
       language: data['language'] ?? 'en',
       timeZone: data['timeZone'] ?? 'UTC',
+      tutorialEnabled: data['tutorialEnabled'] ?? false,
       twoFactorAuth: data['twoFactorAuth'] ?? false,
       sessionTimeout: data['sessionTimeout'] ?? false,
       sessionTimeoutMinutes: data['sessionTimeoutMinutes'] ?? 30,
@@ -111,7 +114,8 @@ class UserSettings {
       'managerOnly': managerOnly,
       'teamShare': teamShare,
       'leaderboardParticipation': leaderboardParticipation,
-      'leaderboardOptin': leaderboardParticipation, // Sync both fields for compatibility
+      'leaderboardOptin':
+          leaderboardParticipation, // Sync both fields for compatibility
       'profileVisible': profileVisible,
       'pushNotifications': pushNotifications,
       'emailNotifications': emailNotifications,
@@ -124,6 +128,7 @@ class UserSettings {
       'autoSync': autoSync,
       'language': language,
       'timeZone': timeZone,
+      'tutorialEnabled': tutorialEnabled,
       'twoFactorAuth': twoFactorAuth,
       'sessionTimeout': sessionTimeout,
       'sessionTimeoutMinutes': sessionTimeoutMinutes,
@@ -154,6 +159,7 @@ class UserSettings {
     bool? autoSync,
     String? language,
     String? timeZone,
+    bool? tutorialEnabled,
     bool? twoFactorAuth,
     bool? sessionTimeout,
     int? sessionTimeoutMinutes,
@@ -169,7 +175,8 @@ class UserSettings {
       privateGoals: privateGoals ?? this.privateGoals,
       managerOnly: managerOnly ?? this.managerOnly,
       teamShare: teamShare ?? this.teamShare,
-      leaderboardParticipation: leaderboardParticipation ?? this.leaderboardParticipation,
+      leaderboardParticipation:
+          leaderboardParticipation ?? this.leaderboardParticipation,
       profileVisible: profileVisible ?? this.profileVisible,
       pushNotifications: pushNotifications ?? this.pushNotifications,
       emailNotifications: emailNotifications ?? this.emailNotifications,
@@ -177,14 +184,17 @@ class UserSettings {
       goalReminders: goalReminders ?? this.goalReminders,
       weeklyReports: weeklyReports ?? this.weeklyReports,
       darkMode: darkMode ?? this.darkMode,
-      speechRecognitionEnabled: speechRecognitionEnabled ?? this.speechRecognitionEnabled,
+      speechRecognitionEnabled:
+          speechRecognitionEnabled ?? this.speechRecognitionEnabled,
       celebrationFeed: celebrationFeed ?? this.celebrationFeed,
       autoSync: autoSync ?? this.autoSync,
       language: language ?? this.language,
       timeZone: timeZone ?? this.timeZone,
+      tutorialEnabled: tutorialEnabled ?? this.tutorialEnabled,
       twoFactorAuth: twoFactorAuth ?? this.twoFactorAuth,
       sessionTimeout: sessionTimeout ?? this.sessionTimeout,
-      sessionTimeoutMinutes: sessionTimeoutMinutes ?? this.sessionTimeoutMinutes,
+      sessionTimeoutMinutes:
+          sessionTimeoutMinutes ?? this.sessionTimeoutMinutes,
       biometricAuth: biometricAuth ?? this.biometricAuth,
     );
   }
@@ -204,19 +214,23 @@ class SettingsService {
         .doc(user.uid)
         .snapshots()
         .map((snapshot) {
-      if (!snapshot.exists) {
-        // Initialize default settings for new users
-        final defaultSettings = getDefaultSettings(user);
-        // Save to Firestore asynchronously
-        _firestore.collection('users').doc(user.uid).set(defaultSettings.toFirestore());
-        return defaultSettings;
-      }
-      return UserSettings.fromFirestore(snapshot);
-    }).handleError((error) {
-      developer.log('Error in user settings stream: $error');
-      // Return default settings if there's an error
-      return getDefaultSettings(user);
-    });
+          if (!snapshot.exists) {
+            // Initialize default settings for new users
+            final defaultSettings = getDefaultSettings(user);
+            // Save to Firestore asynchronously
+            _firestore
+                .collection('users')
+                .doc(user.uid)
+                .set(defaultSettings.toFirestore());
+            return defaultSettings;
+          }
+          return UserSettings.fromFirestore(snapshot);
+        })
+        .handleError((error) {
+          developer.log('Error in user settings stream: $error');
+          // Return default settings if there's an error
+          return getDefaultSettings(user);
+        });
   }
 
   // Get user settings once
@@ -244,7 +258,7 @@ class SettingsService {
           .collection('users')
           .doc(user.uid)
           .update(settings.toFirestore());
-      
+
       // Also save certain settings locally
       await _saveLocalSettings(settings);
     } catch (e) {
@@ -297,7 +311,10 @@ class SettingsService {
   static Future<void> _saveLocalSettings(UserSettings settings) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('darkMode', settings.darkMode);
-    await prefs.setBool('speechRecognitionEnabled', settings.speechRecognitionEnabled);
+    await prefs.setBool(
+      'speechRecognitionEnabled',
+      settings.speechRecognitionEnabled,
+    );
     await prefs.setBool('pushNotifications', settings.pushNotifications);
     await prefs.setBool('autoSync', settings.autoSync);
     await prefs.setString('language', settings.language);
@@ -308,7 +325,8 @@ class SettingsService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'darkMode': prefs.getBool('darkMode') ?? true,
-      'speechRecognitionEnabled': prefs.getBool('speechRecognitionEnabled') ?? false,
+      'speechRecognitionEnabled':
+          prefs.getBool('speechRecognitionEnabled') ?? false,
       'pushNotifications': prefs.getBool('pushNotifications') ?? true,
       'autoSync': prefs.getBool('autoSync') ?? true,
       'language': prefs.getString('language') ?? 'en',
@@ -374,7 +392,9 @@ class SettingsService {
             'deletedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         } catch (e) {
-          developer.log('Warning: could not write deleted_accounts for $uid: $e');
+          developer.log(
+            'Warning: could not write deleted_accounts for $uid: $e',
+          );
         }
       }
 
@@ -391,10 +411,26 @@ class SettingsService {
         await batch.commit();
       }
 
-      try { await deleteWhere('goals', 'userId'); } catch (e) { developer.log('delete goals failed: $e'); }
-      try { await deleteWhere('alerts', 'userId'); } catch (e) { developer.log('delete alerts failed: $e'); }
-      try { await deleteWhere('activities', 'userId'); } catch (e) { developer.log('delete activities failed: $e'); }
-      try { await deleteWhere('goal_daily_progress', 'userId'); } catch (e) { developer.log('delete goal_daily_progress failed: $e'); }
+      try {
+        await deleteWhere('goals', 'userId');
+      } catch (e) {
+        developer.log('delete goals failed: $e');
+      }
+      try {
+        await deleteWhere('alerts', 'userId');
+      } catch (e) {
+        developer.log('delete alerts failed: $e');
+      }
+      try {
+        await deleteWhere('activities', 'userId');
+      } catch (e) {
+        developer.log('delete activities failed: $e');
+      }
+      try {
+        await deleteWhere('goal_daily_progress', 'userId');
+      } catch (e) {
+        developer.log('delete goal_daily_progress failed: $e');
+      }
 
       // Delete any subcollections under users/{uid}
       final subcollections = [

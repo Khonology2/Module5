@@ -93,9 +93,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildKpaSelector() {
-    final List<String> options = ['Operational', 'Customer', 'Financial'];
-    final String? current =
-        currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty
+    final String? formattedKpa = (currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
         ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
         : null;
 
@@ -110,77 +108,42 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          initialValue: current,
-          dropdownColor: AppColors.elevatedBackground,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.elevatedBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.borderColor),
           ),
-          decoration: InputDecoration(
-            hintText: 'Select Key Performance Area',
-            hintStyle: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            filled: true,
-            fillColor: AppColors.elevatedBackground,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.borderColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.activeColor),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-          ),
-          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-          items: options
-              .map(
-                (o) => DropdownMenuItem<String>(
-                  value: o,
-                  child: Text(
-                    o,
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  formattedKpa ?? 'Not assigned',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: formattedKpa != null
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              )
-              .toList(),
-          onChanged: (val) async {
-            if (val == null) return;
-            final newKpa = val.toLowerCase();
-            try {
-              setState(() {
-                isLoading = true;
-              });
-              final updated = currentGoal.copyWith(kpa: newKpa);
-              await DatabaseService.updateGoal(updated);
-              if (mounted) {
-                setState(() {
-                  currentGoal = updated;
-                });
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('KPA updated')));
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to update KPA: $e')),
-                );
-              }
-            } finally {
-              if (mounted) {
-                setState(() {
-                  isLoading = false;
-                });
-              }
-            }
-          },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'KPA is set when the goal is created. Contact your manager if it needs to change.',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
@@ -528,7 +491,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildActionButtons(),
                   const SizedBox(height: AppSpacing.xl),
-                  _buildGoalMilestonesSection(),
+          _buildGoalMilestonesSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildMilestoneTracker(),
                 ],
@@ -1211,10 +1174,39 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildGoalMilestonesSection() {
+    if (_isSeasonGoal) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Season Challenge Milestones',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This goal is linked to a Season Challenge. Milestones are predefined by your manager. '
+              'Use the Season Challenges → My Seasons screen to update milestone progress.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     final user = FirebaseAuth.instance.currentUser;
-    final bool canManage = user?.uid == currentGoal.userId;
-    final bool canAddMilestones =
-        canManage && currentGoal.status != GoalStatus.completed;
+    final bool isOwner = user?.uid == currentGoal.userId;
+    final bool isGoalCompleted = currentGoal.status == GoalStatus.completed;
+    final bool canAddMilestones = isOwner && !isGoalCompleted;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1239,13 +1231,35 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      canManage
+                      isOwner
                           ? 'Break this goal into concrete steps with target dates.'
                           : 'View the employee-defined checkpoints for this goal.',
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.textSecondary,
                       ),
                     ),
+                    if (isGoalCompleted)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Completed milestones are locked because this goal is closed.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -1300,7 +1314,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _GoalMilestoneTile(
                           milestone: milestone,
-                          canManage: canManage,
+                          canEdit: isOwner &&
+                              !(isGoalCompleted &&
+                                  milestone.status == GoalMilestoneStatus.completed),
+                          isLocked: isGoalCompleted &&
+                              milestone.status == GoalMilestoneStatus.completed,
                           onEdit: () => _showMilestoneDialog(milestone: milestone),
                           onUpdateStatus: (status) =>
                               _updateMilestoneStatus(milestone, status),
@@ -1366,13 +1384,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               final trimmedTitle = titleController.text.trim();
               final trimmedDesc = descController.text.trim();
               if (trimmedTitle.isEmpty) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Title is required.')),
                 );
                 return;
               }
               if (dueDate == null) {
-                ScaffoldMessenger.of(this.context).showSnackBar(
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Select a due date.')),
                 );
                 return;
@@ -1399,9 +1417,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     status: status,
                   );
                 }
-                if (mounted) {
+                // Try to close dialog and show success message
+                // Use try-catch to handle if dialog context is no longer valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
                   Navigator.of(dialogContext).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  // Use dialogContext for ScaffoldMessenger since we're in dialog scope
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       content: Text(
                         milestone == null
@@ -1410,12 +1437,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     ),
                   );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
                 }
               } catch (e) {
                 setDialogState(() => saving = false);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('Failed to save milestone: $e')),
-                );
+                // Try to show error message if dialog context is still valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text('Failed to save milestone: $e')),
+                  );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
+                }
               }
             }
 
@@ -1599,14 +1636,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
 class _GoalMilestoneTile extends StatelessWidget {
   final GoalMilestone milestone;
-  final bool canManage;
+  final bool canEdit;
+  final bool isLocked;
   final VoidCallback onEdit;
   final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
   final VoidCallback onDelete;
 
   const _GoalMilestoneTile({
     required this.milestone,
-    required this.canManage,
+    required this.canEdit,
+    required this.isLocked,
     required this.onEdit,
     required this.onUpdateStatus,
     required this.onDelete,
@@ -1679,7 +1718,7 @@ class _GoalMilestoneTile extends StatelessWidget {
                   ),
                 ),
               ),
-              if (canManage)
+              if (canEdit)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_horiz),
                   onSelected: (value) {
@@ -1732,6 +1771,14 @@ class _GoalMilestoneTile extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              if (!canEdit && isLocked)
+                Tooltip(
+                  message: 'This milestone is locked because the goal is completed.',
+                  child: Icon(
+                    Icons.lock_outline,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
             ],
           ),

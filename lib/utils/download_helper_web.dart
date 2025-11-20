@@ -1,18 +1,21 @@
-// Web implementation using dart:html
+// Web implementation using package:web
 import 'dart:convert';
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 void downloadJsonFile(String filename, String jsonContent) {
   final bytes = utf8.encode(jsonContent);
-  final blob = html.Blob([bytes], 'application/json');
-  final url = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
+  final blob = web.Blob(
+    [bytes.toJS].toJS,
+    web.BlobPropertyBag(type: 'application/json'),
+  );
+  final url = web.URL.createObjectURL(blob);
+  final anchor = web.HTMLAnchorElement()
+    ..href = url
     ..download = filename
     ..style.display = 'none';
-  html.document.body?.children.add(anchor);
+  web.document.body?.append(anchor);
   anchor.click();
   anchor.remove();
-  html.Url.revokeObjectUrl(url);
+  web.URL.revokeObjectURL(url);
 }
-
-

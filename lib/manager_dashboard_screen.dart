@@ -15,6 +15,10 @@ import 'package:pdh/services/role_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/manager_tutorial_service.dart';
+import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'dart:developer' as developer;
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -29,8 +33,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
-  late final Stream<List<TeamInsight>> _insightsStream;
   String? _currentProfilePhotoUrl;
+
+  // Tutorial state
+  bool _shouldShowTutorial = false;
+  int _currentTutorialStep = 0;
+  final List<GlobalKey> _sidebarTutorialKeys = List.generate(
+    12,
+    (index) => GlobalKey(),
+  );
 
   @override
   void initState() {
@@ -38,7 +49,26 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
-    _insightsStream = _realtime.teamInsightsStream();
+
+    // Check if tutorial should be shown
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        _checkTutorial();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Re-check tutorial when screen becomes visible again
+    if (!_shouldShowTutorial) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _checkTutorial();
+        }
+      });
+    }
   }
 
   Future<void> _loadManagerName() async {
@@ -84,6 +114,240 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
   }
 
+  // Simplified immediate start
+  void _startTutorialImmediate() {
+    if (!mounted || !_shouldShowTutorial) return;
+
+    developer.log(
+      'Starting manager tutorial immediately - step: $_currentTutorialStep',
+      name: 'ManagerDashboardScreen',
+    );
+
+    try {
+      // Check if key is attached
+      final keyContext = _sidebarTutorialKeys[0].currentContext;
+      developer.log(
+        'Key context check: ${keyContext != null ? "ATTACHED" : "NOT ATTACHED"}',
+        name: 'ManagerDashboardScreen',
+      );
+
+      if (keyContext != null) {
+        // Key is attached, start showcase
+        ShowCaseWidget.of(context).startShowCase([_sidebarTutorialKeys[0]]);
+        developer.log(
+          'Started manager showcase for step 0',
+          name: 'ManagerDashboardScreen',
+        );
+      } else {
+        // Key not attached yet, retry
+        developer.log(
+          'Key not attached, retrying in 500ms...',
+          name: 'ManagerDashboardScreen',
+        );
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted && _shouldShowTutorial) {
+            _startTutorialImmediate();
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error starting showcase: $e',
+        name: 'ManagerDashboardScreen',
+        error: e,
+      );
+      developer.log('Stack: $stackTrace', name: 'ManagerDashboardScreen');
+
+      // Retry after error
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted && _shouldShowTutorial) {
+          _startTutorialImmediate();
+        }
+      });
+    }
+  }
+
+  Future<void> _checkTutorial({int retryCount = 0}) async {
+    if (!mounted) return;
+
+    try {
+      developer.log(
+        'Checking if manager sidebar tutorial should start...',
+        name: 'ManagerDashboardScreen',
+      );
+
+      // Add delay for first attempt to ensure Firestore writes are complete
+      if (retryCount == 0) {
+        await Future.delayed(const Duration(milliseconds: 800));
+      } else {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      final shouldShow = await ManagerTutorialService.instance
+          .shouldShowTutorial();
+      developer.log(
+        'Manager sidebar tutorial check result: shouldShow=$shouldShow',
+        name: 'ManagerDashboardScreen',
+      );
+
+      if (shouldShow && mounted) {
+        developer.log(
+          'Tutorial should start - initializing...',
+          name: 'ManagerDashboardScreen',
+        );
+
+        // Set tutorial state first
+        setState(() {
+          _shouldShowTutorial = true;
+          _currentTutorialStep = 0;
+        });
+
+        // Ensure sidebar is expanded
+        SidebarState.instance.isCollapsed.value = false;
+
+        // Wait for widgets to rebuild with tutorial state
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        // Start tutorial after widgets rebuild
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Future.delayed(const Duration(milliseconds: 1500), () {
+              if (mounted && _shouldShowTutorial) {
+                developer.log(
+                  'Starting tutorial from check...',
+                  name: 'ManagerDashboardScreen',
+                );
+                _startTutorialImmediate();
+              }
+            });
+          });
+        });
+      } else if (retryCount < 2 && mounted) {
+        // Retry up to 2 times if tutorial should show but didn't
+        developer.log(
+          'Tutorial check returned false, retrying (attempt ${retryCount + 1}/2)...',
+          name: 'ManagerDashboardScreen',
+        );
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) {
+            _checkTutorial(retryCount: retryCount + 1);
+          }
+        });
+      } else {
+        developer.log(
+          'Tutorial will NOT start - shouldShow=$shouldShow',
+          name: 'ManagerDashboardScreen',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'Error checking manager sidebar tutorial: $e',
+        name: 'ManagerDashboardScreen',
+        error: e,
+      );
+    }
+  }
+
+  void _moveToNextTutorialStep() {
+    if (!mounted || !_shouldShowTutorial) return;
+
+    if (_currentTutorialStep < SidebarConfig.managerItems.length - 1) {
+      setState(() {
+        _currentTutorialStep++;
+      });
+
+      // Trigger showcase for next step
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _shouldShowTutorial) {
+          try {
+            final keyContext =
+                _sidebarTutorialKeys[_currentTutorialStep].currentContext;
+            if (keyContext != null) {
+              ShowCaseWidget.of(
+                context,
+              ).startShowCase([_sidebarTutorialKeys[_currentTutorialStep]]);
+              developer.log(
+                'Started showcase for step $_currentTutorialStep',
+                name: 'ManagerDashboardScreen',
+              );
+            } else {
+              developer.log(
+                'Key not attached for step $_currentTutorialStep, retrying...',
+                name: 'ManagerDashboardScreen',
+              );
+              // Retry
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted && _shouldShowTutorial) {
+                  try {
+                    ShowCaseWidget.of(context).startShowCase([
+                      _sidebarTutorialKeys[_currentTutorialStep],
+                    ]);
+                  } catch (e) {
+                    developer.log(
+                      'Retry failed: $e',
+                      name: 'ManagerDashboardScreen',
+                    );
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            developer.log(
+              'Could not start showcase for step $_currentTutorialStep: $e',
+              name: 'ManagerDashboardScreen',
+              error: e,
+            );
+          }
+        }
+      });
+    } else {
+      // Tutorial complete
+      _completeTutorial();
+    }
+  }
+
+  Future<void> _completeTutorial() async {
+    developer.log(
+      'Completing manager sidebar tutorial',
+      name: 'ManagerDashboardScreen',
+    );
+    await ManagerTutorialService.instance.markTutorialCompleted();
+
+    if (mounted) {
+      setState(() {
+        _shouldShowTutorial = false;
+        _currentTutorialStep = 0;
+      });
+    }
+  }
+
+  Future<void> _skipTutorial() async {
+    developer.log(
+      'Skipping manager sidebar tutorial',
+      name: 'ManagerDashboardScreen',
+    );
+
+    // Dismiss the current showcase overlay
+    try {
+      ShowCaseWidget.of(context).dismiss();
+    } catch (e) {
+      developer.log(
+        'Error dismissing showcase: $e',
+        name: 'ManagerDashboardScreen',
+      );
+    }
+
+    // Mark tutorial as completed
+    await ManagerTutorialService.instance.markTutorialCompleted();
+
+    if (mounted) {
+      setState(() {
+        _shouldShowTutorial = false;
+        _currentTutorialStep = 0;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
@@ -113,51 +377,31 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
 
-          return StreamBuilder<List<TeamInsight>>(
-            stream: _insightsStream,
-            builder: (context, insightsSnap) {
-              final insights = insightsSnap.data ?? [];
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  StreamBuilder<UserProfile?>(
-                    stream: _getManagerProfileStream(),
-                    builder: (context, profileSnap) {
-                      return _buildWelcomeCard();
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildDailyMotivationCard(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildKpis(metrics, employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildTeamHealth(metrics, employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildActivitySummary(employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSeasonProgressAlerts(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildTopTwoPerformers(employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  insightsSnap.connectionState == ConnectionState.waiting
-                      ? _card(
-                          child: SizedBox(
-                            height: 120,
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      : _buildInsights(insights),
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              );
-            },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              StreamBuilder<UserProfile?>(
+                stream: _getManagerProfileStream(),
+                builder: (context, profileSnap) {
+                  return _buildWelcomeCard();
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildDailyMotivationCard(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildQuickActions(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildKpis(metrics, employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildTeamHealth(metrics, employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildActivitySummary(employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSeasonProgressAlerts(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildTopTwoPerformers(employees),
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           );
         },
       ),
@@ -178,10 +422,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
 
     return AppScaffold(
-      title: 'Manager Dashboard',
+      title: '',
       showAppBar: false,
       items: SidebarConfig.managerItems,
       currentRouteName: '/dashboard',
+      tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
+      sidebarTutorialKeys:
+          _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
+          ? _sidebarTutorialKeys
+          : null,
+      onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
+      onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
       onNavigate: (route) {
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) {
@@ -355,11 +606,33 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       "Small nudges create big momentum.",
       "Celebrate progress, not just outcomes.",
       "Lead with clarity, empathy, and action.",
+      "The best leaders are those who develop other leaders.",
+      "Your team's growth reflects your leadership excellence.",
+      "Listen to understand, not just to respond.",
+      "Delegate with trust, support with guidance.",
+      "A great leader takes people where they don't necessarily want to go, but ought to be.",
+      "Build bridges, not walls, within your team.",
+      "Your vision becomes reality when your team believes in it.",
+      "Leadership is about making others better as a result of your presence.",
+      "Invest in your team's development; it's your greatest asset.",
+      "Clear communication is the foundation of effective leadership.",
+      "Recognize effort, reward achievement, inspire excellence.",
+      "The best leaders create more leaders, not more followers.",
+      "Your team's success is a reflection of your leadership.",
+      "Lead by example, not by command.",
+      "Empathy and strength together create unstoppable leadership.",
+      "Your decisions today shape your team's tomorrow.",
+      "Great leaders don't create followers; they create more leaders.",
+      "Trust your team, and they will trust you.",
+      "The mark of a great leader is the ability to bring out the best in others.",
+      "Your leadership legacy is built one interaction at a time.",
+      "Challenge your team to grow, support them to succeed.",
+      "Effective leadership is about influence, not authority.",
+      "Your team's potential is unlimited when you unlock it.",
     ];
-    final dayOfYear = DateTime.now()
-        .difference(DateTime(DateTime.now().year, 1, 1))
-        .inDays;
-    return motivations[dayOfYear % motivations.length];
+    // Use day of month to get consistent daily motivation (1-30)
+    final dayOfMonth = DateTime.now().day;
+    return motivations[(dayOfMonth - 1) % motivations.length];
   }
 
   Stream<UserProfile?> _getManagerProfileStream() {
@@ -582,27 +855,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsights(List<TeamInsight> insights) {
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('AI Team Insights', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          if (insights.isEmpty)
-            Text('No insights available', style: AppTypography.muted)
-          else
-            ...insights.map(
-              (i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text('• ${i.title}', style: AppTypography.bodyText),
-              ),
-            ),
         ],
       ),
     );
@@ -913,6 +1165,64 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       context,
       '/season_management',
       arguments: {'seasonId': season.id},
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return AppComponents.card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Quick Actions', style: AppTypography.heading4),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Manager Review',
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_review_team_dashboard',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Progress Visuals',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/progress_visuals');
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Leaderboard',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_leaderboard');
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppComponents.primaryButton(
+                  label: 'Badges & Points',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/manager_badges_points');
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
