@@ -1794,10 +1794,13 @@ class _EmployeeProgressVisualsContentState
       return;
     }
 
+    if (!mounted) return;
+
     bool isGenerating = false;
     String currentPhase = '';
 
     await showDialog<void>(
+      // ignore: use_build_context_synchronously
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
