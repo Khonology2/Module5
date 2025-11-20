@@ -7,11 +7,8 @@ class AuditEntry {
   final String goalTitle;
   final DateTime completedDate;
   final DateTime submittedDate;
-<<<<<<< HEAD
-=======
   final DateTime? verifiedDate;
   final DateTime? rejectedDate;
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
   final String status; // 'pending', 'verified', 'rejected'
   final List<String> evidence;
   final String? acknowledgedBy;
@@ -29,11 +26,8 @@ class AuditEntry {
     required this.goalTitle,
     required this.completedDate,
     required this.submittedDate,
-<<<<<<< HEAD
-=======
     this.verifiedDate,
     this.rejectedDate,
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
     required this.status,
     required this.evidence,
     this.acknowledgedBy,
@@ -56,11 +50,8 @@ class AuditEntry {
           (data['completedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       submittedDate:
           (data['submittedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-<<<<<<< HEAD
-=======
       verifiedDate: (data['verifiedDate'] as Timestamp?)?.toDate(),
       rejectedDate: (data['rejectedDate'] as Timestamp?)?.toDate(),
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
       status: data['status'] ?? 'pending',
       evidence: List<String>.from(data['evidence'] ?? []),
       acknowledgedBy: data['acknowledgedBy'],
@@ -80,15 +71,12 @@ class AuditEntry {
       'goalTitle': goalTitle,
       'completedDate': Timestamp.fromDate(completedDate),
       'submittedDate': Timestamp.fromDate(submittedDate),
-<<<<<<< HEAD
-=======
       'verifiedDate': verifiedDate != null
           ? Timestamp.fromDate(verifiedDate!)
           : null,
       'rejectedDate': rejectedDate != null
           ? Timestamp.fromDate(rejectedDate!)
           : null,
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
       'status': status,
       'evidence': evidence,
       'acknowledgedBy': acknowledgedBy,
