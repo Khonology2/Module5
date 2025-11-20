@@ -145,8 +145,9 @@ class SeasonService {
           entry.key,
           fallback: entry.value.userName,
         );
-        if (resolved.trim().isEmpty || resolved == entry.value.userName)
+        if (resolved.trim().isEmpty || resolved == entry.value.userName) {
           continue;
+        }
         updates['participations.${entry.key}.userName'] = resolved;
       }
       if (updates.isNotEmpty) {
