@@ -90,8 +90,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildSmartAlertsCard(),
-                  const SizedBox(height: AppSpacing.lg),
                   StreamBuilder<List<Alert>>(
                     stream: AlertService.getUserAlertsStream(user.uid),
                     builder: (context, alertsSnapshot) {
@@ -166,76 +164,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             },
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSmartAlertsCard() {
-    return Container(
-      padding: const EdgeInsets.all(20.0),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.activeColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Image.asset(
-                      'assets/AI_Red.png',
-                      width: 32, // Increased size to 32
-                      height: 32, // Increased size to 32
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Smart Alerts',
-                    style: AppTypography.heading4.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.activeColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.activeColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Text(
-                  'AI POWERED',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.activeColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Personalized notifications based on your goals, habits, and progress patterns',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }
