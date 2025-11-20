@@ -44,12 +44,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         userId: user.uid,
         email: user.email,
       );
-      
+
       if (onboardingName != null && onboardingName.isNotEmpty) {
-        // Use first name from onboarding
-        userName = onboardingName.split(' ').first;
+        // Use full name from onboarding
+        userName = onboardingName;
       } else if (user.displayName != null && user.displayName!.isNotEmpty) {
-        userName = user.displayName!.split(' ').first;
+        userName = user.displayName!;
       } else if (user.email != null && user.email!.isNotEmpty) {
         userName = user.email!.split('@').first;
       }
@@ -159,9 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
-                image: AssetImage(
-                  'assets/khono_bg.png',
-                ),
+                image: AssetImage('assets/khono_bg.png'),
                 fit: BoxFit.cover,
               ),
             ),

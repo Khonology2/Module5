@@ -83,10 +83,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           userId: user.uid,
           email: user.email,
         );
-        
+
         if (onboardingName != null && onboardingName.isNotEmpty) {
-          // Use first name from onboarding
-          name = onboardingName.split(' ').first;
+          // Use full name from onboarding
+          name = onboardingName;
         } else {
           // Fallback to userProfile or Firebase Auth
           final profile = await DatabaseService.getUserProfile(user.uid);

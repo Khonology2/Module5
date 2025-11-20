@@ -1243,7 +1243,7 @@ class DatabaseService {
 
   /// Get user name from onboarding collection
   /// Queries by user_id first, then by email if user_id not found
-  /// Returns full name (name + surname) or null if not found
+  /// Returns fullName field if available, otherwise falls back to name + surname
   static Future<String?> getUserNameFromOnboarding({
     String? userId,
     String? email,
@@ -1261,6 +1261,12 @@ class DatabaseService {
 
         if (docById.exists) {
           final data = docById.data();
+          // Priority 1: Check for fullName field
+          final fullName = data?['fullName'] as String? ?? '';
+          if (fullName.isNotEmpty) {
+            return fullName.trim();
+          }
+          // Priority 2: Fallback to name + surname
           final name = data?['name'] as String? ?? '';
           final surname = data?['surname'] as String? ?? '';
           if (name.isNotEmpty || surname.isNotEmpty) {
@@ -1277,6 +1283,12 @@ class DatabaseService {
 
         if (queryByUserId.docs.isNotEmpty) {
           final data = queryByUserId.docs.first.data();
+          // Priority 1: Check for fullName field
+          final fullName = data['fullName'] as String? ?? '';
+          if (fullName.isNotEmpty) {
+            return fullName.trim();
+          }
+          // Priority 2: Fallback to name + surname
           final name = data['name'] as String? ?? '';
           final surname = data['surname'] as String? ?? '';
           if (name.isNotEmpty || surname.isNotEmpty) {
@@ -1295,6 +1307,12 @@ class DatabaseService {
 
         if (queryByEmail.docs.isNotEmpty) {
           final data = queryByEmail.docs.first.data();
+          // Priority 1: Check for fullName field
+          final fullName = data['fullName'] as String? ?? '';
+          if (fullName.isNotEmpty) {
+            return fullName.trim();
+          }
+          // Priority 2: Fallback to name + surname
           final name = data['name'] as String? ?? '';
           final surname = data['surname'] as String? ?? '';
           if (name.isNotEmpty || surname.isNotEmpty) {

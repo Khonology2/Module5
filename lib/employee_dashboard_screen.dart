@@ -822,17 +822,17 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           email: user.email,
         ),
         builder: (context, snapshot) {
-          // Determine userName with priority: onboarding > userProfile > Firebase Auth > email
+          // Determine userName with priority: onboarding fullName > userProfile > Firebase Auth > email
           if (snapshot.hasData &&
               snapshot.data != null &&
               snapshot.data!.isNotEmpty) {
-            // Use first name from onboarding
-            userName = snapshot.data!.split(' ').first;
+            // Use full name from onboarding
+            userName = snapshot.data!;
           } else if (userProfile?.displayName != null &&
               userProfile!.displayName.isNotEmpty) {
-            userName = userProfile!.displayName.split(' ').first;
+            userName = userProfile!.displayName;
           } else if (user.displayName != null && user.displayName!.isNotEmpty) {
-            userName = user.displayName!.split(' ').first;
+            userName = user.displayName!;
           } else if (user.email != null && user.email!.isNotEmpty) {
             userName = user.email!.split('@').first;
           }
