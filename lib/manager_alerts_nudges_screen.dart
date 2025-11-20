@@ -1,10 +1,12 @@
 // ignore_for_file: unused_element
 
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -45,6 +47,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   AlertPriority? _selectedPriority;
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   bool _showNudgeTrend = true;
+  Map<String, dynamic>? _teamInsights;
+  bool _isLoadingInsights = false;
 
   @override
   void initState() {
@@ -562,11 +566,37 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         SliverPadding(
           padding: AppSpacing.screenPadding,
           sliver: SliverToBoxAdapter(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Team Alerts (${alerts.length})',
-                    style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Team Alerts (${alerts.length})',
+                        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                    ElevatedButton.icon(
+                      onPressed: () => _loadTeamInsights(employees, alerts),
+                      icon: _isLoadingInsights
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.insights, size: 18),
+                      label: const Text('AI Team Insights'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_teamInsights != null) _buildTeamInsightsWidget(),
               ],
             ),
           ),
@@ -2247,6 +2277,382 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
      );
    }
  }
+
+  Future<void> _loadTeamInsights(List<EmployeeData> employees, List<Alert> alerts) async {
+    if (employees.isEmpty) return;
+
+    setState(() => _isLoadingInsights = true);
+
+    try {
+      // Collect team data
+      final teamData = <Map<String, dynamic>>[];
+      final now = DateTime.now();
+
+      for (final employee in employees) {
+        final goals = await DatabaseService.getUserGoals(employee.profile.uid);
+        final employeeAlerts = alerts.where((a) => a.userId == employee.profile.uid).toList();
+        
+        // Calculate risk indicators
+        final overdueGoals = goals.where((g) => 
+          g.status == GoalStatus.inProgress && 
+          g.targetDate.isBefore(now)
+        ).length;
+        
+        final dueSoonGoals = goals.where((g) => 
+          g.status == GoalStatus.inProgress && 
+          g.targetDate.difference(now).inDays <= 7 &&
+          g.targetDate.difference(now).inDays > 0
+        ).length;
+
+        final avgProgress = goals.isEmpty ? 0.0 : 
+          goals.map((g) => g.progress).reduce((a, b) => a + b) / goals.length;
+
+        final inactivityDays = now.difference(employee.lastActivity).inDays;
+
+        teamData.add({
+          'name': employee.profile.displayName,
+          'uid': employee.profile.uid,
+          'department': employee.profile.department,
+          'goals': goals.length,
+          'overdueGoals': overdueGoals,
+          'dueSoonGoals': dueSoonGoals,
+          'avgProgress': avgProgress,
+          'alerts': employeeAlerts.length,
+          'inactivityDays': inactivityDays,
+          'level': employee.profile.level,
+          'badges': employee.profile.badges.length,
+          'goalsData': goals.map((g) => {
+            'title': g.title,
+            'progress': g.progress,
+            'status': g.status.name,
+            'priority': g.priority.name,
+            'daysUntilDeadline': g.targetDate.difference(now).inDays,
+          }).toList(),
+        });
+      }
+
+      // Generate AI analysis
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in team management and performance analysis. '
+          'Analyze team data to identify:\n\n'
+          '1. AT-RISK TEAM MEMBERS:\n'
+          '   - Employees likely to miss deadlines based on goal progress, overdue goals, and activity patterns\n'
+          '   - Early warning signs before problems escalate\n'
+          '   - Risk level (high, medium, low) for each at-risk member\n'
+          '   - Specific reasons why they\'re at risk\n\n'
+          '2. COLLABORATION OPPORTUNITIES:\n'
+          '   - Team members who could help each other based on complementary strengths\n'
+          '   - Employees with similar goals who could collaborate\n'
+          '   - Pairing suggestions (who can help whom and why)\n\n'
+          'Format your response as JSON with this structure:\n'
+          '{"atRiskMembers": [{"name": "...", "riskLevel": "high|medium|low", "reasons": ["...", "..."], "recommendations": "..."}], '
+          '"collaborationOpportunities": [{"member1": "...", "member2": "...", "reason": "...", "suggestion": "..."}]}',
+        ),
+      );
+
+      final teamDataText = teamData.map((e) {
+        return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
+            '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
+            '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
+      }).join('\n');
+
+      final prompt = [
+        Content.text(
+          'Analyze this team data:\n\n$teamDataText\n\n'
+          'Identify at-risk team members and collaboration opportunities. '
+          'Focus on employees with overdue goals, low progress, high inactivity, or multiple alerts. '
+          'For collaboration, identify complementary strengths and similar goal types.',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+
+      // Parse JSON response
+      String jsonText = responseText.trim();
+      if (jsonText.contains('```json')) {
+        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+      } else if (jsonText.contains('```')) {
+        jsonText = jsonText.split('```')[1].split('```')[0].trim();
+      }
+
+      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(jsonText);
+      if (jsonMatch != null) {
+        final jsonString = jsonMatch.group(0) ?? '{}';
+        try {
+          final insights = jsonDecode(jsonString) as Map<String, dynamic>;
+          if (mounted) {
+            setState(() {
+              _teamInsights = insights;
+              _isLoadingInsights = false;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() => _isLoadingInsights = false);
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoadingInsights = false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading insights: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildTeamInsightsWidget() {
+    if (_teamInsights == null) return const SizedBox.shrink();
+
+    final atRiskMembers = _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
+    final collaborations = _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.activeColor.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights, color: AppColors.activeColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'AI Team Insights',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                color: AppColors.textSecondary,
+                onPressed: () {
+                  setState(() => _teamInsights = null);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (atRiskMembers.isNotEmpty) ...[
+            Text(
+              'At-Risk Team Members',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...atRiskMembers.take(5).map((member) {
+              final riskLevel = member['riskLevel']?.toString().toLowerCase() ?? 'medium';
+              Color riskColor;
+              if (riskLevel == 'high') {
+                riskColor = AppColors.dangerColor;
+              } else if (riskLevel == 'medium') {
+                riskColor = AppColors.warningColor;
+              } else {
+                riskColor = AppColors.infoColor;
+              }
+
+              final reasons = member['reasons'] as List<dynamic>? ?? [];
+              final recommendations = member['recommendations']?.toString() ?? '';
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: riskColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: riskColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: riskColor.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              riskLevel.toUpperCase(),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: riskColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              member['name']?.toString() ?? 'Unknown',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (reasons.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ...reasons.map((reason) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.warning_amber_rounded, 
+                                color: riskColor, size: 14),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  reason.toString(),
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                      ],
+                      if (recommendations.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.lightbulb_outline, 
+                                color: AppColors.activeColor, size: 16),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  recommendations,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.activeColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+          if (collaborations.isNotEmpty) ...[
+            Text(
+              'Collaboration Opportunities',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...collaborations.take(5).map((collab) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.successColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.successColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.people_outline, 
+                            color: AppColors.successColor, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${collab['member1']} ↔ ${collab['member2']}',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        collab['reason']?.toString() ?? '',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.successColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.handshake, 
+                              color: AppColors.successColor, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                collab['suggestion']?.toString() ?? '',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.successColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 // Nudge Dialog Widget
