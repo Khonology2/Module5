@@ -78,14 +78,26 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       final user = FirebaseAuth.instance.currentUser;
       String name = 'Manager';
       if (user != null) {
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final display = profile.displayName.trim();
-        if (display.isNotEmpty) {
-          name = display.split(' ').first;
-        } else if ((user.displayName ?? '').isNotEmpty) {
-          name = user.displayName!.split(' ').first;
-        } else if ((user.email ?? '').isNotEmpty) {
-          name = user.email!.split('@').first;
+        // Try to get name from onboarding collection first
+        final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        );
+        
+        if (onboardingName != null && onboardingName.isNotEmpty) {
+          // Use first name from onboarding
+          name = onboardingName.split(' ').first;
+        } else {
+          // Fallback to userProfile or Firebase Auth
+          final profile = await DatabaseService.getUserProfile(user.uid);
+          final display = profile.displayName.trim();
+          if (display.isNotEmpty) {
+            name = display.split(' ').first;
+          } else if ((user.displayName ?? '').isNotEmpty) {
+            name = user.displayName!.split(' ').first;
+          } else if ((user.email ?? '').isNotEmpty) {
+            name = user.email!.split('@').first;
+          }
         }
       }
       if (!mounted) return;

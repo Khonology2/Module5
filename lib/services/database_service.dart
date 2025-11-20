@@ -148,7 +148,8 @@ class DatabaseService {
       }
       final data = snapshot.data();
       final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
+              .toString();
       if (currentStatus == GoalApprovalStatus.approved.name ||
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
@@ -198,7 +199,8 @@ class DatabaseService {
       }
       final data = snapshot.data();
       final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
+              .toString();
       if (currentStatus == GoalApprovalStatus.approved.name ||
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
@@ -465,8 +467,9 @@ class DatabaseService {
       'createdByName': createdByName,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
-      'completedAt':
-          status == GoalMilestoneStatus.completed ? Timestamp.fromDate(now) : null,
+      'completedAt': status == GoalMilestoneStatus.completed
+          ? Timestamp.fromDate(now)
+          : null,
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
@@ -544,8 +547,10 @@ class DatabaseService {
     GoalMilestone milestone,
   ) async {
     try {
-      final goalSnap =
-          await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
       if (!goalSnap.exists) return;
       final goal = Goal.fromFirestore(goalSnap);
       if (goal.userId.isEmpty) return;
@@ -604,20 +609,24 @@ class DatabaseService {
       final percent = ((completed / total) * 100).round();
       final snapped = ((percent / 10).round() * 10).clamp(0, 100);
 
-      final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+      final goalRef = FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId);
       final goalSnap = await goalRef.get();
       if (!goalSnap.exists) return;
       final data = goalSnap.data() as Map<String, dynamic>;
       final progressRaw = data['progress'];
-      final current =
-          progressRaw is num ? progressRaw.round() : int.tryParse('$progressRaw') ?? 0;
+      final current = progressRaw is num
+          ? progressRaw.round()
+          : int.tryParse('$progressRaw') ?? 0;
       if (snapped <= current) return;
 
       final updates = <String, dynamic>{
         'progress': snapped,
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      final currentStatus = (data['status'] ?? GoalStatus.notStarted.name).toString();
+      final currentStatus = (data['status'] ?? GoalStatus.notStarted.name)
+          .toString();
       if (snapped > 0 && currentStatus == GoalStatus.notStarted.name) {
         updates['status'] = GoalStatus.inProgress.name;
       }
@@ -1230,5 +1239,74 @@ class DatabaseService {
       'badges': badges.docs.map((d) => d.data()).toList(),
       'alerts': alerts.docs.map((d) => d.data()).toList(),
     };
+  }
+
+  /// Get user name from onboarding collection
+  /// Queries by user_id first, then by email if user_id not found
+  /// Returns full name (name + surname) or null if not found
+  static Future<String?> getUserNameFromOnboarding({
+    String? userId,
+    String? email,
+  }) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+
+      // Try to get by user_id first (most reliable)
+      if (userId != null && userId.isNotEmpty) {
+        // Try document ID first
+        final docById = await firestore
+            .collection('onboarding')
+            .doc(userId)
+            .get();
+
+        if (docById.exists) {
+          final data = docById.data();
+          final name = data?['name'] as String? ?? '';
+          final surname = data?['surname'] as String? ?? '';
+          if (name.isNotEmpty || surname.isNotEmpty) {
+            return '${name.trim()} ${surname.trim()}'.trim();
+          }
+        }
+
+        // Try querying by user_id field
+        final queryByUserId = await firestore
+            .collection('onboarding')
+            .where('user_id', isEqualTo: userId)
+            .limit(1)
+            .get();
+
+        if (queryByUserId.docs.isNotEmpty) {
+          final data = queryByUserId.docs.first.data();
+          final name = data['name'] as String? ?? '';
+          final surname = data['surname'] as String? ?? '';
+          if (name.isNotEmpty || surname.isNotEmpty) {
+            return '${name.trim()} ${surname.trim()}'.trim();
+          }
+        }
+      }
+
+      // Fallback: try by email if provided
+      if (email != null && email.isNotEmpty) {
+        final queryByEmail = await firestore
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (queryByEmail.docs.isNotEmpty) {
+          final data = queryByEmail.docs.first.data();
+          final name = data['name'] as String? ?? '';
+          final surname = data['surname'] as String? ?? '';
+          if (name.isNotEmpty || surname.isNotEmpty) {
+            return '${name.trim()} ${surname.trim()}'.trim();
+          }
+        }
+      }
+
+      return null;
+    } catch (e) {
+      developer.log('Error getting user name from onboarding: $e');
+      return null;
+    }
   }
 }

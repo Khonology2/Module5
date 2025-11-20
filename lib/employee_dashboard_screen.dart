@@ -814,16 +814,38 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
 
-    // Use userProfile data if available, otherwise fallback to Firebase Auth
-    if (userProfile?.displayName != null &&
-        userProfile!.displayName.isNotEmpty) {
-      userName = userProfile!.displayName.split(' ').first;
-    } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
+    // Try to get name from onboarding collection first, then fallback to other sources
+    if (user != null) {
+      return FutureBuilder<String?>(
+        future: DatabaseService.getUserNameFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        ),
+        builder: (context, snapshot) {
+          // Determine userName with priority: onboarding > userProfile > Firebase Auth > email
+          if (snapshot.hasData &&
+              snapshot.data != null &&
+              snapshot.data!.isNotEmpty) {
+            // Use first name from onboarding
+            userName = snapshot.data!.split(' ').first;
+          } else if (userProfile?.displayName != null &&
+              userProfile!.displayName.isNotEmpty) {
+            userName = userProfile!.displayName.split(' ').first;
+          } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!.split(' ').first;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
+
+          return _buildWelcomeCardContent(userName);
+        },
+      );
     }
 
+    return _buildWelcomeCardContent(userName);
+  }
+
+  Widget _buildWelcomeCardContent(String userName) {
     final greeting = _getTimeBasedGreeting();
     final currentHour = DateTime.now().hour;
     String motivationalMessage;
