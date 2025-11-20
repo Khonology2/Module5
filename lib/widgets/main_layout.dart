@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -106,45 +107,68 @@ class _ProfileButton extends StatelessWidget {
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
         final user = FirebaseAuth.instance.currentUser;
-        String userName = 'User';
-        if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-          userName = user.displayName!.split(' ').first;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          userName = user.email!.split('@').first;
-        }
         final isManager =
             (snapshot.data ?? RoleService.instance.cachedRole) == 'manager';
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => isManager
-                    ? const ManagerProfileScreen()
-                    : const EmployeeProfileScreen(),
+
+        return FutureBuilder<String?>(
+          future: user != null
+              ? DatabaseService.getUserNameFromOnboarding(
+                  userId: user.uid,
+                  email: user.email,
+                )
+              : Future.value(null),
+          builder: (context, nameSnapshot) {
+            String userName = 'User';
+            if (nameSnapshot.hasData &&
+                nameSnapshot.data != null &&
+                nameSnapshot.data!.isNotEmpty) {
+              userName = nameSnapshot.data!;
+            } else if (user?.displayName != null &&
+                user!.displayName!.isNotEmpty) {
+              userName = user.displayName!;
+            } else if (user?.email != null && user!.email!.isNotEmpty) {
+              userName = user.email!.split('@').first;
+            }
+
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => isManager
+                        ? const ManagerProfileScreen()
+                        : const EmployeeProfileScreen(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2A3652),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x1FFFFFFF)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.person, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      userName,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A3652),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
         );
       },
     );

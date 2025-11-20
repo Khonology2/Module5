@@ -94,11 +94,23 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     if (user == null) return; // User not logged in
 
     try {
+      // First, try to get data from onboarding collection
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
+      
+      // Then get user profile for other fields
       final userProfile = await DatabaseService.getUserProfile(user.uid);
+      
       setState(() {
-        _fullNameController.text = userProfile.displayName;
-        _jobTitleController.text = userProfile.jobTitle;
-        _departmentController.text = userProfile.department;
+        // Use onboarding data if available, otherwise fallback to userProfile
+        _fullNameController.text = onboardingData['fullName']?.trim() ?? 
+            userProfile.displayName;
+        _jobTitleController.text = onboardingData['designation']?.trim() ?? 
+            userProfile.jobTitle;
+        _departmentController.text = onboardingData['department']?.trim() ?? 
+            userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
         _skills

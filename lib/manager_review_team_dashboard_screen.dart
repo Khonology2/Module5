@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/database_service.dart';
 import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
@@ -163,37 +164,54 @@ class _ManagerReviewTeamDashboardScreenState
 
   Widget _buildProfileButton(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
+    
     return Padding(
       padding: const EdgeInsets.only(right: 16.0),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ManagerProfileScreen(),
+      child: FutureBuilder<String?>(
+        future: user != null
+            ? DatabaseService.getUserNameFromOnboarding(
+                userId: user.uid,
+                email: user.email,
+              )
+            : Future.value(null),
+        builder: (context, snapshot) {
+          String userName = 'User';
+          if (snapshot.hasData &&
+              snapshot.data != null &&
+              snapshot.data!.isNotEmpty) {
+            userName = snapshot.data!;
+          } else if (user?.displayName != null &&
+              user!.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user?.email != null && user!.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
+          
+          return InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ManagerProfileScreen(),
+                ),
+              );
+            },
+            child: Row(
+              children: [
+                const Icon(Icons.person, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  userName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           );
         },
-        child: Row(
-          children: [
-            const Icon(Icons.person, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

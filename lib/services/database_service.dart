@@ -1241,15 +1241,20 @@ class DatabaseService {
     };
   }
 
-  /// Get user name from onboarding collection
+  /// Get onboarding data from onboarding collection
   /// Queries by user_id first, then by email if user_id not found
-  /// Returns fullName field if available, otherwise falls back to name + surname
-  static Future<String?> getUserNameFromOnboarding({
+  /// Returns a map with fullName, designation, and department fields
+  static Future<Map<String, String?>> getOnboardingData({
     String? userId,
     String? email,
   }) async {
     try {
       final firestore = FirebaseFirestore.instance;
+      Map<String, String?> result = {
+        'fullName': null,
+        'designation': null,
+        'department': null,
+      };
 
       // Try to get by user_id first (most reliable)
       if (userId != null && userId.isNotEmpty) {
@@ -1261,16 +1266,22 @@ class DatabaseService {
 
         if (docById.exists) {
           final data = docById.data();
-          // Priority 1: Check for fullName field
-          final fullName = data?['fullName'] as String? ?? '';
-          if (fullName.isNotEmpty) {
-            return fullName.trim();
+          result['fullName'] = data?['fullName'] as String?;
+          result['designation'] = data?['designation'] as String?;
+          result['department'] = data?['department'] as String?;
+
+          // If fullName is not available, try name + surname
+          if (result['fullName'] == null || result['fullName']!.isEmpty) {
+            final name = data?['name'] as String? ?? '';
+            final surname = data?['surname'] as String? ?? '';
+            if (name.isNotEmpty || surname.isNotEmpty) {
+              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
+            }
           }
-          // Priority 2: Fallback to name + surname
-          final name = data?['name'] as String? ?? '';
-          final surname = data?['surname'] as String? ?? '';
-          if (name.isNotEmpty || surname.isNotEmpty) {
-            return '${name.trim()} ${surname.trim()}'.trim();
+
+          // Return if we have at least fullName
+          if (result['fullName'] != null && result['fullName']!.isNotEmpty) {
+            return result;
           }
         }
 
@@ -1283,16 +1294,22 @@ class DatabaseService {
 
         if (queryByUserId.docs.isNotEmpty) {
           final data = queryByUserId.docs.first.data();
-          // Priority 1: Check for fullName field
-          final fullName = data['fullName'] as String? ?? '';
-          if (fullName.isNotEmpty) {
-            return fullName.trim();
+          result['fullName'] = data['fullName'] as String?;
+          result['designation'] = data['designation'] as String?;
+          result['department'] = data['department'] as String?;
+
+          // If fullName is not available, try name + surname
+          if (result['fullName'] == null || result['fullName']!.isEmpty) {
+            final name = data['name'] as String? ?? '';
+            final surname = data['surname'] as String? ?? '';
+            if (name.isNotEmpty || surname.isNotEmpty) {
+              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
+            }
           }
-          // Priority 2: Fallback to name + surname
-          final name = data['name'] as String? ?? '';
-          final surname = data['surname'] as String? ?? '';
-          if (name.isNotEmpty || surname.isNotEmpty) {
-            return '${name.trim()} ${surname.trim()}'.trim();
+
+          // Return if we have at least fullName
+          if (result['fullName'] != null && result['fullName']!.isNotEmpty) {
+            return result;
           }
         }
       }
@@ -1307,24 +1324,39 @@ class DatabaseService {
 
         if (queryByEmail.docs.isNotEmpty) {
           final data = queryByEmail.docs.first.data();
-          // Priority 1: Check for fullName field
-          final fullName = data['fullName'] as String? ?? '';
-          if (fullName.isNotEmpty) {
-            return fullName.trim();
-          }
-          // Priority 2: Fallback to name + surname
-          final name = data['name'] as String? ?? '';
-          final surname = data['surname'] as String? ?? '';
-          if (name.isNotEmpty || surname.isNotEmpty) {
-            return '${name.trim()} ${surname.trim()}'.trim();
+          result['fullName'] = data['fullName'] as String?;
+          result['designation'] = data['designation'] as String?;
+          result['department'] = data['department'] as String?;
+
+          // If fullName is not available, try name + surname
+          if (result['fullName'] == null || result['fullName']!.isEmpty) {
+            final name = data['name'] as String? ?? '';
+            final surname = data['surname'] as String? ?? '';
+            if (name.isNotEmpty || surname.isNotEmpty) {
+              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
+            }
           }
         }
       }
 
-      return null;
+      return result;
     } catch (e) {
-      developer.log('Error getting user name from onboarding: $e');
-      return null;
+      developer.log('Error getting onboarding data: $e');
+      return {'fullName': null, 'designation': null, 'department': null};
     }
+  }
+
+  /// Get user name from onboarding collection
+  /// Queries by user_id first, then by email if user_id not found
+  /// Returns fullName field if available, otherwise falls back to name + surname
+  static Future<String?> getUserNameFromOnboarding({
+    String? userId,
+    String? email,
+  }) async {
+    final onboardingData = await getOnboardingData(
+      userId: userId,
+      email: email,
+    );
+    return onboardingData['fullName'];
   }
 }
