@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -1513,6 +1514,8 @@ class EmployeeProgressVisualsContent extends StatefulWidget {
 class _EmployeeProgressVisualsContentState
     extends State<EmployeeProgressVisualsContent> {
   GoalStatus? _selectedStatusFilter;
+  String? _aiProgressSummary;
+  bool _isGeneratingSummary = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1522,11 +1525,31 @@ class _EmployeeProgressVisualsContentState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Your Progress Overview',
-            style: AppTypography.heading2.copyWith(
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Your Progress Overview',
+                  style: AppTypography.heading2.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _generateProgressInsights(context),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('AI Insights'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xl),
 
@@ -1552,6 +1575,9 @@ class _EmployeeProgressVisualsContentState
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // AI Progress Summary Section
+                  _buildAIProgressSummary(goals),
+                  const SizedBox(height: AppSpacing.xl),
                   _buildPersonalOverview(goals),
                   const SizedBox(height: AppSpacing.lg),
                   _buildPortfolioView(goals),
@@ -1615,6 +1641,367 @@ class _EmployeeProgressVisualsContentState
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
         });
+  }
+
+  Widget _buildAIProgressSummary(List<Goal> goals) {
+    if (goals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, color: AppColors.activeColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'AI Progress Summary',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              if (_isGeneratingSummary)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  color: AppColors.activeColor,
+                  onPressed: () => _generateProgressSummary(goals),
+                  tooltip: 'Generate Summary',
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_aiProgressSummary == null && !_isGeneratingSummary)
+            Text(
+              'Click the refresh icon to generate an AI-powered summary of your progress.',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else if (_isGeneratingSummary)
+            Text(
+              'Generating your personalized progress summary...',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+                fontStyle: FontStyle.italic,
+              ),
+            )
+          else
+            Text(
+              _aiProgressSummary!,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateProgressSummary(List<Goal> goals) async {
+    if (goals.isEmpty) return;
+
+    setState(() {
+      _isGeneratingSummary = true;
+    });
+
+    try {
+      final progressData = _collectProgressData(goals);
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in analyzing personal development progress. '
+          'Generate a concise, natural language summary (3-4 sentences) of the user\'s progress that includes:\n'
+          '1. Overall progress status\n'
+          '2. Key achievements\n'
+          '3. Areas needing attention\n'
+          '4. Progress trends over time\n\n'
+          'Be motivational, specific, and actionable. Focus on what\'s working well and what needs improvement.',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this progress data and generate a summary:\n\n$progressData',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final summary = response.text?.replaceAll('*', '').trim() ?? '';
+
+      if (mounted) {
+        setState(() {
+          _aiProgressSummary = summary;
+          _isGeneratingSummary = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isGeneratingSummary = false;
+        });
+        await _showCenteredErrorDialog(context, 'Error generating summary: $e');
+      }
+    }
+  }
+
+  Future<void> _generateProgressInsights(BuildContext context) async {
+    // Get goals from stream
+    final goals = await _getUserGoalsStream().first;
+
+    if (goals.isEmpty) {
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        await _showCenteredErrorDialog(
+          // ignore: use_build_context_synchronously
+          context,
+          'No goals found. Create some goals to get AI insights!',
+        );
+      }
+      return;
+    }
+
+    // Show loading dialog
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    final loadingDialogContext = context;
+    showDialog(
+      // ignore: use_build_context_synchronously
+      context: loadingDialogContext,
+      barrierDismissible: false,
+      builder: (dialogContext) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+        ),
+      ),
+    );
+
+    try {
+      final progressData = _collectProgressData(goals);
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in analyzing personal development progress and providing actionable insights. '
+          'Based on the progress data provided, generate a comprehensive analysis that includes:\n\n'
+          '1. PERSONALIZED INSIGHTS: Identify patterns in progress, strengths, and areas for improvement\n'
+          '2. RECOMMENDATIONS: Provide specific, actionable recommendations for improvement\n'
+          '3. TREND ANALYSIS: Analyze what\'s working well and what needs attention\n'
+          '4. ACTIONABLE NEXT STEPS: Suggest concrete next steps the user should take\n'
+          '5. MOTIVATIONAL FEEDBACK: Acknowledge achievements and provide encouragement\n\n'
+          'Format your response in clear sections with headings. Be specific, motivational, and actionable.',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this progress data and provide comprehensive insights:\n\n$progressData\n\n'
+          'Provide personalized insights, recommendations, trend analysis, actionable next steps, and motivational feedback.',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final insights = response.text?.replaceAll('*', '').trim() ?? '';
+
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(loadingDialogContext).pop();
+      }
+
+      // Show insights in dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        await _showInsightsDialog(context, insights);
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(loadingDialogContext).pop();
+      }
+
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        await _showCenteredErrorDialog(
+          // ignore: use_build_context_synchronously
+          context,
+          'Error generating insights: $e',
+        );
+      }
+    }
+  }
+
+  String _collectProgressData(List<Goal> goals) {
+    final totalGoals = goals.length;
+    final completedGoals = goals
+        .where((g) => g.status == GoalStatus.completed || g.progress >= 100)
+        .length;
+    final activeGoals = goals
+        .where((g) => g.status != GoalStatus.completed && g.progress < 100)
+        .length;
+    final overdueGoals = goals.where((g) {
+      final now = DateTime.now();
+      return g.targetDate.isBefore(now) && g.status != GoalStatus.completed;
+    }).length;
+
+    final avgProgress = goals.isEmpty
+        ? 0.0
+        : goals.map((g) => g.progress).fold(0, (a, b) => a + b) / goals.length;
+
+    final totalPoints = goals.fold<int>(0, (total, g) => total + g.points);
+
+    final categoryBreakdown = <String, int>{};
+    for (final goal in goals) {
+      final category = goal.category.name;
+      categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
+    }
+
+    final priorityBreakdown = <String, int>{};
+    for (final goal in goals) {
+      final priority = goal.priority.name;
+      priorityBreakdown[priority] = (priorityBreakdown[priority] ?? 0) + 1;
+    }
+
+    final progressDetails = goals
+        .map((g) {
+          final daysUntilDeadline = g.targetDate
+              .difference(DateTime.now())
+              .inDays;
+          return 'Goal: ${g.title}\n'
+              'Progress: ${g.progress}%\n'
+              'Status: ${g.status.name}\n'
+              'Priority: ${g.priority.name}\n'
+              'Category: ${g.category.name}\n'
+              'Days until deadline: $daysUntilDeadline\n'
+              'Created: ${g.createdAt.toString().split(' ')[0]}\n';
+        })
+        .join('\n');
+
+    return '''
+PROGRESS OVERVIEW:
+- Total Goals: $totalGoals
+- Completed Goals: $completedGoals
+- Active Goals: $activeGoals
+- Overdue Goals: $overdueGoals
+- Average Progress: ${avgProgress.toStringAsFixed(1)}%
+- Total Points Earned: $totalPoints
+
+CATEGORY BREAKDOWN:
+${categoryBreakdown.entries.map((e) => '- ${e.key}: ${e.value}').join('\n')}
+
+PRIORITY BREAKDOWN:
+${priorityBreakdown.entries.map((e) => '- ${e.key}: ${e.value}').join('\n')}
+
+GOAL DETAILS:
+$progressDetails
+''';
+  }
+
+  Future<void> _showInsightsDialog(
+    BuildContext context,
+    String insights,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.auto_awesome, color: AppColors.activeColor, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'AI Progress Insights',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              insights,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Close',
+                style: TextStyle(color: AppColors.activeColor),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCenteredErrorDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline, color: AppColors.dangerColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildPersonalOverview(List<Goal> goals) {
@@ -1778,7 +2165,8 @@ class _EmployeeProgressVisualsContentState
     final overdue = goals
         .where(
           (goal) =>
-              goal.targetDate.isBefore(now) && goal.status != GoalStatus.completed,
+              goal.targetDate.isBefore(now) &&
+              goal.status != GoalStatus.completed,
         )
         .length;
     final dueSoon = goals
@@ -2098,9 +2486,11 @@ class _EmployeeProgressVisualsContentState
     final now = DateTime.now();
     final last28Days = List<DateTime>.generate(
       28,
-      (index) => DateTime(now.year, now.month, now.day).subtract(
-        Duration(days: 27 - index),
-      ),
+      (index) => DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: 27 - index)),
     );
     final activityDates = history.map((h) => h['date'] as DateTime).toList();
 
@@ -2123,7 +2513,8 @@ class _EmployeeProgressVisualsContentState
                 d.month == date.month &&
                 d.day == date.day,
           );
-          final isToday = date.year == now.year &&
+          final isToday =
+              date.year == now.year &&
               date.month == now.month &&
               date.day == now.day;
           return Tooltip(
@@ -2153,11 +2544,12 @@ class _EmployeeProgressVisualsContentState
 
   int _calculateDailyStreak(List<Map<String, dynamic>> history) {
     if (history.isEmpty) return 0;
-    final sortedDates = history
-        .map((h) => h['date'] as DateTime)
-        .map((d) => DateTime(d.year, d.month, d.day))
-        .toList()
-      ..sort((a, b) => b.compareTo(a));
+    final sortedDates =
+        history
+            .map((h) => h['date'] as DateTime)
+            .map((d) => DateTime(d.year, d.month, d.day))
+            .toList()
+          ..sort((a, b) => b.compareTo(a));
 
     final today = DateTime.now();
     DateTime cursor = DateTime(today.year, today.month, today.day);
@@ -2205,8 +2597,11 @@ class _EmployeeProgressVisualsContentState
 
   DateTime _startOfWeek(DateTime date) {
     final weekday = date.weekday;
-    return DateTime(date.year, date.month, date.day)
-        .subtract(Duration(days: weekday - 1));
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).subtract(Duration(days: weekday - 1));
   }
 
   String _weekKey(DateTime date) {
@@ -2215,10 +2610,14 @@ class _EmployeeProgressVisualsContentState
   }
 
   Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
-    final activeGoals = goals
-        .where((goal) => goal.status != GoalStatus.completed && goal.progress < 100)
-        .toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+    final activeGoals =
+        goals
+            .where(
+              (goal) =>
+                  goal.status != GoalStatus.completed && goal.progress < 100,
+            )
+            .toList()
+          ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
 
     final filteredGoals = activeGoals.where((goal) {
       if (_selectedStatusFilter == null) return true;
@@ -2240,10 +2639,8 @@ class _EmployeeProgressVisualsContentState
             ),
             if (activeGoals.isNotEmpty)
               TextButton.icon(
-                onPressed: () => Navigator.pushNamed(
-                  context,
-                  '/my_goal_workspace',
-                ),
+                onPressed: () =>
+                    Navigator.pushNamed(context, '/my_goal_workspace'),
                 icon: Icon(Icons.add, color: AppColors.activeColor, size: 18),
                 label: Text(
                   'Add Goal',
@@ -2295,7 +2692,9 @@ class _EmployeeProgressVisualsContentState
         else if (filteredGoals.isEmpty)
           _buildFilteredGoalsState()
         else
-          ...filteredGoals.take(5).map(
+          ...filteredGoals
+              .take(5)
+              .map(
                 (goal) => Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: _buildGoalProgressCard(context, goal: goal),
@@ -2389,12 +2788,12 @@ class _EmployeeProgressVisualsContentState
       children: [
         Text(
           'Milestone Analytics',
-          style: AppTypography.heading3.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.md),
-        ...goals.take(3).map(
+        ...goals
+            .take(3)
+            .map(
               (goal) => Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: GoalMilestoneAnalyticsCard(goal: goal),
@@ -2467,8 +2866,10 @@ class _EmployeeProgressVisualsContentState
       deadlineColor = AppColors.textSecondary;
     }
 
-    final totalDuration =
-        goal.targetDate.difference(goal.createdAt).inSeconds.abs();
+    final totalDuration = goal.targetDate
+        .difference(goal.createdAt)
+        .inSeconds
+        .abs();
     final elapsed = now.isBefore(goal.createdAt)
         ? 0
         : now.difference(goal.createdAt).inSeconds;
@@ -2605,7 +3006,9 @@ class _EmployeeProgressVisualsContentState
                             value: timeProgress,
                             minHeight: 4,
                             backgroundColor: AppColors.borderColor,
-                            valueColor: AlwaysStoppedAnimation<Color>(timeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              timeColor,
+                            ),
                           ),
                         ],
                       ),
@@ -2699,8 +3102,10 @@ class _EmployeeProgressVisualsContentState
         final completed = milestones
             .where((m) => m.status == GoalMilestoneStatus.completed)
             .length;
-        final chips =
-            milestones.take(3).map(_buildMilestoneChip).toList(growable: false);
+        final chips = milestones
+            .take(3)
+            .map(_buildMilestoneChip)
+            .toList(growable: false);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2722,11 +3127,7 @@ class _EmployeeProgressVisualsContentState
               ],
             ),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: chips,
-            ),
+            Wrap(spacing: 8, runSpacing: 8, children: chips),
             if (milestones.length > chips.length)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -2776,10 +3177,7 @@ class _EmployeeProgressVisualsContentState
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              _milestoneSubtitle(milestone),
-              style: AppTypography.caption,
-            ),
+            Text(_milestoneSubtitle(milestone), style: AppTypography.caption),
           ],
         ),
       ),
@@ -2850,7 +3248,7 @@ class _EmployeeProgressVisualsContentState
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     final index = (date.month - 1).clamp(0, 11).toInt();
     final month = months[index];
@@ -3191,15 +3589,18 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
         }
 
         final total = milestones.length;
-        final completed =
-            milestones.where((m) => m.status == GoalMilestoneStatus.completed).length;
+        final completed = milestones
+            .where((m) => m.status == GoalMilestoneStatus.completed)
+            .length;
         final remaining = total - completed;
-        final blocked =
-            milestones.where((m) => m.status == GoalMilestoneStatus.blocked).length;
+        final blocked = milestones
+            .where((m) => m.status == GoalMilestoneStatus.blocked)
+            .length;
 
         final burnUp = _buildBurnSeries(milestones);
-        final burnDown =
-            burnUp.map((value) => (100 - value).clamp(0.0, 100.0)).toList();
+        final burnDown = burnUp
+            .map((value) => (100 - value).clamp(0.0, 100.0))
+            .toList();
         final weeklyStreak = _calculateWeeklyStreak(milestones);
 
         return Container(
@@ -3226,7 +3627,10 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.activeColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -3324,10 +3728,9 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
   static List<double> _buildBurnSeries(List<GoalMilestone> milestones) {
     if (milestones.isEmpty) return const [0];
     final total = milestones.length;
-    final completionEvents = milestones
-        .where((m) => m.completedAt != null)
-        .toList()
-      ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+    final completionEvents =
+        milestones.where((m) => m.completedAt != null).toList()
+          ..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
     if (completionEvents.isEmpty) {
       return const [0, 0];
     }
@@ -3364,8 +3767,11 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
 
   static DateTime _startOfWeek(DateTime date) {
     final weekday = date.weekday;
-    return DateTime(date.year, date.month, date.day)
-        .subtract(Duration(days: weekday - 1));
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).subtract(Duration(days: weekday - 1));
   }
 
   static String _weekKey(DateTime date) {
