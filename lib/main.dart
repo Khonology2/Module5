@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
@@ -64,48 +63,8 @@ final ValueNotifier<String?> speechRecognitionStatusNotifier =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables from backend/.env file
-  // For web, environment variables should be set via platform (Render dashboard)
-  // and are accessible via dotenv.env without loading a file
-  // For mobile/desktop, load from backend/.env file system
-  try {
-    if (kIsWeb) {
-      // On web, don't load .env file (security - env vars should be set via platform)
-      // Environment variables set in Render dashboard are accessible via dotenv.env
-      debugPrint(
-        'Web platform: Using platform environment variables (set in Render dashboard)',
-      );
-    } else {
-      // For mobile/desktop, load from backend/.env file
-      await dotenv.load(fileName: "backend/.env");
-      debugPrint(
-        'Environment variables loaded successfully from backend/.env file',
-      );
-
-      // Verify BACKEND_URL is loaded and clean it
-      final backendUrl =
-          dotenv.env['BACKEND_URL'] ?? dotenv.env['BACKEND_API_URL'];
-      if (backendUrl != null && backendUrl.isNotEmpty) {
-        // Clean the URL: remove quotes, trim whitespace, remove trailing slash
-        String cleanedUrl = backendUrl.trim();
-        if ((cleanedUrl.startsWith('"') && cleanedUrl.endsWith('"')) ||
-            (cleanedUrl.startsWith("'") && cleanedUrl.endsWith("'"))) {
-          cleanedUrl = cleanedUrl.substring(1, cleanedUrl.length - 1);
-        }
-        cleanedUrl = cleanedUrl.replaceAll(RegExp(r'/$'), '');
-        debugPrint('Backend URL loaded and cleaned: $cleanedUrl');
-        debugPrint('Backend will be called at: $cleanedUrl/validate-token');
-      } else {
-        debugPrint('Warning: BACKEND_URL not found in backend/.env');
-      }
-    }
-  } catch (e) {
-    debugPrint('Warning: Could not load backend/.env file: $e');
-    debugPrint(
-      'App will fall back to database validation for token authentication',
-    );
-    // Don't fail the app - it can still work with database validation
-  }
+  // All token handling now uses PDH backend API
+  // No .env file loading needed - backend URL is hardcoded in BackendAuthService
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
@@ -286,6 +245,10 @@ class _MyAppState extends State<MyApp> {
                   child: const ManagerPortalScreen(),
                 ),
                 '/manager_dashboard': (context) => RoleGate(
+                  requiredRole: RequiredRole.manager,
+                  child: const ManagerDashboardScreen(),
+                ),
+                '/admin_dashboard': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
                   child: const ManagerDashboardScreen(),
                 ),

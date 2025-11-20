@@ -47,6 +47,65 @@ class TokenValidationResponse(BaseModel):
     )
 
 
+class AuthCallbackRequest(BaseModel):
+    """
+    Request model for authentication callback endpoint
+    
+    Called by the frontend after successful authentication to notify the backend.
+    """
+    user_id: str = Field(
+        ...,
+        description="User ID from Firebase",
+        example="user123"
+    )
+    email: Optional[str] = Field(
+        None,
+        description="User email address",
+        example="user@example.com"
+    )
+    role: Optional[str] = Field(
+        None,
+        description="User role (PDH - Employee or PDH - Admin)",
+        example="PDH - Employee"
+    )
+    authenticated: bool = Field(
+        True,
+        description="Authentication status",
+        example=True
+    )
+
+
+class AuthCallbackResponse(BaseModel):
+    """
+    Response model for authentication callback endpoint
+    """
+    status: str = Field(
+        ...,
+        description="Callback processing status",
+        example="success"
+    )
+    message: str = Field(
+        ...,
+        description="Response message",
+        example="Authentication callback processed successfully"
+    )
+    user_id: str = Field(
+        ...,
+        description="User ID",
+        example="user123"
+    )
+    email: Optional[str] = Field(
+        None,
+        description="User email address",
+        example="user@example.com"
+    )
+    role: Optional[str] = Field(
+        None,
+        description="User role",
+        example="PDH - Employee"
+    )
+
+
 class ErrorResponse(BaseModel):
     """
     Error response model for API errors

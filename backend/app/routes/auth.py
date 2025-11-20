@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from app.models import (
     TokenValidationRequest,
     TokenValidationResponse,
+    AuthCallbackRequest,
+    AuthCallbackResponse,
     ErrorResponse,
 )
 from app.jwt_validator import validate_jwt_token, extract_user_info, JWTValidationError
@@ -144,6 +146,84 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         )
     except Exception as e:
         logger.error(f"Unexpected error in validate_token: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}",
+        )
+
+
+@router.post(
+    "/auth-callback",
+    response_model=AuthCallbackResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"model": ErrorResponse, "description": "Bad Request - Invalid input"},
+        500: {"model": ErrorResponse, "description": "Internal Server Error"},
+    },
+    summary="Authentication callback endpoint",
+    description="""
+    Callback endpoint called by the frontend after successful authentication.
+    
+    This endpoint allows the frontend to communicate with the backend after the user
+    has been authenticated and the application understands the token and persona.
+    
+    **Process:**
+    1. Receives user information and authentication status from frontend
+    2. Logs the authentication event
+    3. Returns confirmation that the backend has processed the callback
+    
+    **Use Case:**
+    After the frontend validates the token, signs in with Firebase custom token,
+    and determines the user's role, it calls this endpoint to notify the backend
+    that authentication is complete and the user is being navigated to their dashboard.
+    """,
+)
+async def auth_callback(request: AuthCallbackRequest) -> AuthCallbackResponse:
+    """
+    Authentication callback endpoint
+    
+    Called by the frontend after successful authentication to notify the backend
+    that the user has been authenticated and is being navigated to their dashboard.
+    
+    Args:
+        request: AuthCallbackRequest containing user information and authentication status
+        
+    Returns:
+        AuthCallbackResponse with confirmation that the callback was processed
+    """
+    try:
+        if not request.authenticated:
+            logger.warning(f"Auth callback received with authenticated=false for user_id: {request.user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authentication status is false",
+            )
+        
+        # Log the authentication callback
+        logger.info(
+            f"Authentication callback received - user_id: {request.user_id}, "
+            f"email: {request.email}, role: {request.role}, authenticated: {request.authenticated}"
+        )
+        
+        # Here you can add additional processing if needed:
+        # - Update user last login timestamp
+        # - Log authentication event to analytics
+        # - Send notifications
+        # - Update user session information
+        
+        # Return success response
+        return AuthCallbackResponse(
+            status="success",
+            message="Authentication callback processed successfully",
+            user_id=request.user_id,
+            email=request.email,
+            role=request.role,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing auth callback: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}",

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
 import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/backend_auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // The main entry point for the Flutter application.
@@ -45,6 +47,7 @@ class _PersonalDevelopmentHubScreenState
   int _currentLineIndex = 0;
   late Timer _timer;
   bool _isCheckingToken = false;
+  bool _isProcessingButton = false;
 
   @override
   void initState() {
@@ -99,9 +102,30 @@ class _PersonalDevelopmentHubScreenState
     });
   }
 
-  /// Check for token in URL, validate with onboarding collection, and auto-login
-  /// This method automatically reads the token from URL, verifies it with the onboarding
-  /// collection, checks moduleAccessRole, and logs the user in automatically
+  /// Handle GET STARTED button click
+  /// Triggers authentication flow and shows loading state on button
+  Future<void> _handleGetStartedClick() async {
+    setState(() {
+      _isProcessingButton = true;
+    });
+
+    // Check for token and authenticate
+    await _checkTokenAndAutoLogin();
+
+    // If authentication didn't complete (no token or failed), navigate to sign in
+    // If _isCheckingToken is true, it means token was found and full-screen loading is shown
+    // Navigation will happen automatically, so we don't need to do anything here
+    if (mounted && !_isCheckingToken) {
+      setState(() {
+        _isProcessingButton = false;
+      });
+      // No token found or authentication failed, go to sign in screen
+      Navigator.pushNamed(context, '/sign_in');
+    }
+  }
+
+  /// Check for token in URL, validate with backend API, and auto-login
+  /// This method uses the backend API for all token validation
   Future<void> _checkTokenAndAutoLogin() async {
     try {
       setState(() {
@@ -110,235 +134,142 @@ class _PersonalDevelopmentHubScreenState
 
       debugPrint('Landing screen: Starting token check...');
 
-      // Step 1: Extract token from URL
-      final token = await TokenAuthService.instance.extractTokenFromUrl();
+      // Step A: Extract token from URL
+      final token = await TokenAuthService.extractTokenFromUrl();
 
       if (token == null || token.isEmpty) {
         debugPrint('Landing screen: No token found in URL');
-        // No token found, show landing screen
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
+            _isProcessingButton = false;
           });
         }
         return;
       }
 
       debugPrint('Landing screen: Token found in URL, starting validation...');
-      debugPrint('Landing screen: Token length: ${token.length}');
 
-      // Step 2: Decode JWT token directly (no decryption needed)
-      debugPrint('Landing screen: Decoding JWT token...');
-      String? email;
-      Map<String, dynamic>? decodedToken;
+      // If button was clicked and token found, switch to full-screen loading
+      if (_isProcessingButton) {
+        setState(() {
+          _isCheckingToken = true;
+        });
+      }
 
-      try {
-        // Decode JWT token directly
-        decodedToken = await TokenAuthService.instance.processJwtToken(token);
+      // Step B: Validate token using the backend API
+      final validationResponse = await BackendAuthService.instance
+          .validateTokenWithBackend(token);
 
-        if (decodedToken != null) {
-          debugPrint('Landing screen: JWT token decoded successfully');
+      if (validationResponse == null) {
+        debugPrint('Landing screen: Token validation failed');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _isProcessingButton = false;
+          });
+        }
+        return;
+      }
 
-          // Extract email from decoded token
-          email =
-              decodedToken['email'] as String? ??
-              decodedToken['user_id'] as String?;
+      // Extract data from backend response
+      final firebaseToken = validationResponse['firebase_token'] as String?;
+      final email = validationResponse['email'] as String?;
+      final roles = validationResponse['roles'] as List<dynamic>?;
 
-          if (email != null && email.isNotEmpty) {
-            debugPrint(
-              'Landing screen: Email extracted from JWT token: $email',
-            );
-          } else {
-            debugPrint(
-              'Landing screen: Email not found in token, will get from onboarding collection',
-            );
+      if (firebaseToken == null || firebaseToken.isEmpty) {
+        debugPrint('Landing screen: No firebase_token in response');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _isProcessingButton = false;
+          });
+        }
+        return;
+      }
+
+      // Extract PDH role from roles list
+      String? pdhRole;
+      if (roles != null && roles.isNotEmpty) {
+        for (final role in roles) {
+          final roleStr = role.toString();
+          if (roleStr.contains('PDH - Employee') ||
+              roleStr.contains('PDH-Employee')) {
+            pdhRole = 'PDH - Employee';
+            break;
+          } else if (roleStr.contains('PDH - Admin') ||
+              roleStr.contains('PDH-Admin') ||
+              roleStr.contains('PDH - Manager') ||
+              roleStr.contains('PDH-Manager')) {
+            pdhRole = 'PDH - Admin';
+            break;
           }
-        } else {
-          debugPrint(
-            'Landing screen: Failed to decode token, will try direct onboarding validation',
-          );
         }
-      } catch (e) {
-        debugPrint('Landing screen: Error during token decoding: $e');
-        debugPrint(
-          'Landing screen: Will proceed with onboarding collection validation by token',
-        );
       }
 
-      // Step 3: Validate token with onboarding Firestore collection
-      debugPrint(
-        'Landing screen: Validating token with onboarding collection...',
-      );
-      debugPrint(
-        'Landing screen: Using email from token: ${email ?? "not available"}',
-      );
-
-      // Validate token with onboarding collection using email
-      Map<String, dynamic>? onboardingData = await TokenAuthService.instance
-          .validateTokenWithOnboarding(token, email);
-
-      if (onboardingData == null) {
-        debugPrint(
-          'Landing screen: Token validation failed - token not found in onboarding collection or mismatch',
-        );
+      if (pdhRole == null) {
+        debugPrint('Landing screen: No PDH role found');
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
+            _isProcessingButton = false;
           });
         }
         return;
       }
 
-      // Get user_id from onboarding data - this is the primary identifier
-      // Email is optional and will be retrieved from users collection if available
-      // Try multiple field names and use onboardingDocId as fallback
-      final userId =
-          onboardingData['user_id'] as String? ??
-          onboardingData['userId'] as String? ??
-          onboardingData['onboarding_id'] as String? ??
-          onboardingData['onboardingDocId'] as String?;
-
-      if (userId == null || userId.isEmpty) {
-        debugPrint('Landing screen: Cannot proceed without user_id');
-        debugPrint(
-          'Landing screen: Onboarding data keys: ${onboardingData.keys.join(", ")}',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-          });
-        }
-        return;
-      }
-
-      debugPrint('Landing screen: User ID confirmed: $userId');
-
-      // Try to get email from users collection (optional - for user document)
-      final onboardingEmail = onboardingData['email'] as String?;
-      if (onboardingEmail != null && onboardingEmail.isNotEmpty) {
-        email = onboardingEmail.trim();
-        debugPrint(
-          'Landing screen: Email retrieved from onboarding data: $email',
-        );
-      } else {
-        // Email is optional - we can proceed without it using user_id
-        debugPrint(
-          'Landing screen: Email not found, but proceeding with user_id: $userId',
-        );
-      }
-
-      // Check user status - must be Active
-      final status = onboardingData['status'] as String?;
-      if (status != null && status != 'Active') {
-        debugPrint(
-          'Landing screen: User status is $status, not Active. Cannot proceed with login.',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-          });
-        }
-        return;
-      }
-
-      // Extract module role from JWT token or onboarding data
-      final moduleAccessRole = TokenAuthService.instance.extractModuleRole(
-        decodedToken,
-        onboardingData,
-      );
-
-      if (moduleAccessRole == null) {
-        debugPrint(
-          'Landing screen: No module role found in token or onboarding data',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-          });
-        }
-        return;
-      }
-
-      debugPrint(
-        'Landing screen: Token validated successfully. ModuleAccessRole: $moduleAccessRole',
-      );
-      debugPrint('Landing screen: User ID confirmed: $userId');
-
-      // Step 5: Map moduleAccessRole to internal role
-      final role = TokenAuthService.instance.mapModuleAccessRoleToRole(
-        moduleAccessRole,
-      );
-
-      if (role == null) {
-        debugPrint(
-          'Landing screen: Invalid moduleAccessRole: $moduleAccessRole',
-        );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-          });
-        }
-        return;
-      }
-
-      debugPrint('Landing screen: Role mapped successfully: $role');
-
-      // Step 6: Create or update user document in Firestore using user_id
-      // This ensures the user exists in the users collection
-      final userData = <String, dynamic>{
-        'user_id': userId,
-        'role': role,
-        'tokenAuthenticated': true,
-        'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-      };
-
-      // Add email if available (optional)
-      if (email != null && email.isNotEmpty) {
-        userData['email'] = email;
-      }
-
-      // Use user_id as the document ID
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set(userData, SetOptions(merge: true));
-
-      debugPrint(
-        'Landing screen: User document created/updated in Firestore with user_id: $userId',
-      );
-
-      // Step 7: Set role in service and navigate to dashboard
-      // Since we're using user_id-based authentication, we need to set the role directly
-      debugPrint(
-        'Landing screen: User document created, setting role in service...',
-      );
-
-      // Set the role directly in RoleService using user_id
+      // Step C: Sign in using Firebase custom token
       try {
-        await RoleService.instance.setRoleByUserId(userId, role);
-        debugPrint('Landing screen: Role set in RoleService successfully');
+        final userCredential = await FirebaseAuth.instance
+            .signInWithCustomToken(firebaseToken);
+
+        if (userCredential.user != null && email != null) {
+          // Update user role in Firestore
+          final userId = userCredential.user!.uid;
+          String internalRole;
+          if (pdhRole == 'PDH - Employee') {
+            internalRole = 'employee';
+          } else {
+            internalRole = 'manager'; // Admin uses manager role internally
+          }
+
+          await FirebaseFirestore.instance.collection('users').doc(userId).set({
+            'email': email,
+            'role': internalRole,
+            'pdhRole': pdhRole,
+            'tokenAuthenticated': true,
+            'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          await RoleService.instance.getRole(refresh: true);
+
+          // Call backend callback to notify authentication is complete
+          await BackendAuthService.instance.callAuthCallback(
+            userId: userId,
+            email: email,
+            role: pdhRole,
+            authenticated: true,
+          );
+
+          // Step D: Route user based on roles
+          if (mounted) {
+            setState(() {
+              _isCheckingToken = false;
+              _isProcessingButton = false;
+            });
+            _navigateToDashboard(pdhRole);
+            return;
+          }
+        }
       } catch (e) {
-        debugPrint('Landing screen: Error setting role in RoleService: $e');
-        // Continue anyway - we have the role and can navigate
+        debugPrint('Landing screen: Error signing in with custom token: $e');
       }
 
-      // Navigate immediately to the appropriate dashboard
-      if (mounted) {
-        debugPrint(
-          'Landing screen: Navigating to $role dashboard immediately...',
-        );
-        debugPrint(
-          'Landing screen: User ID: $userId, Role: $role, Email: ${email ?? "not set"}',
-        );
-        // Navigate immediately - no delay needed
-        _navigateToDashboard(role);
-        return;
-      }
-
-      // Token check complete (whether successful or not)
+      // If we reach here, authentication failed
       if (mounted) {
         setState(() {
           _isCheckingToken = false;
+          _isProcessingButton = false;
         });
       }
     } catch (e) {
@@ -346,34 +277,25 @@ class _PersonalDevelopmentHubScreenState
       if (mounted) {
         setState(() {
           _isCheckingToken = false;
+          _isProcessingButton = false;
         });
       }
     }
   }
 
   /// Navigate to appropriate dashboard based on role
-  void _navigateToDashboard(String role) {
+  void _navigateToDashboard(String pdhRole) {
     if (!mounted) {
       debugPrint('Landing screen: Cannot navigate - widget not mounted');
       return;
     }
 
-    debugPrint('Landing screen: _navigateToDashboard called with role: $role');
+    debugPrint(
+      'Landing screen: _navigateToDashboard called with role: $pdhRole',
+    );
 
     try {
-      // Navigate immediately without waiting for post-frame callback
-      if (role == 'manager') {
-        debugPrint('Landing screen: Navigating to manager dashboard...');
-        Navigator.pushReplacementNamed(context, '/manager_dashboard')
-            .then(
-              (_) => debugPrint(
-                'Landing screen: Navigation to manager dashboard completed',
-              ),
-            )
-            .catchError(
-              (e) => debugPrint('Landing screen: Navigation error: $e'),
-            );
-      } else if (role == 'employee') {
+      if (pdhRole == 'PDH - Employee') {
         debugPrint('Landing screen: Navigating to employee dashboard...');
         Navigator.pushReplacementNamed(context, '/employee_dashboard')
             .then(
@@ -384,9 +306,20 @@ class _PersonalDevelopmentHubScreenState
             .catchError(
               (e) => debugPrint('Landing screen: Navigation error: $e'),
             );
+      } else if (pdhRole == 'PDH - Admin') {
+        debugPrint('Landing screen: Navigating to admin dashboard...');
+        Navigator.pushReplacementNamed(context, '/admin_dashboard')
+            .then(
+              (_) => debugPrint(
+                'Landing screen: Navigation to admin dashboard completed',
+              ),
+            )
+            .catchError(
+              (e) => debugPrint('Landing screen: Navigation error: $e'),
+            );
       } else {
         debugPrint(
-          'Landing screen: Unknown role: $role, defaulting to employee dashboard',
+          'Landing screen: Unknown role: $pdhRole, defaulting to employee dashboard',
         );
         Navigator.pushReplacementNamed(context, '/employee_dashboard')
             .then(
@@ -490,9 +423,11 @@ class _PersonalDevelopmentHubScreenState
                   // Button - Centered
                   Center(
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/sign_in');
-                      },
+                      onPressed: _isProcessingButton
+                          ? null
+                          : () {
+                              _handleGetStartedClick();
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(
                           0xFFC10D00,
@@ -501,17 +436,30 @@ class _PersonalDevelopmentHubScreenState
                           horizontal: 40,
                           vertical: 15,
                         ),
-                        shape:
-                            const StadiumBorder(), // Changed to StadiumBorder
+                        shape: const StadiumBorder(),
+                        disabledBackgroundColor: Color(
+                          0xFFC10D00,
+                        ).withOpacity(0.6),
                       ),
-                      child: const Text(
-                        'GET STARTED',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isProcessingButton
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Text(
+                              'GET STARTED',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ],

@@ -26,96 +26,116 @@ class _AuthWrapperState extends State<AuthWrapper> {
   /// Check for token in URL and authenticate if present
   Future<void> _checkTokenAndAuthenticate() async {
     try {
-      // Extract token from URL
-      final token = await TokenAuthService.instance.extractTokenFromUrl();
-      
-      if (token != null && token.isNotEmpty) {
-        setState(() {
-          _tokenAuthInProgress = true;
-        });
+      // Step A: Extract token from URL
+      final token = await TokenAuthService.extractTokenFromUrl();
 
-        // Authenticate with token
-        final result = await TokenAuthService.instance
-            .authenticateExistingUserWithToken(token);
+      if (token == null || token.isEmpty) {
+        // No token found, proceed with normal flow
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _tokenAuthInProgress = false;
+          });
+        }
+        return;
+      }
 
-        if (result != null && result['success'] == true) {
-          // Token authentication successful
-          final role = result['role'] as String?;
-          final email = result['email'] as String?;
+      setState(() {
+        _tokenAuthInProgress = true;
+      });
 
-          if (role != null && email != null) {
-            // Get or create Firebase Auth user
-            User? user = FirebaseAuth.instance.currentUser;
+      // Step B: Validate token using the backend API
+      final validationResponse = await BackendAuthService.instance
+          .validateTokenWithBackend(token);
 
-            // If user is not authenticated, we need to handle it
-            // For now, we'll update the role if user exists
-            // In production, you'd call a backend to create custom token
-            if (user != null) {
-              // User is already logged in, just update role
-              await _updateUserRole(user.uid, role, email);
-              await RoleService.instance.getRole(refresh: true);
-              
-              // Navigate to appropriate dashboard
-              if (mounted) {
-                _navigateToDashboard(role);
-                return;
-              }
-            } else {
-              // User not logged in - try to sign in with custom token from backend
-              try {
-                final userCredential = await BackendAuthService.instance
-                    .signInWithCustomToken(token);
-                
-                if (userCredential != null && userCredential.user != null) {
-                  // Successfully signed in with custom token
-                  await _updateUserRole(
-                    userCredential.user!.uid,
-                    role,
-                    email,
-                  );
-                  await RoleService.instance.getRole(refresh: true);
-                  
-                  if (mounted) {
-                    _navigateToDashboard(role);
-                    return;
-                  }
-                } else {
-                  // Backend service not available or failed
-                  // Store token info for later use
-                  await _storeTokenAuthInfo(email, role, token);
-                  
-                  if (mounted) {
-                    // Show login screen but with token info stored
-                    // User can log in normally and role will be applied
-                    setState(() {
-                      _isCheckingToken = false;
-                      _tokenAuthInProgress = false;
-                    });
-                    return;
-                  }
-                }
-              } catch (e) {
-                debugPrint('Error signing in with custom token: $e');
-                // Fall back to storing token info
-                await _storeTokenAuthInfo(email, role, token);
-                
-                if (mounted) {
-                  setState(() {
-                    _isCheckingToken = false;
-                    _tokenAuthInProgress = false;
-                  });
-                  return;
-                }
-              }
-            }
+      if (validationResponse == null) {
+        debugPrint('Token validation failed - backend returned null');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _tokenAuthInProgress = false;
+          });
+        }
+        return;
+      }
+
+      // Extract data from backend response
+      final firebaseToken = validationResponse['firebase_token'] as String?;
+      final email = validationResponse['email'] as String?;
+      final roles = validationResponse['roles'] as List<dynamic>?;
+
+      if (firebaseToken == null || firebaseToken.isEmpty) {
+        debugPrint('Backend validation failed - no firebase_token in response');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _tokenAuthInProgress = false;
+          });
+        }
+        return;
+      }
+
+      // Extract PDH role from roles list
+      String? pdhRole;
+      if (roles != null && roles.isNotEmpty) {
+        for (final role in roles) {
+          final roleStr = role.toString();
+          if (roleStr.contains('PDH - Employee') ||
+              roleStr.contains('PDH-Employee')) {
+            pdhRole = 'PDH - Employee';
+            break;
+          } else if (roleStr.contains('PDH - Admin') ||
+              roleStr.contains('PDH-Admin') ||
+              roleStr.contains('PDH - Manager') ||
+              roleStr.contains('PDH-Manager')) {
+            pdhRole = 'PDH - Admin';
+            break;
           }
-        } else {
-          // Token authentication failed
-          debugPrint('Token authentication failed: ${result?['error']}');
         }
       }
 
-      // No token or token auth failed, proceed with normal flow
+      if (pdhRole == null) {
+        debugPrint('No PDH role found in backend response');
+        if (mounted) {
+          setState(() {
+            _isCheckingToken = false;
+            _tokenAuthInProgress = false;
+          });
+        }
+        return;
+      }
+
+      // Step C: Sign in using Firebase custom token
+      try {
+        final userCredential = await FirebaseAuth.instance
+            .signInWithCustomToken(firebaseToken);
+
+        if (userCredential.user != null && email != null) {
+          // Update user role in Firestore
+          await _updateUserRole(userCredential.user!.uid, pdhRole, email);
+          await RoleService.instance.getRole(refresh: true);
+
+          // Call backend callback to notify authentication is complete
+          await BackendAuthService.instance.callAuthCallback(
+            userId: userCredential.user!.uid,
+            email: email,
+            role: pdhRole,
+            authenticated: true,
+          );
+
+          // Step D: Route user based on roles
+          if (mounted) {
+            _navigateToDashboard(pdhRole);
+            return;
+          }
+        } else {
+          debugPrint('Failed to sign in with custom token');
+        }
+      } catch (e) {
+        debugPrint('Error signing in with custom token: $e');
+      }
+
+      // If we reach here, authentication failed
       if (mounted) {
         setState(() {
           _isCheckingToken = false;
@@ -134,11 +154,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   /// Update user role in Firestore
-  Future<void> _updateUserRole(String userId, String role, String email) async {
+  Future<void> _updateUserRole(
+    String userId,
+    String pdhRole,
+    String email,
+  ) async {
     try {
+      // Map PDH role to internal role for backward compatibility
+      String internalRole;
+      if (pdhRole == 'PDH - Employee') {
+        internalRole = 'employee';
+      } else if (pdhRole == 'PDH - Admin') {
+        internalRole = 'manager'; // Admin uses manager role internally
+      } else {
+        internalRole = 'employee'; // Default fallback
+      }
+
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
         'email': email,
-        'role': role,
+        'role': internalRole,
+        'pdhRole': pdhRole, // Store original PDH role
         'tokenAuthenticated': true,
         'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -147,33 +182,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  /// Store token auth info for later use (when user logs in)
-  Future<void> _storeTokenAuthInfo(
-    String email,
-    String role,
-    String token,
-  ) async {
-    try {
-      // Store in SharedPreferences or similar for later retrieval
-      // This allows us to apply the role when user logs in normally
-      // For now, we'll just log it - you can implement SharedPreferences storage
-      debugPrint('Storing token auth info for: $email with role: $role');
-    } catch (e) {
-      debugPrint('Error storing token auth info: $e');
-    }
-  }
-
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String role) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      
-      if (role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_dashboard');
-      } else if (role == 'employee') {
+
+      if (role == 'PDH - Employee') {
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
+      } else if (role == 'PDH - Admin') {
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
       } else {
-        Navigator.pushReplacementNamed(context, '/sign_in');
+        // Fallback to employee dashboard for unknown roles
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }
     });
   }
@@ -244,17 +264,21 @@ class _AuthenticatedWrapperState extends State<_AuthenticatedWrapper> {
     try {
       // Ensure role is loaded
       await RoleService.instance.getRole(refresh: true);
-      
+
       if (!mounted) return;
 
       final role = await RoleService.instance.getRole();
-      
+
       if (!mounted) return;
 
       // Navigate based on role
-      if (role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/manager_dashboard');
+      // Handle both old format (employee/manager) and new format (PDH - Employee/PDH - Admin)
+      if (role == 'PDH - Admin' || role == 'manager') {
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
+      } else if (role == 'PDH - Employee' || role == 'employee') {
+        Navigator.pushReplacementNamed(context, '/employee_dashboard');
       } else {
+        // Default to employee dashboard
         Navigator.pushReplacementNamed(context, '/employee_dashboard');
       }
     } catch (e) {

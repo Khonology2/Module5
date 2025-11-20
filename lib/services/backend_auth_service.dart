@@ -98,13 +98,12 @@ class BackendAuthService {
     }
   }
 
-  /// Validate token with backend (optional - if you want backend validation)
-  Future<bool> validateTokenWithBackend(String token) async {
+  /// Validate token with backend API
+  /// Returns the full response including firebase_token, user_id, email, and roles
+  Future<Map<String, dynamic>?> validateTokenWithBackend(String token) async {
     final baseUrl = _backendBaseUrl;
 
     try {
-      // Note: This endpoint path should match the backend route
-      // The backend endpoint is at /validate-token (not /auth/validate-token)
       final endpointUrl = '$baseUrl/validate-token';
       debugPrint('Calling backend validation endpoint: $endpointUrl');
 
@@ -123,11 +122,73 @@ class BackendAuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        return data['valid'] as bool? ?? false;
+        debugPrint('Token validated successfully by backend');
+        return data;
+      } else {
+        // Parse error response if available
+        try {
+          final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+          final error = errorData['error'] as String? ?? 'Unknown error';
+          final detail = errorData['detail'] as String? ?? response.body;
+          debugPrint(
+            'Backend validation error: ${response.statusCode} - $error: $detail',
+          );
+        } catch (_) {
+          debugPrint(
+            'Backend validation error: ${response.statusCode} - ${response.body}',
+          );
+        }
+        return null;
       }
-      return false;
     } catch (e) {
       debugPrint('Error validating token with backend: $e');
+      return null;
+    }
+  }
+
+  /// Call authentication callback endpoint on backend
+  /// This notifies the backend that authentication is complete and user is being navigated
+  Future<bool> callAuthCallback({
+    required String userId,
+    required String email,
+    required String role,
+    required bool authenticated,
+  }) async {
+    final baseUrl = _backendBaseUrl;
+
+    try {
+      final endpointUrl = '$baseUrl/auth-callback';
+      debugPrint('Calling auth callback endpoint: $endpointUrl');
+
+      final response = await http
+          .post(
+            Uri.parse(endpointUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'user_id': userId,
+              'email': email,
+              'role': role,
+              'authenticated': authenticated,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw Exception('Request timeout');
+            },
+          );
+
+      if (response.statusCode == 200) {
+        debugPrint('Auth callback processed successfully');
+        return true;
+      } else {
+        debugPrint(
+          'Auth callback error: ${response.statusCode} - ${response.body}',
+        );
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error calling auth callback: $e');
       return false;
     }
   }
