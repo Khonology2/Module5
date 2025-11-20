@@ -127,13 +127,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               StreamBuilder<String?>(
                 stream: RoleService.instance.roleStream(),
                 builder: (context, roleSnapshot) {
-<<<<<<< HEAD
-                  final isManager = roleSnapshot.data == 'manager';
-=======
                   final role =
                       roleSnapshot.data ?? RoleService.instance.cachedRole;
                   final isManager = role == 'manager';
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
                   return Column(
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
@@ -466,12 +462,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, roleSnapshot) {
-<<<<<<< HEAD
-        final isManager = roleSnapshot.data == 'manager';
-=======
         final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
         final isManager = role == 'manager';
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -485,15 +477,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 maxLines: 1,
               ),
             ),
-<<<<<<< HEAD
-            if (isManager)
-              IconButton(
-                tooltip: 'Diagnostic Info',
-                onPressed: _showDiagnosticInfo,
-                icon: const Icon(Icons.info_outline),
-                color: AppColors.warningColor,
-              ),
-=======
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -512,7 +495,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 ),
               ],
             ),
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
           ],
         );
       },
@@ -771,31 +753,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
-<<<<<<< HEAD
-                developer.log(
-                  'Error parsing audit entry ${doc.id}: $e',
-                );
-=======
                 developer.log('Error parsing audit entry ${doc.id}: $e');
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
               }
             }
           }
 
           final stats = <String, int>{
             'total': entries.length,
-<<<<<<< HEAD
-            'verified':
-                entries.where((e) => e.status == 'verified').length,
-            'pending':
-                entries.where((e) => e.status == 'pending').length,
-            'rejected':
-                entries.where((e) => e.status == 'rejected').length,
-=======
             'verified': entries.where((e) => e.status == 'verified').length,
             'pending': entries.where((e) => e.status == 'pending').length,
             'rejected': entries.where((e) => e.status == 'rejected').length,
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
           };
 
           return _buildStatsContainer(stats, isManager: true);
@@ -819,21 +786,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           final entries = snapshot.data ?? [];
           final stats = <String, int>{
             'total': entries.length,
-<<<<<<< HEAD
-            'verified': entries
-                .where((e) => e.status == 'verified')
-                .length,
-            'pending': entries
-                .where((e) => e.status == 'pending')
-                .length,
-            'rejected': entries
-                .where((e) => e.status == 'rejected')
-                .length,
-=======
             'verified': entries.where((e) => e.status == 'verified').length,
             'pending': entries.where((e) => e.status == 'pending').length,
             'rejected': entries.where((e) => e.status == 'rejected').length,
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
           };
 
           return _buildStatsContainer(stats, isManager: false);
@@ -842,14 +797,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-<<<<<<< HEAD
-  Widget _buildStatsContainer(Map<String, int> stats, {required bool isManager}) {
-=======
   Widget _buildStatsContainer(
     Map<String, int> stats, {
     required bool isManager,
   }) {
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1019,15 +970,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Icon(
-            Icons.archive_outlined,
-            color: AppColors.textMuted,
-            size: 48,
-          ),
-=======
           Icon(Icons.archive_outlined, color: AppColors.textMuted, size: 48),
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
           const SizedBox(height: 16),
           Text(
             'No audit entries found',
@@ -1378,14 +1321,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               builder: (context, snapshot) {
                 final events = snapshot.data ?? const <AuditTimelineEvent>[];
                 if (events.isEmpty) {
-<<<<<<< HEAD
-                  return const Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: Text('No timeline events yet'),
-                  );
-=======
                   return _buildFallbackTimeline(entry);
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
                 }
                 return ListView.separated(
                   shrinkWrap: true,
@@ -1433,8 +1369,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-<<<<<<< HEAD
-=======
   Widget _buildFallbackTimeline(AuditEntry entry) {
     final tiles = <Widget>[];
 
@@ -1505,7 +1439,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
   void _showVerifyDialog(AuditEntry entry) {
     final scoreController = TextEditingController();
     final commentsController = TextEditingController();
@@ -1725,16 +1658,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                               .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
                               .get(),
                         ).asyncExpand((userDoc) {
-<<<<<<< HEAD
-                          final department =
-                              (userDoc.data() ?? const {})['department']
-                                  as String?;
-                          if (department == null || department.isEmpty) {
-                            return Stream.value(<RepositoryGoal>[]);
-                          }
-                          return RepositoryService.getAllRepositoryGoalsStream(
-                            department: department,
-=======
                           final rawDept =
                               (userDoc.data() ?? const {})['department']
                                   as String?;
@@ -1746,7 +1669,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 (department == null || department.isEmpty)
                                 ? null
                                 : department,
->>>>>>> 05122a8 (Audit&Repo-Emp&Man)
                           );
                         });
                       })
