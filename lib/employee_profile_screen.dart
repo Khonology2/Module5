@@ -105,10 +105,13 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       
       setState(() {
         // Use onboarding data if available, otherwise fallback to userProfile
+        // Full Name: from onboarding.fullName field
         _fullNameController.text = onboardingData['fullName']?.trim() ?? 
             userProfile.displayName;
+        // Job Title: from onboarding.designation field
         _jobTitleController.text = onboardingData['designation']?.trim() ?? 
             userProfile.jobTitle;
+        // Department: from onboarding.department field
         _departmentController.text = onboardingData['department']?.trim() ?? 
             userProfile.department;
         _workEmailController.text = userProfile.email;

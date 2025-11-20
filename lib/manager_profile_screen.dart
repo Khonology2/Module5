@@ -135,18 +135,21 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         userId: user.uid,
         email: user.email,
       );
-      
+
       // Then get user profile for other fields
       final userProfile = await DatabaseService.getUserProfile(user.uid);
-      
+
       setState(() {
         // Use onboarding data if available, otherwise fallback to userProfile
-        _fullNameController.text = onboardingData['fullName']?.trim() ?? 
-            userProfile.displayName;
-        _jobTitleController.text = onboardingData['designation']?.trim() ?? 
-            userProfile.jobTitle;
-        _departmentController.text = onboardingData['department']?.trim() ?? 
-            userProfile.department;
+        // Full Name: from onboarding.fullName field
+        _fullNameController.text =
+            onboardingData['fullName']?.trim() ?? userProfile.displayName;
+        // Job Title: from onboarding.designation field
+        _jobTitleController.text =
+            onboardingData['designation']?.trim() ?? userProfile.jobTitle;
+        // Department: from onboarding.department field
+        _departmentController.text =
+            onboardingData['department']?.trim() ?? userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
         _skills
@@ -434,9 +437,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
             children: [
               Text(
                 'Profile',
-                style: AppTypography.heading2.copyWith(
-                  color: Colors.white,
-                ),
+                style: AppTypography.heading2.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 8.0),
               const Text(

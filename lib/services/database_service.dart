@@ -1266,6 +1266,7 @@ class DatabaseService {
 
         if (docById.exists) {
           final data = docById.data();
+          // Always retrieve designation and department from onboarding
           result['fullName'] = data?['fullName'] as String?;
           result['designation'] = data?['designation'] as String?;
           result['department'] = data?['department'] as String?;
@@ -1279,10 +1280,9 @@ class DatabaseService {
             }
           }
 
-          // Return if we have at least fullName
-          if (result['fullName'] != null && result['fullName']!.isNotEmpty) {
-            return result;
-          }
+          // Always return result with designation and department from onboarding
+          // This ensures profile screens get the correct values
+          return result;
         }
 
         // Try querying by user_id field
@@ -1294,6 +1294,7 @@ class DatabaseService {
 
         if (queryByUserId.docs.isNotEmpty) {
           final data = queryByUserId.docs.first.data();
+          // Always retrieve designation and department from onboarding
           result['fullName'] = data['fullName'] as String?;
           result['designation'] = data['designation'] as String?;
           result['department'] = data['department'] as String?;
@@ -1307,10 +1308,9 @@ class DatabaseService {
             }
           }
 
-          // Return if we have at least fullName
-          if (result['fullName'] != null && result['fullName']!.isNotEmpty) {
-            return result;
-          }
+          // Always return result with designation and department from onboarding
+          // This ensures profile screens get the correct values
+          return result;
         }
       }
 
@@ -1324,6 +1324,7 @@ class DatabaseService {
 
         if (queryByEmail.docs.isNotEmpty) {
           final data = queryByEmail.docs.first.data();
+          // Always retrieve designation and department from onboarding
           result['fullName'] = data['fullName'] as String?;
           result['designation'] = data['designation'] as String?;
           result['department'] = data['department'] as String?;
@@ -1336,6 +1337,9 @@ class DatabaseService {
               result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
             }
           }
+
+          // Return result with designation and department from onboarding
+          return result;
         }
       }
 
