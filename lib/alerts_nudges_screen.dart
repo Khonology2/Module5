@@ -1099,6 +1099,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     final String? profilePhotoUrl = userProfile?.profilePhotoUrl;
 
     await showDialog<void>(
+      // ignore: use_build_context_synchronously
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (dialogContext) {
