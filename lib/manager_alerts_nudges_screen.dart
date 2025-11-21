@@ -677,8 +677,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(Icons.insights, size: 18),
@@ -2447,19 +2448,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         goalId: goalId,
         message: message,
       );
+      if (mounted) {
+        await _showCenterNotice(context, 'Nudge sent successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error sending nudge: $e');
+      }
+    }
+  }
 
-<<<<<<< HEAD
-   if (mounted) {
-     ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(
-         content: Text('Bulk nudge sent: $successCount successes, $errorCount errors'),
-         backgroundColor: successCount > errorCount ? AppColors.successColor : AppColors.warningColor,
-       ),
-     );
-   }
- }
-
-  Future<void> _loadTeamInsights(List<EmployeeData> employees, List<Alert> alerts) async {
+  Future<void> _loadTeamInsights(
+    List<EmployeeData> employees,
+    List<Alert> alerts,
+  ) async {
     if (employees.isEmpty) return;
 
     setState(() => _isLoadingInsights = true);
@@ -2471,22 +2473,32 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
       for (final employee in employees) {
         final goals = await DatabaseService.getUserGoals(employee.profile.uid);
-        final employeeAlerts = alerts.where((a) => a.userId == employee.profile.uid).toList();
-        
-        // Calculate risk indicators
-        final overdueGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.isBefore(now)
-        ).length;
-        
-        final dueSoonGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.difference(now).inDays <= 7 &&
-          g.targetDate.difference(now).inDays > 0
-        ).length;
+        final employeeAlerts = alerts
+            .where((a) => a.userId == employee.profile.uid)
+            .toList();
 
-        final avgProgress = goals.isEmpty ? 0.0 : 
-          goals.map((g) => g.progress).reduce((a, b) => a + b) / goals.length;
+        // Calculate risk indicators
+        final overdueGoals = goals
+            .where(
+              (g) =>
+                  g.status == GoalStatus.inProgress &&
+                  g.targetDate.isBefore(now),
+            )
+            .length;
+
+        final dueSoonGoals = goals
+            .where(
+              (g) =>
+                  g.status == GoalStatus.inProgress &&
+                  g.targetDate.difference(now).inDays <= 7 &&
+                  g.targetDate.difference(now).inDays > 0,
+            )
+            .length;
+
+        final avgProgress = goals.isEmpty
+            ? 0.0
+            : goals.map((g) => g.progress).reduce((a, b) => a + b) /
+                  goals.length;
 
         final inactivityDays = now.difference(employee.lastActivity).inDays;
 
@@ -2502,13 +2514,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           'inactivityDays': inactivityDays,
           'level': employee.profile.level,
           'badges': employee.profile.badges.length,
-          'goalsData': goals.map((g) => {
-            'title': g.title,
-            'progress': g.progress,
-            'status': g.status.name,
-            'priority': g.priority.name,
-            'daysUntilDeadline': g.targetDate.difference(now).inDays,
-          }).toList(),
+          'goalsData': goals
+              .map(
+                (g) => {
+                  'title': g.title,
+                  'progress': g.progress,
+                  'status': g.status.name,
+                  'priority': g.priority.name,
+                  'daysUntilDeadline': g.targetDate.difference(now).inDays,
+                },
+              )
+              .toList(),
         });
       }
 
@@ -2533,11 +2549,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         ),
       );
 
-      final teamDataText = teamData.map((e) {
-        return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
-            '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
-            '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
-      }).join('\n');
+      final teamDataText = teamData
+          .map((e) {
+            return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
+                '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
+                '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
+          })
+          .join('\n');
 
       final prompt = [
         Content.text(
@@ -2589,33 +2607,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             backgroundColor: AppColors.dangerColor,
           ),
         );
-=======
-      if (mounted) {
-        await _showCenterNotice(context, 'Nudge sent successfully!');
-      }
-    } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(context, 'Error sending nudge: $e');
->>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
       }
     }
   }
 
-<<<<<<< HEAD
   Widget _buildTeamInsightsWidget() {
     if (_teamInsights == null) return const SizedBox.shrink();
 
-    final atRiskMembers = _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
-    final collaborations = _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
+    final atRiskMembers =
+        _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
+    final collaborations =
+        _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.activeColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2651,7 +2660,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             ),
             const SizedBox(height: 12),
             ...atRiskMembers.take(5).map((member) {
-              final riskLevel = member['riskLevel']?.toString().toLowerCase() ?? 'medium';
+              final riskLevel =
+                  member['riskLevel']?.toString().toLowerCase() ?? 'medium';
               Color riskColor;
               if (riskLevel == 'high') {
                 riskColor = AppColors.dangerColor;
@@ -2662,7 +2672,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               }
 
               final reasons = member['reasons'] as List<dynamic>? ?? [];
-              final recommendations = member['recommendations']?.toString() ?? '';
+              final recommendations =
+                  member['recommendations']?.toString() ?? '';
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -2679,7 +2690,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: riskColor.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
@@ -2707,25 +2721,30 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       ),
                       if (reasons.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        ...reasons.map((reason) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.warning_amber_rounded, 
-                                color: riskColor, size: 14),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  reason.toString(),
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
+                        ...reasons.map(
+                          (reason) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: riskColor,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    reason.toString(),
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        )),
+                        ),
                       ],
                       if (recommendations.isNotEmpty) ...[
                         const SizedBox(height: 8),
@@ -2738,8 +2757,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.lightbulb_outline, 
-                                color: AppColors.activeColor, size: 16),
+                              Icon(
+                                Icons.lightbulb_outline,
+                                color: AppColors.activeColor,
+                                size: 16,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -2787,8 +2809,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.people_outline, 
-                            color: AppColors.successColor, size: 18),
+                          Icon(
+                            Icons.people_outline,
+                            color: AppColors.successColor,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -2818,8 +2843,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.handshake, 
-                              color: AppColors.successColor, size: 16),
+                            Icon(
+                              Icons.handshake,
+                              color: AppColors.successColor,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
@@ -2842,14 +2870,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         ],
       ),
     );
-=======
+  }
+
   void _sendBulkNudge(List<EmployeeData> employees, String message) async {
     int successCount = 0;
     int errorCount = 0;
 
     for (final employee in employees) {
       try {
-        // Use first active goal or create a general nudge
         final goalId = employee.goals.isNotEmpty
             ? employee.goals.first.id
             : 'general';
@@ -2870,7 +2898,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         'Bulk nudge sent: $successCount successes, $errorCount errors',
       );
     }
->>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
   }
 }
 
