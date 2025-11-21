@@ -333,14 +333,19 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           lower.endsWith('.jpeg') ||
           lower.endsWith('.gif') ||
           lower.endsWith('.webp');
+      final isPdf = lower.endsWith('.pdf');
 
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1F2840),
-          title: const Text(
-            'Evidence Details',
-            style: TextStyle(color: Colors.white),
+          title: Text(
+            isImage
+                ? 'Evidence Image'
+                : isPdf
+                ? 'Evidence PDF'
+                : 'Evidence Details',
+            style: const TextStyle(color: Colors.white),
           ),
           content: isImage
               ? SizedBox(
@@ -348,14 +353,76 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   height: 360,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(evidence, fit: BoxFit.contain),
+                    child: Image.network(
+                      evidence,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              color: Colors.white54,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Could not load image preview.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              evidence,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.lightBlueAccent,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 )
-              : SingleChildScrollView(
-                  child: SelectableText(
-                    evidence,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isPdf)
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.redAccent,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'PDF evidence file',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (isPdf) const SizedBox(height: 8),
+                    SelectableText(
+                      evidence,
+                      style: const TextStyle(
+                        color: Colors.lightBlueAccent,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    if (isPdf) const SizedBox(height: 8),
+                    if (isPdf)
+                      const Text(
+                        'Use "Open PDF in new tab" to view this document in your browser.',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                  ],
                 ),
           actions: [
             TextButton(
@@ -374,9 +441,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                   Navigator.of(ctx).pop();
                 }
               },
-              child: const Text(
-                'Open in new tab',
-                style: TextStyle(color: Colors.lightBlueAccent),
+              child: Text(
+                isPdf ? 'Open PDF in new tab' : 'Open in new tab',
+                style: const TextStyle(color: Colors.lightBlueAccent),
               ),
             ),
           ],
