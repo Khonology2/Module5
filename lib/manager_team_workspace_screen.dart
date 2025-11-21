@@ -12,13 +12,11 @@ import 'package:pdh/services/alert_service.dart';
 class ManagerTeamWorkspaceScreen extends StatefulWidget {
   final bool embedded;
 
-  const ManagerTeamWorkspaceScreen({
-    super.key,
-    this.embedded = false,
-  });
+  const ManagerTeamWorkspaceScreen({super.key, this.embedded = false});
 
   @override
-  State<ManagerTeamWorkspaceScreen> createState() => _ManagerTeamWorkspaceScreenState();
+  State<ManagerTeamWorkspaceScreen> createState() =>
+      _ManagerTeamWorkspaceScreenState();
 }
 
 class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
@@ -30,6 +28,35 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
 
   DateTime? _selectedDeadline;
   bool _isCreatingTeam = false;
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +140,10 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                     stream: FirebaseFirestore.instance
                         .collection('team_goals')
                         .where('createdByManager', isEqualTo: true)
-                        .where('managerId', isEqualTo: AuthService().currentUser?.uid)
+                        .where(
+                          'managerId',
+                          isEqualTo: AuthService().currentUser?.uid,
+                        )
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
@@ -140,7 +170,8 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                       return ListView.builder(
                         itemCount: teamGoals.length,
                         itemBuilder: (context, index) {
-                          final teamGoal = teamGoals[index].data() as Map<String, dynamic>;
+                          final teamGoal =
+                              teamGoals[index].data() as Map<String, dynamic>;
                           final goalId = teamGoals[index].id;
                           return _buildTeamGoalCard(goalId, teamGoal);
                         },
@@ -161,11 +192,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.group_add,
-            size: 80,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.group_add, size: 80, color: AppColors.textSecondary),
           const SizedBox(height: AppSpacing.lg),
           Text(
             'No Team Goals Yet',
@@ -209,10 +236,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.textSecondary,
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.textSecondary, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,10 +286,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
                 label: '$participantCount Members',
               ),
               SizedBox(width: AppSpacing.sm),
-              _buildInfoChip(
-                icon: Icons.stars,
-                label: '$points Points',
-              ),
+              _buildInfoChip(icon: Icons.stars, label: '$points Points'),
               const SizedBox(width: AppSpacing.sm),
               if (deadline != null)
                 _buildInfoChip(
@@ -312,11 +333,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 16,
-            color: AppColors.activeColor,
-          ),
+          Icon(icon, size: 16, color: AppColors.activeColor),
           const SizedBox(width: AppSpacing.xs),
           Text(
             label,
@@ -347,7 +364,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = date.difference(now).inDays;
-    
+
     if (difference == 0) {
       return 'Today';
     } else if (difference == 1) {
@@ -490,9 +507,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
   Future<void> _createTeamGoal() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDeadline == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a deadline')),
-      );
+      await _showCenterNotice(context, 'Please select a deadline');
       return;
     }
 
@@ -515,7 +530,9 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
         'department': '', // Will be set from user profile
       };
 
-      await FirebaseFirestore.instance.collection('team_goals').add(teamGoalData);
+      await FirebaseFirestore.instance
+          .collection('team_goals')
+          .add(teamGoalData);
 
       // Reset form
       _titleController.clear();
@@ -527,18 +544,13 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
       await _notifyEmployeesAboutTeamGoal();
 
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Team goal created successfully! All employees have been notified to join the team!'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-        ),
+      await _showCenterNotice(
+        context,
+        'Team goal created successfully! All employees have been notified to join the team!',
       );
     } catch (e) {
       if (!mounted) return; // Add this line
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating team goal: $e')),
-      );
+      await _showCenterNotice(context, 'Error creating team goal: $e');
     } finally {
       setState(() {
         _isCreatingTeam = false;
@@ -555,7 +567,7 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
           .get();
 
       int notificationCount = 0;
-      
+
       for (final employee in employees.docs) {
         try {
           await AlertService.createTeamGoalAlert(
@@ -567,24 +579,25 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
           );
           notificationCount++;
         } catch (alertError) {
-          debugPrint('Failed to create alert for employee ${employee.id}: $alertError');
+          debugPrint(
+            'Failed to create alert for employee ${employee.id}: $alertError',
+          );
           // Continue with other employees even if one fails
         }
       }
 
-      debugPrint('Successfully sent team goal alerts to $notificationCount employees');
+      debugPrint(
+        'Successfully sent team goal alerts to $notificationCount employees',
+      );
     } catch (e) {
       // Log error but don't show to user unless critical
       debugPrint('Error notifying employees about team goal: $e');
-      
+
       // Show a brief error message to the user but don't fail the entire process
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Team goal created, but some employees may not receive notifications.'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
+        await _showCenterNotice(
+          context,
+          'Team goal created, but some employees may not receive notifications.',
         );
       }
     }
