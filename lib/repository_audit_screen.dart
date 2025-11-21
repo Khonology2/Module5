@@ -1131,7 +1131,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...entry.evidence.map((evidence) => _buildEvidenceItem(evidence)),
+          ...entry.evidence
+              .map((evidence) => _buildEvidenceItem(evidence, entry.evidence))
+              .toList(),
 
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
@@ -1330,6 +1332,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final ev = events[index];
+                    // Choose actor name intelligently based on event type.
+                    // - submission: employee name
+                    // - verification/rejection: manager name
+                    String actorName = ev.actorName.trim();
+                    final isUnknown =
+                        actorName.isEmpty ||
+                        actorName.toLowerCase().startsWith('unknown');
+
+                    if (isUnknown) {
+                      if (ev.eventType == 'submission') {
+                        // Goal submitted by employee
+                        actorName = entry.userDisplayName;
+                      } else if (ev.eventType == 'verification' ||
+                          ev.eventType == 'rejection') {
+                        // Verified / rejected by manager
+                        final mgr = (entry.acknowledgedBy ?? '').trim();
+                        actorName = mgr.isNotEmpty ? mgr : 'Manager';
+                      } else {
+                        // Fallback for any other event types
+                        actorName = entry.userDisplayName;
+                      }
+                    }
                     return ListTile(
                       dense: true,
                       leading: Icon(
@@ -1348,7 +1372,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '${ev.actorName} • ${_formatDate(ev.timestamp)}',
+                        '$actorName • ${_formatDate(ev.timestamp)}',
                         style: TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 12,
@@ -1823,19 +1847,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   // (Manager section removed per request; employee-focused for now)
 
   void _showExportSheet() {
-    // Capture the parent ScaffoldMessenger before opening the sheet
-    final messenger = ScaffoldMessenger.of(context);
-    // ignore: unnecessary_null_comparison, unused_local_variable
-    final isManager =
-        // ignore: unnecessary_null_comparison
-        (RoleService.instance != null); // placeholder; use stream below
-    showModalBottomSheet(
+    // Use a bottom sheet for the options (stable), and keep centered dialogs
+    // for success/error notices after the actual export.
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
+      builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1844,7 +1864,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 leading: const Icon(Icons.table_chart),
                 title: const Text('Export as CSV'),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(ctx);
                   try {
                     final role = await RoleService.instance.getRole();
                     if (role == 'manager') {
@@ -1858,13 +1878,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       if (uid == null) return;
                       await RepositoryExportService.exportRepositoryAsCSV(uid);
                     }
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Export started (CSV)')),
+                    await _showExportNotice(
+                      'Export downloaded (CSV). Check your browser downloads.',
                     );
                   } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Export failed: $e')),
-                    );
+                    await _showExportNotice('Export failed: $e');
                   }
                 },
               ),
@@ -1872,7 +1890,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 leading: const Icon(Icons.picture_as_pdf),
                 title: const Text('Export as PDF'),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(ctx);
                   try {
                     final role = await RoleService.instance.getRole();
                     if (role == 'manager') {
@@ -1886,13 +1904,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       if (uid == null) return;
                       await RepositoryExportService.exportRepositoryAsPDF(uid);
                     }
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Export started (PDF)')),
+                    await _showExportNotice(
+                      'Export downloaded (PDF). Open it from your downloads.',
                     );
                   } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Export failed: $e')),
-                    );
+                    await _showExportNotice('Export failed: $e');
                   }
                 },
               ),
@@ -1904,8 +1920,32 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+  Future<void> _showExportNotice(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        content: Text(
+          message,
+          style: TextStyle(color: AppColors.textPrimary),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper widget to build individual evidence items.
-  Widget _buildEvidenceItem(String text) {
+  Widget _buildEvidenceItem(String text, List<String> allEvidence) {
     IconData icon;
     if (text.toLowerCase().contains('report') ||
         text.toLowerCase().contains('document') ||
@@ -1920,37 +1960,55 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
     final isUrl = text.startsWith('http://') || text.startsWith('https://');
 
+    // If this is a file label (e.g. "📎 File: name"), try to find a matching URL
+    String target = text;
+    if (!isUrl && text.startsWith('📎')) {
+      final linkedUrl = allEvidence.firstWhere(
+        (e) => e.startsWith('http://') || e.startsWith('https://'),
+        orElse: () => text,
+      );
+      target = linkedUrl;
+    }
+
+    final hasPreviewUrl =
+        target.startsWith('http://') || target.startsWith('https://');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: InkWell(
-        onTap: () => _openEvidence(text),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderColor),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.activeColor, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.activeColor, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => _openEvidence(target),
+                borderRadius: BorderRadius.circular(4),
                 child: Text(
                   text,
                   style: TextStyle(
-                    color: isUrl
+                    color: hasPreviewUrl
                         ? AppColors.activeColor
                         : AppColors.textSecondary,
                     fontSize: 14,
-                    decoration: isUrl ? TextDecoration.underline : null,
+                    decoration: hasPreviewUrl ? TextDecoration.underline : null,
                   ),
                 ),
               ),
-              Icon(Icons.open_in_new, color: AppColors.textMuted, size: 16),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.open_in_new, size: 16),
+              color: AppColors.textMuted,
+              tooltip: hasPreviewUrl ? 'Open evidence link' : 'View evidence',
+              onPressed: () => _openEvidence(target),
+            ),
+          ],
         ),
       ),
     );
@@ -1961,64 +2019,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         evidence.startsWith('http://') || evidence.startsWith('https://');
 
     if (isUrl) {
-      // For URLs, show a dialog with option to open externally
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          title: Text(
-            'Evidence Link',
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'This evidence is a web link:',
-                style: TextStyle(color: AppColors.textSecondary),
+      // For URLs, open in a new browser tab/window (web) or show simple link dialog
+      try {
+        web.window.open(evidence, '_blank');
+      } catch (_) {
+        // Fallback: show dialog with selectable link
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: Text(
+              'Evidence Link',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: SelectableText(
+              evidence,
+              style: TextStyle(
+                color: AppColors.activeColor,
+                decoration: TextDecoration.underline,
               ),
-              const SizedBox(height: 8),
-              SelectableText(
-                evidence,
-                style: TextStyle(
-                  color: AppColors.activeColor,
-                  decoration: TextDecoration.underline,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'To view this evidence, copy the link and open it in your browser.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: TextStyle(color: AppColors.textMuted),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Copy to clipboard functionality could be added here
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Link copied to clipboard')),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.activeColor,
-              ),
-              child: const Text('Copy Link'),
-            ),
-          ],
-        ),
-      );
+        );
+      }
     } else {
-      // For text evidence, show in a dialog
+      // For text evidence, show in a preview dialog
       showDialog(
         context: context,
         builder: (context) => AlertDialog(

@@ -7,11 +7,17 @@ import 'dart:developer' as developer;
 import 'dart:html' as html;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import 'package:pdh/models/repository_goal.dart';
 
 class RepositoryExportService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
 
   static Future<List<RepositoryGoal>> _fetchGoals(String userId) async {
     final snap = await _firestore
@@ -31,10 +37,9 @@ class RepositoryExportService {
     double? minScore,
     int limit = 1000,
   }) async {
-    Query query = _firestore.collection('audit_entries').where(
-          'status',
-          isEqualTo: 'verified',
-        );
+    Query query = _firestore
+        .collection('audit_entries')
+        .where('status', isEqualTo: 'verified');
 
     if (department != null && department.isNotEmpty) {
       query = query.where('userDepartment', isEqualTo: department);
@@ -96,33 +101,45 @@ class RepositoryExportService {
       );
 
       final buffer = StringBuffer();
+      // Friendlier manager CSV: people & goal details first, IDs last
       buffer.writeln(
-        'userId,userDisplayName,userDepartment,goalId,goalTitle,completedDate,submittedDate,score,acknowledgedBy,evidenceCount,comments',
+        'Employee Name,Department,Goal Title,Score (0-10),Completed Date,Submitted Date,Verified By,No. of Evidence Items,Manager Comments,Employee ID,Goal ID',
       );
 
       for (final m in items) {
-        final completed =
-            (m['completedDate'] as Timestamp?)?.toDate().toIso8601String() ??
-            '';
-        final submitted =
-            (m['submittedDate'] as Timestamp?)?.toDate().toIso8601String() ??
-            '';
+        final completedDt = (m['completedDate'] as Timestamp?)?.toDate();
+        final submittedDt = (m['submittedDate'] as Timestamp?)?.toDate();
+        final completed = completedDt != null ? _formatDate(completedDt) : '';
+        final submitted = submittedDt != null ? _formatDate(submittedDt) : '';
         final title = (m['goalTitle'] ?? '').toString().replaceAll(',', ' ');
         final comments = (m['comments'] ?? '').toString().replaceAll(',', ' ');
         final evidence = (m['evidence'] as List<dynamic>? ?? []);
+        final employeeName = (m['userDisplayName'] ?? '').toString().replaceAll(
+          ',',
+          ' ',
+        );
+        final dept = (m['userDepartment'] ?? '').toString().replaceAll(
+          ',',
+          ' ',
+        );
+        final score = (m['score'] as num?)?.toStringAsFixed(1) ?? '';
+        final verifiedBy = (m['acknowledgedBy'] ?? '').toString();
+        final userId = (m['userId'] ?? '').toString();
+        final goalId = (m['goalId'] ?? '').toString();
+
         buffer.writeln(
           [
-            m['userId'] ?? '',
-            (m['userDisplayName'] ?? '').toString().replaceAll(',', ' '),
-            (m['userDepartment'] ?? '').toString().replaceAll(',', ' '),
-            m['goalId'] ?? '',
+            employeeName,
+            dept,
             title,
+            score,
             completed,
             submitted,
-            (m['score'] as num?)?.toStringAsFixed(2) ?? '',
-            m['acknowledgedBy'] ?? '',
+            verifiedBy,
             evidence.length.toString(),
             comments,
+            userId,
+            goalId,
           ].join(','),
         );
       }
@@ -164,31 +181,94 @@ class RepositoryExportService {
         minScore: minScore,
       );
 
-      final buffer = StringBuffer();
-      buffer.writeln('Personal Development Hub – Verified Evidence Report');
-      buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
-      buffer.writeln('');
-      for (final m in items) {
-        final completed = (m['completedDate'] as Timestamp?)?.toDate();
-        buffer.writeln('- ${m['goalTitle'] ?? ''}');
-        buffer.writeln(
-          '  Employee: ${(m['userDisplayName'] ?? '')} (${(m['userDepartment'] ?? '')})',
-        );
-        buffer.writeln('  Goal ID: ${(m['goalId'] ?? '')}');
-        buffer.writeln('  Completed: ${completed?.toIso8601String() ?? ''}');
-        buffer.writeln(
-          '  Score: ${(m['score'] as num?)?.toStringAsFixed(1) ?? '-'}',
-        );
-        buffer.writeln('  Verified by: ${(m['acknowledgedBy'] ?? '-')}');
-        final evidence = (m['evidence'] as List<dynamic>? ?? []);
-        buffer.writeln('  Evidence count: ${evidence.length}');
-        buffer.writeln('');
-      }
+      // Build a simple multi-page PDF report
+      final doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
+            margin: const pw.EdgeInsets.all(24),
+            pageFormat: PdfPageFormat.a4,
+          ),
+          build: (context) {
+            final widgets = <pw.Widget>[];
+
+            widgets.add(
+              pw.Text(
+                'Personal Development Hub – Verified Evidence Report',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Text(
+                'Generated: ${DateTime.now().toIso8601String()}',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 16));
+
+            for (final m in items) {
+              final completed = (m['completedDate'] as Timestamp?)?.toDate();
+              final completedStr = completed != null
+                  ? _formatDate(completed)
+                  : '';
+              final score = (m['score'] as num?)?.toStringAsFixed(1) ?? '-';
+              final verifiedBy = (m['acknowledgedBy'] ?? '-').toString();
+              final comments = (m['comments'] ?? '').toString();
+              widgets.add(
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      m['goalTitle']?.toString() ?? '',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Employee: ${(m['userDisplayName'] ?? '')} • Department: ${(m['userDepartment'] ?? '')}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Goal ID: ${(m['goalId'] ?? '')}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Completed: $completedStr',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Score: $score / 10',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Verified by: $verifiedBy',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    if (comments.trim().isNotEmpty)
+                      pw.Text(
+                        'Manager comments: $comments',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                    pw.SizedBox(height: 8),
+                  ],
+                ),
+              );
+            }
+
+            return widgets;
+          },
+        ),
+      );
 
       if (!kIsWeb) {
         throw UnsupportedError('PDF export is only supported on web');
       }
-      final bytes = utf8.encode(buffer.toString());
+      final bytes = await doc.save();
       final fileName =
           'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final blob = html.Blob([bytes], 'application/pdf');
@@ -213,29 +293,33 @@ class RepositoryExportService {
     try {
       final goals = await _fetchGoals(userId);
       final buffer = StringBuffer();
-      // Header
+      // Friendlier header for employee CSV: goal summary first
       buffer.writeln(
-        'goalId,goalTitle,completedDate,verifiedDate,score,managerAcknowledgedBy,evidenceCount,comments',
+        'Goal Title,Score (0-10),Completed Date,Verified Date,Manager,No. of Evidence Items,Manager Comments,Goal ID',
       );
       for (final g in goals) {
         final completed = g.completedDate != null
-            ? g.completedDate!.toIso8601String()
+            ? _formatDate(g.completedDate!)
             : '';
         final verified = g.verifiedDate != null
-            ? g.verifiedDate!.toIso8601String()
+            ? _formatDate(g.verifiedDate!)
             : '';
         final safeTitle = g.goalTitle.replaceAll(',', ' ');
         final safeComments = (g.comments ?? '').replaceAll(',', ' ');
+        final score = g.score?.toStringAsFixed(1) ?? '';
+        final manager = (g.managerAcknowledgedBy ?? '').replaceAll(',', ' ');
+        final evidenceCount = g.evidence.length.toString();
+
         buffer.writeln(
           [
-            g.goalId,
             safeTitle,
+            score,
             completed,
             verified,
-            g.score?.toStringAsFixed(2) ?? '',
-            g.managerAcknowledgedBy ?? '',
-            g.evidence.length.toString(),
+            manager,
+            evidenceCount,
             safeComments,
+            g.goalId,
           ].join(','),
         );
       }
@@ -278,26 +362,36 @@ class RepositoryExportService {
 
       final buffer = StringBuffer();
       buffer.writeln(
-        'userId,userDisplayName,userDepartment,goalId,goalTitle,completedDate,verifiedDate,score,managerAcknowledgedBy,evidenceCount,comments',
+        'Employee Name,Department,Goal Title,Score (0-10),Completed Date,Verified Date,Manager,No. of Evidence Items,Manager Comments,Employee ID,Goal ID',
       );
       for (final g in goals) {
-        final completed = g.completedDate?.toIso8601String() ?? '';
-        final verified = g.verifiedDate?.toIso8601String() ?? '';
+        final completed = g.completedDate != null
+            ? _formatDate(g.completedDate!)
+            : '';
+        final verified = g.verifiedDate != null
+            ? _formatDate(g.verifiedDate!)
+            : '';
         final safeTitle = g.goalTitle.replaceAll(',', ' ');
         final safeComments = (g.comments ?? '').replaceAll(',', ' ');
+        final employeeName = g.userDisplayName.replaceAll(',', ' ');
+        final dept = g.userDepartment.replaceAll(',', ' ');
+        final score = g.score?.toStringAsFixed(1) ?? '';
+        final manager = (g.managerAcknowledgedBy ?? '').replaceAll(',', ' ');
+        final evidenceCount = g.evidence.length.toString();
+
         buffer.writeln(
           [
-            g.userId,
-            g.userDisplayName.replaceAll(',', ' '),
-            g.userDepartment.replaceAll(',', ' '),
-            g.goalId,
+            employeeName,
+            dept,
             safeTitle,
+            score,
             completed,
             verified,
-            g.score?.toStringAsFixed(2) ?? '',
-            g.managerAcknowledgedBy ?? '',
-            g.evidence.length.toString(),
+            manager,
+            evidenceCount,
             safeComments,
+            g.userId,
+            g.goalId,
           ].join(','),
         );
       }
@@ -338,29 +432,88 @@ class RepositoryExportService {
           .map((d) => RepositoryGoal.fromFirestore(d))
           .toList();
 
-      final buffer = StringBuffer();
-      buffer.writeln(
-        'Personal Development Hub – Repository Export (All Users)',
+      final doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
+            margin: const pw.EdgeInsets.all(24),
+            pageFormat: PdfPageFormat.a4,
+          ),
+          build: (context) {
+            final widgets = <pw.Widget>[];
+            widgets.add(
+              pw.Text(
+                'Personal Development Hub – Repository Export (All Users)',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Text(
+                'Generated: ${DateTime.now().toIso8601String()}',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 16));
+
+            for (final g in goals) {
+              final date = g.completedDate ?? g.verifiedDate;
+              final dateStr = date != null ? _formatDate(date) : '';
+              final score = g.score?.toStringAsFixed(1) ?? '-';
+              widgets.add(
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      g.goalTitle,
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'User: ${g.userDisplayName} • Department: ${g.userDepartment}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Goal ID: ${g.goalId}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Date: $dateStr',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Score: $score / 10',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Manager: ${g.managerAcknowledgedBy ?? '-'}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Evidence (${g.evidence.length})',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.SizedBox(height: 8),
+                  ],
+                ),
+              );
+            }
+
+            return widgets;
+          },
+        ),
       );
-      buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
-      buffer.writeln('');
-      for (final g in goals) {
-        final date = g.completedDate ?? g.verifiedDate;
-        buffer.writeln('- ${g.goalTitle}');
-        buffer.writeln('  User: ${g.userDisplayName} (${g.userDepartment})');
-        buffer.writeln('  Goal ID: ${g.goalId}');
-        buffer.writeln('  Date: ${date?.toIso8601String() ?? ''}');
-        buffer.writeln('  Score: ${g.score?.toStringAsFixed(1) ?? '-'}');
-        buffer.writeln('  Manager: ${g.managerAcknowledgedBy ?? '-'}');
-        buffer.writeln('  Evidence (${g.evidence.length})');
-        buffer.writeln('');
-      }
 
       // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('PDF export is only supported on web');
       }
-      final bytes = utf8.encode(buffer.toString());
+      final bytes = await doc.save();
       final fileName =
           'repository_all_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final blob = html.Blob([bytes], 'application/pdf');
@@ -383,32 +536,96 @@ class RepositoryExportService {
 
   static Future<void> exportRepositoryAsPDF(String userId) async {
     try {
-      // Lightweight text-based report (placeholder for PDF engine)
       final goals = await _fetchGoals(userId);
-      final buffer = StringBuffer();
-      buffer.writeln('Personal Development Hub – Repository Export');
-      buffer.writeln('User: $userId');
-      buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
-      buffer.writeln('');
-      for (final g in goals) {
-        final date = g.completedDate ?? g.verifiedDate;
-        buffer.writeln('- ${g.goalTitle}');
-        buffer.writeln('  Goal ID: ${g.goalId}');
-        buffer.writeln('  Date: ${date?.toIso8601String() ?? ''}');
-        buffer.writeln('  Score: ${g.score?.toStringAsFixed(1) ?? '-'}');
-        buffer.writeln('  Manager: ${g.managerAcknowledgedBy ?? '-'}');
-        buffer.writeln('  Evidence (${g.evidence.length}):');
-        for (final e in g.evidence) {
-          buffer.writeln('    • $e');
-        }
-        buffer.writeln('');
-      }
+      final doc = pw.Document();
+      doc.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
+            margin: const pw.EdgeInsets.all(24),
+            pageFormat: PdfPageFormat.a4,
+          ),
+          build: (context) {
+            final widgets = <pw.Widget>[];
+            widgets.add(
+              pw.Text(
+                'Personal Development Hub – Repository Export',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Text('User: $userId', style: const pw.TextStyle(fontSize: 10)),
+            );
+            widgets.add(
+              pw.Text(
+                'Generated: ${DateTime.now().toIso8601String()}',
+                style: const pw.TextStyle(fontSize: 10),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 16));
+
+            for (final g in goals) {
+              final date = g.completedDate ?? g.verifiedDate;
+              final dateStr = date != null ? _formatDate(date) : '';
+              final score = g.score?.toStringAsFixed(1) ?? '-';
+              widgets.add(
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      g.goalTitle,
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Goal ID: ${g.goalId}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Date: $dateStr',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Score: $score / 10',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.Text(
+                      'Manager: ${g.managerAcknowledgedBy ?? '-'}',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    if (g.evidence.isNotEmpty) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        'Evidence (${g.evidence.length}):',
+                        style: const pw.TextStyle(fontSize: 10),
+                      ),
+                      for (final e in g.evidence)
+                        pw.Bullet(
+                          text: e,
+                          style: const pw.TextStyle(fontSize: 10),
+                        ),
+                    ],
+                    pw.SizedBox(height: 8),
+                  ],
+                ),
+              );
+            }
+
+            return widgets;
+          },
+        ),
+      );
 
       // Direct download instead of Firebase Storage
       if (!kIsWeb) {
         throw UnsupportedError('PDF export is only supported on web');
       }
-      final bytes = utf8.encode(buffer.toString());
+      final bytes = await doc.save();
       final fileName =
           'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final blob = html.Blob([bytes], 'application/pdf');
