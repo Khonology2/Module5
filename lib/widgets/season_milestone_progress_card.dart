@@ -32,6 +32,35 @@ class _SeasonMilestoneProgressCardState
     extends State<SeasonMilestoneProgressCard> {
   final Set<String> _updatingMilestoneIds = {};
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final challenge = widget.challenge;
@@ -299,23 +328,14 @@ class _SeasonMilestoneProgressCardState
         status: status,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Milestone marked as ${_milestoneStatusLabel(status)}.',
-            ),
-            backgroundColor: AppColors.activeColor,
-          ),
+        await _showCenterNotice(
+          context,
+          'Milestone marked as ${_milestoneStatusLabel(status)}.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Unable to update milestone: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Unable to update milestone: $e');
       }
     } finally {
       if (mounted) {
@@ -326,4 +346,3 @@ class _SeasonMilestoneProgressCardState
     }
   }
 }
-

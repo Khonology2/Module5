@@ -4,9 +4,11 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
@@ -64,37 +66,76 @@ class _EmployeeSeasonChallengesScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text('Season Challenges'),
-        backgroundColor: AppColors.activeColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'Available'),
-            Tab(text: 'My Seasons'),
-            Tab(text: 'Completed'),
-          ],
-        ),
-      ),
-      body: AppComponents.backgroundWithImage(
+    return AppScaffold(
+      title: 'Season Challenges',
+      showAppBar: false,
+      items: SidebarConfig.employeeItems,
+      currentRouteName: '/season_challenges',
+      onNavigate: (route) {
+        final current = ModalRoute.of(context)?.settings.name;
+        if (current != route) {
+          Navigator.pushNamed(context, route);
+        }
+      },
+      onLogout: () async {
+        final navigator = Navigator.of(context);
+        await _authService.signOut();
+        if (!mounted) return;
+        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+      },
+      content: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
-        child: SafeArea(
-          top: false,
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildAvailableSeasonsTab(),
-              _buildMySeasonsTab(),
-              _buildCompletedSeasonsTab(),
-            ],
-          ),
+        child: Column(
+          children: [
+            Container(
+              color: AppColors.activeColor,
+              padding: const EdgeInsets.only(
+                top: AppSpacing.lg,
+                left: AppSpacing.lg,
+                right: AppSpacing.lg,
+                bottom: AppSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Season Challenges',
+                        style: AppTypography.heading2.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                  TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.white,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white70,
+                    tabs: const [
+                      Tab(text: 'Available'),
+                      Tab(text: 'My Seasons'),
+                      Tab(text: 'Completed'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildAvailableSeasonsTab(),
+                    _buildMySeasonsTab(),
+                    _buildCompletedSeasonsTab(),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -224,9 +265,7 @@ class _EmployeeSeasonChallengesScreenState
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
       child: child,
     );
@@ -458,10 +497,13 @@ class _EmployeeSeasonChallengesScreenState
     SeasonParticipation? participation,
   ) {
     final totalMilestones = challenge.milestones.length;
-    final completedMilestones =
-        _completedMilestonesForChallenge(challenge, participation);
-    final progress =
-        totalMilestones > 0 ? completedMilestones / totalMilestones : 0.0;
+    final completedMilestones = _completedMilestonesForChallenge(
+      challenge,
+      participation,
+    );
+    final progress = totalMilestones > 0
+        ? completedMilestones / totalMilestones
+        : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -476,10 +518,7 @@ class _EmployeeSeasonChallengesScreenState
         children: [
           Row(
             children: [
-              Icon(
-                Icons.flag_circle,
-                color: AppColors.activeColor,
-              ),
+              Icon(Icons.flag_circle, color: AppColors.activeColor),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
@@ -905,7 +944,10 @@ class _EmployeeSeasonChallengesScreenState
       var selected = docs.first;
       for (final d in docs) {
         final status = (d.data()['status'] ?? 'notStarted').toString();
-        if (status != 'completed') { selected = d; break; }
+        if (status != 'completed') {
+          selected = d;
+          break;
+        }
       }
 
       final goal = Goal.fromFirestore(selected);

@@ -593,6 +593,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+
   Widget _buildManagerSection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
 
@@ -1279,12 +1280,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error signing out: $e'),
-              backgroundColor: AppColors.dangerColor,
-            ),
-          );
+          await _showCenterNotice(context, 'Error signing out: $e');
         }
       }
     }
@@ -1349,12 +1345,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             message =
                 'For your security, please sign in again and then delete your account.';
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: AppColors.dangerColor,
-            ),
-          );
+          await _showCenterNotice(context, message);
         }
       }
     }

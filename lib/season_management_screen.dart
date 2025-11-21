@@ -24,6 +24,35 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   bool _isLoading = false;
   Season? _season;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -128,10 +157,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [
-              Color(0x880A0F1F),
-              Color(0x88040610),
-            ],
+            colors: [Color(0x880A0F1F), Color(0x88040610)],
             stops: [0.0, 1.0],
           ),
         ),
@@ -693,9 +719,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   ShapeBorder _glassCardShape({double radius = 16}) {
     return RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius),
-      side: BorderSide(
-        color: Colors.white.withValues(alpha: 0.2),
-      ),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
     );
   }
 
@@ -772,21 +796,14 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Season "${_season!.title}" completed successfully!'),
-            backgroundColor: AppColors.successColor,
-          ),
+        await _showCenterNotice(
+          context,
+          'Season "${_season!.title}" completed successfully!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error completing season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error completing season: $e');
       }
     } finally {
       if (mounted) {
@@ -798,13 +815,7 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   }
 
   void _extendSeason() {
-   
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Season extension feature coming soon!'),
-        backgroundColor: AppColors.warningColor,
-      ),
-    );
+    _showCenterNotice(context, 'Season extension feature coming soon!');
   }
 
   void _viewCelebration() {

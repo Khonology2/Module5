@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -115,8 +114,9 @@ class UpcomingGoalsListScreen extends StatelessWidget {
                           itemBuilder: (context, index) {
                             if (index == 0) {
                               return Padding(
-                                padding:
-                                    const EdgeInsets.only(bottom: AppSpacing.lg),
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.lg,
+                                ),
                                 child: Text(
                                   'All Upcoming Goals',
                                   style: AppTypography.heading2.copyWith(
@@ -127,8 +127,9 @@ class UpcomingGoalsListScreen extends StatelessWidget {
                             }
                             final goal = goals[index - 1];
                             return Padding(
-                              padding:
-                                  const EdgeInsets.only(bottom: AppSpacing.sm),
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
                               child: _GoalListItem(goal: goal),
                             );
                           },
@@ -149,6 +150,35 @@ class UpcomingGoalsListScreen extends StatelessWidget {
 class _GoalListItem extends StatelessWidget {
   final Goal goal;
   const _GoalListItem({required this.goal});
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Color _priorityColor(GoalPriority priority) {
     switch (priority) {
@@ -187,11 +217,9 @@ class _GoalListItem extends StatelessWidget {
     }
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (goal.approvalStatus != GoalApprovalStatus.approved) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Awaiting manager approval.')),
-          );
+          await _showCenterNotice(context, 'Awaiting manager approval.');
           return;
         }
         Navigator.push(

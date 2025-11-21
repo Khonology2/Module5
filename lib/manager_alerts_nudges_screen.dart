@@ -1,12 +1,10 @@
 // ignore_for_file: unused_element
 
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -24,31 +22,28 @@ import 'package:pdh/services/role_service.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
-  
-  const ManagerAlertsNudgesScreen({
-    super.key,
-    this.embedded = false,
-  });
+
+  const ManagerAlertsNudgesScreen({super.key, this.embedded = false});
 
   @override
-  State<ManagerAlertsNudgesScreen> createState() => _ManagerAlertsNudgesScreenState();
+  State<ManagerAlertsNudgesScreen> createState() =>
+      _ManagerAlertsNudgesScreenState();
 }
 
-class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> with TickerProviderStateMixin {
+class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
+    with TickerProviderStateMixin {
   late TabController _tabController;
   String _searchQuery = '';
-// true = Personal, false = Team
-// null=All, 'alert' | 'nudge' | 'approval_request'
+  // true = Personal, false = Team
+  // null=All, 'alert' | 'nudge' | 'approval_request'
   // SMART rubric state per goalId
   // ignore: unused_field
-  final  _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
+  final _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
   // ignore: unused_field
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   bool _showNudgeTrend = true;
-  Map<String, dynamic>? _teamInsights;
-  bool _isLoadingInsights = false;
 
   @override
   void initState() {
@@ -106,7 +101,40 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     }
   }
 
-  Future<void> _rescheduleGoal(BuildContext context, String goalId, EmployeeData employee) async {
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _rescheduleGoal(
+    BuildContext context,
+    String goalId,
+    EmployeeData employee,
+  ) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -127,8 +155,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           decoration: const InputDecoration(labelText: 'Optional note'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Skip')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, noteController.text.trim()), child: const Text('Save')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Skip'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -142,7 +176,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 
       await AlertService.createMotivationalAlert(
         userId: employee.profile.uid,
-        message: 'Your goal has been rescheduled to ${picked.day}/${picked.month}/${picked.year}.',
+        message:
+            'Your goal has been rescheduled to ${picked.day}/${picked.month}/${picked.year}.',
         goalId: goalId,
       );
 
@@ -159,15 +194,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal rescheduled successfully')),
-        );
+        await _showCenterNotice(context, 'Goal rescheduled successfully');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reschedule goal: $e')),
-        );
+        await _showCenterNotice(context, 'Failed to reschedule goal: $e');
       }
     }
   }
@@ -195,7 +226,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           padding: AppSpacing.screenPadding,
           child: Text(
             'No approved or rejected goals',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
@@ -212,18 +245,25 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             itemBuilder: (context, index) {
               final emp = items[index]['employee'] as EmployeeData;
               final g = items[index]['goal'] as Goal;
-              final isApproved = g.approvalStatus == GoalApprovalStatus.approved;
-              final color = isApproved ? AppColors.successColor : AppColors.dangerColor;
+              final isApproved =
+                  g.approvalStatus == GoalApprovalStatus.approved;
+              final color = isApproved
+                  ? AppColors.successColor
+                  : AppColors.dangerColor;
               final statusLabel = isApproved ? 'Approved' : 'Rejected';
               return Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: ListTile(
                   leading: Icon(
-                    isApproved ? Icons.check_circle_outline : Icons.cancel_outlined,
+                    isApproved
+                        ? Icons.check_circle_outline
+                        : Icons.cancel_outlined,
                     color: color,
                   ),
                   title: Text(
@@ -237,10 +277,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                     '${emp.profile.displayName} • ${_fmtDate(g.targetDate)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
@@ -248,7 +293,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                     ),
                     child: Text(
                       statusLabel,
-                      style: AppTypography.bodySmall.copyWith(color: color, fontWeight: FontWeight.w600),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   onTap: () {},
@@ -261,7 +309,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Future<void> _rejectGoal(BuildContext context, String goalId, EmployeeData employee) async {
+  Future<void> _rejectGoal(
+    BuildContext context,
+    String goalId,
+    EmployeeData employee,
+  ) async {
     final controller = TextEditingController();
     final reason = await showDialog<String?>(
       context: context,
@@ -269,13 +321,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         title: const Text('Reject Goal'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Reason (optional)'
-          ),
+          decoration: const InputDecoration(labelText: 'Reason (optional)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Reject')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Reject'),
+          ),
         ],
       ),
     );
@@ -290,15 +346,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         reason: reason.isEmpty ? null : reason,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal rejected')),
-        );
+        await _showCenterNotice(context, 'Goal rejected');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reject goal: $e')),
-        );
+        await _showCenterNotice(context, 'Failed to reject goal: $e');
       }
     }
   }
@@ -327,19 +379,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil(
-            '/sign_in',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
         stream: ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
               ),
             );
           }
@@ -364,12 +416,26 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                   indicatorColor: AppColors.activeColor,
                   labelColor: AppColors.textPrimary,
                   unselectedLabelColor: AppColors.textSecondary,
-                  labelStyle: AppTypography.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                  labelStyle: AppTypography.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                   tabs: const [
-                    Tab(text: 'Approvals', icon: Icon(Icons.fact_check_outlined, size: 20)),
-                    Tab(text: 'Team Alerts', icon: Icon(Icons.notifications, size: 20)),
-                    Tab(text: 'Send Nudges', icon: Icon(Icons.message_outlined, size: 20)),
-                    Tab(text: 'Analytics', icon: Icon(Icons.analytics_outlined, size: 20)),
+                    Tab(
+                      text: 'Approvals',
+                      icon: Icon(Icons.fact_check_outlined, size: 20),
+                    ),
+                    Tab(
+                      text: 'Team Alerts',
+                      icon: Icon(Icons.notifications, size: 20),
+                    ),
+                    Tab(
+                      text: 'Send Nudges',
+                      icon: Icon(Icons.message_outlined, size: 20),
+                    ),
+                    Tab(
+                      text: 'Analytics',
+                      icon: Icon(Icons.analytics_outlined, size: 20),
+                    ),
                   ],
                 );
 
@@ -379,9 +445,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                       padding: AppSpacing.screenPadding,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildStatsRow(employees),
-                        ],
+                        children: [_buildStatsRow(employees)],
                       ),
                     ),
                   ),
@@ -397,7 +461,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                     ),
                   ),
@@ -423,10 +489,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
   // removed skeleton placeholders
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    final totalAlerts = employees.fold<int>(0, (acc, emp) => acc + emp.recentAlerts.length);
-    final urgentAlerts = employees.fold<int>(0, (acc, emp) => 
-      acc + emp.recentAlerts.where((a) => a.priority == AlertPriority.urgent).length);
-    final overdueGoals = employees.fold<int>(0, (acc, emp) => acc + emp.overdueGoalsCount);
+    final totalAlerts = employees.fold<int>(
+      0,
+      (acc, emp) => acc + emp.recentAlerts.length,
+    );
+    final urgentAlerts = employees.fold<int>(
+      0,
+      (acc, emp) =>
+          acc +
+          emp.recentAlerts
+              .where((a) => a.priority == AlertPriority.urgent)
+              .length,
+    );
+    final overdueGoals = employees.fold<int>(
+      0,
+      (acc, emp) => acc + emp.overdueGoalsCount,
+    );
 
     return Row(
       children: [
@@ -469,7 +547,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color color, IconData icon) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -508,7 +591,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view team alerts',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
@@ -532,9 +617,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             id: 'synthetic_inactivity_${e.profile.uid}',
             userId: e.profile.uid,
             type: AlertType.inactivity,
-            priority: inactivityDays >= 7 ? AlertPriority.high : AlertPriority.medium,
+            priority: inactivityDays >= 7
+                ? AlertPriority.high
+                : AlertPriority.medium,
             title: 'Employee Inactive',
-            message: '${e.profile.displayName} inactive for $inactivityDays days',
+            message:
+                '${e.profile.displayName} inactive for $inactivityDays days',
             createdAt: now.subtract(const Duration(hours: 1)),
           ),
         );
@@ -547,8 +635,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           a.type == AlertType.seasonJoined ||
           a.type == AlertType.seasonCompleted ||
           a.type == AlertType.seasonProgressUpdate;
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     final Map<String, Alert> dedup = {};
     for (final a in filteredAlerts) {
@@ -566,37 +653,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         SliverPadding(
           padding: AppSpacing.screenPadding,
           sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Team Alerts (${alerts.length})',
-                        style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
-                    ElevatedButton.icon(
-                      onPressed: () => _loadTeamInsights(employees, alerts),
-                      icon: _isLoadingInsights
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.insights, size: 18),
-                      label: const Text('AI Team Insights'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Team Alerts (${alerts.length})',
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 16),
-                if (_teamInsights != null) _buildTeamInsightsWidget(),
               ],
             ),
           ),
@@ -613,13 +678,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           SliverPadding(
             padding: AppSpacing.screenPadding,
             sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildTeamAlertCard(
-                  alerts[index],
-                  employeesById[alerts[index].userId] ?? employees.first,
-                ),
-                childCount: alerts.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final alert = alerts[index];
+                final employee =
+                    employeesById[alert.userId] ??
+                    (employees.isNotEmpty ? employees.first : null);
+                if (employee == null) {
+                  return const SizedBox.shrink();
+                }
+                return _buildTeamAlertCard(alert, employee);
+              }, childCount: alerts.length),
             ),
           ),
       ],
@@ -634,7 +702,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             onChanged: (value) => setState(() => _searchQuery = value),
             decoration: InputDecoration(
               hintText: 'Search alerts...',
-              prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: AppColors.borderColor),
@@ -647,7 +718,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: AppColors.activeColor),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
             ),
           ),
         ),
@@ -662,13 +736,28 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           child: DropdownButton<AlertPriority?>(
             value: _selectedPriority,
             underline: const SizedBox(),
-            hint: Text('Priority', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-            onChanged: (priority) => setState(() => _selectedPriority = priority),
+            hint: Text(
+              'Priority',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            onChanged: (priority) =>
+                setState(() => _selectedPriority = priority),
             items: [
-              const DropdownMenuItem(value: null, child: Text('All Priorities')),
-              ...AlertPriority.values
-                  .map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase()))),
+              const DropdownMenuItem(
+                value: null,
+                child: Text('All Priorities'),
+              ),
+              ...AlertPriority.values.map(
+                (p) => DropdownMenuItem(
+                  value: p,
+                  child: Text(p.name.toUpperCase()),
+                ),
+              ),
             ],
           ),
         ),
@@ -738,7 +827,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.activeColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
@@ -748,10 +840,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                             children: [
                               CircleAvatar(
                                 radius: 6,
-                                backgroundColor: alertColor.withValues(alpha: 0.1),
+                                backgroundColor: alertColor.withValues(
+                                  alpha: 0.1,
+                                ),
                                 child: Text(
-                                  employee.profile.displayName.isNotEmpty 
-                                      ? employee.profile.displayName[0].toUpperCase()
+                                  employee.profile.displayName.isNotEmpty
+                                      ? employee.profile.displayName[0]
+                                            .toUpperCase()
                                       : '?',
                                   style: AppTypography.bodySmall.copyWith(
                                     color: alertColor,
@@ -781,7 +876,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                         ),
                         const Spacer(),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: alertColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
@@ -802,7 +900,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               ),
             ],
           ),
-          if (alert.type == AlertType.goalApprovalRequested && alert.relatedGoalId != null) ...[
+          if (alert.type == AlertType.goalApprovalRequested &&
+              alert.relatedGoalId != null) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -822,13 +921,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               ],
             ),
           ],
-          if (alert.type == AlertType.goalOverdue && alert.relatedGoalId != null) ...[
+          if (alert.type == AlertType.goalOverdue &&
+              alert.relatedGoalId != null) ...[
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _rescheduleGoal(context, alert.relatedGoalId!, employee),
+                    onPressed: () => _rescheduleGoal(
+                      context,
+                      alert.relatedGoalId!,
+                      employee,
+                    ),
                     icon: const Icon(Icons.update),
                     label: const Text('Reschedule'),
                     style: ElevatedButton.styleFrom(
@@ -840,7 +944,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _extendGoalDeadline(context, alert.relatedGoalId!, employee),
+                    onPressed: () => _extendGoalDeadline(
+                      context,
+                      alert.relatedGoalId!,
+                      employee,
+                    ),
                     icon: const Icon(Icons.schedule),
                     label: const Text('Extend Deadline'),
                   ),
@@ -856,7 +964,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _markGoalBurnout(alert.relatedGoalId!, employee),
+                    onPressed: () =>
+                        _markGoalBurnout(alert.relatedGoalId!, employee),
                     icon: const Icon(Icons.local_fire_department),
                     label: const Text('Mark Burnout'),
                     style: ElevatedButton.styleFrom(
@@ -873,7 +982,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Future<void> _extendGoalDeadline(BuildContext context, String goalId, EmployeeData employee) async {
+  Future<void> _extendGoalDeadline(
+    BuildContext context,
+    String goalId,
+    EmployeeData employee,
+  ) async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
@@ -891,7 +1004,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 
       await AlertService.createMotivationalAlert(
         userId: employee.profile.uid,
-        message: 'Your goal deadline has been extended to ${picked.day}/${picked.month}/${picked.year}. You got this!',
+        message:
+            'Your goal deadline has been extended to ${picked.day}/${picked.month}/${picked.year}. You got this!',
         goalId: goalId,
       );
 
@@ -906,15 +1020,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       }
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Deadline extended successfully')),
-        );
+        await _showCenterNotice(context, 'Deadline extended successfully');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to extend deadline: $e')),
-        );
+        await _showCenterNotice(context, 'Failed to extend deadline: $e');
       }
     }
   }
@@ -927,7 +1037,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 
       await AlertService.createMotivationalAlert(
         userId: employee.profile.uid,
-        message: 'Your goal has been paused by your manager. Take the time you need.',
+        message:
+            'Your goal has been paused by your manager. Take the time you need.',
         goalId: goalId,
       );
     } catch (e) {
@@ -943,7 +1054,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
 
       await AlertService.createMotivationalAlert(
         userId: employee.profile.uid,
-        message: 'We noticed signs of burnout on a goal. It has been marked accordingly. Let’s regroup and plan a healthier path.',
+        message:
+            'We noticed signs of burnout on a goal. It has been marked accordingly. Let’s regroup and plan a healthier path.',
         goalId: goalId,
       );
     } catch (e) {
@@ -965,14 +1077,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               children: [
                 Text(
                   'Send Team Nudges',
-                  style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                  style: AppTypography.heading3.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
                     hintText: 'Search team members...',
-                    prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textSecondary,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: AppColors.borderColor),
@@ -1024,9 +1141,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: _getStatusColor(employee.status).withValues(alpha: 0.1),
+                backgroundColor: _getStatusColor(
+                  employee.status,
+                ).withValues(alpha: 0.1),
                 child: Text(
-                  employee.profile.displayName.isNotEmpty 
+                  employee.profile.displayName.isNotEmpty
                       ? employee.profile.displayName[0].toUpperCase()
                       : '?',
                   style: AppTypography.bodyMedium.copyWith(
@@ -1059,14 +1178,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(employee.status).withValues(alpha: 0.1),
+                  color: _getStatusColor(
+                    employee.status,
+                  ).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _getStatusColor(employee.status).withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: _getStatusColor(
+                      employee.status,
+                    ).withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_getStatusIcon(employee.status), color: _getStatusColor(employee.status), size: 14),
+                    Icon(
+                      _getStatusIcon(employee.status),
+                      color: _getStatusColor(employee.status),
+                      size: 14,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       _getStatusText(employee.status),
@@ -1108,7 +1237,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               Icons.trending_up,
               () => _showSendNudgeDialog(
                 employee: employee,
-                presetMessage: 'Hope you\'re doing well! How is your progress on your current goals?',
+                presetMessage:
+                    'Hope you\'re doing well! How is your progress on your current goals?',
               ),
             ),
             _buildQuickNudgeButton(
@@ -1116,7 +1246,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               Icons.support_agent,
               () => _showSendNudgeDialog(
                 employee: employee,
-                presetMessage: 'Is there anything I can help you with regarding your goals or work?',
+                presetMessage:
+                    'Is there anything I can help you with regarding your goals or work?',
               ),
             ),
             _buildQuickNudgeButton(
@@ -1124,7 +1255,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               Icons.celebration,
               () => _showSendNudgeDialog(
                 employee: employee,
-                presetMessage: 'Great work on your recent progress! Keep it up!',
+                presetMessage:
+                    'Great work on your recent progress! Keep it up!',
               ),
             ),
             _buildQuickNudgeButton(
@@ -1132,7 +1264,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               Icons.chat,
               () => _showSendNudgeDialog(
                 employee: employee,
-                presetMessage: 'Let\'s catch up about your goals and any challenges you might be facing.',
+                presetMessage:
+                    'Let\'s catch up about your goals and any challenges you might be facing.',
               ),
             ),
           ],
@@ -1141,7 +1274,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-  Widget _buildQuickNudgeButton(String text, IconData icon, VoidCallback onPressed) {
+  Widget _buildQuickNudgeButton(
+    String text,
+    IconData icon,
+    VoidCallback onPressed,
+  ) {
     return ElevatedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 16),
@@ -1165,8 +1302,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             child: Padding(
               padding: AppSpacing.screenPadding,
               child: const CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
               ),
             ),
           );
@@ -1178,8 +1316,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
               padding: AppSpacing.screenPadding,
               child: Text(
                 'Analytics unavailable: ${snapshot.error}',
-                style:
-                    AppTypography.bodyMedium.copyWith(color: Colors.redAccent),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: Colors.redAccent,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -1187,10 +1326,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         }
 
         final actions = snapshot.data ?? [];
-        return _buildAnalyticsContent(
-          employees,
-          actions,
-        );
+        return _buildAnalyticsContent(employees, actions);
       },
     );
   }
@@ -1219,21 +1355,19 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           action.actionType != ManagementAction.sendNudge;
     }).toList();
 
-    final nudgeAlerts = employees
-        .expand((e) => e.recentAlerts)
-        .where((alert) {
-          if (alert.type != AlertType.managerNudge) return false;
-          if (managerId == null || alert.fromUserId == null) return true;
-          return alert.fromUserId == managerId;
-        })
-        .toList();
+    final nudgeAlerts = employees.expand((e) => e.recentAlerts).where((alert) {
+      if (alert.type != AlertType.managerNudge) return false;
+      if (managerId == null || alert.fromUserId == null) return true;
+      return alert.fromUserId == managerId;
+    }).toList();
 
-    final openedNudges =
-        nudgeAlerts.where((alert) => alert.isRead && !alert.isDismissed).length;
-    final dismissedNudges =
-        nudgeAlerts.where((alert) => alert.isDismissed).length;
-    final pendingNudges =
-        nudgeAlerts.length - openedNudges - dismissedNudges;
+    final openedNudges = nudgeAlerts
+        .where((alert) => alert.isRead && !alert.isDismissed)
+        .length;
+    final dismissedNudges = nudgeAlerts
+        .where((alert) => alert.isDismissed)
+        .length;
+    final pendingNudges = nudgeAlerts.length - openedNudges - dismissedNudges;
 
     final responseRate = nudgeAlerts.isNotEmpty
         ? (openedNudges / nudgeAlerts.length) * 100
@@ -1244,20 +1378,22 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       final dayStart = DateTime(day.year, day.month, day.day);
       final dayEnd = dayStart.add(const Duration(days: 1));
       final count = weeklyNudges
-          .where((action) =>
-              action.createdAt.isAfter(dayStart) &&
-              action.createdAt.isBefore(dayEnd))
+          .where(
+            (action) =>
+                action.createdAt.isAfter(dayStart) &&
+                action.createdAt.isBefore(dayEnd),
+          )
           .length;
-      return _DailyNudgeBucket(
-        label: _weekdayLabel(day.weekday),
-        count: count,
-      );
+      return _DailyNudgeBucket(label: _weekdayLabel(day.weekday), count: count);
     });
 
     final followUpSummary = <ManagementAction, int>{};
     for (final action in followUpActions) {
-      followUpSummary.update(action.actionType, (value) => value + 1,
-          ifAbsent: () => 1);
+      followUpSummary.update(
+        action.actionType,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
     }
 
     final topFollowUps = followUpSummary.entries.toList()
@@ -1282,12 +1418,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                   children: [
                     Text(
                       'Nudge Analytics',
-                      style:
-                          AppTypography.heading3.copyWith(color: AppColors.textPrimary),
+                      style: AppTypography.heading3.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.activeColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
@@ -1408,8 +1547,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           value: pending.toString(),
           icon: Icons.pending_actions_outlined,
           color: AppColors.warningColor,
-          subtitle:
-              pending == 0 ? 'All nudges viewed' : 'Needs follow-up',
+          subtitle: pending == 0 ? 'All nudges viewed' : 'Needs follow-up',
         ),
       ],
     );
@@ -1443,7 +1581,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 child: Icon(icon, color: color, size: 20),
               ),
               const Spacer(),
-              Icon(Icons.trending_up, size: 16, color: color.withValues(alpha: 0.6)),
+              Icon(
+                Icons.trending_up,
+                size: 16,
+                color: color.withValues(alpha: 0.6),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1497,8 +1639,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         children: [
           Row(
             children: [
-              const Icon(Icons.insights_outlined,
-                  color: AppColors.activeColor, size: 20),
+              const Icon(
+                Icons.insights_outlined,
+                color: AppColors.activeColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Nudge Response Breakdown',
@@ -1564,9 +1709,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
             const SizedBox(width: 6),
             Text(
               '${(percentage * 100).toStringAsFixed(0)}%',
-              style: AppTypography.bodySmall.copyWith(
-                color: color,
-              ),
+              style: AppTypography.bodySmall.copyWith(color: color),
             ),
           ],
         ),
@@ -1601,8 +1744,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         children: [
           Row(
             children: [
-              const Icon(Icons.timeline_outlined,
-                  color: AppColors.infoColor, size: 20),
+              const Icon(
+                Icons.timeline_outlined,
+                color: AppColors.infoColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 '7-Day Nudge Trend',
@@ -1682,8 +1828,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         children: [
           Row(
             children: [
-              const Icon(Icons.follow_the_signs_outlined,
-                  color: AppColors.warningColor, size: 20),
+              const Icon(
+                Icons.follow_the_signs_outlined,
+                color: AppColors.warningColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Follow-up Actions (7d)',
@@ -1708,8 +1857,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 final actionLabel = _formatManagementAction(entry.key);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(10),
@@ -1773,8 +1924,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         children: [
           Row(
             children: [
-              const Icon(Icons.priority_high_outlined,
-                  color: AppColors.dangerColor, size: 20),
+              const Icon(
+                Icons.priority_high_outlined,
+                color: AppColors.dangerColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Employees Needing Attention',
@@ -1799,8 +1953,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                 final employee = item.employee;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(10),
@@ -1815,12 +1971,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                         children: [
                           CircleAvatar(
                             radius: 18,
-                            backgroundColor:
-                                AppColors.dangerColor.withValues(alpha: 0.15),
+                            backgroundColor: AppColors.dangerColor.withValues(
+                              alpha: 0.15,
+                            ),
                             child: Text(
                               employee.profile.displayName.isNotEmpty
                                   ? employee.profile.displayName[0]
-                                      .toUpperCase()
+                                        .toUpperCase()
                                   : '?',
                               style: AppTypography.bodyMedium.copyWith(
                                 color: AppColors.dangerColor,
@@ -1855,7 +2012,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.dangerColor.withValues(alpha: 0.15),
+                              color: AppColors.dangerColor.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -1871,8 +2030,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Icon(Icons.schedule,
-                              size: 14, color: AppColors.textSecondary),
+                          Icon(
+                            Icons.schedule,
+                            size: 14,
+                            color: AppColors.textSecondary,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             item.daysInactive > 0
@@ -1884,9 +2046,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
                           ),
                           const Spacer(),
                           TextButton(
-                            onPressed: () => _showSendNudgeDialog(
-                              employee: employee,
-                            ),
+                            onPressed: () =>
+                                _showSendNudgeDialog(employee: employee),
                             child: const Text('Send Nudge'),
                           ),
                         ],
@@ -1930,9 +2091,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
         EmployeeStatus.onTrack => 0,
       };
 
-      final score = urgentAlerts * 3 +
+      final score =
+          urgentAlerts * 3 +
           unreadNudges * 2 +
-          (inactivityDays >= 7 ? 2 : inactivityDays >= 3 ? 1 : 0) +
+          (inactivityDays >= 7
+              ? 2
+              : inactivityDays >= 3
+              ? 1
+              : 0) +
           statusPenalty;
 
       if (score == 0) continue;
@@ -2037,12 +2203,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
           const SizedBox(height: 16),
           Text(
             'No Team Alerts',
-            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Your team doesn\'t have any alerts right now.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -2060,20 +2230,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.people_outline,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.people_outline, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No Team Members',
-            style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'You don\'t have any team members to send nudges to.',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -2081,577 +2251,209 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> w
     );
   }
 
-// Helper methods
+  // Helper methods
 
- List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
-   if (_searchQuery.isEmpty) return employees;
-   
-   return employees.where((emp) => 
-     emp.profile.displayName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-     emp.profile.jobTitle.toLowerCase().contains(_searchQuery.toLowerCase())
-   ).toList();
- }
+  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
+    if (_searchQuery.isEmpty) return employees;
 
- Color _getAlertColor(AlertPriority priority) {
-   switch (priority) {
-     case AlertPriority.urgent: return AppColors.dangerColor;
-     case AlertPriority.high: return AppColors.warningColor;
-     case AlertPriority.medium: return AppColors.activeColor;
-     case AlertPriority.low: return AppColors.successColor;
-   }
- }
+    return employees
+        .where(
+          (emp) =>
+              emp.profile.displayName.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              ) ||
+              emp.profile.jobTitle.toLowerCase().contains(
+                _searchQuery.toLowerCase(),
+              ),
+        )
+        .toList();
+  }
 
- IconData _getAlertIcon(AlertType type) {
-   switch (type) {
-     case AlertType.managerNudge: return Icons.message;
-     case AlertType.goalOverdue: return Icons.warning;
-     case AlertType.goalDueSoon: return Icons.schedule;
-     case AlertType.goalCompleted: return Icons.check_circle;
-     default: return Icons.notifications;
-   }
- }
+  Color _getAlertColor(AlertPriority priority) {
+    switch (priority) {
+      case AlertPriority.urgent:
+        return AppColors.dangerColor;
+      case AlertPriority.high:
+        return AppColors.warningColor;
+      case AlertPriority.medium:
+        return AppColors.activeColor;
+      case AlertPriority.low:
+        return AppColors.successColor;
+    }
+  }
 
- Color _getStatusColor(EmployeeStatus status) {
-   switch (status) {
-     case EmployeeStatus.onTrack: return AppColors.successColor;
-     case EmployeeStatus.atRisk: return AppColors.warningColor;
-     case EmployeeStatus.overdue: return AppColors.dangerColor;
-     case EmployeeStatus.inactive: return AppColors.textSecondary;
-   }
- }
+  IconData _getAlertIcon(AlertType type) {
+    switch (type) {
+      case AlertType.managerNudge:
+        return Icons.message;
+      case AlertType.goalOverdue:
+        return Icons.warning;
+      case AlertType.goalDueSoon:
+        return Icons.schedule;
+      case AlertType.goalCompleted:
+        return Icons.check_circle;
+      default:
+        return Icons.notifications;
+    }
+  }
 
- IconData _getStatusIcon(EmployeeStatus status) {
-   switch (status) {
-     case EmployeeStatus.onTrack: return Icons.check_circle;
-     case EmployeeStatus.atRisk: return Icons.warning;
-     case EmployeeStatus.overdue: return Icons.error_outline;
-     case EmployeeStatus.inactive: return Icons.pause_circle_outline;
-   }
- }
+  Color _getStatusColor(EmployeeStatus status) {
+    switch (status) {
+      case EmployeeStatus.onTrack:
+        return AppColors.successColor;
+      case EmployeeStatus.atRisk:
+        return AppColors.warningColor;
+      case EmployeeStatus.overdue:
+        return AppColors.dangerColor;
+      case EmployeeStatus.inactive:
+        return AppColors.textSecondary;
+    }
+  }
 
- String _getStatusText(EmployeeStatus status) {
-   switch (status) {
-     case EmployeeStatus.onTrack: return 'On Track';
-     case EmployeeStatus.atRisk: return 'At Risk';
-     case EmployeeStatus.overdue: return 'Overdue';
-     case EmployeeStatus.inactive: return 'Inactive';
-   }
- }
+  IconData _getStatusIcon(EmployeeStatus status) {
+    switch (status) {
+      case EmployeeStatus.onTrack:
+        return Icons.check_circle;
+      case EmployeeStatus.atRisk:
+        return Icons.warning;
+      case EmployeeStatus.overdue:
+        return Icons.error_outline;
+      case EmployeeStatus.inactive:
+        return Icons.pause_circle_outline;
+    }
+  }
 
- String _getTimeAgo(DateTime dateTime) {
-   final now = DateTime.now();
-   final difference = now.difference(dateTime);
-   
-   if (difference.inDays > 0) return '${difference.inDays}d ago';
-   if (difference.inHours > 0) return '${difference.inHours}h ago';
-   if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
-   return 'Just now';
- }
+  String _getStatusText(EmployeeStatus status) {
+    switch (status) {
+      case EmployeeStatus.onTrack:
+        return 'On Track';
+      case EmployeeStatus.atRisk:
+        return 'At Risk';
+      case EmployeeStatus.overdue:
+        return 'Overdue';
+      case EmployeeStatus.inactive:
+        return 'Inactive';
+    }
+  }
 
- // Action methods
- void _handleAlertAction(Alert alert, EmployeeData employee) async {
-   try {
-     await AlertService.markAsRead(alert.id);
-     
-     if (alert.actionRoute != null && mounted) {
-       Navigator.pushNamed(context, alert.actionRoute!);
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text('Error: $e'),
-           backgroundColor: AppColors.dangerColor,
-         ),
-       );
-     }
-   }
- }
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
 
- void _markAlertAsRead(String alertId) async {
-   try {
-     await AlertService.markAsRead(alertId);
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text('Error: $e'),
-           backgroundColor: AppColors.dangerColor,
-         ),
-       );
-     }
-   }
- }
+    if (difference.inDays > 0) return '${difference.inDays}d ago';
+    if (difference.inHours > 0) return '${difference.inHours}h ago';
+    if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
+    return 'Just now';
+  }
 
- void _markAllAlertsAsRead(List<Alert> alerts) async {
-   try {
-     for (final alert in alerts.where((a) => !a.isRead)) {
-       await AlertService.markAsRead(alert.id);
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text('Error: $e'),
-           backgroundColor: AppColors.dangerColor,
-         ),
-       );
-     }
-   }
- }
-
- void _showSendNudgeDialog({EmployeeData? employee, String? presetMessage}) {
-   showDialog(
-     context: context,
-     builder: (context) => _NudgeDialog(
-       employee: employee,
-       presetMessage: presetMessage,
-       onSendNudge: (employeeId, goalId, message) => _sendNudgeToEmployee(employeeId, goalId, message),
-     ),
-   );
- }
-
- void _showBulkNudgeDialog(List<EmployeeData> employees) {
-   showDialog(
-     context: context,
-     builder: (context) => _BulkNudgeDialog(
-       employees: employees,
-       onSendBulkNudge: (message) => _sendBulkNudge(employees, message),
-     ),
-   );
- }
-
- void _sendNudgeToEmployee(String employeeId, String goalId, String message) async {
-   try {
-     await ManagerRealtimeService.sendNudgeToEmployee(
-       employeeId: employeeId,
-       goalId: goalId,
-       message: message,
-     );
-
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: const Text('Nudge sent successfully!'),
-           backgroundColor: AppColors.successColor,
-         ),
-       );
-     }
-   } catch (e) {
-     if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Text('Error sending nudge: $e'),
-           backgroundColor: AppColors.dangerColor,
-         ),
-       );
-     }
-   }
- }
-
- void _sendBulkNudge(List<EmployeeData> employees, String message) async {
-   int successCount = 0;
-   int errorCount = 0;
-
-   for (final employee in employees) {
-     try {
-       // Use first active goal or create a general nudge
-       final goalId = employee.goals.isNotEmpty ? employee.goals.first.id : 'general';
-       await ManagerRealtimeService.sendNudgeToEmployee(
-         employeeId: employee.profile.uid,
-         goalId: goalId,
-         message: message,
-       );
-       successCount++;
-     } catch (e) {
-       errorCount++;
-     }
-   }
-
-   if (mounted) {
-     ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(
-         content: Text('Bulk nudge sent: $successCount successes, $errorCount errors'),
-         backgroundColor: successCount > errorCount ? AppColors.successColor : AppColors.warningColor,
-       ),
-     );
-   }
- }
-
-  Future<void> _loadTeamInsights(List<EmployeeData> employees, List<Alert> alerts) async {
-    if (employees.isEmpty) return;
-
-    setState(() => _isLoadingInsights = true);
-
+  // Action methods
+  void _handleAlertAction(Alert alert, EmployeeData employee) async {
     try {
-      // Collect team data
-      final teamData = <Map<String, dynamic>>[];
-      final now = DateTime.now();
+      await AlertService.markAsRead(alert.id);
 
-      for (final employee in employees) {
-        final goals = await DatabaseService.getUserGoals(employee.profile.uid);
-        final employeeAlerts = alerts.where((a) => a.userId == employee.profile.uid).toList();
-        
-        // Calculate risk indicators
-        final overdueGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.isBefore(now)
-        ).length;
-        
-        final dueSoonGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.difference(now).inDays <= 7 &&
-          g.targetDate.difference(now).inDays > 0
-        ).length;
-
-        final avgProgress = goals.isEmpty ? 0.0 : 
-          goals.map((g) => g.progress).reduce((a, b) => a + b) / goals.length;
-
-        final inactivityDays = now.difference(employee.lastActivity).inDays;
-
-        teamData.add({
-          'name': employee.profile.displayName,
-          'uid': employee.profile.uid,
-          'department': employee.profile.department,
-          'goals': goals.length,
-          'overdueGoals': overdueGoals,
-          'dueSoonGoals': dueSoonGoals,
-          'avgProgress': avgProgress,
-          'alerts': employeeAlerts.length,
-          'inactivityDays': inactivityDays,
-          'level': employee.profile.level,
-          'badges': employee.profile.badges.length,
-          'goalsData': goals.map((g) => {
-            'title': g.title,
-            'progress': g.progress,
-            'status': g.status.name,
-            'priority': g.priority.name,
-            'daysUntilDeadline': g.targetDate.difference(now).inDays,
-          }).toList(),
-        });
-      }
-
-      // Generate AI analysis
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in team management and performance analysis. '
-          'Analyze team data to identify:\n\n'
-          '1. AT-RISK TEAM MEMBERS:\n'
-          '   - Employees likely to miss deadlines based on goal progress, overdue goals, and activity patterns\n'
-          '   - Early warning signs before problems escalate\n'
-          '   - Risk level (high, medium, low) for each at-risk member\n'
-          '   - Specific reasons why they\'re at risk\n\n'
-          '2. COLLABORATION OPPORTUNITIES:\n'
-          '   - Team members who could help each other based on complementary strengths\n'
-          '   - Employees with similar goals who could collaborate\n'
-          '   - Pairing suggestions (who can help whom and why)\n\n'
-          'Format your response as JSON with this structure:\n'
-          '{"atRiskMembers": [{"name": "...", "riskLevel": "high|medium|low", "reasons": ["...", "..."], "recommendations": "..."}], '
-          '"collaborationOpportunities": [{"member1": "...", "member2": "...", "reason": "...", "suggestion": "..."}]}',
-        ),
-      );
-
-      final teamDataText = teamData.map((e) {
-        return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
-            '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
-            '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
-      }).join('\n');
-
-      final prompt = [
-        Content.text(
-          'Analyze this team data:\n\n$teamDataText\n\n'
-          'Identify at-risk team members and collaboration opportunities. '
-          'Focus on employees with overdue goals, low progress, high inactivity, or multiple alerts. '
-          'For collaboration, identify complementary strengths and similar goal types.',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
-
-      // Parse JSON response
-      String jsonText = responseText.trim();
-      if (jsonText.contains('```json')) {
-        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-      } else if (jsonText.contains('```')) {
-        jsonText = jsonText.split('```')[1].split('```')[0].trim();
-      }
-
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(jsonText);
-      if (jsonMatch != null) {
-        final jsonString = jsonMatch.group(0) ?? '{}';
-        try {
-          final insights = jsonDecode(jsonString) as Map<String, dynamic>;
-          if (mounted) {
-            setState(() {
-              _teamInsights = insights;
-              _isLoadingInsights = false;
-            });
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() => _isLoadingInsights = false);
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() => _isLoadingInsights = false);
-        }
+      if (alert.actionRoute != null && mounted) {
+        Navigator.pushNamed(context, alert.actionRoute!);
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingInsights = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading insights: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error: $e');
       }
     }
   }
 
-  Widget _buildTeamInsightsWidget() {
-    if (_teamInsights == null) return const SizedBox.shrink();
+  void _markAlertAsRead(String alertId) async {
+    try {
+      await AlertService.markAsRead(alertId);
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error: $e');
+      }
+    }
+  }
 
-    final atRiskMembers = _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
-    final collaborations = _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
+  void _markAllAlertsAsRead(List<Alert> alerts) async {
+    try {
+      for (final alert in alerts.where((a) => !a.isRead)) {
+        await AlertService.markAsRead(alert.id);
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error: $e');
+      }
+    }
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.activeColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.insights, color: AppColors.activeColor, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'AI Team Insights',
-                style: AppTypography.heading4.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                color: AppColors.textSecondary,
-                onPressed: () {
-                  setState(() => _teamInsights = null);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (atRiskMembers.isNotEmpty) ...[
-            Text(
-              'At-Risk Team Members',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...atRiskMembers.take(5).map((member) {
-              final riskLevel = member['riskLevel']?.toString().toLowerCase() ?? 'medium';
-              Color riskColor;
-              if (riskLevel == 'high') {
-                riskColor = AppColors.dangerColor;
-              } else if (riskLevel == 'medium') {
-                riskColor = AppColors.warningColor;
-              } else {
-                riskColor = AppColors.infoColor;
-              }
-
-              final reasons = member['reasons'] as List<dynamic>? ?? [];
-              final recommendations = member['recommendations']?.toString() ?? '';
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: riskColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: riskColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: riskColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              riskLevel.toUpperCase(),
-                              style: AppTypography.bodySmall.copyWith(
-                                color: riskColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              member['name']?.toString() ?? 'Unknown',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (reasons.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        ...reasons.map((reason) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.warning_amber_rounded, 
-                                color: riskColor, size: 14),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  reason.toString(),
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
-                      ],
-                      if (recommendations.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.activeColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.lightbulb_outline, 
-                                color: AppColors.activeColor, size: 16),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  recommendations,
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.activeColor,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 16),
-          ],
-          if (collaborations.isNotEmpty) ...[
-            Text(
-              'Collaboration Opportunities',
-              style: AppTypography.heading4.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...collaborations.take(5).map((collab) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.successColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.successColor.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.people_outline, 
-                            color: AppColors.successColor, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${collab['member1']} ↔ ${collab['member2']}',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        collab['reason']?.toString() ?? '',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.successColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.handshake, 
-                              color: AppColors.successColor, size: 16),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                collab['suggestion']?.toString() ?? '',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.successColor,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ],
-        ],
+  void _showSendNudgeDialog({EmployeeData? employee, String? presetMessage}) {
+    showDialog(
+      context: context,
+      builder: (context) => _NudgeDialog(
+        employee: employee,
+        presetMessage: presetMessage,
+        onSendNudge: (employeeId, goalId, message) =>
+            _sendNudgeToEmployee(employeeId, goalId, message),
       ),
     );
+  }
+
+  void _showBulkNudgeDialog(List<EmployeeData> employees) {
+    showDialog(
+      context: context,
+      builder: (context) => _BulkNudgeDialog(
+        employees: employees,
+        onSendBulkNudge: (message) => _sendBulkNudge(employees, message),
+      ),
+    );
+  }
+
+  void _sendNudgeToEmployee(
+    String employeeId,
+    String goalId,
+    String message,
+  ) async {
+    try {
+      await ManagerRealtimeService.sendNudgeToEmployee(
+        employeeId: employeeId,
+        goalId: goalId,
+        message: message,
+      );
+
+      if (mounted) {
+        await _showCenterNotice(context, 'Nudge sent successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error sending nudge: $e');
+      }
+    }
+  }
+
+  void _sendBulkNudge(List<EmployeeData> employees, String message) async {
+    int successCount = 0;
+    int errorCount = 0;
+
+    for (final employee in employees) {
+      try {
+        // Use first active goal or create a general nudge
+        final goalId = employee.goals.isNotEmpty
+            ? employee.goals.first.id
+            : 'general';
+        await ManagerRealtimeService.sendNudgeToEmployee(
+          employeeId: employee.profile.uid,
+          goalId: goalId,
+          message: message,
+        );
+        successCount++;
+      } catch (e) {
+        errorCount++;
+      }
+    }
+
+    if (mounted) {
+      await _showCenterNotice(
+        context,
+        'Bulk nudge sent: $successCount successes, $errorCount errors',
+      );
+    }
   }
 }
 
@@ -2678,7 +2480,9 @@ class _NudgeDialogState extends State<_NudgeDialog> {
   @override
   void initState() {
     super.initState();
-    _messageController = TextEditingController(text: widget.presetMessage ?? '');
+    _messageController = TextEditingController(
+      text: widget.presetMessage ?? '',
+    );
     if (widget.employee?.goals.isNotEmpty == true) {
       _selectedGoal = widget.employee!.goals.first;
     }
@@ -2694,16 +2498,17 @@ class _NudgeDialogState extends State<_NudgeDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        widget.employee != null 
+        widget.employee != null
             ? 'Send Nudge to ${widget.employee!.profile.displayName}'
-            : 'Send Nudge'
+            : 'Send Nudge',
       ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.employee != null && widget.employee!.goals.isNotEmpty) ...[
+            if (widget.employee != null &&
+                widget.employee!.goals.isNotEmpty) ...[
               Text(
                 'Related Goal:',
                 style: AppTypography.bodyMedium.copyWith(
@@ -2713,7 +2518,10 @@ class _NudgeDialogState extends State<_NudgeDialog> {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.elevatedBackground,
                   borderRadius: BorderRadius.circular(8),
@@ -2724,7 +2532,9 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                   underline: const SizedBox(),
                   isExpanded: true,
                   hint: const Text('Select Goal'),
-                  style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                   onChanged: (goal) => setState(() => _selectedGoal = goal),
                   items: widget.employee!.goals.map((goal) {
                     return DropdownMenuItem<Goal>(
@@ -2785,17 +2595,45 @@ class _NudgeDialogState extends State<_NudgeDialog> {
 
   void _sendNudge() {
     if (_messageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a message'),
-          backgroundColor: AppColors.warningColor,
-        ),
+      showDialog<void>(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            content: Text(
+              'Please enter a message',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(
+                  'OK',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.activeColor,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       );
       return;
     }
 
+    if (widget.employee == null) {
+      return;
+    }
+
     final goalId = _selectedGoal?.id ?? 'general';
-    widget.onSendNudge(widget.employee!.profile.uid, goalId, _messageController.text.trim());
+    widget.onSendNudge(
+      widget.employee!.profile.uid,
+      goalId,
+      _messageController.text.trim(),
+    );
     Navigator.pop(context);
   }
 }
@@ -2864,9 +2702,11 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
                       children: [
                         CircleAvatar(
                           radius: 12,
-                          backgroundColor: AppColors.activeColor.withValues(alpha: 0.1),
+                          backgroundColor: AppColors.activeColor.withValues(
+                            alpha: 0.1,
+                          ),
                           child: Text(
-                            employee.profile.displayName.isNotEmpty 
+                            employee.profile.displayName.isNotEmpty
                                 ? employee.profile.displayName[0].toUpperCase()
                                 : '?',
                             style: AppTypography.bodySmall.copyWith(
@@ -2940,11 +2780,31 @@ class _BulkNudgeDialogState extends State<_BulkNudgeDialog> {
 
   void _sendBulkNudge() {
     if (_messageController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a message'),
-          backgroundColor: AppColors.warningColor,
-        ),
+      showDialog<void>(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            content: Text(
+              'Please enter a message',
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: Text(
+                  'OK',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.activeColor,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       );
       return;
     }
@@ -2972,13 +2832,14 @@ class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => tabBar.preferredSize.height + margin.vertical;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Padding(
       padding: margin,
-      child: DecoratedBox(
-        decoration: decoration,
-        child: tabBar,
-      ),
+      child: DecoratedBox(decoration: decoration, child: tabBar),
     );
   }
 
