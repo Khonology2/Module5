@@ -401,7 +401,7 @@ class _PersonalDevelopmentHubScreenState
           Positioned.fill(
             child: ColorFiltered(
               colorFilter: ColorFilter.mode(
-                Colors.black.withOpacity(0.4),
+                Colors.black.withValues(alpha: 0.4),
                 BlendMode.darken,
               ),
               child: Image.asset(
@@ -476,7 +476,7 @@ class _PersonalDevelopmentHubScreenState
                         shape: const StadiumBorder(),
                         disabledBackgroundColor: Color(
                           0xFFC10D00,
-                        ).withOpacity(0.6),
+                        ).withValues(alpha: 0.6),
                       ),
                       child: _isProcessingButton
                           ? SizedBox(
