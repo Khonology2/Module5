@@ -92,7 +92,9 @@ class TeamChatsScreen extends StatefulWidget {
 
 class _TeamChatsScreenState extends State<TeamChatsScreen> {
   final TextEditingController _textController = TextEditingController();
-  final ScrollController _scrollController = ScrollController(initialScrollOffset: 0.0);
+  final ScrollController _scrollController = ScrollController(
+    initialScrollOffset: 0.0,
+  );
   String? _displayName;
   final Set<String> _processedIds = {};
   final List<ChatMessage> _visibleMessages = [];
@@ -101,6 +103,34 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   final Map<String, GlobalKey> _itemKeys = {};
   ChatMessage? _replyingTo;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0F1629),
+          content: Text(
+            message,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  color: chatPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -108,7 +138,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     // Nudge list to latest after first frame and shortly after to account for async content sizing
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
-      Future.delayed(const Duration(milliseconds: 120), () => _scrollToBottom());
+      Future.delayed(
+        const Duration(milliseconds: 120),
+        () => _scrollToBottom(),
+      );
     });
   }
 
@@ -144,9 +177,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     if (text.isEmpty) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sign in required to send messages.')),
-      );
+      _showCenterNotice(context, 'Sign in required to send messages.');
       return;
     }
     () async {
@@ -186,9 +217,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
         });
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+        await _showCenterNotice(context, 'Failed to send: $e');
       }
     }();
   }
@@ -555,9 +584,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to react: $e')));
+      await _showCenterNotice(context, 'Failed to react: $e');
     }
   }
 
@@ -596,9 +623,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           .update({'text': newText, 'editedAt': FieldValue.serverTimestamp()});
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to edit: $e')));
+      await _showCenterNotice(context, 'Failed to edit: $e');
     }
   }
 
@@ -636,7 +661,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
 
   void _sortVisibleDesc() {}
 
-  bool _reactionsEqual(Map<String, List<String>> a, Map<String, List<String>> b) {
+  bool _reactionsEqual(
+    Map<String, List<String>> a,
+    Map<String, List<String>> b,
+  ) {
     if (identical(a, b)) return true;
     if (a.length != b.length) return false;
     for (final k in a.keys) {
@@ -698,9 +726,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
             });
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        await _showCenterNotice(context, 'Failed to delete: $e');
       }
     }
   }
@@ -723,296 +749,383 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
               ),
             ),
             child: SafeArea(
-          child: Column(
-            children: [
-              _buildTranslucentContainer(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Builder(builder: (context) {
-                        final user = FirebaseAuth.instance.currentUser;
-                        final name = _displayName ?? user?.displayName ?? user?.email ?? '';
-                        return Row(
-                          children: [
-                            const Icon(Icons.person_outline, color: Colors.white),
-                            const SizedBox(width: 8),
-                            Tooltip(
-                              message: name.isEmpty ? 'Not signed in' : name,
-                              child: Text(
-                                name.isEmpty ? 'Guest' : name,
-                                style: const TextStyle(
-                                  color: chatPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            
-                          ],
-                        );
-                      }),
-                    ],
+              child: Column(
+                children: [
+                  _buildTranslucentContainer(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          Builder(
+                            builder: (context) {
+                              final user = FirebaseAuth.instance.currentUser;
+                              final name =
+                                  _displayName ??
+                                  user?.displayName ??
+                                  user?.email ??
+                                  '';
+                              return Row(
+                                children: [
+                                  const Icon(
+                                    Icons.person_outline,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Tooltip(
+                                    message: name.isEmpty
+                                        ? 'Not signed in'
+                                        : name,
+                                    child: Text(
+                                      name.isEmpty ? 'Guest' : name,
+                                      style: const TextStyle(
+                                        color: chatPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Expanded(
-                child: StreamBuilder<List<ChatMessage>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('team.chat')
-                      .orderBy('clientAt', descending: true)
-                      .snapshots()
-                      .map((snapshot) => snapshot.docs.map((doc) {
-                        final data = doc.data();
-                        final ts = data['timestamp'];
-                        final ca = data['clientAt'];
-                        DateTime dt;
-                        if (ts is Timestamp) {
-                          dt = ts.toDate();
-                        } else if (ca is Timestamp) {
-                          dt = ca.toDate();
-                        } else {
-                          dt = DateTime.now();
-                        }
-                        final dynamic rawText = data['text'];
-                        final String safeText = rawText is String ? rawText : '';
-                        final dynamic rawSenderId = data['senderId'];
-                        final String safeSenderId = rawSenderId is String ? rawSenderId : '';
-                        final dynamic rawSenderName = data['senderName'];
-                        final String safeSenderName = rawSenderName is String ? rawSenderName : '';
-                        final dynamic rawDeleted = data['isDeleted'];
-                        final bool safeDeleted = rawDeleted is bool ? rawDeleted : false;
-                        final dynamic rawEdited = data['editedAt'];
-                        final DateTime? safeEdited = rawEdited is Timestamp ? rawEdited.toDate() : null;
-                        final String? replyTo = (data['replyTo'] is String) ? data['replyTo'] as String : null;
-                        final String? replyToText = (data['replyToText'] is String) ? data['replyToText'] as String : null;
-                        final String? replyToSender = (data['replyToSender'] is String) ? data['replyToSender'] as String : null;
-                        final Map<String, List<String>> safeReactions = {};
-                        if (data['reactions'] is Map) {
-                          final m = Map<String, dynamic>.from(data['reactions'] as Map);
-                          m.forEach((k, v) {
-                            if (v is List) {
-                              safeReactions[k] = v.whereType<String>().toList();
-                            }
-                          });
-                        }
-                        return ChatMessage(
-                          id: doc.id,
-                          senderId: safeSenderId,
-                          text: safeText,
-                          timestamp: dt,
-                          senderName: safeSenderName,
-                          isDeleted: safeDeleted,
-                          editedAt: safeEdited,
-                          replyTo: replyTo,
-                          replyToText: replyToText,
-                          replyToSender: replyToSender,
-                          reactions: safeReactions,
-                        );
-                      }).toList()),
-                  initialData: const <ChatMessage>[],
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                          child: CircularProgressIndicator(color: chatPrimary));
-                    }
-                    final incoming = snapshot.data ?? const <ChatMessage>[];
-                    if (!_initializedStream) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted || _initializedStream) return;
-                        setState(() {
-                          _visibleMessages.clear();
-                          for (final m in incoming) {
-                            _visibleMessages.add(m);
-                            _processedIds.add(m.id);
-                          }
-                          _initializedStream = true;
-                          _sortVisibleDesc();
-                        });
-                        _scrollToBottom();
-                      });
-                    } else {
-                      bool changed = false;
-                      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-                      for (final m in incoming) {
-                        if (_processedIds.contains(m.id)) {
-                          final idx = _visibleMessages.indexWhere((x) => x.id == m.id);
-                          if (idx != -1) {
-                            final current = _visibleMessages[idx];
-                            final bool canReplaceNow = (!current.isTyping) || m.isDeleted;
-                            if (canReplaceNow) {
-                              final bool different =
-                                  current.text != m.text ||
-                                  current.isDeleted != m.isDeleted ||
-                                  current.senderName != m.senderName ||
-                                  current.timestamp != m.timestamp ||
-                                  current.editedAt != m.editedAt ||
-                                  current.replyTo != m.replyTo ||
-                                  current.replyToText != m.replyToText ||
-                                  current.replyToSender != m.replyToSender ||
-                                  !_reactionsEqual(current.reactions, m.reactions);
-                              if (different) {
-                                _visibleMessages[idx] = m;
-                                changed = true;
+                  Expanded(
+                    child: StreamBuilder<List<ChatMessage>>(
+                      stream: FirebaseFirestore.instance
+                          .collection('team.chat')
+                          .orderBy('clientAt', descending: true)
+                          .snapshots()
+                          .map(
+                            (snapshot) => snapshot.docs.map((doc) {
+                              final data = doc.data();
+                              final ts = data['timestamp'];
+                              final ca = data['clientAt'];
+                              DateTime dt;
+                              if (ts is Timestamp) {
+                                dt = ts.toDate();
+                              } else if (ca is Timestamp) {
+                                dt = ca.toDate();
+                              } else {
+                                dt = DateTime.now();
                               }
+                              final dynamic rawText = data['text'];
+                              final String safeText = rawText is String
+                                  ? rawText
+                                  : '';
+                              final dynamic rawSenderId = data['senderId'];
+                              final String safeSenderId = rawSenderId is String
+                                  ? rawSenderId
+                                  : '';
+                              final dynamic rawSenderName = data['senderName'];
+                              final String safeSenderName =
+                                  rawSenderName is String ? rawSenderName : '';
+                              final dynamic rawDeleted = data['isDeleted'];
+                              final bool safeDeleted = rawDeleted is bool
+                                  ? rawDeleted
+                                  : false;
+                              final dynamic rawEdited = data['editedAt'];
+                              final DateTime? safeEdited =
+                                  rawEdited is Timestamp
+                                  ? rawEdited.toDate()
+                                  : null;
+                              final String? replyTo =
+                                  (data['replyTo'] is String)
+                                  ? data['replyTo'] as String
+                                  : null;
+                              final String? replyToText =
+                                  (data['replyToText'] is String)
+                                  ? data['replyToText'] as String
+                                  : null;
+                              final String? replyToSender =
+                                  (data['replyToSender'] is String)
+                                  ? data['replyToSender'] as String
+                                  : null;
+                              final Map<String, List<String>> safeReactions =
+                                  {};
+                              if (data['reactions'] is Map) {
+                                final m = Map<String, dynamic>.from(
+                                  data['reactions'] as Map,
+                                );
+                                m.forEach((k, v) {
+                                  if (v is List) {
+                                    safeReactions[k] = v
+                                        .whereType<String>()
+                                        .toList();
+                                  }
+                                });
+                              }
+                              return ChatMessage(
+                                id: doc.id,
+                                senderId: safeSenderId,
+                                text: safeText,
+                                timestamp: dt,
+                                senderName: safeSenderName,
+                                isDeleted: safeDeleted,
+                                editedAt: safeEdited,
+                                replyTo: replyTo,
+                                replyToText: replyToText,
+                                replyToSender: replyToSender,
+                                reactions: safeReactions,
+                              );
+                            }).toList(),
+                          ),
+                      initialData: const <ChatMessage>[],
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: chatPrimary,
+                            ),
+                          );
+                        }
+                        final incoming = snapshot.data ?? const <ChatMessage>[];
+                        if (!_initializedStream) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted || _initializedStream) return;
+                            setState(() {
+                              _visibleMessages.clear();
+                              for (final m in incoming) {
+                                _visibleMessages.add(m);
+                                _processedIds.add(m.id);
+                              }
+                              _initializedStream = true;
+                              _sortVisibleDesc();
+                            });
+                            _scrollToBottom();
+                          });
+                        } else {
+                          bool changed = false;
+                          final currentUserId =
+                              FirebaseAuth.instance.currentUser?.uid;
+                          for (final m in incoming) {
+                            if (_processedIds.contains(m.id)) {
+                              final idx = _visibleMessages.indexWhere(
+                                (x) => x.id == m.id,
+                              );
+                              if (idx != -1) {
+                                final current = _visibleMessages[idx];
+                                final bool canReplaceNow =
+                                    (!current.isTyping) || m.isDeleted;
+                                if (canReplaceNow) {
+                                  final bool different =
+                                      current.text != m.text ||
+                                      current.isDeleted != m.isDeleted ||
+                                      current.senderName != m.senderName ||
+                                      current.timestamp != m.timestamp ||
+                                      current.editedAt != m.editedAt ||
+                                      current.replyTo != m.replyTo ||
+                                      current.replyToText != m.replyToText ||
+                                      current.replyToSender !=
+                                          m.replyToSender ||
+                                      !_reactionsEqual(
+                                        current.reactions,
+                                        m.reactions,
+                                      );
+                                  if (different) {
+                                    _visibleMessages[idx] = m;
+                                    changed = true;
+                                  }
+                                }
+                              }
+                              continue;
+                            }
+                            _processedIds.add(m.id);
+                            if (currentUserId != null &&
+                                m.senderId == currentUserId) {
+                              _visibleMessages.add(m);
+                              changed = true;
+                            } else {
+                              final placeholder = ChatMessage(
+                                id: m.id,
+                                senderId: m.senderId,
+                                text: '',
+                                timestamp: m.timestamp,
+                                senderName: m.senderName,
+                                isTyping: true,
+                                isDeleted: m.isDeleted,
+                              );
+                              _visibleMessages.add(placeholder);
+                              _typingTimers[m.id]?.cancel();
+                              _typingTimers[m.id] = Timer(
+                                const Duration(seconds: 5),
+                                () {
+                                  if (!mounted) return;
+                                  final idx = _visibleMessages.indexWhere(
+                                    (x) => x.id == m.id,
+                                  );
+                                  if (idx != -1) {
+                                    setState(() {
+                                      _visibleMessages[idx] = m;
+                                    });
+                                  }
+                                },
+                              );
+                              changed = true;
                             }
                           }
-                          continue;
+                          if (changed) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              setState(() {});
+                              _scrollToBottom(animate: true);
+                            });
+                          }
                         }
-                        _processedIds.add(m.id);
-                        if (currentUserId != null && m.senderId == currentUserId) {
-                          _visibleMessages.add(m);
-                          changed = true;
-                        } else {
-                          final placeholder = ChatMessage(
-                            id: m.id,
-                            senderId: m.senderId,
-                            text: '',
-                            timestamp: m.timestamp,
-                            senderName: m.senderName,
-                            isTyping: true,
-                            isDeleted: m.isDeleted,
+                        if (_visibleMessages.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'Start the conversation! No messages yet.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                           );
-                          _visibleMessages.add(placeholder);
-                          _typingTimers[m.id]?.cancel();
-                          _typingTimers[m.id] = Timer(const Duration(seconds: 5), () {
-                            if (!mounted) return;
-                            final idx = _visibleMessages.indexWhere((x) => x.id == m.id);
-                            if (idx != -1) {
-                              setState(() {
-                                _visibleMessages[idx] = m;
-                              });
-                            }
-                          });
-                          changed = true;
                         }
-                      }
-                      if (changed) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) return;
-                          setState(() {});
-                          _scrollToBottom(animate: true);
-                        });
-                      }
-                    }
-                    if (_visibleMessages.isEmpty) {
-                      return const Center(
-                          child: Text('Start the conversation! No messages yet.',
-                              style: TextStyle(color: Colors.grey)));
-                    }
-                    return ListView.builder(
-                      reverse: true,
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _visibleMessages.length,
-                      itemBuilder: (context, index) {
-                        final m = _visibleMessages[index];
-                        return KeyedSubtree(
-                          key: ValueKey(m.id),
-                          child: _buildMessageBubble(m),
+                        return ListView.builder(
+                          reverse: true,
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _visibleMessages.length,
+                          itemBuilder: (context, index) {
+                            final m = _visibleMessages[index];
+                            return KeyedSubtree(
+                              key: ValueKey(m.id),
+                              child: _buildMessageBubble(m),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
-              _buildTranslucentContainer(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (_replyingTo != null)
-                        Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.only(right: 8, bottom: 8),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha:0.35),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.white24, width: 0.5),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _replyingTo!.senderName ?? _replyingTo!.senderId,
-                                        style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        _replyingTo!.text,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 12, color: Colors.white60, fontStyle: FontStyle.italic),
-                                      ),
-                                    ],
+                    ),
+                  ),
+                  _buildTranslucentContainer(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (_replyingTo != null)
+                            Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.only(
+                                  right: 8,
+                                  bottom: 8,
+                                ),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.white24,
+                                    width: 0.5,
                                   ),
                                 ),
-                                IconButton(
-                                  onPressed: () => setState(() => _replyingTo = null),
-                                  icon: const Icon(Icons.close, size: 16, color: Colors.white70),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                )
-                              ],
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _replyingTo!.senderName ??
+                                                _replyingTo!.senderId,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _replyingTo!.text,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white60,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () =>
+                                          setState(() => _replyingTo = null),
+                                      icon: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.white70,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 8.0),
-                          child: TextField(
-                            controller: _textController,
-                            minLines: 1,
-                            maxLines: 5,
-                            keyboardType: TextInputType.multiline,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: 'Type your message...',
-                              hintStyle: const TextStyle(color: Colors.grey),
-                              filled: true,
-                              fillColor: Colors.black.withValues(alpha:0.5),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 10, horizontal: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(24),
-                                borderSide: BorderSide.none,
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: TextField(
+                                controller: _textController,
+                                minLines: 1,
+                                maxLines: 5,
+                                keyboardType: TextInputType.multiline,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  hintText: 'Type your message...',
+                                  hintStyle: const TextStyle(
+                                    color: Colors.grey,
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.black.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                    horizontal: 16,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
-                        child: IconButton(
-                          onPressed: _handleSend,
-                          icon: Image.asset(
-                            'assets/Send_Paper_Plane/send_plane.png',
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.contain,
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: IconButton(
+                              onPressed: _handleSend,
+                              icon: Image.asset(
+                                'assets/Send_Paper_Plane/send_plane.png',
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.contain,
+                              ),
+                              splashColor: Colors.transparent,
+                              highlightColor: Colors.transparent,
+                              hoverColor: Colors.transparent,
+                              padding: const EdgeInsets.all(8),
+                              constraints: const BoxConstraints(
+                                minWidth: 56,
+                                minHeight: 56,
+                              ),
+                            ),
                           ),
-                          splashColor: Colors.transparent,
-                          highlightColor: Colors.transparent,
-                          hoverColor: Colors.transparent,
-                          padding: const EdgeInsets.all(8),
-                          constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
         ],
       ),
     );

@@ -18,6 +18,34 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
   // State for selected employees
   final List<String> _selectedEmployeeIds = [];
   // Stream for current team goal participants
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -48,19 +76,19 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
           .collection('team_goals')
           .doc(widget.teamGoalId)
           .update({
-        'participants': _selectedEmployeeIds,
-        'participantCount': _selectedEmployeeIds.length,
-      });
+            'participants': _selectedEmployeeIds,
+            'participantCount': _selectedEmployeeIds.length,
+          });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Team participants updated successfully!')),
+      await _showCenterNotice(
+        context,
+        'Team participants updated successfully!',
       );
+      if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating team participants: $e')),
-      );
+      await _showCenterNotice(context, 'Error updating team participants: $e');
     }
   }
 
@@ -102,12 +130,19 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
                 return ListView.builder(
                   itemCount: employees.length,
                   itemBuilder: (context, index) {
-                    final employee = employees[index].data() as Map<String, dynamic>;
+                    final employee =
+                        employees[index].data() as Map<String, dynamic>;
                     final employeeId = employees[index].id;
-                    final employeeName = employee['displayName'] ?? 'Unknown Employee';
+                    final employeeName =
+                        employee['displayName'] ?? 'Unknown Employee';
 
                     return CheckboxListTile(
-                      title: Text(employeeName, style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary)),
+                      title: Text(
+                        employeeName,
+                        style: AppTypography.bodyLarge.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       value: _selectedEmployeeIds.contains(employeeId),
                       onChanged: (bool? selected) {
                         setState(() {

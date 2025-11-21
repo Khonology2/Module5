@@ -59,3 +59,4 @@ app.*.map.json
 !.env.example
 !scripts/
 lib/config/env_config.dart.template
+.cursor\rules\pdhrules.mdc
