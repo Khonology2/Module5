@@ -1564,16 +1564,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   if (mounted) navigator.pop();
                 } catch (e) {
                   if (!mounted) return;
-                  if (!context.mounted) return;
                   await _showCenterNotice(
-                    context,
+                    this.context,
                     'Error verifying entry: $e',
                   );
                 }
               } else {
-                if (!context.mounted) return;
+                if (!mounted) return;
                 await _showCenterNotice(
-                  context,
+                  this.context,
                   'Please enter a valid score between 1.0 and 5.0',
                 );
               }
@@ -1638,16 +1637,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   navigator.pop();
                 } catch (e) {
                   if (!mounted) return;
-                  if (!context.mounted) return;
                   await _showCenterNotice(
-                    context,
+                    this.context,
                     'Error requesting changes: $e',
                   );
                 }
               } else {
-                if (!context.mounted) return;
+                if (!mounted) return;
                 await _showCenterNotice(
-                  context,
+                  this.context,
                   'Please provide a reason for the changes',
                 );
               }
@@ -2376,9 +2374,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 uploadedFiles.addAll(files);
                                 isUploading = false;
                               });
-                              if (!context.mounted) return;
+                              if (!mounted) return;
                               await _showCenterNotice(
-                                context,
+                                this.context,
                                 '${files.length} file(s) uploaded successfully',
                               );
                               // Close dialog automatically after successful upload
@@ -2386,12 +2384,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                               Navigator.of(context).pop();
                             } catch (e) {
                               setState(() => isUploading = false);
-                              if (context.mounted) {
-                                await _showCenterNotice(
-                                  context,
-                                  'Error uploading files: $e',
-                                );
-                              }
+                              if (!mounted) return;
+                              await _showCenterNotice(
+                                this.context,
+                                'Error uploading files: $e',
+                              );
                             }
                           },
                     icon: isUploading

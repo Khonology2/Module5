@@ -292,13 +292,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         );
       }
 
-      if (mounted) {
-        await _showCenterNotice(context, 'Season completed successfully.');
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season completed successfully.');
     } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(context, 'Cannot complete season: $e');
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Cannot complete season: $e');
     }
   }
 
@@ -314,29 +312,25 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     if (picked == null) return;
     try {
       await SeasonService.extendSeason(season.id, picked);
-      if (mounted) {
-        await _showCenterNotice(context, 'Season extended.');
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season extended.');
     } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(context, 'Failed to extend season: $e');
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to extend season: $e');
     }
   }
 
   Future<void> _onTogglePause(Season season, bool paused) async {
     try {
       await SeasonService.setSeasonPaused(season.id, paused);
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          paused ? 'Season paused.' : 'Season resumed.',
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(
+        context,
+        paused ? 'Season paused.' : 'Season resumed.',
+      );
     } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(context, 'Failed to update pause: $e');
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to update pause: $e');
     }
   }
 
@@ -364,12 +358,12 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     try {
       await SeasonService.deleteSeasonAndNotify(season.id);
       if (!mounted) return;
+      if (!mounted) return;
       await _showCenterNotice(
         context,
         'Season deleted and participants notified',
       );
-      if (!context.mounted) return;
-      // ignore: use_build_context_synchronously
+      if (!mounted) return;
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;

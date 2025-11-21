@@ -72,7 +72,7 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: currentRouteName,
-      topRightAction: _ProfileButton(),
+      topRightAction: currentRouteName == '/my_profile' ? null : _ProfileButton(),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys:
           tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,

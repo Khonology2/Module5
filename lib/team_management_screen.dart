@@ -59,6 +59,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
         .doc(widget.teamGoalId)
         .get();
 
+    if (!mounted) return;
+
     if (teamGoalDoc.exists) {
       final data = teamGoalDoc.data();
       final List<dynamic> participants = data?['participants'] ?? [];
@@ -79,6 +81,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
             'participants': _selectedEmployeeIds,
             'participantCount': _selectedEmployeeIds.length,
           });
+      if (!mounted) return;
       if (!mounted) return;
       await _showCenterNotice(
         context,

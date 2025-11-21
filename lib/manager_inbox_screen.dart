@@ -669,9 +669,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     if (!mounted) return;
                                     setState(() => _bulkMarking = false);
                                     if (!mounted) return;
-                                    if (!context.mounted) return;
                                     await _showCenterNotice(
-                                      context,
+                                      this.context,
                                       'All alerts marked as read',
                                     );
                                   },

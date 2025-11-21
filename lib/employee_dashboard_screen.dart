@@ -38,6 +38,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String? error;
   int currentStreak = 0;
   bool hasActivityToday = false;
+  
+  // Hover states for the six KPI cards
+  bool _isHoveringActiveGoals = false;
+  bool _isHoveringCompleted = false;
+  bool _isHoveringPoints = false;
+  bool _isHoveringCurrentStreak = false;
+  bool _isHoveringTodaysActivity = false;
+  bool _isHoveringBadges = false;
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -1049,50 +1057,77 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: AppComponents.kpiCard(
-                label: 'Active Goals',
-                value: activeGoals.toString(),
-                iconWidget: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Image.asset(
-                    'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png', // Corrected path to use forward slashes
-                    fit: BoxFit.contain,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringActiveGoals = true),
+                onExit: (_) => setState(() => _isHoveringActiveGoals = false),
+                child: AnimatedScale(
+                  scale: _isHoveringActiveGoals ? 1.05 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: AppComponents.kpiCard(
+                    label: 'Active Goals',
+                    value: activeGoals.toString(),
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Image.asset(
+                        'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    iconColor: AppColors.activeColor,
                   ),
-                ), // Replaced icon with iconWidget
-                iconColor: AppColors.activeColor,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: AppComponents.kpiCard(
-                label: 'Completed',
-                value: completedGoals.toString(),
-                iconWidget: SizedBox(
-                  width: 37,
-                  height: 37,
-                  child: Image.asset(
-                    'Approved_Tick/Approved_White_Badge_Red.png',
-                    fit: BoxFit.contain,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringCompleted = true),
+                onExit: (_) => setState(() => _isHoveringCompleted = false),
+                child: AnimatedScale(
+                  scale: _isHoveringCompleted ? 1.05 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: AppComponents.kpiCard(
+                    label: 'Completed',
+                    value: completedGoals.toString(),
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Image.asset(
+                        'Approved_Tick/Approved_White_Badge_Red.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    iconColor: AppColors.successColor,
                   ),
-                ), // Replaced icon with iconWidget
-                iconColor: AppColors.successColor,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: AppComponents.kpiCard(
-                label: 'Points',
-                value: _formatNumber(totalPoints),
-                iconWidget: SizedBox(
-                  width: 37, // Adjust size as needed
-                  height: 37, // Adjust size as needed
-                  child: Image.asset(
-                    'process_flows_automation/Process_Flows_Automation_White_Badge_Red.png', // Corrected path and filename
-                    fit: BoxFit.contain,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringPoints = true),
+                onExit: (_) => setState(() => _isHoveringPoints = false),
+                child: AnimatedScale(
+                  scale: _isHoveringPoints ? 1.05 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: AppComponents.kpiCard(
+                    label: 'Points',
+                    value: _formatNumber(totalPoints),
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Image.asset(
+                        'process_flows_automation/Process_Flows_Automation_White_Badge_Red.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    iconColor: AppColors.warningColor,
                   ),
-                ), // Replaced icon with iconWidget
-                iconColor: AppColors.warningColor,
+                ),
               ),
             ),
           ],
@@ -1101,33 +1136,58 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         Row(
           children: [
             Expanded(
-              child: AppComponents.kpiCard(
-                label: 'Current Streak',
-                value: '${currentStreak.toString()} days',
-                icon: hasActivityToday
-                    ? Icons.local_fire_department
-                    : Icons.local_fire_department_outlined,
-                iconColor: hasActivityToday
-                    ? AppColors.warningColor
-                    : AppColors.textSecondary,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringCurrentStreak = true),
+                onExit: (_) => setState(() => _isHoveringCurrentStreak = false),
+                child: AnimatedScale(
+                  scale: _isHoveringCurrentStreak ? 1.05 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: AppComponents.kpiCard(
+                    label: 'Current Streak',
+                    value: '${currentStreak.toString()} days',
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Icon(
+                        hasActivityToday
+                            ? Icons.local_fire_department
+                            : Icons.local_fire_department_outlined,
+                        color: hasActivityToday
+                            ? AppColors.warningColor
+                            : AppColors.textSecondary,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
-              child: AppComponents.kpiCard(
-                label: 'Today\'s Activity',
-                value: hasActivityToday ? 'Active' : 'None',
-                iconWidget: SizedBox(
-                  width: 37,
-                  height: 37,
-                  child: Image.asset(
-                    'Approved_Tick/Approved_White_Badge_Red.png',
-                    fit: BoxFit.contain,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringTodaysActivity = true),
+                onExit: (_) => setState(() => _isHoveringTodaysActivity = false),
+                child: AnimatedScale(
+                  scale: _isHoveringTodaysActivity ? 1.05 : 1.0,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: AppComponents.kpiCard(
+                    label: 'Today\'s Activity',
+                    value: hasActivityToday ? 'Active' : 'None',
+                    iconWidget: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Image.asset(
+                        'Approved_Tick/Approved_White_Badge_Red.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    iconColor: hasActivityToday
+                        ? AppColors.successColor
+                        : AppColors.textSecondary,
                   ),
-                ), // Replaced icon with iconWidget
-                iconColor: hasActivityToday
-                    ? AppColors.successColor
-                    : AppColors.textSecondary,
+                ),
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -1136,20 +1196,36 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 stream: _getEarnedBadgesCountStream(),
                 builder: (context, snapshot) {
                   final count = snapshot.data ?? 0;
-                  return AppComponents.kpiCard(
-                    label: 'Badges',
-                    value: count.toString(),
-                    icon: Icons.workspace_premium,
-                    iconColor: AppColors.successColor,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'You have $count badge${count == 1 ? '' : 's'}',
+                  return MouseRegion(
+                    onEnter: (_) => setState(() => _isHoveringBadges = true),
+                    onExit: (_) => setState(() => _isHoveringBadges = false),
+                    child: AnimatedScale(
+                      scale: _isHoveringBadges ? 1.05 : 1.0,
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: AppComponents.kpiCard(
+                        label: 'Badges',
+                        value: count.toString(),
+                        iconWidget: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Icon(
+                            Icons.workspace_premium,
+                            color: AppColors.successColor,
+                            size: 48,
                           ),
                         ),
-                      );
-                    },
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'You have $count badge${count == 1 ? '' : 's'}',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   );
                 },
               ),
