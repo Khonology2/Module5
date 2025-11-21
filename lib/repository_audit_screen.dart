@@ -127,7 +127,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               StreamBuilder<String?>(
                 stream: RoleService.instance.roleStream(),
                 builder: (context, roleSnapshot) {
-                  final isManager = roleSnapshot.data == 'manager';
+                  final role =
+                      roleSnapshot.data ?? RoleService.instance.cachedRole;
+                  final isManager = role == 'manager';
                   return Column(
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
@@ -460,7 +462,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, roleSnapshot) {
-        final isManager = roleSnapshot.data == 'manager';
+        final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+        final isManager = role == 'manager';
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -474,13 +477,24 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 maxLines: 1,
               ),
             ),
-            if (isManager)
-              IconButton(
-                tooltip: 'Diagnostic Info',
-                onPressed: _showDiagnosticInfo,
-                icon: const Icon(Icons.info_outline),
-                color: AppColors.warningColor,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isManager)
+                  IconButton(
+                    tooltip: 'Diagnostic Info',
+                    onPressed: _showDiagnosticInfo,
+                    icon: const Icon(Icons.info_outline),
+                    color: AppColors.warningColor,
+                  ),
+                IconButton(
+                  tooltip: 'Export',
+                  onPressed: _showExportSheet,
+                  icon: const Icon(Icons.download_rounded),
+                  color: AppColors.activeColor,
+                ),
+              ],
+            ),
           ],
         );
       },
@@ -739,21 +753,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               try {
                 entries.add(AuditEntry.fromFirestore(doc));
               } catch (e) {
-                developer.log(
-                  'Error parsing audit entry ${doc.id}: $e',
-                );
+                developer.log('Error parsing audit entry ${doc.id}: $e');
               }
             }
           }
 
           final stats = <String, int>{
             'total': entries.length,
-            'verified':
-                entries.where((e) => e.status == 'verified').length,
-            'pending':
-                entries.where((e) => e.status == 'pending').length,
-            'rejected':
-                entries.where((e) => e.status == 'rejected').length,
+            'verified': entries.where((e) => e.status == 'verified').length,
+            'pending': entries.where((e) => e.status == 'pending').length,
+            'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
           return _buildStatsContainer(stats, isManager: true);
@@ -777,15 +786,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           final entries = snapshot.data ?? [];
           final stats = <String, int>{
             'total': entries.length,
-            'verified': entries
-                .where((e) => e.status == 'verified')
-                .length,
-            'pending': entries
-                .where((e) => e.status == 'pending')
-                .length,
-            'rejected': entries
-                .where((e) => e.status == 'rejected')
-                .length,
+            'verified': entries.where((e) => e.status == 'verified').length,
+            'pending': entries.where((e) => e.status == 'pending').length,
+            'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
           return _buildStatsContainer(stats, isManager: false);
@@ -794,7 +797,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-  Widget _buildStatsContainer(Map<String, int> stats, {required bool isManager}) {
+  Widget _buildStatsContainer(
+    Map<String, int> stats, {
+    required bool isManager,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -964,11 +970,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.archive_outlined,
-            color: AppColors.textMuted,
-            size: 48,
-          ),
+          Icon(Icons.archive_outlined, color: AppColors.textMuted, size: 48),
           const SizedBox(height: 16),
           Text(
             'No audit entries found',
@@ -1129,7 +1131,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...entry.evidence.map((evidence) => _buildEvidenceItem(evidence)),
+          ...entry.evidence
+              .map((evidence) => _buildEvidenceItem(evidence, entry.evidence))
+              ,
 
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
@@ -1319,10 +1323,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               builder: (context, snapshot) {
                 final events = snapshot.data ?? const <AuditTimelineEvent>[];
                 if (events.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(12.0),
-                    child: Text('No timeline events yet'),
-                  );
+                  return _buildFallbackTimeline(entry);
                 }
                 return ListView.separated(
                   shrinkWrap: true,
@@ -1331,6 +1332,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final ev = events[index];
+                    // Choose actor name intelligently based on event type.
+                    // - submission: employee name
+                    // - verification/rejection: manager name
+                    String actorName = ev.actorName.trim();
+                    final isUnknown =
+                        actorName.isEmpty ||
+                        actorName.toLowerCase().startsWith('unknown');
+
+                    if (isUnknown) {
+                      if (ev.eventType == 'submission') {
+                        // Goal submitted by employee
+                        actorName = entry.userDisplayName;
+                      } else if (ev.eventType == 'verification' ||
+                          ev.eventType == 'rejection') {
+                        // Verified / rejected by manager
+                        final mgr = (entry.acknowledgedBy ?? '').trim();
+                        actorName = mgr.isNotEmpty ? mgr : 'Manager';
+                      } else {
+                        // Fallback for any other event types
+                        actorName = entry.userDisplayName;
+                      }
+                    }
                     return ListTile(
                       dense: true,
                       leading: Icon(
@@ -1349,7 +1372,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        '${ev.actorName} • ${_formatDate(ev.timestamp)}',
+                        '$actorName • ${_formatDate(ev.timestamp)}',
                         style: TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 12,
@@ -1368,6 +1391,76 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Widget _buildFallbackTimeline(AuditEntry entry) {
+    final tiles = <Widget>[];
+
+    tiles.add(
+      ListTile(
+        dense: true,
+        leading: Icon(Icons.outbox, color: AppColors.textMuted),
+        title: Text(
+          'Goal submitted for audit: ${entry.goalTitle}',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        ),
+        subtitle: Text(
+          '${entry.userDisplayName} • ${_formatDate(entry.submittedDate)}',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ),
+    );
+
+    if (entry.acknowledgedBy != null && entry.acknowledgedBy!.isNotEmpty) {
+      tiles.add(
+        ListTile(
+          dense: true,
+          leading: Icon(Icons.verified, color: AppColors.textMuted),
+          title: Text(
+            entry.score != null
+                ? 'Entry verified with score ${entry.score!.toStringAsFixed(1)}'
+                : 'Entry verified',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          ),
+          subtitle: Text(
+            '${entry.acknowledgedBy} • ${_formatDate(entry.verifiedDate ?? entry.submittedDate)}',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    if (entry.rejectionReason != null && entry.rejectionReason!.isNotEmpty) {
+      tiles.add(
+        ListTile(
+          dense: true,
+          leading: Icon(Icons.cancel_rounded, color: AppColors.textMuted),
+          title: Text(
+            'Changes requested: ${entry.rejectionReason}',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          ),
+          subtitle: Text(
+            '${entry.acknowledgedBy ?? ''} • ${_formatDate(entry.rejectedDate ?? entry.submittedDate)}',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    if (tiles.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: Text('No timeline events yet'),
+      );
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: tiles.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) => tiles[index],
+    );
   }
 
   void _showVerifyDialog(AuditEntry entry) {
@@ -1589,14 +1682,17 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                               .doc(FirebaseAuth.instance.currentUser?.uid ?? '')
                               .get(),
                         ).asyncExpand((userDoc) {
-                          final department =
+                          final rawDept =
                               (userDoc.data() ?? const {})['department']
                                   as String?;
-                          if (department == null || department.isEmpty) {
-                            return Stream.value(<RepositoryGoal>[]);
-                          }
+                          final department = rawDept?.trim();
+                          // If manager has no department set, fall back to all
+                          // repository goals instead of an empty stream.
                           return RepositoryService.getAllRepositoryGoalsStream(
-                            department: department,
+                            department:
+                                (department == null || department.isEmpty)
+                                ? null
+                                : department,
                           );
                         });
                       })
@@ -1751,19 +1847,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   // (Manager section removed per request; employee-focused for now)
 
   void _showExportSheet() {
-    // Capture the parent ScaffoldMessenger before opening the sheet
-    final messenger = ScaffoldMessenger.of(context);
-    // ignore: unnecessary_null_comparison, unused_local_variable
-    final isManager =
-        // ignore: unnecessary_null_comparison
-        (RoleService.instance != null); // placeholder; use stream below
-    showModalBottomSheet(
+    // Use a bottom sheet for the options (stable), and keep centered dialogs
+    // for success/error notices after the actual export.
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
+      builder: (ctx) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1772,7 +1864,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 leading: const Icon(Icons.table_chart),
                 title: const Text('Export as CSV'),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(ctx);
                   try {
                     final role = await RoleService.instance.getRole();
                     if (role == 'manager') {
@@ -1786,13 +1878,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       if (uid == null) return;
                       await RepositoryExportService.exportRepositoryAsCSV(uid);
                     }
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Export started (CSV)')),
+                    await _showExportNotice(
+                      'Export downloaded (CSV). Check your browser downloads.',
                     );
                   } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Export failed: $e')),
-                    );
+                    await _showExportNotice('Export failed: $e');
                   }
                 },
               ),
@@ -1800,7 +1890,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 leading: const Icon(Icons.picture_as_pdf),
                 title: const Text('Export as PDF'),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(ctx);
                   try {
                     final role = await RoleService.instance.getRole();
                     if (role == 'manager') {
@@ -1814,13 +1904,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       if (uid == null) return;
                       await RepositoryExportService.exportRepositoryAsPDF(uid);
                     }
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Export started (PDF)')),
+                    await _showExportNotice(
+                      'Export downloaded (PDF). Open it from your downloads.',
                     );
                   } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('Export failed: $e')),
-                    );
+                    await _showExportNotice('Export failed: $e');
                   }
                 },
               ),
@@ -1832,8 +1920,32 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
+  Future<void> _showExportNotice(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        content: Text(
+          message,
+          style: TextStyle(color: AppColors.textPrimary),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Helper widget to build individual evidence items.
-  Widget _buildEvidenceItem(String text) {
+  Widget _buildEvidenceItem(String text, List<String> allEvidence) {
     IconData icon;
     if (text.toLowerCase().contains('report') ||
         text.toLowerCase().contains('document') ||
@@ -1848,37 +1960,55 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 
     final isUrl = text.startsWith('http://') || text.startsWith('https://');
 
+    // If this is a file label (e.g. "📎 File: name"), try to find a matching URL
+    String target = text;
+    if (!isUrl && text.startsWith('📎')) {
+      final linkedUrl = allEvidence.firstWhere(
+        (e) => e.startsWith('http://') || e.startsWith('https://'),
+        orElse: () => text,
+      );
+      target = linkedUrl;
+    }
+
+    final hasPreviewUrl =
+        target.startsWith('http://') || target.startsWith('https://');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: InkWell(
-        onTap: () => _openEvidence(text),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.elevatedBackground,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.borderColor),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, color: AppColors.activeColor, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.activeColor, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => _openEvidence(target),
+                borderRadius: BorderRadius.circular(4),
                 child: Text(
                   text,
                   style: TextStyle(
-                    color: isUrl
+                    color: hasPreviewUrl
                         ? AppColors.activeColor
                         : AppColors.textSecondary,
                     fontSize: 14,
-                    decoration: isUrl ? TextDecoration.underline : null,
+                    decoration: hasPreviewUrl ? TextDecoration.underline : null,
                   ),
                 ),
               ),
-              Icon(Icons.open_in_new, color: AppColors.textMuted, size: 16),
-            ],
-          ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.open_in_new, size: 16),
+              color: AppColors.textMuted,
+              tooltip: hasPreviewUrl ? 'Open evidence link' : 'View evidence',
+              onPressed: () => _openEvidence(target),
+            ),
+          ],
         ),
       ),
     );
@@ -1889,64 +2019,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         evidence.startsWith('http://') || evidence.startsWith('https://');
 
     if (isUrl) {
-      // For URLs, show a dialog with option to open externally
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          title: Text(
-            'Evidence Link',
-            style: TextStyle(color: AppColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'This evidence is a web link:',
-                style: TextStyle(color: AppColors.textSecondary),
+      // For URLs, open in a new browser tab/window (web) or show simple link dialog
+      try {
+        web.window.open(evidence, '_blank');
+      } catch (_) {
+        // Fallback: show dialog with selectable link
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: Text(
+              'Evidence Link',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+            content: SelectableText(
+              evidence,
+              style: TextStyle(
+                color: AppColors.activeColor,
+                decoration: TextDecoration.underline,
               ),
-              const SizedBox(height: 8),
-              SelectableText(
-                evidence,
-                style: TextStyle(
-                  color: AppColors.activeColor,
-                  decoration: TextDecoration.underline,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'To view this evidence, copy the link and open it in your browser.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: TextStyle(color: AppColors.textMuted),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Copy to clipboard functionality could be added here
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Link copied to clipboard')),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.activeColor,
-              ),
-              child: const Text('Copy Link'),
-            ),
-          ],
-        ),
-      );
+        );
+      }
     } else {
-      // For text evidence, show in a dialog
+      // For text evidence, show in a preview dialog
       showDialog(
         context: context,
         builder: (context) => AlertDialog(

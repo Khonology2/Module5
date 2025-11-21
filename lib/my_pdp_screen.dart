@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
+import 'package:web/web.dart' as web;
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -143,7 +144,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       await DatabaseService.updateGoalProgress(goal.id, next);
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) await _showCenterNotice(context, e.toString());
+      if (!mounted) return;
+      final message = e.toString().contains('Goal is not approved yet')
+          ? 'You can only update progress once your manager has approved this goal.'
+          : 'We could not update your progress right now. Please try again, and contact your manager if this keeps happening.';
+      await _showCenterNotice(context, message);
     }
   }
 
@@ -153,7 +158,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       await DatabaseService.updateGoalProgress(goal.id, next);
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) await _showCenterNotice(context, e.toString());
+      if (!mounted) return;
+      final message = e.toString().contains('Goal is not approved yet')
+          ? 'You can only mark this module complete once your manager has approved the goal.'
+          : 'We could not update your progress right now. Please try again, and contact your manager if this keeps happening.';
+      await _showCenterNotice(context, message);
     }
   }
 
@@ -309,6 +318,96 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       if (mounted) {
         await _showCenterNotice(context, 'Evidence added');
       }
+    }
+  }
+
+  void _openEvidenceFromPdp(String evidence) {
+    final isUrl =
+        evidence.startsWith('http://') || evidence.startsWith('https://');
+
+    if (isUrl) {
+      final lower = evidence.toLowerCase();
+      final isImage =
+          lower.endsWith('.png') ||
+          lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.gif') ||
+          lower.endsWith('.webp');
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text(
+            'Evidence Details',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: isImage
+              ? SizedBox(
+                  width: 480,
+                  height: 360,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(evidence, fit: BoxFit.contain),
+                  ),
+                )
+              : SingleChildScrollView(
+                  child: SelectableText(
+                    evidence,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                try {
+                  web.window.open(evidence, '_blank');
+                } catch (_) {
+                  // On non-web platforms, just close the dialog
+                  Navigator.of(ctx).pop();
+                }
+              },
+              child: const Text(
+                'Open in new tab',
+                style: TextStyle(color: Colors.lightBlueAccent),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text(
+            'Evidence Details',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              evidence,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -607,6 +706,17 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
         return;
       }
 
+      // Only allow acknowledgement for approved goals
+      if (goal.approvalStatus != GoalApprovalStatus.approved) {
+        if (mounted) {
+          await _showCenterNotice(
+            context,
+            'You can only request acknowledgement for approved goals',
+          );
+        }
+        return;
+      }
+
       // Ensure the user has a department set before allowing submission
       final proceed = await _ensureDepartmentIsSet();
       if (!proceed) {
@@ -838,34 +948,41 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                ...goal.evidence.map(
-                                  (evidence) => Padding(
+                                ...goal.evidence.map((evidence) {
+                                  final allEvidence = goal.evidence;
+                                  final isDirectUrl =
+                                      evidence.startsWith('http://') ||
+                                      evidence.startsWith('https://');
+                                  final isFileLabel = evidence.startsWith('📎');
+
+                                  String targetEvidence = evidence;
+                                  if (!isDirectUrl && isFileLabel) {
+                                    // Try to find a matching URL evidence in the list
+                                    final linkedUrl = allEvidence.firstWhere(
+                                      (e) =>
+                                          e.startsWith('http://') ||
+                                          e.startsWith('https://'),
+                                      orElse: () => evidence,
+                                    );
+                                    targetEvidence = linkedUrl;
+                                  }
+
+                                  final hasPreviewUrl =
+                                      targetEvidence.startsWith('http://') ||
+                                      targetEvidence.startsWith('https://');
+
+                                  return Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: InkWell(
-                                      onTap: () {
-                                        // If it's a Cloudinary URL, open it
-                                        if (evidence.startsWith(
-                                          'https://res.cloudinary.com/',
-                                        )) {
-                                          // You can implement opening the URL in a browser
-                                          _showCenterNotice(
-                                            context,
-                                            'File URL: $evidence',
-                                          );
-                                        }
-                                      },
+                                      onTap: () =>
+                                          _openEvidenceFromPdp(targetEvidence),
                                       child: Row(
                                         children: [
                                           Icon(
-                                            evidence.startsWith(
-                                                  'https://res.cloudinary.com/',
-                                                )
+                                            hasPreviewUrl
                                                 ? Icons.cloud_upload
                                                 : Icons.description,
-                                            color:
-                                                evidence.startsWith(
-                                                  'https://res.cloudinary.com/',
-                                                )
+                                            color: hasPreviewUrl
                                                 ? Colors.blue
                                                 : Colors.white70,
                                             size: 14,
@@ -873,23 +990,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              evidence.startsWith(
-                                                    'https://res.cloudinary.com/',
-                                                  )
-                                                  ? '📁 Cloudinary File (Click to view URL)'
-                                                  : evidence,
+                                              evidence,
                                               style: TextStyle(
-                                                color:
-                                                    evidence.startsWith(
-                                                      'https://res.cloudinary.com/',
-                                                    )
+                                                color: hasPreviewUrl
                                                     ? Colors.blue
                                                     : Colors.white70,
                                                 fontSize: 12,
-                                                decoration:
-                                                    evidence.startsWith(
-                                                      'https://res.cloudinary.com/',
-                                                    )
+                                                decoration: hasPreviewUrl
                                                     ? TextDecoration.underline
                                                     : null,
                                               ),
@@ -897,19 +1004,26 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if (evidence.startsWith(
-                                            'https://res.cloudinary.com/',
-                                          ))
-                                            const Icon(
-                                              Icons.open_in_new,
-                                              color: Colors.blue,
-                                              size: 12,
+                                          if (hasPreviewUrl)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.open_in_new,
+                                                color: Colors.blue,
+                                                size: 12,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              onPressed: () =>
+                                                  _openEvidenceFromPdp(
+                                                    targetEvidence,
+                                                  ),
                                             ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                ),
+                                  );
+                                }),
                               ],
                             ),
                           ),
@@ -1006,35 +1120,59 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     auditSnapshot.data!.any(
                                       (entry) => entry.goalId == goal.id,
                                     );
+                                final isApproved =
+                                    goal.approvalStatus ==
+                                    GoalApprovalStatus.approved;
+                                final canRequest = isApproved && !hasAuditEntry;
 
-                                return OutlinedButton.icon(
-                                  onPressed: hasAuditEntry
-                                      ? null
-                                      : () => _requestManagerAcknowledgement(
-                                          goal,
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: canRequest
+                                          ? () =>
+                                                _requestManagerAcknowledgement(
+                                                  goal,
+                                                )
+                                          : null,
+                                      icon: Icon(
+                                        hasAuditEntry
+                                            ? Icons.check_circle
+                                            : (isApproved
+                                                  ? Icons.verified_user
+                                                  : Icons.lock_clock),
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        hasAuditEntry
+                                            ? 'Acknowledgement requested'
+                                            : (isApproved
+                                                  ? 'Request acknowledgement'
+                                                  : 'Waiting for manager approval'),
+                                      ),
+                                      style: hasAuditEntry
+                                          ? OutlinedButton.styleFrom(
+                                              // ignore: deprecated_member_use
+                                              backgroundColor: Colors.orange
+                                                  .withValues(alpha: 0.1),
+                                              foregroundColor: Colors.orange,
+                                              side: const BorderSide(
+                                                color: Colors.orange,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    if (!hasAuditEntry && !isApproved)
+                                      const SizedBox(height: 4),
+                                    if (!hasAuditEntry && !isApproved)
+                                      const Text(
+                                        'You can request acknowledgement once your manager approves this goal.',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
                                         ),
-                                  icon: Icon(
-                                    hasAuditEntry
-                                        ? Icons.check_circle
-                                        : Icons.verified_user,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    hasAuditEntry
-                                        ? 'Acknowledgement requested'
-                                        : 'Request acknowledgement',
-                                  ),
-                                  style: hasAuditEntry
-                                      ? OutlinedButton.styleFrom(
-                                          // ignore: deprecated_member_use
-                                          backgroundColor: Colors.orange
-                                              .withValues(alpha: 0.1),
-                                          foregroundColor: Colors.orange,
-                                          side: const BorderSide(
-                                            color: Colors.orange,
-                                          ),
-                                        )
-                                      : null,
+                                      ),
+                                  ],
                                 );
                               },
                             ),

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/email_notification_service.dart';
 
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -110,20 +111,20 @@ class AlertService {
       }
 
       for (final mgr in mgrs.docs) {
-        await _firestore.collection('alerts').add({
-          'userId': mgr.id,
-          'type': AlertType.goalApprovalRequested.name,
-          'priority': AlertPriority.high.name,
-          'title': 'Goal Approval Needed',
-          'message': '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
-          'actionText': 'Review Goal',
-          'actionRoute': '/manager_alerts_nudges',
-          'createdAt': FieldValue.serverTimestamp(),
-          'relatedGoalId': goalId,
-          'isRead': false,
-          'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 14))),
-        });
+        final alert = Alert(
+          id: '',
+          userId: mgr.id,
+          type: AlertType.goalApprovalRequested,
+          priority: AlertPriority.high,
+          title: 'Goal Approval Needed',
+          message: '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
+          actionText: 'Review Goal',
+          actionRoute: '/manager_alerts_nudges',
+          createdAt: DateTime.now(),
+          relatedGoalId: goalId,
+          expiresAt: DateTime.now().add(const Duration(days: 14)),
+        );
+        await _createAlert(alert);
       }
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
@@ -391,49 +392,51 @@ class AlertService {
     required String nudgeMessage,
   }) async {
     try {
-      // First try top-level alerts collection
+      // Create alert using _createAlert to ensure email is sent
+      final alert = Alert(
+        id: '',
+        userId: userId,
+        type: AlertType.managerNudge,
+        priority: AlertPriority.high,
+        title: 'Manager Nudge 📢',
+        message: '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
+        actionText: 'View Goal',
+        actionRoute: '/my_goal_workspace',
+        actionData: {'goalId': goalId},
+        createdAt: DateTime.now(),
+        fromUserId: managerId,
+        fromUserName: managerName,
+        relatedGoalId: goalId,
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
+      );
+      
+      // Try top-level alerts collection first
       try {
-        await _firestore.collection('alerts').add({
-          'userId': userId,
-          'type': AlertType.managerNudge.name,
-          'priority': AlertPriority.high.name,
-          'title': 'Manager Nudge 📢',
-          'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-          'actionText': 'View Goal',
-          'actionRoute': '/my_goal_workspace',
-          'actionData': {'goalId': goalId},
-          'createdAt': FieldValue.serverTimestamp(),
-          'fromUserId': managerId,
-          'fromUserName': managerName,
-          'relatedGoalId': goalId,
-          'isRead': false,
-          'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
-        });
+        await _createAlert(alert);
       } on FirebaseException catch (fe) {
-        // If rules don't allow top-level create, fall back to user subcollection path
+        // If permission denied, try user subcollection (but email still sent)
         if (fe.code == 'permission-denied') {
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('alerts')
-              .add({
-            'userId': userId,
-            'type': AlertType.managerNudge.name,
-            'priority': AlertPriority.high.name,
-            'title': 'Manager Nudge 📢',
-            'message': '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-            'actionText': 'View Goal',
-            'actionRoute': '/my_goal_workspace',
-            'actionData': {'goalId': goalId},
-            'createdAt': FieldValue.serverTimestamp(),
-            'fromUserId': managerId,
-            'fromUserName': managerName,
-            'relatedGoalId': goalId,
-            'isRead': false,
-            'isDismissed': false,
-            'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
-          });
+          try {
+            await _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('alerts')
+                .add(alert.toFirestore());
+            // Still send email even if using subcollection
+            await EmailNotificationService.sendAlertEmail(
+              userId: userId,
+              alertType: alert.type.name,
+              title: alert.title,
+              message: alert.message,
+              relatedGoalId: alert.relatedGoalId,
+              metadata: {
+                if (alert.fromUserName != null) 'managerName': alert.fromUserName,
+              },
+            );
+          } catch (e) {
+            developer.log('Error creating alert in subcollection: $e');
+            rethrow;
+          }
         } else {
           rethrow;
         }
@@ -487,6 +490,22 @@ class AlertService {
   static Future<void> _createAlert(Alert alert) async {
     try {
       await _firestore.collection('alerts').add(alert.toFirestore());
+      
+      // Send email notification via free Vercel API (no billing required)
+      try {
+        await EmailNotificationService.sendAlertEmail(
+          userId: alert.userId,
+          alertType: alert.type.name,
+          title: alert.title,
+          message: alert.message,
+          relatedGoalId: alert.relatedGoalId,
+          metadata: {
+            if (alert.fromUserName != null) 'managerName': alert.fromUserName,
+          },
+        );
+      } catch (e) {
+        developer.log('Email notification failed (non-critical): $e');
+      }
     } catch (e) {
       developer.log('Error creating alert: $e');
       // Silently fail for now - alerts are not critical for app functionality
