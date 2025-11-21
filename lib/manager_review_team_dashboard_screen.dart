@@ -6,6 +6,7 @@ import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/design_system/app_colors.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -20,6 +21,35 @@ class _ManagerReviewTeamDashboardScreenState
   TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,9 +62,7 @@ class _ManagerReviewTeamDashboardScreenState
         automaticallyImplyLeading: false, // Remove back arrow button
         title: Text(
           'Manager Review',
-          style: AppTypography.heading2.copyWith(
-            color: Colors.white,
-          ),
+          style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
         centerTitle: false,
         actions: [
@@ -821,15 +849,12 @@ class _ManagerReviewTeamDashboardScreenState
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Nudge sent to ${employee.profile.displayName}',
-                  ),
-                  backgroundColor: const Color(0xFFC10D00),
-                ),
+              if (!mounted) return;
+              await _showCenterNotice(
+                this.context,
+                'Nudge sent to ${employee.profile.displayName}',
               );
             },
             style: ElevatedButton.styleFrom(
@@ -885,21 +910,16 @@ class _ManagerReviewTeamDashboardScreenState
                   Navigator.pop(dialogContext); // Use dialogContext
                   // ignore: duplicate_ignore
                   // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        '1:1 scheduled with ${employee.profile.displayName}',
-                      ),
-                      backgroundColor: const Color(0xFFC10D00),
-                    ),
+                  if (!mounted) return;
+                  await _showCenterNotice(
+                    context,
+                    '1:1 scheduled with ${employee.profile.displayName}',
                   );
                 } catch (e) {
                   if (!mounted) return; // Add this line back
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      content: Text('Error scheduling meeting: $e'),
-                      backgroundColor: Colors.red,
-                    ),
+                  await _showCenterNotice(
+                    context,
+                    'Error scheduling meeting: $e',
                   );
                 }
               },
@@ -960,21 +980,16 @@ class _ManagerReviewTeamDashboardScreenState
                           badgeName: 'Manager Recognition',
                         );
                         Navigator.pop(dialogContext); // Use dialogContext
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Recognition sent to ${employee.profile.displayName}',
-                            ),
-                            backgroundColor: Colors.green,
-                          ),
+                        if (!mounted) return;
+                        await _showCenterNotice(
+                          context,
+                          'Recognition sent to ${employee.profile.displayName}',
                         );
                       } catch (e) {
                         if (!mounted) return; // Add this line back
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(
-                            content: Text('Error giving recognition: $e'),
-                            backgroundColor: Colors.red,
-                          ),
+                        await _showCenterNotice(
+                          context,
+                          'Error giving recognition: $e',
                         );
                       }
                     },
