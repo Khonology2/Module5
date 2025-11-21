@@ -8,8 +8,6 @@ import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:pdh/ai_chatbot.dart'; // Import the AI Chatbot screen
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 import 'package:pdh/design_system/app_typography.dart';
@@ -62,11 +60,37 @@ class ManagerProfileScreen extends StatefulWidget {
 }
 
 class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
+  static const List<String> _jobTitleOptions = [
+    'Director',
+    'Developer',
+    'Support Analyst',
+    'Learner',
+    'UX Designer',
+    'AWS Cloud Engineer',
+    'Tester',
+    'RMB Small Talk Developer',
+    'Finance',
+    'Business Analyst',
+    'Manager',
+    'Delivery Manager',
+    'Analyst',
+    'Sales Person',
+    'HR',
+    'Junior Analyst',
+  ];
+
+  static const List<String> _departmentOptions = [
+    'Management',
+    'Operations',
+    'Finance',
+    'HR',
+    'Sales',
+  ];
+
   final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _jobTitleController = TextEditingController();
-  final TextEditingController _departmentController = TextEditingController();
+  String? _selectedJobTitle;
+  String? _selectedDepartment;
   final TextEditingController _workEmailController = TextEditingController();
-  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
   final TextEditingController _developmentInputController =
       TextEditingController();
@@ -99,30 +123,13 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   String? _notificationFrequency = 'daily';
   String? _goalVisibility = 'private';
 
-  late FlutterTts flutterTts;
-  String? _motivationalMessage; // To store the generated message
+  // Animation state for save button
+  double _saveButtonScale = 1.0;
 
   @override
   void initState() {
     super.initState();
     _loadManagerProfile();
-    flutterTts = FlutterTts();
-    _initTts();
-  }
-
-  void _initTts() {
-    flutterTts.setLanguage("en-US");
-    flutterTts.setSpeechRate(1.0); // Increased speech rate
-    flutterTts.setVolume(1.0);
-    flutterTts.setPitch(1.0);
-  }
-
-  Future _speak(String text) async {
-    await flutterTts.speak(text);
-  }
-
-  Future _stop() async {
-    await flutterTts.stop();
   }
 
   Future<void> _loadManagerProfile() async {
@@ -133,10 +140,13 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         _fullNameController.text = userProfile.displayName;
-        _jobTitleController.text = userProfile.jobTitle;
-        _departmentController.text = userProfile.department;
+        _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
+            ? userProfile.jobTitle
+            : null;
+        _selectedDepartment = _departmentOptions.contains(userProfile.department)
+            ? userProfile.department
+            : null;
         _workEmailController.text = userProfile.email;
-        _phoneNumberController.text = userProfile.phoneNumber;
         _skills
           ..clear()
           ..addAll(userProfile.skills);
@@ -174,10 +184,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   @override
   void dispose() {
     _fullNameController.dispose();
-    _jobTitleController.dispose();
-    _departmentController.dispose();
     _workEmailController.dispose();
-    _phoneNumberController.dispose();
     _skillsInputController.dispose();
     _developmentInputController.dispose();
     _careerAspirationsController.dispose();
@@ -190,8 +197,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     _leaderboardOptinController.dispose();
     _badgeNameController.dispose();
     _celebrationConsentController.dispose();
-    flutterTts.stop(); // Dispose FlutterTts
-    flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
     super.dispose();
   }
 
@@ -225,92 +230,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                 style: TextStyle(color: Color(0xFFC10D00)),
               ),
               onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _generateDevelopmentPlan() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AiChatbotScreen(
-          prompt:
-              'Generate a personalized development plan for ${_fullNameController.text} based on their current skills, areas for development, career aspirations, and current projects. Include specific goals, recommended resources, and actionable steps.',
-          onResult: (result) {
-            if (result.isNotEmpty) {
-              _careerAspirationsController.text =
-                  result; // Update the career aspirations field
-              _saveProfile(); // Save the updated profile
-              _showMotivationalMessageDialog(
-                'Your Personal Development Plan has been generated and updated in your profile!',
-              );
-            } else {
-              _showAlertDialog(
-                'No Plan Generated',
-                'Could not generate a development plan at this time.',
-              );
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  void _draftMotivationalMessage() {
-    setState(() {
-      _motivationalMessage =
-          "Great job on your progress! Keep pushing forward, and remember that every small step leads to significant achievements. Your dedication is inspiring!";
-    });
-    _showMotivationalMessageDialog(_motivationalMessage!);
-  }
-
-  Future<void> _showMotivationalMessageDialog(String message) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50),
-          title: const Text(
-            'Motivational Message',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(message, style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () => _speak(message),
-                  icon: const Icon(Icons.volume_up, color: Colors.white),
-                  label: const Text(
-                    'Read Aloud',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'OK',
-                style: TextStyle(color: Color(0xFFC10D00)),
-              ),
-              onPressed: () {
-                _stop(); // Stop speech when dialog is dismissed
                 Navigator.of(context).pop();
               },
             ),
@@ -373,10 +292,9 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
 
       final updatedProfile = existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
-        jobTitle: _jobTitleController.text.trim(),
-        department: _departmentController.text.trim(),
+        jobTitle: _selectedJobTitle ?? '',
+        department: _selectedDepartment ?? '',
         email: _workEmailController.text.trim(),
-        phoneNumber: _phoneNumberController.text.trim(),
         skills: _skills.toList(),
         developmentAreas: _developmentAreas.toList(),
         careerAspirations: _careerAspirationsController.text.trim(),
@@ -434,6 +352,77 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               ),
               const SizedBox(height: 40.0),
 
+              // Profile Photo Section - Centered at the top
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: (_profilePhotoUrl != null &&
+                                _profilePhotoUrl!.isNotEmpty)
+                            ? Image.network(
+                                _profilePhotoUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Image.asset(
+                                      'assets/Account_User_Profile/Profile.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                              )
+                            : Image.asset(
+                                'assets/Account_User_Profile/Profile.png',
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _pickAndUploadImage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white10,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Upload Photo',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if ((_profilePhotoUrl ?? '').isNotEmpty)
+                          TextButton(
+                            onPressed: _removeProfilePhoto,
+                            child: const Text('Remove Photo'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40.0),
+
               // Basic Information Section
               _buildCardSection(
                 title: 'Basic Information',
@@ -442,107 +431,16 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     controller: _fullNameController,
                     hintText: 'Enter your full name',
                   ),
-                  _buildTextField(
-                    controller: _jobTitleController,
-                    hintText: 'Job Title / Role',
-                  ),
-                  _buildTextField(
-                    controller: _departmentController,
-                    hintText: 'Department / Team',
-                  ),
-                  _buildTextField(
-                    controller: TextEditingController(text: 'M-123456'),
-                    hintText: 'Employee ID',
-                    readOnly: true,
-                    color: Colors.white10,
-                  ),
+                  const SizedBox(height: 8),
+                  _buildJobTitleDropdown(),
+                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  _buildDepartmentDropdown(),
+                  const SizedBox(height: 16),
                   _buildTextField(
                     controller: _workEmailController,
                     hintText: 'Work Email',
                     keyboardType: TextInputType.emailAddress,
-                  ),
-                  _buildTextField(
-                    controller: _phoneNumberController,
-                    hintText: 'Phone Number (optional)',
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16.0),
-                  Row(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white10,
-                          borderRadius: BorderRadius.circular(40),
-                        ),
-                        child: ClipOval(
-                          child:
-                              (_profilePhotoUrl != null &&
-                                  _profilePhotoUrl!.isNotEmpty)
-                              ? Image.network(
-                                  _profilePhotoUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                        Icons.person,
-                                        size: 40,
-                                        color: Colors.white54,
-                                      ),
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.white54,
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 16.0),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Profile Photo',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 4.0),
-                          Row(
-                            children: [
-                              ElevatedButton(
-                                onPressed: _pickAndUploadImage,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white10,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Upload Photo',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if ((_profilePhotoUrl ?? '').isNotEmpty)
-                                TextButton(
-                                  onPressed: _removeProfilePhoto,
-                                  child: const Text('Remove Photo'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -564,11 +462,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     list: _developmentAreas,
                     onAdd: () =>
                         _addTag(_developmentInputController, _developmentAreas),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActionButton(
-                    text: '✨ Generate Personalized Development Plan ✨',
-                    onPressed: _generateDevelopmentPlan,
                   ),
                   const SizedBox(height: 16),
                   _buildTextArea(
@@ -597,19 +490,15 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                     controller: _longGoalsController,
                     hintText: 'Long-Term Goals (1–3 years)',
                   ),
-                  _buildActionButton(
-                    text: '✨ Draft Motivational Message ✨',
-                    onPressed: _draftMotivationalMessage,
-                  ),
                   const SizedBox(height: 16),
                   _buildNotificationPreferencesDropdown(),
                   _buildGoalVisibilityRadios(),
                 ],
               ),
 
-              // Gamification & Motivation Section
+              // Gamification Section
               _buildCardSection(
-                title: 'Gamification & Motivation',
+                title: 'Gamification',
                 children: [
                   _buildLeaderboardOptInRadios(),
                   _buildTextField(
@@ -649,22 +538,38 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                       ),
                     ),
                   if (!widget.embedded) const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+                  AnimatedScale(
+                    scale: _saveButtonScale,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Pop-out animation
+                        setState(() {
+                          _saveButtonScale = 1.1;
+                        });
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        setState(() {
+                          _saveButtonScale = 1.0;
+                        });
+                        // Save profile after animation
+                        _saveProfile();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC10D00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      child: const Text(
+                        'Save Profile',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                    ),
-                    child: const Text(
-                      'Save Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -711,9 +616,11 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Center(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 24.0),
           ...children.map((child) {
@@ -764,6 +671,102 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
+  Widget _buildJobTitleDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(
+              const Color(0xFF1F2840),
+            ),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedJobTitle,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          labelText: 'Job Title / Role',
+          hintText: 'Select Job Title',
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _jobTitleOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(value),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedJobTitle = newValue;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(
+              const Color(0xFF1F2840),
+            ),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedDepartment,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          labelText: 'Department / Team',
+          hintText: 'Select Department',
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _departmentOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(
+            value: value,
+            child: Text(value),
+          );
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedDepartment = newValue;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _buildTextArea({
     required TextEditingController controller,
     required String hintText,
@@ -789,26 +792,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           borderRadius: BorderRadius.circular(8.0),
           borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
         ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required String text,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton(
-      onPressed: onPressed,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFC10D00),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
