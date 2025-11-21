@@ -10,7 +10,10 @@ import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/download_helper.dart';
+import 'package:pdh/services/sound_service.dart';
+import 'package:pdh/services/notification_service.dart' as notif;
 import 'package:pdh/services/employee_tutorial_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -23,8 +26,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   late final TextEditingController _resetEmailController;
-
-  // Removed unused _isLoading field
+  bool _allowResetEmailEdit = false;
   UserSettings? _currentSettings;
 
   @override
@@ -43,13 +45,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _loadCurrentUser() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          try {
-            _resetEmailController.text = user.email ?? '';
-          } catch (e) {
-            developer.log('Error loading current user: $e');
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        try {
+          // Prefer auth email first
+          String email = user.email ?? '';
+
+          // If auth provider didn't expose an email, fall back to Firestore user doc
+          if (email.isEmpty) {
+            try {
+              final doc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .get();
+              final data = doc.data();
+              email = (data?['email'] as String?) ?? '';
+            } catch (e) {
+              developer.log('Error loading email from Firestore: $e');
+            }
           }
+
+          if (!mounted) return;
+          setState(() {
+            _resetEmailController.text = email;
+            // If we still don't know the email, allow the user to type it manually
+            _allowResetEmailEdit = email.isEmpty;
+          });
+        } catch (e) {
+          developer.log('Error loading current user: $e');
         }
       });
     }
@@ -724,7 +747,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           label: 'Email for Password Reset',
           icon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
-          readOnly: true,
+          // If we couldn't determine an email, allow user to type it
+          readOnly: !_allowResetEmailEdit ? true : false,
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -996,16 +1020,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _updateSetting(String key, dynamic value) async {
     try {
       await SettingsService.updateSetting(key, value);
-      // Show success messages for important settings changes
+      // Immediate side-effects for specific toggles
       if (mounted) {
-        final message = _getSuccessMessage(key, value);
-        if (message.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              _showCenterOverlay(message);
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          try {
+            if (key == 'soundAlerts' && value == true) {
+              await SoundService.playChime();
             }
-          });
-        }
+
+            if (key == 'pushNotifications') {
+              if (value == true) {
+                bool granted = true;
+                if (kIsWeb) {
+                  granted = await notif.requestPushPermission();
+                }
+                if (granted) {
+                  if (kIsWeb) {
+                    await notif.showTestNotification(
+                      'Notifications enabled',
+                      'You will receive alerts here.',
+                    );
+                  }
+                } else {
+                  // Revert the setting if permission denied
+                  await SettingsService.updateSetting(
+                    'pushNotifications',
+                    false,
+                  );
+                  _showCenterOverlay(
+                    'Notification permission was denied. Push notifications remain off.',
+                  );
+                  return;
+                }
+              }
+            }
+          } catch (_) {}
+
+          final message = _getSuccessMessage(key, value);
+          if (message.isNotEmpty) {
+            _showCenterOverlay(message);
+          }
+        });
       }
     } catch (e) {
       if (mounted) {

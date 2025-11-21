@@ -25,6 +25,129 @@ class DatabaseService {
     return '$y$m$d';
   }
 
+  // Privacy enforcement helpers
+  static Future<String> _getUserRole(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      return (doc.data()?['role'] ?? 'employee') as String;
+    } catch (_) {
+      return 'employee';
+    }
+  }
+
+  static Future<Map<String, dynamic>> _getUserPrivacySettings(
+    String uid,
+  ) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final data = doc.data() ?? <String, dynamic>{};
+      return {
+        'privateGoals': data['privateGoals'] == true,
+        'managerOnly': data['managerOnly'] == true,
+        'teamShare': data['teamShare'] != false, // default true
+        'profileVisible': data['profileVisible'] != false, // default true
+      };
+    } catch (_) {
+      return {
+        'privateGoals': false,
+        'managerOnly': false,
+        'teamShare': true,
+        'profileVisible': true,
+      };
+    }
+  }
+
+  static Future<bool> canViewerSeeUserProfile({
+    required String viewerId,
+    required String targetUserId,
+  }) async {
+    if (viewerId == targetUserId) return true;
+    final role = await _getUserRole(viewerId);
+    if (role == 'manager') return true;
+    final settings = await _getUserPrivacySettings(targetUserId);
+    return settings['profileVisible'] == true;
+  }
+
+  static Future<List<Goal>> getUserGoalsForViewer({
+    required String viewerId,
+    required String targetUserId,
+  }) async {
+    final isOwner = viewerId == targetUserId;
+    final viewerRole = await _getUserRole(viewerId);
+    final settings = await _getUserPrivacySettings(targetUserId);
+
+    // Enforce managerOnly/privateGoals for non-owners and non-managers
+    if (!isOwner && viewerRole != 'manager') {
+      if (settings['managerOnly'] == true) {
+        return <Goal>[];
+      }
+      if (settings['privateGoals'] == true) {
+        return <Goal>[];
+      }
+    }
+
+    // Fetch goals
+    final snapshot = await FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: targetUserId)
+        .get();
+    var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+    goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    // If teamShare is disabled, hide completed goals from non-owners/non-managers
+    if (!isOwner && viewerRole != 'manager' && settings['teamShare'] == false) {
+      goals = goals.where((g) => g.status != GoalStatus.completed).toList();
+    }
+    return goals;
+  }
+
+  static Stream<List<Goal>> getUserGoalsStreamForViewer({
+    required String viewerId,
+    required String targetUserId,
+  }) async* {
+    final isOwner = viewerId == targetUserId;
+    final viewerRole = await _getUserRole(viewerId);
+    final settings = await _getUserPrivacySettings(targetUserId);
+
+    if (!isOwner && viewerRole != 'manager') {
+      if (settings['managerOnly'] == true || settings['privateGoals'] == true) {
+        yield <Goal>[];
+        // Still subscribe minimally to pick up future changes
+      }
+    }
+
+    yield* FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: targetUserId)
+        .snapshots()
+        .map((snapshot) {
+          var goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .toList();
+          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          if (!isOwner &&
+              viewerRole != 'manager' &&
+              settings['teamShare'] == false) {
+            goals = goals
+                .where((g) => g.status != GoalStatus.completed)
+                .toList();
+          }
+          if (!isOwner && viewerRole != 'manager') {
+            if (settings['managerOnly'] == true ||
+                settings['privateGoals'] == true) {
+              return <Goal>[];
+            }
+          }
+          return goals;
+        });
+  }
+
   static String _weekKey(DateTime dt) {
     // Simple week-of-year approximation
     final firstDay = DateTime(dt.year, 1, 1);
@@ -155,7 +278,8 @@ class DatabaseService {
       }
       final data = snapshot.data();
       final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
+              .toString();
       if (currentStatus == GoalApprovalStatus.approved.name ||
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
@@ -205,7 +329,8 @@ class DatabaseService {
       }
       final data = snapshot.data();
       final currentStatus =
-          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name).toString();
+          (data?['approvalStatus'] ?? GoalApprovalStatus.pending.name)
+              .toString();
       if (currentStatus == GoalApprovalStatus.approved.name ||
           currentStatus == GoalApprovalStatus.rejected.name) {
         throw StateError('Goal has already been finalized');
@@ -280,34 +405,16 @@ class DatabaseService {
 
   static Future<List<Goal>> getUserGoals(String uid) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: uid)
-          .get();
-
-      final goals = snapshot.docs
-          .map((doc) => Goal.fromFirestore(doc))
-          .toList();
-
-      // Sort in memory to avoid Firestore index requirements
-      goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return goals;
+      final viewer = FirebaseAuth.instance.currentUser?.uid ?? uid;
+      return await getUserGoalsForViewer(viewerId: viewer, targetUserId: uid);
     } catch (e) {
-      // Return empty list if there's an error (like missing index)
       return [];
     }
   }
 
   static Stream<List<Goal>> getUserGoalsStream(String uid) {
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: uid)
-        .snapshots()
-        .map(
-          (snapshot) =>
-              snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList()
-                ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
-        );
+    final viewer = FirebaseAuth.instance.currentUser?.uid ?? uid;
+    return getUserGoalsStreamForViewer(viewerId: viewer, targetUserId: uid);
   }
 
   static Future<String> createGoal(Goal goal) async {
@@ -472,8 +579,9 @@ class DatabaseService {
       'createdByName': createdByName,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
-      'completedAt':
-          status == GoalMilestoneStatus.completed ? Timestamp.fromDate(now) : null,
+      'completedAt': status == GoalMilestoneStatus.completed
+          ? Timestamp.fromDate(now)
+          : null,
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
@@ -496,8 +604,10 @@ class DatabaseService {
     Map<String, dynamic>? goalData;
     bool goalCompleted = false;
     try {
-      final goalSnap =
-          await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
       if (!goalSnap.exists) {
         throw Exception('Goal not found');
       }
@@ -522,9 +632,7 @@ class DatabaseService {
         status != null &&
         previousStatus == GoalMilestoneStatus.completed &&
         status != GoalMilestoneStatus.completed) {
-      throw Exception(
-        'Completed goals cannot reopen completed milestones.',
-      );
+      throw Exception('Completed goals cannot reopen completed milestones.');
     }
 
     final Map<String, dynamic> updates = {
@@ -576,8 +684,10 @@ class DatabaseService {
     GoalMilestone milestone,
   ) async {
     try {
-      final goalSnap =
-          await FirebaseFirestore.instance.collection('goals').doc(goalId).get();
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
       if (!goalSnap.exists) return;
       final goal = Goal.fromFirestore(goalSnap);
       if (goal.userId.isEmpty) return;
@@ -631,8 +741,9 @@ class DatabaseService {
         return status == GoalMilestoneStatus.completed.name;
       }).length;
 
-      final int rawPercent =
-          total == 0 ? 0 : ((completed / total) * 100).round();
+      final int rawPercent = total == 0
+          ? 0
+          : ((completed / total) * 100).round();
       final int percent = rawPercent.clamp(0, 100);
 
       final summary = <String, dynamic>{
@@ -641,7 +752,9 @@ class DatabaseService {
         'percentage': percent,
       };
 
-      final goalRef = FirebaseFirestore.instance.collection('goals').doc(goalId);
+      final goalRef = FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId);
       final goalSnap = await goalRef.get();
       if (!goalSnap.exists) return;
       final data = goalSnap.data() as Map<String, dynamic>;
@@ -656,13 +769,10 @@ class DatabaseService {
       }
       if (alreadySynced) return;
 
-      await goalRef.set(
-        {
-          'milestoneSummary': summary,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await goalRef.set({
+        'milestoneSummary': summary,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       developer.log('syncGoalProgressWithMilestones error: $e');
     }
