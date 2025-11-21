@@ -358,87 +358,68 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onPressed: _isRegistering
                                     ? null
                                     : () async {
-                                        if (_fullNameController.text.isEmpty) {
+                              if (_fullNameController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter your full name.',
                                           );
-                                          return;
-                                        }
-                                        if (_usernameController.text.isEmpty) {
+                                return;
+                              }
+                              if (_usernameController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter a username.',
                                           );
-                                          return;
-                                        }
-                                        if (_emailController.text.isEmpty) {
+                                return;
+                              }
+                              if (_emailController.text.isEmpty) {
                                           await _showCenterNotice(
                                             'Please enter your email.',
                                           );
-                                          return;
-                                        }
-                                        if (!RegExp(
-                                          r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-                                        ).hasMatch(_emailController.text)) {
+                                return;
+                              }
+                              if (!RegExp(
+                                r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                              ).hasMatch(_emailController.text)) {
                                           await _showCenterNotice(
                                             'Please enter a valid email address.',
                                           );
-                                          return;
-                                        }
+                                return;
+                              }
                                         if (_passwordController.text.length <
                                             8) {
                                           await _showCenterNotice(
                                             'Password must be at least 8 characters long.',
                                           );
-                                          return;
-                                        }
-                                        if (_passwordController.text !=
-                                            _confirmPasswordController.text) {
+                                return;
+                              }
+                              if (_passwordController.text !=
+                                  _confirmPasswordController.text) {
                                           await _showCenterNotice(
                                             'Passwords do not match.',
                                           );
-                                          return;
-                                        }
-                                        if (_selectedRole == null) {
+                                return;
+                              }
+                              if (_selectedRole == null) {
                                           await _showCenterNotice(
                                             'Please select a role.',
                                           );
-                                          return;
-                                        }
-
-                                        // Enforce domain rule: Only emails ending with @khonodemy or @khonodemy.com
-                                        // can register as manager. Others must register as employee.
-                                        final String emailLower =
-                                            _emailController.text
-                                                .trim()
-                                                .toLowerCase();
-                                        final bool isKhonodemyEmail =
-                                            emailLower.endsWith('@khonodemy') ||
-                                            emailLower.endsWith(
-                                              '@khonodemy.com',
-                                            );
-                                        if (_selectedRole == 'manager' &&
-                                            !isKhonodemyEmail) {
-                                          await _showManagerRestrictionDialog(
-                                            context,
-                                          );
-                                          return; // Stop submission; user must adjust role
-                                        }
+                                return;
+                              }
 
                                         setState(() {
                                           _isRegistering = true;
                                         });
-                                        _showLoadingDialog();
-                                        try {
+                              _showLoadingDialog();
+                              try {
                                           UserCredential
                                           userCredential = await FirebaseAuth
                                               .instance
-                                              .createUserWithEmailAndPassword(
-                                                email: _emailController.text,
+                                        .createUserWithEmailAndPassword(
+                                          email: _emailController.text,
                                                 password:
                                                     _passwordController.text,
-                                              );
-                                          // Post-auth blocklist check; if blocked, delete the just-created user and stop
-                                          try {
+                                        );
+                                // Post-auth blocklist check; if blocked, delete the just-created user and stop
+                                try {
                                             final emailLower = _emailController
                                                 .text
                                                 .trim()
@@ -452,9 +433,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                       'emailLower',
                                                       isEqualTo: emailLower,
                                                     )
-                                                    .limit(1)
-                                                    .get();
-                                            if (blocked.docs.isNotEmpty) {
+                                      .limit(1)
+                                      .get();
+                                  if (blocked.docs.isNotEmpty) {
                                               try {
                                                 await userCredential.user
                                                     ?.delete();
@@ -463,36 +444,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                                 await FirebaseAuth.instance
                                                     .signOut();
                                               } catch (_) {}
-                                              if (!context.mounted) return;
+                                    if (!context.mounted) return;
                                               await _showCenterNotice(
                                                 'This email was permanently deleted and cannot be used to register.',
                                               );
-                                              return;
-                                            }
-                                          } catch (_) {
-                                            // Ignore errors here; inability to read blocklist should not break registration
-                                          }
-                                          // Store additional user data in Firestore
-                                          // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
-                                          await DatabaseService.initializeUserData(
-                                            userCredential.user!.uid,
-                                            _fullNameController.text,
-                                            _emailController.text,
+                                    return;
+                                  }
+                                } catch (_) {
+                                  // Ignore errors here; inability to read blocklist should not break registration
+                                }
+                                // Store additional user data in Firestore
+                                // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
+                                await DatabaseService.initializeUserData(
+                                  userCredential.user!.uid,
+                                  _fullNameController.text,
+                                  _emailController.text,
                                             role:
                                                 _selectedRole!, // Use the selected role
-                                          );
+                                );
 
-                                          // Initialize default badges and run initial check
-                                          await BadgeService.initializeUserBadges(
-                                            userCredential.user!.uid,
-                                          );
-                                          await BadgeService.checkAndAwardBadges(
-                                            userCredential.user!.uid,
-                                          );
+                                // Initialize default badges and run initial check
+                                await BadgeService.initializeUserBadges(
+                                  userCredential.user!.uid,
+                                );
+                                await BadgeService.checkAndAwardBadges(
+                                  userCredential.user!.uid,
+                                );
 
-                                          if (!context.mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
                                           Navigator.of(
                                             context,
                                             rootNavigator: true,
@@ -503,30 +484,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           await _showCenterNotice(
                                             'Registration Successful!',
                                           );
-                                          if (!context.mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
-                                          Navigator.pushReplacementNamed(
-                                            context,
-                                            '/sign_in',
-                                          );
-                                        } on FirebaseAuthException catch (e) {
-                                          String message;
-                                          if (e.code == 'weak-password') {
-                                            message =
-                                                'The password provided is too weak.';
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/sign_in',
+                                );
+                              } on FirebaseAuthException catch (e) {
+                                String message;
+                                if (e.code == 'weak-password') {
+                                  message =
+                                      'The password provided is too weak.';
                                           } else if (e.code ==
                                               'email-already-in-use') {
-                                            message =
-                                                'The account already exists for that email.';
-                                          } else {
-                                            message =
+                                  message =
+                                      'The account already exists for that email.';
+                                } else {
+                                  message =
                                                 e.message ??
                                                 'An unknown error occurred.';
-                                          }
-                                          if (!context.mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
+                                }
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
                                           Navigator.of(
                                             context,
                                             rootNavigator: true,
@@ -534,11 +515,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           setState(() {
                                             _isRegistering = false;
                                           });
-                                          await _showCenterNotice(message);
-                                        } catch (e) {
-                                          if (!context.mounted) {
-                                            return; // Guard against context use after async gap
-                                          }
+                                await _showCenterNotice(message);
+                              } catch (e) {
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
                                           Navigator.of(
                                             context,
                                             rootNavigator: true,
@@ -549,8 +530,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           await _showCenterNotice(
                                             'An unexpected error occurred: ${e.toString()}',
                                           );
-                                        }
-                                      },
+                              }
+                            },
                                 child: _isRegistering
                                     ? const SizedBox(
                                         height: 22,
@@ -728,58 +709,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },
         ),
       ),
-    );
-  }
-
-  Future<void> _showManagerRestrictionDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0E1A2E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Row(
-            children: const [
-              Icon(Icons.lock_outline, color: Color(0xFFC10D00)),
-              SizedBox(width: 8),
-              Text('Access restricted', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'Manager sign-up requires a verified company email.\n\nPlease continue as Employee to proceed.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text(
-                'Close',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ),
-              onPressed: () {
-                setState(() {
-                  _selectedRole = 'employee';
-                });
-                Navigator.of(dialogContext).pop();
-                _showCenterNotice(
-                  'Continuing as Employee. You can proceed to sign up.',
-                );
-              },
-              child: const Text('Continue as Employee'),
-            ),
-          ],
-        );
-      },
     );
   }
 

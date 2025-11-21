@@ -241,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w400,
-                                  color: Colors.white.withOpacity(0.8),
+                                  color: Colors.white.withValues(alpha: 0.8),
                                   fontFamily: 'Poppins',
                                 ),
                               ),
@@ -260,7 +260,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     enabled: !_emailLinkSent,
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.black.withOpacity(0.3),
+                                      fillColor: Colors.black.withValues(alpha: 0.3),
                                       hintText: 'Email',
                                       hintStyle: const TextStyle(
                                         color: Colors.white70,
@@ -270,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide(
-                                          color: Colors.white.withOpacity(0.2),
+                                          color: Colors.white.withValues(alpha: 0.2),
                                           width: 1.0,
                                         ),
                                       ),
@@ -312,10 +312,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.2),
+                                    color: Colors.green.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.green.withOpacity(0.5),
+                                      color: Colors.green.withValues(alpha: 0.5),
                                     ),
                                   ),
                                   child: Row(
@@ -351,7 +351,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     BoxShadow(
                                       color: const Color(
                                         0xFFC10D00,
-                                      ).withOpacity(0.3),
+                                      ).withValues(alpha: 0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 4),
                                     ),

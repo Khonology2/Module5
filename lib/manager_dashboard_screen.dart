@@ -33,7 +33,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
-  late final Stream<List<TeamInsight>> _insightsStream;
   String? _currentProfilePhotoUrl;
 
   // Tutorial state
@@ -50,7 +49,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
-    _insightsStream = _realtime.teamInsightsStream();
 
     // Check if tutorial should be shown
     Future.delayed(const Duration(milliseconds: 1500), () {
@@ -391,53 +389,31 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
 
-          return StreamBuilder<List<TeamInsight>>(
-            stream: _insightsStream,
-            builder: (context, insightsSnap) {
-              final insights = insightsSnap.data ?? [];
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  StreamBuilder<UserProfile?>(
-                    stream: _getManagerProfileStream(),
-                    builder: (context, profileSnap) {
-                      return _buildWelcomeCard();
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildDailyMotivationCard(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildQuickActions(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildKpis(metrics, employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildTeamHealth(metrics, employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildActivitySummary(employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildSeasonProgressAlerts(),
-                  const SizedBox(height: AppSpacing.xl),
-                  _buildTopTwoPerformers(employees),
-                  const SizedBox(height: AppSpacing.xl),
-                  insightsSnap.connectionState == ConnectionState.waiting
-                      ? _card(
-                          child: SizedBox(
-                            height: 120,
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      : _buildInsights(insights),
-                  const SizedBox(height: AppSpacing.xxl),
-                ],
-              );
-            },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              StreamBuilder<UserProfile?>(
+                stream: _getManagerProfileStream(),
+                builder: (context, profileSnap) {
+                  return _buildWelcomeCard();
+                },
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              _buildDailyMotivationCard(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildQuickActions(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildKpis(metrics, employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildTeamHealth(metrics, employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildActivitySummary(employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildSeasonProgressAlerts(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildTopTwoPerformers(employees),
+              const SizedBox(height: AppSpacing.xxl),
+            ],
           );
         },
       ),
@@ -891,27 +867,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInsights(List<TeamInsight> insights) {
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('AI Team Insights', style: AppTypography.heading2),
-          const SizedBox(height: 12),
-          if (insights.isEmpty)
-            Text('No insights available', style: AppTypography.muted)
-          else
-            ...insights.map(
-              (i) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text('• ${i.title}', style: AppTypography.bodyText),
-              ),
-            ),
         ],
       ),
     );

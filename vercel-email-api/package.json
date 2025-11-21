@@ -1,0 +1,10 @@
+{
+  "name": "pdh-email-api",
+  "version": "1.0.0",
+  "description": "Free email API for Personal Development Hub",
+  "main": "api/send-email.js",
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.6"
+  }
+}
+

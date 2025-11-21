@@ -534,9 +534,13 @@ class AuditService {
 
       // Log timeline event: verification
       try {
+        final actorName =
+            userData['displayName'] ?? user.displayName ?? 'Manager';
         final event = TimelineService.buildEvent(
           eventType: 'verification',
           description: 'Entry verified with score ${score.toStringAsFixed(1)}',
+          actorIdOverride: user.uid,
+          actorNameOverride: actorName,
         );
         await TimelineService.logEvent(entryId, event);
       } catch (e) {

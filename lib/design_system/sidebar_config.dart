@@ -72,7 +72,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
       red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
-      label: 'Alerts & Visuals',
+      label: 'Alerts & Nudges',
       route: '/alerts_nudges',
     ),
     itemWithAssets(
@@ -80,6 +80,11 @@ class SidebarConfig {
       red: 'assets/Khonodemy Icons/Badges&Points_Red.png',
       label: 'Badges & Points',
       route: '/badges_points',
+    ),
+    SidebarItem(
+      icon: Icons.emoji_events_outlined,
+      label: 'Season Challenges',
+      route: '/season_challenges',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
