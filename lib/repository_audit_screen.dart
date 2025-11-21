@@ -524,6 +524,28 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: TextStyle(color: AppColors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Diagnostic method to check all audit entries and their departments
   Future<void> _showDiagnosticInfo() async {
     try {
@@ -717,9 +739,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         name: 'RepositoryAuditScreen',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading diagnostic info: $e')),
-        );
+        await _showCenterNotice(context, 'Error loading diagnostic info: $e');
       }
     }
   }
@@ -1530,7 +1550,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
               final score = double.tryParse(scoreController.text);
               if (score != null && score >= 1.0 && score <= 5.0) {
@@ -1545,18 +1564,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   if (mounted) navigator.pop();
                 } catch (e) {
                   if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Error verifying entry: $e')),
+                    await _showCenterNotice(
+                      context,
+                      'Error verifying entry: $e',
                     );
                   }
                 }
               } else {
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Please enter a valid score between 1.0 and 5.0',
-                    ),
-                  ),
+                await _showCenterNotice(
+                  context,
+                  'Please enter a valid score between 1.0 and 5.0',
                 );
               }
             },
@@ -1609,7 +1626,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
               if (reasonController.text.isNotEmpty) {
                 try {
@@ -1620,16 +1636,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   if (mounted) navigator.pop();
                 } catch (e) {
                   if (mounted) {
-                    scaffoldMessenger.showSnackBar(
-                      SnackBar(content: Text('Error requesting changes: $e')),
+                    await _showCenterNotice(
+                      context,
+                      'Error requesting changes: $e',
                     );
                   }
                 }
               } else {
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Please provide a reason for the changes'),
-                  ),
+                await _showCenterNotice(
+                  context,
+                  'Please provide a reason for the changes',
                 );
               }
             },
@@ -2019,38 +2035,131 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         evidence.startsWith('http://') || evidence.startsWith('https://');
 
     if (isUrl) {
-      // For URLs, open in a new browser tab/window (web) or show simple link dialog
-      try {
-        web.window.open(evidence, '_blank');
-      } catch (_) {
-        // Fallback: show dialog with selectable link
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppColors.cardBackground,
-            title: Text(
-              'Evidence Link',
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-            content: SelectableText(
-              evidence,
-              style: TextStyle(
-                color: AppColors.activeColor,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Close',
-                  style: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-            ],
+      final lower = evidence.toLowerCase();
+      final isImage =
+          lower.endsWith('.png') ||
+          lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.gif') ||
+          lower.endsWith('.webp');
+      final isPdf = lower.endsWith('.pdf');
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: Text(
+            isImage
+                ? 'Evidence Image'
+                : isPdf
+                ? 'Evidence PDF'
+                : 'Evidence Link',
+            style: TextStyle(color: AppColors.textPrimary),
           ),
-        );
-      }
+          content: isImage
+              ? SizedBox(
+                  width: 480,
+                  height: 360,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      evidence,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              color: AppColors.textMuted,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Could not load image preview.',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              evidence,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.activeColor,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isPdf)
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.picture_as_pdf,
+                            color: AppColors.activeColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'PDF evidence file',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (isPdf) const SizedBox(height: 8),
+                    SelectableText(
+                      evidence,
+                      style: TextStyle(
+                        color: AppColors.activeColor,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    if (isPdf) const SizedBox(height: 8),
+                    if (isPdf)
+                      Text(
+                        'Use "Open in new tab" to view this PDF in your browser.',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Close',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                try {
+                  web.window.open(evidence, '_blank');
+                } catch (_) {
+                  Navigator.of(ctx).pop();
+                }
+              },
+              child: Text(
+                isPdf ? 'Open PDF in new tab' : 'Open in new tab',
+                style: TextStyle(color: AppColors.activeColor),
+              ),
+            ),
+          ],
+        ),
+      );
     } else {
       // For text evidence, show in a preview dialog
       showDialog(
@@ -2265,13 +2374,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 isUploading = false;
                               });
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      '${files.length} file(s) uploaded successfully',
-                                    ),
-                                    backgroundColor: Colors.green,
-                                  ),
+                                await _showCenterNotice(
+                                  context,
+                                  '${files.length} file(s) uploaded successfully',
                                 );
                                 // Close dialog automatically after successful upload
                                 Navigator.of(context).pop();
@@ -2279,11 +2384,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                             } catch (e) {
                               setState(() => isUploading = false);
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error uploading files: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
+                                await _showCenterNotice(
+                                  context,
+                                  'Error uploading files: $e',
                                 );
                               }
                             }
@@ -2560,24 +2663,15 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       if (mounted) {
         Navigator.pop(context); // Close evidence dialog
         Navigator.pop(context); // Close goal selection dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Goal submitted for audit with ${uploadedFiles.length} file(s) and ${textEvidence.length} text evidence!',
-            ),
-            backgroundColor: Colors.green,
-          ),
+        await _showCenterNotice(
+          context,
+          'Goal submitted for audit with ${uploadedFiles.length} file(s) and ${textEvidence.length} text evidence!',
         );
       }
     } catch (e) {
       developer.log('Error submitting goal for audit with files: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error submitting goal: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        await _showCenterNotice(context, 'Error submitting goal: $e');
       }
     }
   }

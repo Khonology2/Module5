@@ -39,6 +39,35 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -271,14 +300,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     final note =
                                         _reviewNotes[goalId]?.text.trim() ?? '';
                                     if (note.isEmpty) {
-                                      ScaffoldMessenger.of(
+                                      await _showCenterNotice(
                                         context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Please add a note for Request changes',
-                                          ),
-                                        ),
+                                        'Please add a note for Request changes',
                                       );
                                       return;
                                     }
@@ -305,14 +329,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     final note =
                                         _reviewNotes[goalId]?.text.trim() ?? '';
                                     if (note.isEmpty) {
-                                      ScaffoldMessenger.of(
+                                      await _showCenterNotice(
                                         context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Please add a reason to reject',
-                                          ),
-                                        ),
+                                        'Please add a reason to reject',
                                       );
                                       return;
                                     }
@@ -496,18 +515,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         managerName: managerName,
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Goal approved')));
+        await _showCenterNotice(context, 'Goal approved');
       }
     } catch (e) {
       final message = e is StateError
-          ? e.message
+          ? 'Failed to approve goal: ${e.message}'
           : 'Failed to approve goal: $e';
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        await _showCenterNotice(context, message);
       }
     }
   }
@@ -523,16 +538,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         reason: reason,
       );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Goal rejected')));
+        await _showCenterNotice(context, 'Goal rejected');
       }
     } catch (e) {
-      final message = e is StateError ? e.message : 'Failed to reject goal: $e';
+      final message = e is StateError
+          ? 'Failed to reject goal: ${e.message}'
+          : 'Failed to reject goal: $e';
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        await _showCenterNotice(context, message);
       }
     }
   }
@@ -655,6 +668,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     await AlertService.markAllAsRead(user.uid);
                                     if (!mounted) return;
                                     setState(() => _bulkMarking = false);
+<<<<<<< HEAD
                                     if (!mounted) return;
                                     // ignore: use_build_context_synchronously
                                     ScaffoldMessenger.of(context).showSnackBar(
@@ -663,6 +677,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                           'All alerts marked as read',
                                         ),
                                       ),
+=======
+                                    await _showCenterNotice(
+                                      context,
+                                      'All alerts marked as read',
+>>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
                                     );
                                   },
                             icon: _bulkMarking
@@ -751,7 +770,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               return ListView.separated(
                 padding: AppSpacing.screenPadding,
                 itemCount: items.length,
-                separatorBuilder: (_, _) =>
+                separatorBuilder: (_, __) =>
                     const SizedBox(height: AppSpacing.sm),
                 itemBuilder: (context, i) => _buildInboxCard(items[i]),
               );
