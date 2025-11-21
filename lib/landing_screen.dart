@@ -51,6 +51,7 @@ class _PersonalDevelopmentHubScreenState
   void initState() {
     super.initState();
     _checkTokenAndAutoLogin();
+
     inspirationalLines = [
       "Cultivate your mind, blossom your potential.",
       "Every step forward is a victory.",
@@ -98,28 +99,6 @@ class _PersonalDevelopmentHubScreenState
         size: Size(320 * dpr, 160 * dpr),
       );
     });
-  }
-
-  /// Handle GET STARTED button click
-  /// Triggers authentication flow and shows loading state on button
-  Future<void> _handleGetStartedClick() async {
-    setState(() {
-      _isProcessingButton = true;
-    });
-
-    // Check for token and authenticate
-    await _checkTokenAndAutoLogin();
-
-    // If authentication didn't complete (no token or failed), navigate to sign in
-    // If _isCheckingToken is true, it means token was found and full-screen loading is shown
-    // Navigation will happen automatically, so we don't need to do anything here
-    if (mounted && !_isCheckingToken) {
-      setState(() {
-        _isProcessingButton = false;
-      });
-      // No token found or authentication failed, go to sign in screen
-      Navigator.pushNamed(context, '/sign_in');
-    }
   }
 
   /// Check for token in URL, validate with backend API, and auto-login
@@ -382,18 +361,6 @@ class _PersonalDevelopmentHubScreenState
 
   @override
   Widget build(BuildContext context) {
-    // Show loading while checking token
-    if (_isCheckingToken) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A1931),
-        body: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       body: Stack(
         children: [
@@ -456,49 +423,18 @@ class _PersonalDevelopmentHubScreenState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  // Button - Centered
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: _isProcessingButton
-                          ? null
-                          : () {
-                              _handleGetStartedClick();
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(
-                          0xFFC10D00,
-                        ), // Use the new red color
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 15,
-                        ),
-                        shape: const StadiumBorder(),
-                        disabledBackgroundColor: Color(
-                          0xFFC10D00,
-                        ).withValues(alpha: 0.6),
+                  // Button - Hidden as per request
+                  const SizedBox.shrink(),
+                  // Show subtle loading indicator when checking token
+                  if (_isCheckingToken) ...[
+                    const SizedBox(height: 32),
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFC10D00),
                       ),
-                      child: _isProcessingButton
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Text(
-                              'GET STARTED',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                      strokeWidth: 2,
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

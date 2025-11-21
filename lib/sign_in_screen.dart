@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -41,11 +42,18 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
+class _LoginScreenState extends State<LoginScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSigningIn = false;
   bool _emailLinkSent = false;
+  bool _isButtonHovered = false;
+
+  late AnimationController _hoverController;
+  late AnimationController _clickController;
+  late Animation<double> _hoverAnimation;
+  late Animation<double> _clickAnimation;
 
   // OAuth providers kept for potential future use but hidden from UI
   // final microsoftProvider = MicrosoftAuthProvider();
@@ -57,13 +65,143 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Hover animation controller
+    _hoverController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    // Click animation controller
+    _clickController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+
+    // Hover animation with spring effect
+    _hoverAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _hoverController, curve: Curves.easeOutBack),
+    );
+
+    // Click animation with bounce
+    _clickAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _clickController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
     _emailController.dispose();
+    _hoverController.dispose();
+    _clickController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _onButtonHover(bool isHovered) {
+    setState(() {
+      _isButtonHovered = isHovered;
+    });
+    if (isHovered) {
+      _hoverController.forward();
+    } else {
+      _hoverController.reverse();
+    }
+  }
+
+  Future<void> _onButtonClick() async {
+    // Haptic feedback
+    HapticFeedback.lightImpact();
+
+    // Click animation
+    await _clickController.forward();
+    await _clickController.reverse();
+
+    // Continue with button action
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isSigningIn = true;
+      });
+      try {
+        // Send sign-in link to email
+        final email = _emailController.text;
+        final actionCodeSettings = ActionCodeSettings(
+          url: 'https://pdh-fe6eb.firebaseapp.com/?email=$email',
+          handleCodeInApp: true,
+        );
+
+        await FirebaseAuth.instance.sendSignInLinkToEmail(
+          email: email,
+          actionCodeSettings: actionCodeSettings,
+        );
+
+        setState(() {
+          _emailLinkSent = true;
+          _isSigningIn = false;
+        });
+
+        // Check if user clicked the link (for web)
+        if (kIsWeb) {
+          // Check if we're coming from an email link
+          final uri = Uri.base;
+          if (FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
+            // User clicked the link, sign them in
+            try {
+              final cred = await FirebaseAuth.instance.signInWithEmailLink(
+                email: email,
+                emailLink: uri.toString(),
+              );
+
+              final user = cred.user;
+              if (user != null) {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .set({
+                      'lastLoginAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true));
+
+                if (!mounted) return;
+                await _handlePostLoginNavigation(context);
+              }
+            } catch (e) {
+              if (!mounted) return;
+              await _showCenterNotice(
+                'Error signing in with email link: ${e.toString()}',
+              );
+            }
+          }
+        }
+      } on FirebaseAuthException catch (e) {
+        String message;
+        switch (e.code) {
+          case 'invalid-email':
+            message = 'Please enter a valid email address.';
+            break;
+          case 'user-disabled':
+            message = 'This account is disabled. Please contact support.';
+            break;
+          case 'too-many-requests':
+            message = 'Too many requests. Please wait a moment and try again.';
+            break;
+          default:
+            message = 'We couldn\'t send the sign-in link. Please try again.';
+        }
+        if (!mounted) return;
+        await _showCenterNotice(message);
+        setState(() {
+          _isSigningIn = false;
+        });
+      } catch (e) {
+        if (!mounted) return;
+        await _showCenterNotice(
+          'An unexpected error occurred: ${e.toString()}',
+        );
+        setState(() {
+          _isSigningIn = false;
+        });
+      }
+    }
   }
 
   // Helper function to handle post-login navigation
@@ -260,7 +398,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                     enabled: !_emailLinkSent,
                                     decoration: InputDecoration(
                                       filled: true,
-                                      fillColor: Colors.black.withValues(alpha: 0.3),
+                                      fillColor: Colors.black.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       hintText: 'Email',
                                       hintStyle: const TextStyle(
                                         color: Colors.white70,
@@ -270,7 +410,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(12),
                                         borderSide: BorderSide(
-                                          color: Colors.white.withValues(alpha: 0.2),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
                                           width: 1.0,
                                         ),
                                       ),
@@ -308,14 +450,16 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ),
                               ),
                               if (_emailLinkSent) ...[
-                              const SizedBox(height: 20),
+                                const SizedBox(height: 20),
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     color: Colors.green.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.green.withValues(alpha: 0.5),
+                                      color: Colors.green.withValues(
+                                        alpha: 0.5,
+                                      ),
                                     ),
                                   ),
                                   child: Row(
@@ -328,11 +472,11 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                       Expanded(
                                         child: Text(
                                           'Sign-in link sent to ${_emailController.text}. Please check your email and click the link to sign in.',
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                          style: const TextStyle(
+                                            color: Colors.white,
                                             fontSize: 14,
-                                      fontFamily: 'Poppins',
-                                    ),
+                                            fontFamily: 'Poppins',
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -340,136 +484,84 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ),
                               ],
                               const SizedBox(height: 30),
-                              // Primary Sign In button
-                              Container(
-                                width: double.infinity,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(28),
-                                  color: const Color(0xFFC10D00),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFFC10D00,
-                                      ).withValues(alpha: 0.3),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: TextButton(
-                                  onPressed: (_isSigningIn || _emailLinkSent)
-                                      ? null
-                                      : () async {
-                                          if (_formKey.currentState!
-                                              .validate()) {
-                                            setState(() {
-                                              _isSigningIn = true;
-                                            });
-                                            try {
-                                              // Send sign-in link to email
-                                              final email = _emailController.text;
-                                              final actionCodeSettings = ActionCodeSettings(
-                                                url: 'https://pdh-fe6eb.firebaseapp.com/?email=$email',
-                                                handleCodeInApp: true,
-                                              );
-
-                                              await FirebaseAuth.instance
-                                                  .sendSignInLinkToEmail(
-                                                    email: email,
-                                                    actionCodeSettings: actionCodeSettings,
-                                                  );
-
-                                              setState(() {
-                                                _emailLinkSent = true;
-                                                _isSigningIn = false;
-                                              });
-
-                                              // Check if user clicked the link (for web)
-                                              if (kIsWeb) {
-                                                // Check if we're coming from an email link
-                                                final uri = Uri.base;
-                                                if (FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
-                                                  // User clicked the link, sign them in
-                                                  try {
-                                                    final cred = await FirebaseAuth.instance.signInWithEmailLink(
-                                                      email: email,
-                                                      emailLink: uri.toString(),
-                                                    );
-                                                    
-                                              final user = cred.user;
-                                              if (user != null) {
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .set({
-                                                            'lastLoginAt': FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                                      
-                                                      if (!mounted) return;
-                                                      await _handlePostLoginNavigation(context);
-                                                    }
-                                                  } catch (e) {
-                                              if (!mounted) return;
-                                                    await _showCenterNotice(
-                                                      'Error signing in with email link: ${e.toString()}',
-                                                    );
-                                                  }
-                                                }
-                                              }
-                                            } on FirebaseAuthException catch (e) {
-                                              String message;
-                                              switch (e.code) {
-                                                case 'invalid-email':
-                                                  message = 'Please enter a valid email address.';
-                                                  break;
-                                                case 'user-disabled':
-                                                  message = 'This account is disabled. Please contact support.';
-                                                  break;
-                                                case 'too-many-requests':
-                                                  message = 'Too many requests. Please wait a moment and try again.';
-                                                  break;
-                                                default:
-                                                  message = 'We couldn\'t send the sign-in link. Please try again.';
-                                              }
-                                              if (!mounted) return;
-                                              await _showCenterNotice(message);
-                                              setState(() {
-                                                _isSigningIn = false;
-                                              });
-                                            } catch (e) {
-                                              if (!mounted) return;
-                                              await _showCenterNotice(
-                                                'An unexpected error occurred: ${e.toString()}',
-                                              );
-                                                setState(() {
-                                                  _isSigningIn = false;
-                                                });
-                                            }
-                                          }
-                                        },
-                                  child: _isSigningIn
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
+                              // Primary Sign In button with animations
+                              MouseRegion(
+                                onEnter: (_) => _onButtonHover(true),
+                                onExit: (_) => _onButtonHover(false),
+                                child: AnimatedBuilder(
+                                  animation: Listenable.merge([
+                                    _hoverAnimation,
+                                    _clickAnimation,
+                                  ]),
+                                  builder: (context, child) {
+                                    final scale = _isButtonHovered
+                                        ? _hoverAnimation.value *
+                                              _clickAnimation.value
+                                        : _clickAnimation.value;
+                                    return Transform.scale(
+                                      scale: scale,
+                                      child: Container(
+                                        width: double.infinity,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            28,
                                           ),
-                                        )
-                                      : Text(
-                                          _emailLinkSent ? 'LINK SENT' : 'SEND SIGN-IN LINK',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                            fontFamily: 'Poppins',
-                                            letterSpacing: 0.5,
-                                          ),
+                                          color: const Color(0xFFC10D00),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFFC10D00)
+                                                  .withValues(
+                                                    alpha: _isButtonHovered
+                                                        ? 0.5
+                                                        : 0.3,
+                                                  ),
+                                              blurRadius: _isButtonHovered
+                                                  ? 12
+                                                  : 8,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
                                         ),
+                                        child: TextButton(
+                                          onPressed:
+                                              (_isSigningIn || _emailLinkSent)
+                                              ? null
+                                              : _onButtonClick,
+                                          style: TextButton.styleFrom(
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                            ),
+                                          ),
+                                          child: _isSigningIn
+                                              ? const SizedBox(
+                                                  height: 20,
+                                                  width: 20,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(Colors.white),
+                                                  ),
+                                                )
+                                              : Text(
+                                                  _emailLinkSent
+                                                      ? 'LINK SENT'
+                                                      : 'SEND SIGN-IN LINK',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontFamily: 'Poppins',
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               // OAuth buttons and register link are hidden but code is preserved for future use

@@ -363,38 +363,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 8),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(
-                    Icons.school_outlined,
-                    color: AppColors.textPrimary,
-                  ),
-                  title: const Text(
-                    'Restart Sidebar Tutorial',
-                    style: TextStyle(color: AppColors.textPrimary),
-                  ),
-                  subtitle: const Text(
-                    'Show the sidebar navigation tutorial again',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: AppColors.textSecondary,
-                    ),
-                    onPressed: () async {
-                      await _restartSidebarTutorial(context);
-                    },
-                  ),
-                  onTap: () async {
-                    await _restartSidebarTutorial(context);
-                  },
-                ),
               ],
             );
           },
@@ -629,57 +597,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _restartSidebarTutorial(BuildContext context) async {
-    // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.backgroundColor,
-        title: const Text(
-          'Restart Sidebar Tutorial',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: const Text(
-          'This will reset the sidebar tutorial completion status. The tutorial will appear the next time you visit the dashboard.',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Restart',
-              style: TextStyle(color: AppColors.activeColor),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      // Enable tutorial and reset completion status
-      await SettingsService.updateSetting('tutorialEnabled', true);
-      await EmployeeTutorialService.instance.resetTutorialCompletion();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Sidebar tutorial reset. It will appear on your next dashboard visit.',
-            ),
-            backgroundColor: AppColors.activeColor,
-          ),
-        );
-        // Navigate to dashboard to show tutorial immediately
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      }
-    }
-  }
 
   Widget _buildManagerSection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
