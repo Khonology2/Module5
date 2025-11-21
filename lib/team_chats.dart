@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/role_service.dart';
 
 // --- 1. Custom Color Definitions (Based on HTML/Tailwind) ---
 const Color chatPrimary = Color(0xFF4F46E5); // Indigo-600
@@ -756,6 +757,36 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: Row(
                         children: [
+                          // Back button
+                          StreamBuilder<String?>(
+                            stream: RoleService.instance.roleStream(),
+                            builder: (context, roleSnapshot) {
+                              final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+                              final isManager = role == 'manager';
+                              
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () {
+                                  if (isManager) {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/manager_review_team_dashboard',
+                                    );
+                                  } else {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/employee_dashboard',
+                                    );
+                                  }
+                                },
+                                tooltip: 'Back to Dashboard',
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
                           Builder(
                             builder: (context) {
                               final user = FirebaseAuth.instance.currentUser;

@@ -1,16 +1,11 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
-import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
@@ -24,67 +19,17 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final AuthService _authService = AuthService();
-  late final TextEditingController _resetEmailController;
-  bool _allowResetEmailEdit = false;
   UserSettings? _currentSettings;
 
   @override
   void initState() {
     super.initState();
-    _initializeControllers();
-    _loadCurrentUser();
     // Ensure role is loaded
     RoleService.instance.ensureRoleLoaded();
   }
 
-  void _initializeControllers() {
-    _resetEmailController = TextEditingController(text: '');
-  }
-
-  void _loadCurrentUser() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        try {
-          // Prefer auth email first
-          String email = user.email ?? '';
-
-          // If auth provider didn't expose an email, fall back to Firestore user doc
-          if (email.isEmpty) {
-            try {
-              final doc = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .get();
-              final data = doc.data();
-              email = (data?['email'] as String?) ?? '';
-            } catch (e) {
-              developer.log('Error loading email from Firestore: $e');
-            }
-          }
-
-          if (!mounted) return;
-          setState(() {
-            _resetEmailController.text = email;
-            // If we still don't know the email, allow the user to type it manually
-            _allowResetEmailEdit = email.isEmpty;
-          });
-        } catch (e) {
-          developer.log('Error loading current user: $e');
-        }
-      });
-    }
-  }
-
   @override
   void dispose() {
-    try {
-      _resetEmailController.dispose();
-    } catch (e) {
-      developer.log('Error disposing controllers: $e');
-    }
     super.dispose();
   }
 
@@ -132,10 +77,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(isManager),
-                      const SizedBox(height: 24),
-                      _buildPrivacySection(settings),
-                      const SizedBox(height: 24),
+                      if (!isManager) ...[
+                        _buildPrivacySection(settings),
+                        const SizedBox(height: 24),
+                      ],
                       _buildNotificationSection(settings),
                       const SizedBox(height: 24),
                       _buildAppSection(settings),
@@ -143,8 +88,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 24),
                         _buildManagerSection(settings),
                       ],
-                      const SizedBox(height: 24),
-                      _buildSecuritySection(settings),
                       const SizedBox(height: 24),
                       _buildAccountSection(),
                     ],
@@ -212,46 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildHeader(bool isManager) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Settings & Privacy',
-          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(
-                'assets/Account_User_Profile/Profile.png',
-                width: 20,
-                height: 20,
-                fit: BoxFit.contain,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                isManager ? 'Manager Settings' : 'Employee Settings',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSectionCard({
     required String title,
     required IconData icon,
@@ -267,19 +170,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: AppColors.activeColor, size: 24),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+          Center(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 16),
           ...children,
@@ -648,73 +547,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSecuritySection(UserSettings? settings) {
-    if (settings == null) return const SizedBox.shrink();
-
-    return _buildSectionCard(
-      title: 'Security & Privacy',
-      icon: Icons.security_outlined,
-      children: [
-        _buildTextField(
-          controller: _resetEmailController,
-          label: 'Email for Password Reset',
-          icon: Icons.email_outlined,
-          keyboardType: TextInputType.emailAddress,
-          // If we couldn't determine an email, allow user to type it
-          readOnly: !_allowResetEmailEdit ? true : false,
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _resetPassword,
-            icon: const Icon(Icons.lock_reset),
-            label: const Text('Send Password Reset Email'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.activeColor,
-              side: BorderSide(color: AppColors.activeColor),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildSwitchTile(
-          title: 'Two-Factor Authentication',
-          subtitle: 'Add an extra layer of security to your account',
-          value: settings.twoFactorAuth,
-          onChanged: (value) => _updateSetting('twoFactorAuth', value),
-        ),
-        _buildSwitchTile(
-          title: 'Session Timeout',
-          subtitle: 'Automatically sign out after inactivity',
-          value: settings.sessionTimeout,
-          onChanged: (value) => _updateSetting('sessionTimeout', value),
-        ),
-        if (settings.sessionTimeout) ...[
-          const SizedBox(height: 8),
-          _buildDropdownTile(
-            title: 'Timeout Duration',
-            value: settings.sessionTimeoutMinutes.toString(),
-            items: const [
-              DropdownMenuItem<String>(value: '15', child: Text('15 minutes')),
-              DropdownMenuItem<String>(value: '30', child: Text('30 minutes')),
-              DropdownMenuItem<String>(value: '60', child: Text('1 hour')),
-              DropdownMenuItem<String>(value: '120', child: Text('2 hours')),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                _updateSetting('sessionTimeoutMinutes', int.parse(value));
-              }
-            },
-          ),
-        ],
-      ],
-    );
-  }
-
   Widget _buildAccountSection() {
     return _buildSectionCard(
       title: 'Account Actions',
@@ -736,88 +568,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign Out'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.warningColor,
-              side: BorderSide(color: AppColors.warningColor),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _deleteAccount,
-            icon: const Icon(Icons.delete_forever),
-            label: const Text('Delete Account'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.dangerColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
       ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? assetIconPath,
-    Widget? suffix,
-    TextInputType? keyboardType,
-    bool readOnly = false,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      readOnly: readOnly,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: AppColors.textMuted),
-        prefixIcon: assetIconPath != null
-            ? Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Image.asset(
-                  assetIconPath,
-                  width: 20,
-                  height: 20,
-                  fit: BoxFit.contain,
-                ),
-              )
-            : Icon(icon, color: AppColors.textMuted),
-        suffixIcon: suffix,
-        filled: true,
-        fillColor: Colors.black.withValues(alpha: 0.4),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.activeColor),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-      ),
-      style: TextStyle(color: AppColors.textPrimary),
     );
   }
 
@@ -1069,30 +820,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _resetPassword() async {
-    if (!mounted) return;
-
-    final emailText = _resetEmailController.text;
-    if (emailText.isEmpty) {
-      await _showCenterNotice(context, 'Please enter your email address');
-      return;
-    }
-
-    try {
-      await SettingsService.resetPassword(emailText);
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          'Password reset email sent to $emailText',
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(context, 'Error sending password reset: $e');
-      }
-    }
-  }
-
   Future<void> _exportUserData() async {
     try {
       // Show blocking loading dialog centred on screen
@@ -1246,108 +973,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: Text('Sign Out', style: TextStyle(color: AppColors.textPrimary)),
-        content: Text(
-          'Are you sure you want to sign out?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warningColor,
-            ),
-            child: const Text('Sign Out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await _authService.signOut();
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/sign_in');
-        }
-      } catch (e) {
-        if (mounted) {
-          await _showCenterNotice(context, 'Error signing out: $e');
-        }
-      }
-    }
-  }
-
-  Future<void> _deleteAccount() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: Text(
-          'Delete Account',
-          style: TextStyle(
-            color: AppColors.dangerColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'This action cannot be undone. This will permanently delete your account and all associated data.',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Are you absolutely sure?',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.dangerColor,
-            ),
-            child: const Text('Delete Account'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await SettingsService.deleteAccount();
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/sign_in');
-        }
-      } catch (e) {
-        if (mounted) {
-          String message = 'Error deleting account: $e';
-          if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
-            message =
-                'For your security, please sign in again and then delete your account.';
-          }
-          await _showCenterNotice(context, message);
-        }
-      }
-    }
-  }
 }
