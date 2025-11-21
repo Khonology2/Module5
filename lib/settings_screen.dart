@@ -12,12 +12,9 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/download_helper.dart';
-<<<<<<< HEAD
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
-=======
 import 'package:pdh/services/employee_tutorial_service.dart';
->>>>>>> 046a3e3c39465c139737a56aa5e6c149a9fb1196
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -29,14 +26,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final AuthService _authService = AuthService();
   late final TextEditingController _resetEmailController;
-<<<<<<< HEAD
   bool _allowResetEmailEdit = false;
-
-  bool _isLoading = false;
-=======
-
-  // Removed unused _isLoading field
->>>>>>> 046a3e3c39465c139737a56aa5e6c149a9fb1196
   UserSettings? _currentSettings;
 
   @override
@@ -756,14 +746,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           controller: _resetEmailController,
           label: 'Email for Password Reset',
           icon: Icons.email_outlined,
-<<<<<<< HEAD
-                keyboardType: TextInputType.emailAddress,
+          keyboardType: TextInputType.emailAddress,
           // If we couldn't determine an email, allow user to type it
           readOnly: !_allowResetEmailEdit ? true : false,
-=======
-          keyboardType: TextInputType.emailAddress,
-          readOnly: true,
->>>>>>> 046a3e3c39465c139737a56aa5e6c149a9fb1196
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -1052,12 +1037,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 if (granted) {
                   if (kIsWeb) {
-                    await notif.showTestNotification('Notifications enabled', 'You will receive alerts here.');
+                    await notif.showTestNotification(
+                      'Notifications enabled',
+                      'You will receive alerts here.',
+                    );
                   }
                 } else {
                   // Revert the setting if permission denied
-                  await SettingsService.updateSetting('pushNotifications', false);
-                  _showCenterOverlay('Notification permission was denied. Push notifications remain off.');
+                  await SettingsService.updateSetting(
+                    'pushNotifications',
+                    false,
+                  );
+                  _showCenterOverlay(
+                    'Notification permission was denied. Push notifications remain off.',
+                  );
                   return;
                 }
               }
