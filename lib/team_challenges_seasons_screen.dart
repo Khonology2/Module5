@@ -24,6 +24,35 @@ class _TeamChallengesSeasonsScreenState
   String _themeFilter = 'All Themes';
   bool _showPausedOnly = false;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,9 +94,7 @@ class _TeamChallengesSeasonsScreenState
         centerTitle: false,
         title: Text(
           'Team Challenges & Growth Seasons',
-          style: AppTypography.heading2.copyWith(
-            color: Colors.white,
-          ),
+          style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
@@ -191,15 +218,18 @@ class _TeamChallengesSeasonsScreenState
                     }
 
                     if (snapshot.hasError) {
-                      return _buildActiveSeasonsError(snapshot.error.toString());
+                      return _buildActiveSeasonsError(
+                        snapshot.error.toString(),
+                      );
                     }
 
                     final seasons = snapshot.data ?? [];
                     final activeSeasons = seasons
                         .where((s) => s.status == SeasonStatus.active)
                         .toList();
-                    final filteredSeasons =
-                        activeSeasons.where(_applyFilters).toList();
+                    final filteredSeasons = activeSeasons
+                        .where(_applyFilters)
+                        .toList();
 
                     if (filteredSeasons.isEmpty) {
                       return _buildEmptyActiveSeasonsState();
@@ -467,9 +497,7 @@ class _TeamChallengesSeasonsScreenState
       height: 200,
       child: Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(
-            AppColors.activeColor,
-          ),
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
         ),
       ),
     );
@@ -487,11 +515,7 @@ class _TeamChallengesSeasonsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 48,
-            color: AppColors.dangerColor,
-          ),
+          Icon(Icons.error_outline, size: 48, color: AppColors.dangerColor),
           const SizedBox(height: 12),
           Text(
             'Error loading seasons',
@@ -521,14 +545,9 @@ class _TeamChallengesSeasonsScreenState
     final lastActivityInfo = _getLastActivityInfo(season);
     final avgParticipantProgress = season.participations.isNotEmpty
         ? season.participations.values
-                .map(
-                  (p) => _calculateParticipantProgress(
-                    p,
-                    season,
-                  ),
-                )
-                .fold<double>(0.0, (sum, value) => sum + value) /
-            season.participations.length
+                  .map((p) => _calculateParticipantProgress(p, season))
+                  .fold<double>(0.0, (sum, value) => sum + value) /
+              season.participations.length
         : 0.0;
 
     return Container(
@@ -894,12 +913,7 @@ class _TeamChallengesSeasonsScreenState
     return CreateSeasonForm(
       onSeasonCreated: () {
         _tabController.animateTo(0);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season created successfully!'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
+        _showCenterNotice(context, 'Season created successfully!');
       },
     );
   }
@@ -1003,10 +1017,7 @@ class _TeamChallengesSeasonsScreenState
             value: _themeFilter,
             items: themes
                 .map(
-                  (theme) => DropdownMenuItem(
-                    value: theme,
-                    child: Text(theme),
-                  ),
+                  (theme) => DropdownMenuItem(value: theme, child: Text(theme)),
                 )
                 .toList(),
             onChanged: (value) {
@@ -1137,7 +1148,6 @@ class _TeamChallengesSeasonsScreenState
     if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
     return 'Just now';
   }
-
 }
 
 // Create Season Form Widget
@@ -1168,6 +1178,35 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
     'Innovation',
     'Wellness',
   ];
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -1336,12 +1375,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
   Future<void> _createSeason() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select start and end dates'),
-          backgroundColor: AppColors.dangerColor,
-        ),
-      );
+      await _showCenterNotice(context, 'Please select start and end dates');
       return;
     }
 
@@ -1364,12 +1398,7 @@ class _CreateSeasonFormState extends State<CreateSeasonForm> {
       widget.onSeasonCreated();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error creating season: $e');
       }
     } finally {
       setState(() {

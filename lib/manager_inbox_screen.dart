@@ -519,7 +519,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       }
     } catch (e) {
       final message = e is StateError
-          ? (e.message ?? 'Failed to approve goal: $e')
+          ? 'Failed to approve goal: ${e.message}'
           : 'Failed to approve goal: $e';
       if (mounted) {
         await _showCenterNotice(context, message);
@@ -542,7 +542,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       }
     } catch (e) {
       final message = e is StateError
-          ? (e.message ?? 'Failed to reject goal: $e')
+          ? 'Failed to reject goal: ${e.message}'
           : 'Failed to reject goal: $e';
       if (mounted) {
         await _showCenterNotice(context, message);
