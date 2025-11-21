@@ -19,6 +19,35 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,10 +84,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             backgroundColor: Colors.transparent,
             body: _buildSeasonBackground(
               child: const Center(
-                child: Text(
-                  'Season not found',
-                  style: AppTypography.heading4,
-                ),
+                child: Text('Season not found', style: AppTypography.heading4),
               ),
             ),
           );
@@ -123,7 +149,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             runSpacing: AppSpacing.sm.toDouble(),
             children: [
               ElevatedButton.icon(
-                onPressed: canComplete ? () => _onCompleteSeason(season, challengeProgress) : null,
+                onPressed: canComplete
+                    ? () => _onCompleteSeason(season, challengeProgress)
+                    : null,
                 icon: const Icon(Icons.flag, size: 18),
                 label: const Text('Complete Season'),
                 style: ElevatedButton.styleFrom(
@@ -194,7 +222,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
-  Future<void> _onCompleteSeason(Season season, double challengeProgress) async {
+  Future<void> _onCompleteSeason(
+    Season season,
+    double challengeProgress,
+  ) async {
     try {
       if (challengeProgress >= 1.0) {
         try {
@@ -262,21 +293,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season completed successfully.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Season completed successfully.');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cannot complete season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Cannot complete season: $e');
       }
     }
   }
@@ -284,7 +305,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   Future<void> _onExtendSeason(Season season) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: season.endDate.isAfter(DateTime.now()) ? season.endDate : DateTime.now().add(const Duration(days: 7)),
+      initialDate: season.endDate.isAfter(DateTime.now())
+          ? season.endDate
+          : DateTime.now().add(const Duration(days: 7)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -292,21 +315,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     try {
       await SeasonService.extendSeason(season.id, picked);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season extended.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Season extended.');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to extend season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Failed to extend season: $e');
       }
     }
   }
@@ -315,21 +328,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     try {
       await SeasonService.setSeasonPaused(season.id, paused);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(paused ? 'Season paused.' : 'Season resumed.'),
-            backgroundColor: AppColors.infoColor,
-          ),
+        await _showCenterNotice(
+          context,
+          paused ? 'Season paused.' : 'Season resumed.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update pause: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Failed to update pause: $e');
       }
     }
   }
@@ -339,10 +345,18 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Season?'),
-        content: const Text('This will delete the season and notify all participants. This action cannot be undone.'),
+        content: const Text(
+          'This will delete the season and notify all participants. This action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );
@@ -350,15 +364,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     try {
       await SeasonService.deleteSeasonAndNotify(season.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Season deleted and participants notified'), backgroundColor: AppColors.successColor),
+      await _showCenterNotice(
+        context,
+        'Season deleted and participants notified',
       );
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete season: $e'), backgroundColor: AppColors.dangerColor),
-      );
+      await _showCenterNotice(context, 'Failed to delete season: $e');
     }
   }
 
@@ -380,20 +393,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     try {
       await SeasonService.recomputeSeasonMetrics(season.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Season metrics recomputed'),
-          backgroundColor: AppColors.successColor,
-        ),
-      );
+      await _showCenterNotice(context, 'Season metrics recomputed');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to recompute metrics: $e'),
-          backgroundColor: AppColors.dangerColor,
-        ),
-      );
+      await _showCenterNotice(context, 'Failed to recompute metrics: $e');
     } finally {
       navigator.pop();
     }
@@ -405,9 +408,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     final hasStarted = now.isAfter(season.startDate);
     final hasEnded = now.isAfter(season.endDate);
     final startsInDays = season.startDate.difference(now).inDays;
-    final totalDays = season.endDate
-        .difference(season.startDate)
-        .inDays;
+    final totalDays = season.endDate.difference(season.startDate).inDays;
     final daysElapsed = now.difference(season.startDate).inDays;
     final seasonProgress = totalDays > 0
         ? (daysElapsed / totalDays).clamp(0.0, 1.0)
@@ -417,7 +418,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     if (season.challenges.isNotEmpty) {
       double sum = 0.0;
       for (final challenge in season.challenges) {
-        final completions = season.metrics.challengeCompletions[challenge.type] ?? 0;
+        final completions =
+            season.metrics.challengeCompletions[challenge.type] ?? 0;
         final per = challenge.milestones.isNotEmpty
             ? (completions / challenge.milestones.length).clamp(0.0, 1.0)
             : 0.0;
@@ -608,10 +610,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                     color: !hasStarted
                         ? AppColors.infoColor.withValues(alpha: 0.1)
                         : (!hasEnded
-                            ? AppColors.successColor.withValues(alpha: 0.1)
-                            : (season.status != SeasonStatus.completed
-                                ? AppColors.warningColor.withValues(alpha: 0.1)
-                                : AppColors.infoColor.withValues(alpha: 0.1))),
+                              ? AppColors.successColor.withValues(alpha: 0.1)
+                              : (season.status != SeasonStatus.completed
+                                    ? AppColors.warningColor.withValues(
+                                        alpha: 0.1,
+                                      )
+                                    : AppColors.infoColor.withValues(
+                                        alpha: 0.1,
+                                      ))),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -624,10 +630,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                         color: !hasStarted
                             ? AppColors.infoColor
                             : (!hasEnded
-                                ? AppColors.successColor
-                                : (season.status != SeasonStatus.completed
-                                    ? AppColors.warningColor
-                                    : AppColors.infoColor)),
+                                  ? AppColors.successColor
+                                  : (season.status != SeasonStatus.completed
+                                        ? AppColors.warningColor
+                                        : AppColors.infoColor)),
                         size: 16,
                       ),
                       const SizedBox(width: AppSpacing.xs),
@@ -635,18 +641,18 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                         !hasStarted
                             ? 'Starts in ${startsInDays.abs()} days'
                             : (!hasEnded
-                                ? '$daysLeft days remaining'
-                                : (season.status != SeasonStatus.completed
-                                    ? 'Awaiting manager completion'
-                                    : 'Season completed')),
+                                  ? '$daysLeft days remaining'
+                                  : (season.status != SeasonStatus.completed
+                                        ? 'Awaiting manager completion'
+                                        : 'Season completed')),
                         style: AppTypography.bodyMedium.copyWith(
                           color: !hasStarted
                               ? AppColors.infoColor
                               : (!hasEnded
-                                  ? AppColors.successColor
-                                  : (season.status != SeasonStatus.completed
-                                      ? AppColors.warningColor
-                                      : AppColors.infoColor)),
+                                    ? AppColors.successColor
+                                    : (season.status != SeasonStatus.completed
+                                          ? AppColors.warningColor
+                                          : AppColors.infoColor)),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -672,8 +678,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 child: _buildMetricCard(
                   title: 'Participants',
                   value: '${season.metrics.totalParticipants}',
-                  subtitle:
-                      '${season.metrics.activeParticipants} active',
+                  subtitle: '${season.metrics.activeParticipants} active',
                   icon: Icons.people,
                   color: AppColors.infoColor,
                 ),
@@ -761,9 +766,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 const SizedBox(height: AppSpacing.md),
                 ...season.challenges.map((challenge) {
                   final challengeCompletions =
-                      season.metrics.challengeCompletions[challenge
-                          .type] ??
-                      0;
+                      season.metrics.challengeCompletions[challenge.type] ?? 0;
                   final challengeProgress = challenge.milestones.isNotEmpty
                       ? (challengeCompletions / challenge.milestones.length)
                             .clamp(0.0, 1.0)
@@ -1065,7 +1068,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
-  Widget _buildParticipantCard(Season season, SeasonParticipation participant, int rank) {
+  Widget _buildParticipantCard(
+    Season season,
+    SeasonParticipation participant,
+    int rank,
+  ) {
     final completedMilestones = participant.milestoneProgress.values
         .where((status) => status == MilestoneStatus.completed)
         .length;
@@ -1170,10 +1177,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           gradient: RadialGradient(
             center: Alignment.center,
             radius: 1.2,
-            colors: [
-              Color(0x880A0F1F),
-              Color(0x88040610),
-            ],
+            colors: [Color(0x880A0F1F), Color(0x88040610)],
             stops: [0.0, 1.0],
           ),
         ),
@@ -1184,10 +1188,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
   Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
 
-  BoxDecoration _glassBoxDecoration({
-    double radius = 12,
-    Color? borderColor,
-  }) {
+  BoxDecoration _glassBoxDecoration({double radius = 12, Color? borderColor}) {
     return BoxDecoration(
       color: _glassCardColor,
       borderRadius: BorderRadius.circular(radius),
