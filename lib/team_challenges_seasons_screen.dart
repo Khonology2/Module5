@@ -104,23 +104,32 @@ class _TeamChallengesSeasonsScreenState
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
-          tabs: const [
+          tabs: [
             Tab(
               text: 'Active Seasons',
-              icon: ImageIcon(
-                AssetImage(
-                  'assets/Calendar_Date_Picker/Date_Picker_Red_Badge_White.png',
-                ),
+              icon: Image.asset(
+                'assets/Approved_Tick/Approved_White_Badge_Red.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
               ),
             ),
-            Tab(text: 'Create Season', icon: Icon(Icons.add_circle)),
+            Tab(
+              text: 'Create Season',
+              icon: Image.asset(
+                'assets/plus.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
+              ),
+            ),
             Tab(
               text: 'Season History',
-              icon: ImageIcon(
-                AssetImage(
-                  'assets/Deadline Notification_Reminder/Notification_Reminder_Red.png',
-                ),
-                size: 38,
+              icon: Image.asset(
+                'assets/Deadline Notification_Reminder/deadline.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
               ),
             ),
           ],
