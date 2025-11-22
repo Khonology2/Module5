@@ -427,16 +427,19 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
               _buildCardSection(
                 title: 'Basic Information',
                 children: [
+                  _buildInputLabel('Full Name'),
+                  const SizedBox(height: 8),
                   _buildTextField(
                     controller: _fullNameController,
                     hintText: 'Enter your full name',
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
                   _buildJobTitleDropdown(),
                   const SizedBox(height: 16),
-                  const SizedBox(height: 8),
                   _buildDepartmentDropdown(),
                   const SizedBox(height: 16),
+                  _buildInputLabel('Email Address'),
+                  const SizedBox(height: 8),
                   _buildTextField(
                     controller: _workEmailController,
                     hintText: 'Work Email',
@@ -635,6 +638,13 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           }),
         ],
       ),
+    );
+  }
+
+  Widget _buildInputLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(color: Colors.white70, fontSize: 14),
     );
   }
 

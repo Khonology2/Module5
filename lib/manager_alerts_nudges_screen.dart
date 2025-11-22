@@ -260,12 +260,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   ),
                 ),
                 child: ListTile(
-                  leading: Icon(
-                    isApproved
-                        ? Icons.check_circle_outline
-                        : Icons.cancel_outlined,
-                    color: color,
-                  ),
+                  leading: isApproved
+                      ? Image.asset(
+                          'assets/Approved_Tick/Approve_2.png',
+                          width: 36,
+                          height: 36,
+                          fit: BoxFit.contain,
+                        )
+                      : Icon(
+                          Icons.cancel_outlined,
+                          color: color,
+                        ),
                   title: Text(
                     g.title,
                     style: AppTypography.bodyMedium.copyWith(
@@ -419,22 +424,42 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   labelStyle: AppTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
-                  tabs: const [
+                  tabs: [
                     Tab(
                       text: 'Approvals',
-                      icon: Icon(Icons.fact_check_outlined, size: 20),
+                      icon: Image.asset(
+                        'assets/Data_Approval/Approval_Red Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     Tab(
                       text: 'Team Alerts',
-                      icon: Icon(Icons.notifications, size: 20),
+                      icon: Image.asset(
+                        'assets/red_bell.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     Tab(
                       text: 'Send Nudges',
-                      icon: Icon(Icons.message_outlined, size: 20),
+                      icon: Image.asset(
+                        'assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     Tab(
                       text: 'Analytics',
-                      icon: Icon(Icons.analytics_outlined, size: 20),
+                      icon: Image.asset(
+                        'assets/Project Management/Project_Red Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
                 );
@@ -513,7 +538,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Total Alerts',
             totalAlerts.toString(),
             AppColors.activeColor,
-            Icons.notifications,
+            null,
+            'assets/red_bell.png',
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -522,7 +548,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Urgent',
             urgentAlerts.toString(),
             AppColors.dangerColor,
-            Icons.priority_high,
+            null,
+            'assets/Information_Detail/Information_Red_Badge_White.png',
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -531,7 +558,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Overdue Goals',
             overdueGoals.toString(),
             AppColors.warningColor,
-            Icons.schedule,
+            null,
+            'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -540,7 +568,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Team Members',
             employees.length.toString(),
             AppColors.successColor,
-            Icons.people_outline,
+            null,
+            'assets/Team_Meeting/Meeting_Red Badge_White.png',
           ),
         ),
       ],
@@ -551,7 +580,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     String title,
     String value,
     Color color,
-    IconData icon,
+    IconData? icon,
+    String? imageAsset,
   ) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -562,7 +592,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
+          imageAsset != null
+              ? Image.asset(
+                  imageAsset,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.contain,
+                )
+              : Icon(icon!, color: color, size: 48),
           const SizedBox(height: 8),
           Text(
             value,
