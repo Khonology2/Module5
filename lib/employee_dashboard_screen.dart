@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/employee_profile_screen.dart'; // Import EmployeeProfileScreen
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -38,7 +37,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String? error;
   int currentStreak = 0;
   bool hasActivityToday = false;
-  
+
   // Hover states for the six KPI cards
   bool _isHoveringActiveGoals = false;
   bool _isHoveringCompleted = false;
@@ -615,7 +614,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/employee_dashboard',
-      topRightAction: _profileButton(context),
+      topRightAction: null, // Hide profile button on dashboard
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -775,62 +774,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _profileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return FutureBuilder<String?>(
-      future: user != null
-          ? DatabaseService.getUserNameFromOnboarding(
-              userId: user.uid,
-              email: user.email,
-            )
-          : Future.value(null),
-      builder: (context, snapshot) {
-        String userName = 'User';
-        if (snapshot.hasData &&
-            snapshot.data != null &&
-            snapshot.data!.isNotEmpty) {
-          userName = snapshot.data!;
-        } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-          userName = user.displayName!;
-        } else if (user?.email != null && user!.email!.isNotEmpty) {
-          userName = user.email!.split('@').first;
-        }
-
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const EmployeeProfileScreen(),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.person, color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: AppTypography.bodySmall.copyWith(color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -1166,8 +1109,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: MouseRegion(
-                onEnter: (_) => setState(() => _isHoveringTodaysActivity = true),
-                onExit: (_) => setState(() => _isHoveringTodaysActivity = false),
+                onEnter: (_) =>
+                    setState(() => _isHoveringTodaysActivity = true),
+                onExit: (_) =>
+                    setState(() => _isHoveringTodaysActivity = false),
                 child: AnimatedScale(
                   scale: _isHoveringTodaysActivity ? 1.05 : 1.0,
                   duration: const Duration(milliseconds: 200),

@@ -133,7 +133,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                           IconButton(
                             onPressed: () => Navigator.pop(context),
                             icon: const Icon(Icons.close),
-                            color: AppColors.textSecondary,
+                            color: Colors.white,
                           ),
                         ],
                       ),
@@ -343,7 +343,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     if (!context.mounted) return;
                                     Navigator.pop(context);
                                   },
-                            icon: const Icon(Icons.close),
+                            icon: const Icon(Icons.close, color: Colors.white),
                             label: const Text('Reject'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.dangerColor,
@@ -898,7 +898,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Widget _buildInboxCard(Alert alert) {
     final color = _getAlertColor(alert.priority);
-    final icon = _getAlertIcon(alert.type);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -918,7 +917,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 16),
+                child: Image.asset(
+                  'assets/red_bell.png',
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -931,13 +935,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
               ),
               if (!alert.isRead)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.activeColor,
-                    shape: BoxShape.circle,
-                  ),
+                Image.asset(
+                  'assets/Email_Notification/Notification_Red_White.png',
+                  width: 16,
+                  height: 16,
+                  fit: BoxFit.contain,
                 ),
             ],
           ),
@@ -955,10 +957,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               ),
               const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested)
-                TextButton.icon(
+                TextButton(
                   onPressed: () => _showGoalReviewSheet(alert),
-                  icon: const Icon(Icons.visibility_outlined),
-                  label: const Text('View Goal'),
+                  child: const Text('View Goal'),
                 )
               else if (alert.type == AlertType.goalMilestoneCompleted)
                 TextButton.icon(
@@ -988,7 +989,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 tooltip: 'Dismiss',
                 onPressed: () => AlertService.dismissAlert(alert.id),
                 icon: const Icon(Icons.close),
-                color: AppColors.textSecondary,
+                color: Colors.white,
               ),
             ],
           ),
@@ -1058,57 +1059,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         return AppColors.warningColor;
       case AlertPriority.urgent:
         return AppColors.dangerColor;
-    }
-  }
-
-  IconData _getAlertIcon(AlertType type) {
-    switch (type) {
-      case AlertType.goalCreated:
-        return Icons.flag_outlined;
-      case AlertType.goalCompleted:
-        return Icons.check_circle_outline;
-      case AlertType.goalDueSoon:
-        return Icons.schedule_outlined;
-      case AlertType.goalOverdue:
-        return Icons.priority_high_outlined;
-      case AlertType.inactivity:
-        return Icons.hourglass_empty_outlined;
-      case AlertType.milestoneRisk:
-        return Icons.warning_amber_outlined;
-      case AlertType.badgeEarned:
-        return Icons.emoji_events_outlined;
-      case AlertType.pointsEarned:
-        return Icons.star_border;
-      case AlertType.teamGoalAvailable:
-        return Icons.group_add_outlined;
-      case AlertType.employeeJoinedTeamGoal:
-        return Icons.group_outlined;
-      case AlertType.teamAssigned:
-        return Icons.group_outlined;
-      case AlertType.managerNudge:
-        return Icons.campaign_outlined;
-      case AlertType.achievementUnlocked:
-        return Icons.celebration_outlined;
-      case AlertType.levelUp:
-        return Icons.rocket_launch_outlined;
-      case AlertType.streakMilestone:
-        return Icons.whatshot_outlined;
-      case AlertType.deadlineReminder:
-        return Icons.alarm_outlined;
-      case AlertType.seasonJoined:
-        return Icons.event_available_outlined;
-      case AlertType.seasonCompleted:
-        return Icons.emoji_events_outlined;
-      case AlertType.seasonProgressUpdate:
-        return Icons.trending_up_outlined;
-      case AlertType.goalApprovalRequested:
-        return Icons.fact_check_outlined;
-      case AlertType.goalApprovalApproved:
-        return Icons.thumb_up_alt_outlined;
-      case AlertType.goalApprovalRejected:
-        return Icons.thumb_down_alt_outlined;
-      case AlertType.goalMilestoneCompleted:
-        return Icons.checklist_outlined;
     }
   }
 }

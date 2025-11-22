@@ -1,9 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/database_service.dart';
-import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -62,13 +59,11 @@ class _ManagerReviewTeamDashboardScreenState
         elevation: 0, // Remove AppBar shadow
         automaticallyImplyLeading: false, // Remove back arrow button
         title: Text(
-          'Manager Review',
+          'Team Dashboard',
           style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
         centerTitle: false,
-        actions: [
-          _buildProfileButton(context), // Use the new profile button widget
-        ],
+        actions: [], // Hide profile button on dashboard
       ),
       body: Stack(
         children: [
@@ -190,75 +185,11 @@ class _ManagerReviewTeamDashboardScreenState
     );
   }
 
-  Widget _buildProfileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    
-    return Padding(
-      padding: const EdgeInsets.only(right: 16.0),
-      child: FutureBuilder<String?>(
-        future: user != null
-            ? DatabaseService.getUserNameFromOnboarding(
-                userId: user.uid,
-                email: user.email,
-              )
-            : Future.value(null),
-        builder: (context, snapshot) {
-          String userName = 'User';
-          if (snapshot.hasData &&
-              snapshot.data != null &&
-              snapshot.data!.isNotEmpty) {
-            userName = snapshot.data!;
-          } else if (user?.displayName != null &&
-              user!.displayName!.isNotEmpty) {
-            userName = user.displayName!;
-          } else if (user?.email != null && user!.email!.isNotEmpty) {
-            userName = user.email!.split('@').first;
-          }
-          
-          return InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ManagerProfileScreen(),
-                ),
-              );
-            },
-            child: Row(
-              children: [
-                const Icon(Icons.person, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                  userName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildHeader() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Expanded(
-          child: Text(
-            'Team Dashboard',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        const Expanded(child: SizedBox.shrink()),
         const SizedBox(width: 12),
         _buildTimeFilterDropdown(),
       ],
@@ -680,28 +611,26 @@ class _ManagerReviewTeamDashboardScreenState
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => _sendNudge(employee),
-                    icon: const Icon(Icons.notifications, size: 16),
-                    label: const Text('Nudge'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC10D00),
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    child: const Text('Nudge'),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => _scheduleOneOnOne(employee),
-                    icon: const Icon(Icons.event, size: 16),
-                    label: const Text('1:1'),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white70),
-                      foregroundColor: Colors.white70,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    child: const Text('1:1'),
                   ),
                 ),
               ],
@@ -710,28 +639,26 @@ class _ManagerReviewTeamDashboardScreenState
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => _giveRecognition(employee),
-                    icon: const Icon(Icons.emoji_events, size: 16),
-                    label: const Text('Kudos'),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.green),
-                      foregroundColor: Colors.green,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    child: const Text('Kudos'),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => _viewActivities(employee),
-                    icon: const Icon(Icons.timeline, size: 16),
-                    label: const Text('Activity'),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.blue),
-                      foregroundColor: Colors.blue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    child: const Text('Activity'),
                   ),
                 ),
               ],

@@ -666,7 +666,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Department / Team'),
                     _buildDepartmentDropdown(),
                     const SizedBox(height: 24),
-                    _buildInputLabel('Work Email'),
+                    _buildInputLabel('Email Address'),
                     _buildInputField(
                       controller: _workEmailController,
                       hintText: 'you@company.com',
