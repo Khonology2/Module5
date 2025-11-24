@@ -248,9 +248,30 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
+          }
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+
+          if (_currentUser != null && doc.id == _currentUser!.uid) {
+            badgeCount = max(badgeCount, _currentUser!.badges.length);
           }
         } catch (e) {
           developer.log('Error processing badges for user ${doc.id}: $e');

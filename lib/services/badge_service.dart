@@ -202,6 +202,15 @@ class BadgeService {
       } catch (e) {
         developer.log('Error in post-initialization badge correction: $e');
       }
+
+      await updateUserBadgeSummary(
+        userId,
+        snapshot: await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .get(),
+      );
     } catch (e) {
       developer.log('Error initializing badges: $e');
     }
@@ -280,6 +289,8 @@ class BadgeService {
         totalGoals,
         correctLevel,
       );
+
+      await updateUserBadgeSummary(userId);
 
       developer.log('Completed retroactive badge and level update');
     } catch (e) {
@@ -918,6 +929,8 @@ class BadgeService {
 
       // Check for points milestone badges
       await _checkPointsMilestoneBadges(userId, userProfile);
+
+      await updateUserBadgeSummary(userId);
     } catch (e) {
       developer.log('Error checking badges: $e');
     }
@@ -1621,6 +1634,50 @@ class BadgeService {
     ];
   }
 
+  static Future<void> updateUserBadgeSummary(
+    String userId, {
+    QuerySnapshot<Map<String, dynamic>>? snapshot,
+  }) async {
+    try {
+      final badgeSnapshot = snapshot ??
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('badges')
+              .get();
+
+      final earnedBadgeIds = badgeSnapshot.docs.where((doc) {
+        return _isBadgeEarned(doc.data());
+      }).map((doc) => doc.id).toList();
+
+      await _firestore.collection('users').doc(userId).set(
+        {
+          'badges': earnedBadgeIds,
+          'earnedBadgesCount': earnedBadgeIds.length,
+          'badgeSummary': {
+            'earned': earnedBadgeIds.length,
+            'total': badgeSnapshot.docs.length,
+            'lastSyncedAt': FieldValue.serverTimestamp(),
+          },
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      developer.log('Error syncing badge summary for $userId: $e');
+    }
+  }
+
+  static bool _isBadgeEarned(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    if (data['isEarned'] == true) return true;
+    final progress = data['progress'];
+    final maxProgress = data['maxProgress'];
+    if (progress is num && maxProgress is num && maxProgress > 0) {
+      return progress >= maxProgress;
+    }
+    return false;
+  }
+
   // Get leaderboard data
   static Future<List<Map<String, dynamic>>> getLeaderboard({
     int limit = 10,
@@ -1664,11 +1721,28 @@ class BadgeService {
         // Safely extract badge count
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
           }
-        } catch (e) {
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+        } catch (_) {
           // Ignore badge count errors
         }
 

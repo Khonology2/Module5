@@ -912,13 +912,13 @@ class _ManagerReviewTeamDashboardScreenState
                   // ignore: use_build_context_synchronously
                   if (!mounted) return;
                   await _showCenterNotice(
-                    this.context,
+                    context,
                     '1:1 scheduled with ${employee.profile.displayName}',
                   );
                 } catch (e) {
                   if (!mounted) return; // Add this line back
                   await _showCenterNotice(
-                    this.context,
+                    context,
                     'Error scheduling meeting: $e',
                   );
                 }
@@ -982,13 +982,13 @@ class _ManagerReviewTeamDashboardScreenState
                         Navigator.pop(dialogContext); // Use dialogContext
                         if (!mounted) return;
                         await _showCenterNotice(
-                          this.context,
+                          context,
                           'Recognition sent to ${employee.profile.displayName}',
                         );
                       } catch (e) {
                         if (!mounted) return; // Add this line back
                         await _showCenterNotice(
-                          this.context,
+                          context,
                           'Error giving recognition: $e',
                         );
                       }
