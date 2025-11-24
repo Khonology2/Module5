@@ -712,58 +712,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Future<void> _showManagerRestrictionDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0E1A2E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Row(
-            children: const [
-              Icon(Icons.lock_outline, color: Color(0xFFC10D00)),
-              SizedBox(width: 8),
-              Text('Access restricted', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'Manager sign-up requires a verified company email.\n\nPlease continue as Employee to proceed.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text(
-                'Close',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ),
-              onPressed: () {
-                setState(() {
-                  _selectedRole = 'employee';
-                });
-                Navigator.of(dialogContext).pop();
-                _showCenterNotice(
-                  'Continuing as Employee. You can proceed to sign up.',
-                );
-              },
-              child: const Text('Continue as Employee'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _showCenterNotice(String message) async {
     if (!mounted) return;
     return showDialog<void>(

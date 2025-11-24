@@ -1,12 +1,12 @@
 // Only compiled on web via conditional import in notification_service.dart
-// ignore_for_file: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 Future<bool> requestPushPermission() async {
   try {
-    if (!html.Notification.supported) return false;
-    final result = await html.Notification.requestPermission();
-    return result == 'granted';
+    final permissionPromise = web.Notification.requestPermission();
+    final result = await permissionPromise.toDart;
+    return result.toDart == 'granted';
   } catch (_) {
     return false;
   }
@@ -14,9 +14,12 @@ Future<bool> requestPushPermission() async {
 
 Future<bool> showTestNotification(String title, String body) async {
   try {
-    if (!html.Notification.supported) return false;
-    if (html.Notification.permission == 'granted') {
-      html.Notification(title, body: body);
+    final permission = web.Notification.permission;
+    if (permission.toString() == 'granted') {
+      web.Notification(
+        title,
+        web.NotificationOptions(body: body),
+      );
       return true;
     }
   } catch (_) {}

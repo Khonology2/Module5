@@ -16,6 +16,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/widgets/ai_generation_indicator.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -33,6 +34,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   int _achievability = 3; // Achievable
   int _relevance = 3; // Relevant
   int _timeline = 3; // Time-bound
+  bool _smartScoresGenerated = false; // Track if AI has generated scores
 
   // Controllers for text fields
   final _goalTitleController = TextEditingController();
@@ -451,6 +453,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       text: _goalTitleController.text.trim(),
     );
     bool isGenerating = false;
+    String currentPhase = '';
 
     await showDialog<void>(
       context: context,
@@ -469,36 +472,62 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 return;
               }
 
-              setDialogState(() => isGenerating = true);
+              setDialogState(() {
+                isGenerating = true;
+                currentPhase = 'Generating description...';
+              });
+
+              // Simulate phase progression with delays
+              Future<void> updatePhase(String phase) async {
+                setDialogState(() {
+                  currentPhase = phase;
+                });
+                await Future.delayed(const Duration(milliseconds: 800));
+              }
 
               try {
+                await updatePhase('Generating description...');
+                
                 // Initialize Firebase AI model
                 final model = FirebaseAI.googleAI().generativeModel(
                   model: 'gemini-2.5-flash',
                   systemInstruction: Content.text(
-                    'You are an AI assistant specialized in creating comprehensive personal development goal plans. '
-                    'When given a goal title, you must generate three components:\n\n'
+                    'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
+                    'When given a goal title, you must generate four components:\n\n'
                     '1. DESCRIPTION: A detailed and actionable description of the goal (no more than 5 sentences). '
                     'Be concise but thorough, making it comprehensive, motivating, and including specific steps or considerations.\n\n'
                     '2. DEPENDENCIES AND PREREQUISITES: Exactly 5 dependencies or prerequisites needed to achieve this goal. '
                     'Format each as a bullet point starting with "-" or "•". Be specific and actionable.\n\n'
                     '3. SUCCESS METRICS: Specific, measurable metrics or milestones that indicate successful completion of this goal. '
                     'Provide a substantial amount of detail with clear, quantifiable indicators.\n\n'
+                    '4. SMART SCORES: Based on the goal title, description, dependencies, prerequisites, and success metrics, evaluate and assign a score from 1-5 for each SMART criterion:\n'
+                    '   - clarity (Specific): How clear and well-defined is the goal? (1=vague, 3=some detail, 5=precise deliverable & scope)\n'
+                    '   - measurability (Measurable): Can progress be tracked? (1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source)\n'
+                    '   - achievability (Achievable): Is the goal realistic? (1=unlikely, 3=stretch, 5=realistic with resources)\n'
+                    '   - relevance (Relevant): Does it align with values/role/OKR? (1=not aligned, 3=indirect, 5=direct OKR/competency fit)\n'
+                    '   - timeline (Time-bound): Is there a clear deadline? (1=no date, 3=date tight, 5=realistic + milestones)\n\n'
                     'Respond in this EXACT JSON format (no other text):\n'
-                    '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here"}',
+                    '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}}',
                   ),
                 );
 
                 final prompt = [
                   Content.text(
                     'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
-                    'Provide the description, 5 dependencies/prerequisites in point form, and success metrics.',
+                    'First, create the description, 5 dependencies/prerequisites, and success metrics. '
+                    'Then, based on the complete goal information (title, description, dependencies, prerequisites, and success metrics you generated), '
+                    'evaluate and assign SMART criteria scores (1-5 for each: clarity, measurability, achievability, relevance, timeline). '
+                    'The SMART scores should reflect how well the goal meets each criterion based on all the information provided.',
                   ),
                 ];
 
+                await updatePhase('Generating dependencies and prerequisites...');
+                
                 final response = await model.generateContent(prompt);
                 final responseText =
                     response.text?.replaceAll('*', '').trim() ?? '';
+
+                await updatePhase('Selecting SMART verification scores...');
 
                 if (mounted) {
                   // Update the goal title if it was changed in the dialog
@@ -579,6 +608,29 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     _dependenciesController.text = dependencies;
                     _successMetricsController.text = successMetrics;
 
+                    await updatePhase('Generating success metrics...');
+                    
+                    // Extract and set SMART scores
+                    final smartScores = generatedData['smartScores'];
+                    if (smartScores is Map<String, dynamic>) {
+                      setState(() {
+                        _clarity = _parseSmartScore(smartScores['clarity'], 3);
+                        _measurability = _parseSmartScore(smartScores['measurability'], 3);
+                        _achievability = _parseSmartScore(smartScores['achievability'], 3);
+                        _relevance = _parseSmartScore(smartScores['relevance'], 3);
+                        _timeline = _parseSmartScore(smartScores['timeline'], 3);
+                        _smartScoresGenerated = true; // Mark that AI has generated scores
+                      });
+                    } else {
+                      // If no SMART scores in response, mark as not generated
+                      setState(() {
+                        _smartScoresGenerated = false;
+                      });
+                    }
+
+                    await updatePhase('Complete!');
+                    await Future.delayed(const Duration(milliseconds: 500));
+
                     // Close the dialog
                     // ignore: use_build_context_synchronously
                     Navigator.of(dialogContext).pop();
@@ -588,12 +640,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       await _showCenteredSuccessDialog(
                         // ignore: use_build_context_synchronously
                         context,
-                        'Goal description, dependencies, and success metrics generated successfully!',
+                        'Goal description, dependencies, success metrics, and SMART scores generated successfully!',
                       );
                     }
                   } else {
                     // Fallback: if JSON parsing fails, try to extract description only
                     _goalDescriptionController.text = responseText;
+                    // Don't set SMART scores if parsing fails - keep them unselected
+                    setState(() {
+                      _smartScoresGenerated = false;
+                    });
 
                     // Close the dialog
                     // ignore: use_build_context_synchronously
@@ -604,7 +660,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       await _showCenteredSuccessDialog(
                         // ignore: use_build_context_synchronously
                         context,
-                        'Goal description generated. Dependencies and metrics could not be parsed.',
+                        'Goal description generated. Dependencies, metrics, and SMART scores could not be parsed.',
                       );
                     }
                   }
@@ -671,19 +727,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     ),
                     if (isGenerating) ...[
                       const SizedBox(height: 16),
-                      const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.activeColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Generating description...',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                      AIGenerationIndicator(
+                        currentPhase: currentPhase,
+                        onPhaseChange: (phase) {
+                          setDialogState(() => currentPhase = phase);
+                        },
                       ),
                     ],
                   ],
@@ -704,6 +752,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                   child: const Text('Generate'),
                 ),
@@ -1187,9 +1239,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     border: Border.all(color: AppColors.borderColor),
                   ),
                   child: Text(
-                    'SMART: ${_computeSmartTotal()}/25',
+                    _smartScoresGenerated
+                        ? 'SMART: ${_computeSmartTotal()}/25'
+                        : 'SMART: Not evaluated',
                     style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary,
+                      color: _smartScoresGenerated
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ),
@@ -1198,34 +1254,44 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             const SizedBox(height: AppSpacing.md),
             _buildScoreSelector(
               title: 'Specific - Goal is clear and well-defined',
-              value: _clarity,
-              onChanged: (v) => setState(() => _clarity = v),
+              value: _smartScoresGenerated ? _clarity : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=vague, 3=some detail, 5=precise deliverable & scope',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Measurable - Progress can be tracked',
-              value: _measurability,
-              onChanged: (v) => setState(() => _measurability = v),
+              value: _smartScoresGenerated ? _measurability : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper:
                   '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Achievable - Goal is realistic and attainable',
-              value: _achievability,
-              onChanged: (v) => setState(() => _achievability = v),
+              value: _smartScoresGenerated ? _achievability : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=unlikely, 3=stretch, 5=realistic with resources',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Relevant - Goal aligns with your values/role/OKR',
-              value: _relevance,
-              onChanged: (v) => setState(() => _relevance = v),
+              value: _smartScoresGenerated ? _relevance : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=not aligned, 3=indirect, 5=direct OKR/competency fit',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Time-bound - Goal has a clear deadline',
-              value: _timeline,
-              onChanged: (v) => setState(() => _timeline = v),
+              value: _smartScoresGenerated ? _timeline : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=no date, 3=date tight, 5=realistic + milestones',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
           ],
         ),
@@ -1234,14 +1300,31 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   int _computeSmartTotal() {
+    if (!_smartScoresGenerated) return 0; // Return 0 if scores haven't been generated
     return _clarity + _measurability + _achievability + _relevance + _timeline;
+  }
+
+  int _parseSmartScore(dynamic value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is int) {
+      return value.clamp(1, 5);
+    }
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null) {
+        return parsed.clamp(1, 5);
+      }
+    }
+    return defaultValue;
   }
 
   Widget _buildScoreSelector({
     required String title,
     required int value,
-    required ValueChanged<int> onChanged,
+    required ValueChanged<int>? onChanged,
     String? helper,
+    bool enabled = true,
+    bool aiGenerated = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -1268,22 +1351,38 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             spacing: 8,
             children: List.generate(5, (index) {
               final score = index + 1;
-              final selected = value == score;
+              final selected = value == score && value > 0; // Only selected if value > 0
+              // Use red color #C10D00 for AI-generated selections
+              final selectedColor = aiGenerated && selected
+                  ? const Color(0xFFC10D00)
+                  : AppColors.activeColor;
               return ChoiceChip(
                 label: Text(
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: selected
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
+                    color: enabled
+                        ? (selected
+                            ? Colors.white
+                            : AppColors.textSecondary)
+                        : (selected
+                            ? Colors.white
+                            : AppColors.textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
                 selected: selected,
-                onSelected: (_) => onChanged(score),
-                selectedColor: AppColors.activeColor,
+                onSelected: enabled ? (_) => onChanged?.call(score) : null,
+                selectedColor: selectedColor,
                 backgroundColor: Colors.black.withValues(alpha: 0.3),
+                disabledColor: Colors.black.withValues(alpha: 0.2),
                 shape: StadiumBorder(
-                  side: BorderSide(color: AppColors.borderColor),
+                  side: BorderSide(
+                    color: selected
+                        ? selectedColor
+                        : (enabled
+                            ? AppColors.borderColor
+                            : AppColors.borderColor.withValues(alpha: 0.3)),
+                    width: selected ? 2 : 1,
+                  ),
                 ),
               );
             }),
@@ -1506,7 +1605,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             onPressed: _saveGoal,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

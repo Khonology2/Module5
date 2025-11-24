@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -872,13 +873,28 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       children: [
         // Current user's position (hidden for managers)
         if (!isManager && currentUserId != null && _currentUser != null) ...[
-          const Text(
-            'Your Position',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Your Position',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showCompetitorAnalysis(context, leaderboardData),
+                icon: const Icon(Icons.insights, size: 16),
+                label: const Text('AI Competitor Analysis'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           _buildLeaderboardItem(
@@ -1261,5 +1277,186 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showCompetitorAnalysis(
+    BuildContext context,
+    List<Map<String, dynamic>> leaderboardData,
+  ) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || _currentUser == null) return;
+
+    final currentUserRank = _getCurrentUserRank(leaderboardData);
+    final currentRank = currentUserRank['rank'] ?? leaderboardData.length + 1;
+
+    // Get users ranked just above and below
+    final usersAbove = leaderboardData
+        .where((user) => (user['rank'] ?? 0) < currentRank)
+        .take(3)
+        .toList();
+    final usersBelow = leaderboardData
+        .where((user) => (user['rank'] ?? 0) > currentRank)
+        .take(2)
+        .toList();
+
+    if (usersAbove.isEmpty && usersBelow.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Not enough data for competitor analysis'),
+            backgroundColor: AppColors.warningColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Show loading dialog
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          ),
+        ),
+      );
+    }
+
+    try {
+      // Get goals for current user and competitors
+      final currentUserGoals = await DatabaseService.getUserGoals(currentUserId);
+      
+      // Build comparison data
+      final comparisonData = StringBuffer();
+      comparisonData.writeln('Current User (Rank $currentRank):');
+      comparisonData.writeln('Points: ${currentUserRank['points'] ?? 0}');
+      comparisonData.writeln('Level: ${currentUserRank['level'] ?? 1}');
+      comparisonData.writeln('Badges: ${currentUserRank['badges'] ?? 0}');
+      comparisonData.writeln('Goals: ${currentUserGoals.length}');
+      comparisonData.writeln('');
+
+      for (var competitor in usersAbove) {
+        final competitorId = competitor['userId'];
+        final competitorGoals = await DatabaseService.getUserGoals(competitorId);
+        comparisonData.writeln('Competitor Above (Rank ${competitor['rank']}):');
+        comparisonData.writeln('Name: ${competitor['name']}');
+        comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
+        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
+        comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
+        comparisonData.writeln('Goals: ${competitorGoals.length}');
+        comparisonData.writeln('');
+      }
+
+      for (var competitor in usersBelow) {
+        final competitorId = competitor['userId'];
+        final competitorGoals = await DatabaseService.getUserGoals(competitorId);
+        comparisonData.writeln('Competitor Below (Rank ${competitor['rank']}):');
+        comparisonData.writeln('Name: ${competitor['name']}');
+        comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
+        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
+        comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
+        comparisonData.writeln('Goals: ${competitorGoals.length}');
+        comparisonData.writeln('');
+      }
+
+      // Generate AI analysis
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in analyzing leaderboard performance and providing actionable insights. '
+          'Compare the current user\'s performance with competitors ranked above and below them. '
+          'Identify specific differences in:\n'
+          '1. Points earned and how they\'re distributed\n'
+          '2. Goal completion rates and types\n'
+          '3. Badge achievements and types\n'
+          '4. Activity patterns and consistency\n'
+          '5. Level progression\n\n'
+          'Provide specific, actionable recommendations on what the user should focus on to improve their ranking. '
+          'Be encouraging but direct. Format your response in clear sections with bullet points.',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this leaderboard comparison data and provide insights:\n\n'
+          '$comparisonData\n\n'
+          'What specific actions or achievements do the competitors have that the current user doesn\'t? '
+          'What should the current user focus on to move up in the rankings?',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final analysis = response.text?.replaceAll('*', '').trim() ?? 
+          'Unable to generate analysis. Please try again.';
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show analysis dialog
+      if (context.mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.black.withValues(alpha: 0.9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.insights, color: AppColors.activeColor, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'AI Competitor Analysis',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Text(
+                  analysis,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.activeColor),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating analysis: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
   }
 }

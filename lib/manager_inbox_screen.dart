@@ -668,9 +668,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                                     await AlertService.markAllAsRead(user.uid);
                                     if (!mounted) return;
                                     setState(() => _bulkMarking = false);
+<<<<<<< HEAD
+                                    if (!mounted) return;
+                                    // ignore: use_build_context_synchronously
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'All alerts marked as read',
+                                        ),
+                                      ),
+=======
                                     await _showCenterNotice(
                                       context,
                                       'All alerts marked as read',
+>>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
                                     );
                                   },
                             icon: _bulkMarking
