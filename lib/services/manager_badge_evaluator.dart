@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/badge_service.dart';
 
 class ManagerBadgeEvaluator {
   static final _db = FirebaseFirestore.instance;
@@ -157,6 +158,8 @@ class ManagerBadgeEvaluator {
     await upsertNudgeNetwork(level: 3, requiredCount: 7);
     await upsertNudgeNetwork(level: 4, requiredCount: 8);
     await upsertNudgeNetwork(level: 5, requiredCount: 9);
+
+    await BadgeService.updateUserBadgeSummary(managerId);
   }
 
   // Ensure manager badge docs exist (locked) so UI can display them grouped by level

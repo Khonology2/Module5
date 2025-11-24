@@ -1153,7 +1153,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           const SizedBox(height: 8),
           ...entry.evidence
               .map((evidence) => _buildEvidenceItem(evidence, entry.evidence))
-              .toList(),
+              ,
 
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
