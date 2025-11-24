@@ -1,12 +1,10 @@
 // ignore_for_file: unused_element
 
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -677,8 +675,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Icon(Icons.insights, size: 18),
@@ -2448,174 +2447,30 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         message: message,
       );
 
-<<<<<<< HEAD
-   if (mounted) {
-     ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(
-         content: Text('Bulk nudge sent: $successCount successes, $errorCount errors'),
-         backgroundColor: successCount > errorCount ? AppColors.successColor : AppColors.warningColor,
-       ),
-     );
-   }
- }
-
-  Future<void> _loadTeamInsights(List<EmployeeData> employees, List<Alert> alerts) async {
-    if (employees.isEmpty) return;
-
-    setState(() => _isLoadingInsights = true);
-
-    try {
-      // Collect team data
-      final teamData = <Map<String, dynamic>>[];
-      final now = DateTime.now();
-
-      for (final employee in employees) {
-        final goals = await DatabaseService.getUserGoals(employee.profile.uid);
-        final employeeAlerts = alerts.where((a) => a.userId == employee.profile.uid).toList();
-        
-        // Calculate risk indicators
-        final overdueGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.isBefore(now)
-        ).length;
-        
-        final dueSoonGoals = goals.where((g) => 
-          g.status == GoalStatus.inProgress && 
-          g.targetDate.difference(now).inDays <= 7 &&
-          g.targetDate.difference(now).inDays > 0
-        ).length;
-
-        final avgProgress = goals.isEmpty ? 0.0 : 
-          goals.map((g) => g.progress).reduce((a, b) => a + b) / goals.length;
-
-        final inactivityDays = now.difference(employee.lastActivity).inDays;
-
-        teamData.add({
-          'name': employee.profile.displayName,
-          'uid': employee.profile.uid,
-          'department': employee.profile.department,
-          'goals': goals.length,
-          'overdueGoals': overdueGoals,
-          'dueSoonGoals': dueSoonGoals,
-          'avgProgress': avgProgress,
-          'alerts': employeeAlerts.length,
-          'inactivityDays': inactivityDays,
-          'level': employee.profile.level,
-          'badges': employee.profile.badges.length,
-          'goalsData': goals.map((g) => {
-            'title': g.title,
-            'progress': g.progress,
-            'status': g.status.name,
-            'priority': g.priority.name,
-            'daysUntilDeadline': g.targetDate.difference(now).inDays,
-          }).toList(),
-        });
-      }
-
-      // Generate AI analysis
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in team management and performance analysis. '
-          'Analyze team data to identify:\n\n'
-          '1. AT-RISK TEAM MEMBERS:\n'
-          '   - Employees likely to miss deadlines based on goal progress, overdue goals, and activity patterns\n'
-          '   - Early warning signs before problems escalate\n'
-          '   - Risk level (high, medium, low) for each at-risk member\n'
-          '   - Specific reasons why they\'re at risk\n\n'
-          '2. COLLABORATION OPPORTUNITIES:\n'
-          '   - Team members who could help each other based on complementary strengths\n'
-          '   - Employees with similar goals who could collaborate\n'
-          '   - Pairing suggestions (who can help whom and why)\n\n'
-          'Format your response as JSON with this structure:\n'
-          '{"atRiskMembers": [{"name": "...", "riskLevel": "high|medium|low", "reasons": ["...", "..."], "recommendations": "..."}], '
-          '"collaborationOpportunities": [{"member1": "...", "member2": "...", "reason": "...", "suggestion": "..."}]}',
-        ),
-      );
-
-      final teamDataText = teamData.map((e) {
-        return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
-            '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
-            '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
-      }).join('\n');
-
-      final prompt = [
-        Content.text(
-          'Analyze this team data:\n\n$teamDataText\n\n'
-          'Identify at-risk team members and collaboration opportunities. '
-          'Focus on employees with overdue goals, low progress, high inactivity, or multiple alerts. '
-          'For collaboration, identify complementary strengths and similar goal types.',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
-
-      // Parse JSON response
-      String jsonText = responseText.trim();
-      if (jsonText.contains('```json')) {
-        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-      } else if (jsonText.contains('```')) {
-        jsonText = jsonText.split('```')[1].split('```')[0].trim();
-      }
-
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(jsonText);
-      if (jsonMatch != null) {
-        final jsonString = jsonMatch.group(0) ?? '{}';
-        try {
-          final insights = jsonDecode(jsonString) as Map<String, dynamic>;
-          if (mounted) {
-            setState(() {
-              _teamInsights = insights;
-              _isLoadingInsights = false;
-            });
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() => _isLoadingInsights = false);
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() => _isLoadingInsights = false);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingInsights = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading insights: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-=======
       if (mounted) {
         await _showCenterNotice(context, 'Nudge sent successfully!');
       }
     } catch (e) {
       if (mounted) {
         await _showCenterNotice(context, 'Error sending nudge: $e');
->>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
       }
     }
   }
 
-<<<<<<< HEAD
   Widget _buildTeamInsightsWidget() {
     if (_teamInsights == null) return const SizedBox.shrink();
 
-    final atRiskMembers = _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
-    final collaborations = _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
+    final atRiskMembers =
+        _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
+    final collaborations =
+        _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.activeColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2651,7 +2506,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             ),
             const SizedBox(height: 12),
             ...atRiskMembers.take(5).map((member) {
-              final riskLevel = member['riskLevel']?.toString().toLowerCase() ?? 'medium';
+              final riskLevel =
+                  member['riskLevel']?.toString().toLowerCase() ?? 'medium';
               Color riskColor;
               if (riskLevel == 'high') {
                 riskColor = AppColors.dangerColor;
@@ -2662,7 +2518,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               }
 
               final reasons = member['reasons'] as List<dynamic>? ?? [];
-              final recommendations = member['recommendations']?.toString() ?? '';
+              final recommendations =
+                  member['recommendations']?.toString() ?? '';
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -2679,7 +2536,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: riskColor.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
@@ -2707,25 +2567,30 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       ),
                       if (reasons.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        ...reasons.map((reason) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.warning_amber_rounded, 
-                                color: riskColor, size: 14),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  reason.toString(),
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: AppColors.textSecondary,
+                        ...reasons.map(
+                          (reason) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: riskColor,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    reason.toString(),
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        )),
+                        ),
                       ],
                       if (recommendations.isNotEmpty) ...[
                         const SizedBox(height: 8),
@@ -2738,8 +2603,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.lightbulb_outline, 
-                                color: AppColors.activeColor, size: 16),
+                              Icon(
+                                Icons.lightbulb_outline,
+                                color: AppColors.activeColor,
+                                size: 16,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -2787,8 +2655,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.people_outline, 
-                            color: AppColors.successColor, size: 18),
+                          Icon(
+                            Icons.people_outline,
+                            color: AppColors.successColor,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -2818,8 +2689,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.handshake, 
-                              color: AppColors.successColor, size: 16),
+                            Icon(
+                              Icons.handshake,
+                              color: AppColors.successColor,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
@@ -2842,14 +2716,181 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         ],
       ),
     );
-=======
-  void _sendBulkNudge(List<EmployeeData> employees, String message) async {
-    int successCount = 0;
-    int errorCount = 0;
+  }
+
+  Future<void> _loadTeamInsights(
+    List<EmployeeData> employees,
+    List<Alert> alerts,
+  ) async {
+    if (_isLoadingInsights) return;
+    if (employees.isEmpty) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'No employees available for insights yet.',
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoadingInsights = true);
+
+    try {
+      final now = DateTime.now();
+      final alertsByUser = <String, List<Alert>>{};
+      for (final alert in alerts) {
+        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final atRiskMembers = <Map<String, dynamic>>[];
+
+      for (final employee in employees) {
+        final reasons = <String>[];
+        final recommendations = <String>[];
+        final inactivityDays = now.difference(employee.lastActivity).inDays;
+        final employeeAlerts = <Alert>[
+          ...employee.recentAlerts,
+          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
+        ];
+        final urgentCount = employeeAlerts
+            .where((alert) => alert.priority == AlertPriority.urgent)
+            .length;
+        final overdue = employee.overdueGoalsCount;
+        final lowEngagement = employee.engagementScore < 55;
+        final weakProgress = employee.avgProgress < 40;
+        final lowActivity = employee.weeklyActivityCount <= 1;
+
+        if (inactivityDays >= 5) {
+          reasons.add('Inactive for $inactivityDays days');
+          recommendations.add('Schedule a quick check-in to uncover blockers.');
+        }
+        if (overdue > 0) {
+          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
+          recommendations.add('Help reprioritize or rescope overdue goals.');
+        }
+        if (urgentCount > 0) {
+          reasons.add(
+            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
+          );
+          recommendations.add(
+            'Review urgent alerts together and clear blockers.',
+          );
+        }
+        if (lowEngagement) {
+          reasons.add(
+            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
+          );
+          recommendations.add('Send recognition or a motivational nudge.');
+        }
+        if (weakProgress) {
+          reasons.add(
+            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
+          );
+        }
+        if (lowActivity) {
+          reasons.add(
+            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
+          );
+        }
+
+        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
+        if (riskScore >= 2) {
+          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
+          final recommendation = recommendations.isEmpty
+              ? 'Schedule a quick sync to plan next steps.'
+              : recommendations.join(' ');
+          atRiskMembers.add({
+            'name': employee.profile.displayName,
+            'riskLevel': riskLevel,
+            'reasons': reasons,
+            'recommendations': recommendation,
+          });
+        }
+      }
+
+      atRiskMembers.sort((a, b) {
+        const ranking = {'high': 2, 'medium': 1, 'low': 0};
+        final left = ranking[a['riskLevel']] ?? 0;
+        final right = ranking[b['riskLevel']] ?? 0;
+        return right.compareTo(left);
+      });
+
+      final highMomentum =
+          employees
+              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
+              .toList()
+            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
+      final lowMomentum =
+          employees
+              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
+              .toList()
+            ..sort((a, b) {
+              final overdueDiff = b.overdueGoalsCount.compareTo(
+                a.overdueGoalsCount,
+              );
+              if (overdueDiff != 0) return overdueDiff;
+              return a.engagementScore.compareTo(b.engagementScore);
+            });
+
+      final collaborationOpportunities = <Map<String, dynamic>>[];
+      final pairLimit = math.min(
+        3,
+        math.min(highMomentum.length, lowMomentum.length),
+      );
+
+      for (var i = 0; i < pairLimit; i++) {
+        final mentor = highMomentum[i];
+        final mentee = lowMomentum[i];
+        if (mentor.profile.uid == mentee.profile.uid) continue;
+
+        final focusArea = mentee.overdueGoalsCount > 0
+            ? 'clearing overdue goals'
+            : 'building weekly habits';
+
+        collaborationOpportunities.add({
+          'member1': mentor.profile.displayName,
+          'member2': mentee.profile.displayName,
+          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
+          'suggestion':
+              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
+        });
+      }
+
+      final insights = <String, dynamic>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'atRiskMembers': atRiskMembers,
+        'collaborationOpportunities': collaborationOpportunities,
+      };
+
+      if (!mounted) return;
+      setState(() {
+        _teamInsights = insights;
+      });
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Unable to generate insights right now. Please try again shortly.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+      } else {
+        _isLoadingInsights = false;
+      }
+    }
+  }
+
+  Future<void> _sendBulkNudge(
+    List<EmployeeData> employees,
+    String message,
+  ) async {
+    var successCount = 0;
+    var errorCount = 0;
 
     for (final employee in employees) {
       try {
-        // Use first active goal or create a general nudge
         final goalId = employee.goals.isNotEmpty
             ? employee.goals.first.id
             : 'general';
@@ -2859,18 +2900,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           message: message,
         );
         successCount++;
-      } catch (e) {
+      } catch (_) {
         errorCount++;
       }
     }
 
-    if (mounted) {
-      await _showCenterNotice(
-        context,
-        'Bulk nudge sent: $successCount successes, $errorCount errors',
-      );
-    }
->>>>>>> 5a6b7d29bfc3e7e36af783a4b70cea0e5b797ffa
+    if (!mounted) return;
+
+    await _showCenterNotice(
+      context,
+      'Bulk nudge sent: $successCount successes, $errorCount errors',
+    );
   }
 }
 
