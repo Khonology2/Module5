@@ -103,6 +103,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
   bool _initializedStream = false;
   final Map<String, GlobalKey> _itemKeys = {};
   ChatMessage? _replyingTo;
+  final Map<String, String> _userNameCache = {};
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -160,6 +161,34 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
       setState(() {
         _displayName = user.displayName ?? user.email ?? user.uid;
       });
+    }
+  }
+
+  Future<String> _getUserName(String userId) async {
+    // Check cache first
+    if (_userNameCache.containsKey(userId)) {
+      return _userNameCache[userId]!;
+    }
+
+    // If it's the current user, use cached display name
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.uid == userId && _displayName != null) {
+      _userNameCache[userId] = _displayName!;
+      return _displayName!;
+    }
+
+    try {
+      final profile = await DatabaseService.getUserProfile(userId);
+      final name = profile.displayName.isNotEmpty
+          ? profile.displayName
+          : (currentUser?.displayName ?? currentUser?.email ?? userId);
+      _userNameCache[userId] = name;
+      return name;
+    } catch (_) {
+      // Fallback to userId if profile fetch fails
+      final fallback = currentUser?.displayName ?? currentUser?.email ?? userId;
+      _userNameCache[userId] = fallback;
+      return fallback;
     }
   }
 
@@ -236,17 +265,19 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final isMine = currentUserId != null && msg.senderId == currentUserId;
     final time = TimeOfDay.fromDateTime(msg.timestamp).format(context);
-    final displaySenderId = msg.senderId.length > 8
-        ? '${msg.senderId.substring(0, 4)}...${msg.senderId.substring(msg.senderId.length - 4)}'
-        : msg.senderId;
-    final senderLabel = isMine
-        ? 'You'
-        : ((msg.senderName != null && msg.senderName!.isNotEmpty)
-              ? msg.senderName!
-              : displaySenderId);
+    
+    // Use FutureBuilder to fetch full name if senderName is missing
+    return FutureBuilder<String>(
+      future: isMine
+          ? Future.value('You')
+          : (msg.senderName != null && msg.senderName!.isNotEmpty)
+              ? Future.value(msg.senderName!)
+              : _getUserName(msg.senderId),
+      builder: (context, snapshot) {
+        final senderLabel = snapshot.data ?? msg.senderId;
 
-    final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
-    return Align(
+        final bubbleKey = _itemKeys.putIfAbsent(msg.id, () => GlobalKey());
+        return Align(
       key: ValueKey(msg.id),
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
@@ -436,6 +467,8 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
           ),
         ),
       ),
+        );
+      },
     );
   }
 
@@ -1060,14 +1093,20 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            _replyingTo!.senderName ??
-                                                _replyingTo!.senderId,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.white70,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                          FutureBuilder<String>(
+                                            future: _getUserName(_replyingTo!.senderId),
+                                            builder: (context, snapshot) {
+                                              return Text(
+                                                snapshot.data ?? 
+                                                    _replyingTo!.senderName ??
+                                                    _replyingTo!.senderId,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.white70,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              );
+                                            },
                                           ),
                                           const SizedBox(height: 2),
                                           Text(

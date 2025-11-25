@@ -177,10 +177,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     }
   }
 
-  List<Map<String, dynamic>> _processLeaderboardData(
+  Future<List<Map<String, dynamic>>> _processLeaderboardData(
     List<QueryDocumentSnapshot> docs, {
     String? userRole,
-  }) {
+  }) async {
     try {
       developer.log('Processing ${docs.length} documents for leaderboard');
 
@@ -249,7 +249,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       }
 
       // Process and sort data with better error handling
-      List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
+      // First pass: extract all data without async operations
+      final List<Map<String, dynamic>> initialData = filteredDocs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
 
         // Safely extract values with defaults
@@ -326,9 +327,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           developer.log('Error processing streaks for user ${doc.id}: $e');
         }
 
+        // Get display name - will fetch from profile if missing in second pass
+        String displayName = data['displayName']?.toString() ?? '';
+        if (displayName.isEmpty || displayName == 'Anonymous') {
+          displayName = ''; // Mark for fetching
+        }
+
         return {
           'userId': doc.id,
-          'name': data['displayName']?.toString() ?? 'Anonymous',
+          'name': displayName,
           'points': points,
           'level': level,
           'badges': badgeCount,
@@ -336,8 +343,34 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           'longestStreak': longestStreak,
           'department': data['department']?.toString() ?? 'Unknown',
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
+          'email': data['email']?.toString() ?? '',
+          'needsNameFetch': displayName.isEmpty,
         };
       }).toList();
+
+      // Second pass: fetch names for users that need it
+      final List<Map<String, dynamic>> processedData = await Future.wait(
+        initialData.map((userData) async {
+          if (userData['needsNameFetch'] == true) {
+            try {
+              final profile = await DatabaseService.getUserProfile(
+                userData['userId'] as String,
+              );
+              userData['name'] = profile.displayName.isNotEmpty
+                  ? profile.displayName
+                  : (userData['email']?.toString().split('@').first ??
+                      userData['userId']);
+            } catch (_) {
+              userData['name'] = userData['email']?.toString().split('@').first ??
+                  userData['userId'];
+            }
+          }
+          // Remove helper field
+          userData.remove('needsNameFetch');
+          userData.remove('email');
+          return userData;
+        }),
+      );
 
       // Sort by the selected metric based on filters
       // Priority: Filter selections > Dropdown menu selection
@@ -439,51 +472,72 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     return _buildErrorState();
                   }
 
-                  List<Map<String, dynamic>> leaderboardData;
-                  try {
-                    final docs = leaderboardSnapshot.hasData
-                        ? leaderboardSnapshot.data!.docs.toList()
-                        : const <QueryDocumentSnapshot>[];
-                    if (docs.isNotEmpty) {
-                      leaderboardData = _processLeaderboardData(
-                        docs,
-                        userRole: role,
-                      );
-                      _lastLeaderboardData = leaderboardData;
-                    } else {
-                      leaderboardData = _lastLeaderboardData;
-                    }
-                  } catch (e) {
-                    developer.log('Error processing leaderboard data: $e');
-                    return _buildErrorState();
-                  }
+                  return FutureBuilder<List<Map<String, dynamic>>>(
+                    future: () async {
+                      try {
+                        final docs = leaderboardSnapshot.hasData
+                            ? leaderboardSnapshot.data!.docs.toList()
+                            : const <QueryDocumentSnapshot>[];
+                        if (docs.isNotEmpty) {
+                          final data = await _processLeaderboardData(
+                            docs,
+                            userRole: role,
+                          );
+                          _lastLeaderboardData = data;
+                          return data;
+                        } else {
+                          return _lastLeaderboardData;
+                        }
+                      } catch (e) {
+                        developer.log('Error processing leaderboard data: $e');
+                        return <Map<String, dynamic>>[];
+                      }
+                    }(),
+                    builder: (context, dataSnapshot) {
+                      if (dataSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
+                          ),
+                        );
+                      }
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildHeader(),
-                        const SizedBox(height: 20),
-                        _buildFiltersBar(isManager: isManager),
-                        const SizedBox(height: 16),
-                        leaderboardData.isEmpty
-                            ? _buildEmptyState()
-                            : Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildPodium(leaderboardData),
-                                  const SizedBox(height: 20),
-                                  _buildLeaderList(
-                                    leaderboardData,
-                                    isManager: isManager,
+                      final leaderboardData = dataSnapshot.data ?? [];
+                      if (leaderboardData.isEmpty && dataSnapshot.hasError) {
+                        return _buildErrorState();
+                      }
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 20),
+                            _buildFiltersBar(isManager: isManager),
+                            const SizedBox(height: 16),
+                            leaderboardData.isEmpty
+                                ? _buildEmptyState()
+                                : Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildPodium(leaderboardData),
+                                      const SizedBox(height: 20),
+                                      _buildLeaderList(
+                                        leaderboardData,
+                                        isManager: isManager,
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                      ],
-                    ),
+                          ],
+                        ),
+                      );
+                    },
                   );
                 },
           );
