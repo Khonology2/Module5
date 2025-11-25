@@ -244,6 +244,20 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       return;
     }
 
+    // Flush any pending tag text so the latest entry gets saved even if the user didn't press enter
+    final pendingSkill = _skillsInputController.text.trim();
+    if (pendingSkill.isNotEmpty && !_skills.contains(pendingSkill)) {
+      _skills.add(pendingSkill);
+      _skillsInputController.clear();
+    }
+
+    final pendingDevelopment = _developmentInputController.text.trim();
+    if (pendingDevelopment.isNotEmpty &&
+        !_developmentAreas.contains(pendingDevelopment)) {
+      _developmentAreas.add(pendingDevelopment);
+      _developmentInputController.clear();
+    }
+
     // Fetch the existing user profile to get non-editable fields like totalPoints, level, and badges
     final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
 
@@ -619,6 +633,15 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildInputLabel('Current Skills / Strengths'),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Type a skill and press Enter to add it as a tag',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _skillsInputController,
                       tagsList: _skills,
@@ -637,6 +660,15 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     _buildInputLabel('Areas for Development'),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Add each development focus as its own tag',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _developmentInputController,
                       tagsList: _developmentAreas,

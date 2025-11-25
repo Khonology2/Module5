@@ -1706,7 +1706,10 @@ class BadgeService {
           ? snapshot.docs.where((doc) {
               try {
                 final data = doc.data() as Map<String, dynamic>?;
-                return data != null && data['leaderboardOptin'] == true;
+                if (data == null) return false;
+                final optIn = data['leaderboardOptin'];
+                final legacyOptIn = data['leaderboardParticipation'];
+                return optIn == true || legacyOptIn == true;
               } catch (e) {
                 return false;
               }
