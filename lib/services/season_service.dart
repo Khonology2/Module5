@@ -949,6 +949,23 @@ class SeasonService {
 
       // Also write to users/{userId}/badges in Badge model structure so it shows in the standard badges UI
       final userBadgeId = '${seasonBadge.id}_${season.id}';
+      
+      // Determine manager level based on badge type
+      int managerLevel;
+      switch (seasonBadge.id) {
+        case 'season_guardian':
+          managerLevel = 2; // Level 2: Supporting team by extending seasons
+          break;
+        case 'season_architect':
+          managerLevel = 3; // Level 3: Creating growth opportunities
+          break;
+        case 'season_closer':
+          managerLevel = 4; // Level 4: Strategic leadership in completing seasons
+          break;
+        default:
+          managerLevel = 4; // Default to Level 4
+      }
+      
       final userBadgeRef = _firestore
           .collection('users')
           .doc(userId)
@@ -966,6 +983,7 @@ class SeasonService {
           'seasonId': season.id,
           'seasonTitle': season.title,
           'isManager': isManager,
+          'managerLevel': managerLevel,
         },
         'earnedAt': FieldValue.serverTimestamp(),
         'isEarned': true,

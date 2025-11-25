@@ -61,6 +61,48 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
+  // Helper method to infer manager level from a badge
+  static int? _inferManagerLevel(badge_model.Badge b) {
+    final ml = b.criteria['managerLevel'];
+    if (ml is int) return ml;
+    if (ml is num) return ml.round();
+    
+    // Check if it's a season badge
+    final source = b.criteria['source'];
+    if (source == 'season' || b.id.startsWith('season_')) {
+      // Extract the base season badge ID (e.g., 'season_guardian_abc123' -> 'season_guardian')
+      final baseId = b.id.split('_').take(2).join('_');
+      switch (baseId) {
+        case 'season_guardian':
+          return 2; // Level 2: Supporting team by extending seasons
+        case 'season_architect':
+          return 3; // Level 3: Creating growth opportunities
+        case 'season_closer':
+          return 4; // Level 4: Strategic leadership in completing seasons
+        default:
+          return 4; // Default season badges to Level 4
+      }
+    }
+    
+    // Fallback based on known manager badge IDs
+    switch (b.id) {
+      case 'mgr_active_coach':
+        return 1;
+      case 'mgr_feedback_champion':
+      case 'mgr_growth_enabler':
+        return 2;
+      case 'mgr_all_star_manager':
+      case 'mgr_engagement_booster':
+      case 'mgr_replan_hero':
+        return 3;
+      case 'mgr_season_leader':
+        return 4;
+      case 'mgr_master_coach':
+        return 5;
+    }
+    return null;
+  }
+
   // ===== Manager grouped badges (levels 1-5) =====
   Widget _buildManagerGroupedBadges(_ManagerMetrics m) {
     final user = FirebaseAuth.instance.currentUser;
@@ -94,33 +136,16 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         final allBadges = (snapshot.data ?? <badge_model.Badge>[])
           ..removeWhere((b) => b.id == 'init');
 
-        int? inferManagerLevel(badge_model.Badge b) {
-          final ml = b.criteria['managerLevel'];
-          if (ml is int) return ml;
-          if (ml is num) return ml.round();
-          // Fallback based on known manager badge IDs
-          switch (b.id) {
-            case 'mgr_active_coach':
-              return 1;
-            case 'mgr_feedback_champion':
-            case 'mgr_growth_enabler':
-              return 2;
-            case 'mgr_all_star_manager':
-            case 'mgr_engagement_booster':
-            case 'mgr_replan_hero':
-              return 3;
-            case 'mgr_season_leader':
-              return 4;
-            case 'mgr_master_coach':
-              return 5;
-          }
-          return null;
-        }
-
         List<badge_model.Badge> forLevel(int lvl) => allBadges.where((b) {
-          final inferred = inferManagerLevel(b);
+          final inferred = _inferManagerLevel(b);
           return inferred == lvl;
-        }).toList()..sort((a, b) => a.name.compareTo(b.name));
+        }).toList()..sort((a, b) {
+          // Sort season badges first, then by name
+          final aIsSeason = a.criteria['source'] == 'season' || a.id.startsWith('season_');
+          final bIsSeason = b.criteria['source'] == 'season' || b.id.startsWith('season_');
+          if (aIsSeason != bIsSeason) return aIsSeason ? -1 : 1;
+          return a.name.compareTo(b.name);
+        });
 
         return Column(
           children: [
@@ -365,14 +390,19 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                               child: StreamBuilder<List<badge_model.Badge>>(
                                 stream: BadgeService.getUserBadgesStream(user.uid),
                                 builder: (context, snapshot) {
-                                  final all =
-                                      snapshot.data ?? const <badge_model.Badge>[];
+                                  final all = (snapshot.data ?? const <badge_model.Badge>[])
+                                    ..removeWhere((b) => b.id == 'init');
+                                  
                                   final badges = all.where((b) {
-                                    final ml = b.criteria['managerLevel'];
-                                    if (ml is int) return ml == level;
-                                    if (ml is num) return ml.round() == level;
-                                    return false;
-                                  }).toList()..sort((a, b) => a.name.compareTo(b.name));
+                                    final inferred = _inferManagerLevel(b);
+                                    return inferred == level;
+                                  }).toList()..sort((a, b) {
+                                    // Sort season badges first, then by name
+                                    final aIsSeason = a.criteria['source'] == 'season' || a.id.startsWith('season_');
+                                    final bIsSeason = b.criteria['source'] == 'season' || b.id.startsWith('season_');
+                                    if (aIsSeason != bIsSeason) return aIsSeason ? -1 : 1;
+                                    return a.name.compareTo(b.name);
+                                  });
                                   
                                   if (snapshot.connectionState ==
                                           ConnectionState.waiting &&
