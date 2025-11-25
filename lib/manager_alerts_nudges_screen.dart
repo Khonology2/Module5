@@ -455,7 +455,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       padding: AppSpacing.screenPadding,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [_buildStatsRow(employees)],
+                        children: [
+                          _buildStatsRow(employees),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildMarkAllAsReadButton(employees),
+                        ],
                       ),
                     ),
                   ),
@@ -499,16 +503,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // removed skeleton placeholders
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    final totalAlerts = employees.fold<int>(
-      0,
-      (acc, emp) => acc + emp.recentAlerts.length,
-    );
+    final allAlerts = employees.expand((emp) => emp.recentAlerts).toList();
+    final unreadAlerts = allAlerts.where((a) => !a.isRead).length;
+    final totalAlerts = allAlerts.length;
     final urgentAlerts = employees.fold<int>(
       0,
       (acc, emp) =>
           acc +
           emp.recentAlerts
-              .where((a) => a.priority == AlertPriority.urgent)
+              .where((a) => a.priority == AlertPriority.urgent && !a.isRead)
               .length,
     );
     final overdueGoals = employees.fold<int>(
@@ -520,10 +523,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       children: [
         Expanded(
           child: _buildStatCard(
-            'Total Alerts',
-            totalAlerts.toString(),
+            'Unread Alerts',
+            unreadAlerts.toString(),
             AppColors.activeColor,
             Icons.notifications,
+            subtitle: totalAlerts > 0 ? 'of $totalAlerts total' : null,
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -561,8 +565,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     String title,
     String value,
     Color color,
-    IconData icon,
-  ) {
+    IconData icon, {
+    String? subtitle,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -587,6 +592,94 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkAllAsReadButton(List<EmployeeData> employees) {
+    // Collect all alerts from all employees
+    final allAlerts = <Alert>[];
+    for (final e in employees) {
+      allAlerts.addAll(e.recentAlerts);
+    }
+
+    // Filter out synthetic alerts
+    final realAlerts = allAlerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+    final unreadCount = realAlerts.where((a) => !a.isRead).length;
+
+    // Always show button when there are employees (even if no alerts yet)
+    if (employees.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mark All Alerts as Read',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                realAlerts.isEmpty
+                    ? 'No alerts to mark as read'
+                    : unreadCount > 0
+                        ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
+                        : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          ElevatedButton.icon(
+            onPressed: (realAlerts.isNotEmpty && unreadCount > 0)
+                ? () => _markAllAlertsAsRead(realAlerts)
+                : null,
+            icon: const Icon(Icons.done_all, size: 18),
+            label: Text(
+              realAlerts.isEmpty
+                  ? 'No Alerts'
+                  : unreadCount > 0
+                      ? 'Mark All as Read'
+                      : 'All Read',
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: (realAlerts.isNotEmpty && unreadCount > 0)
+                  ? AppColors.activeColor
+                  : AppColors.textSecondary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
           ),
         ],
       ),
@@ -2670,12 +2763,34 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   void _markAllAlertsAsRead(List<Alert> alerts) async {
     try {
-      for (final alert in alerts.where((a) => !a.isRead)) {
-        await AlertService.markAsRead(alert.id);
+      // Filter out synthetic alerts (like inactivity) that don't exist in Firestore
+      final realAlerts = alerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+      final unreadAlerts = realAlerts.where((a) => !a.isRead).toList();
+      
+      if (unreadAlerts.isEmpty) {
+        if (mounted) {
+          await _showCenterNotice(context, 'All alerts are already read');
+        }
+        return;
+      }
+
+      for (final alert in unreadAlerts) {
+        try {
+          await AlertService.markAsRead(alert.id);
+        } catch (e) {
+          // Silently skip alerts that can't be marked as read (might not exist in Firestore)
+        }
+      }
+
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Marked ${unreadAlerts.length} alert${unreadAlerts.length == 1 ? '' : 's'} as read',
+        );
       }
     } catch (e) {
       if (mounted) {
-        await _showCenterNotice(context, 'Error: $e');
+        await _showCenterNotice(context, 'Error marking alerts as read: $e');
       }
     }
   }
