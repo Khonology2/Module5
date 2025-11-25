@@ -1,12 +1,10 @@
 // ignore_for_file: unused_element
 
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_ai/firebase_ai.dart';
 
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -152,19 +150,27 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     if (!context.mounted) return;
     final note = await showDialog<String?>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Add Reschedule Note'),
         content: TextField(
           controller: noteController,
           decoration: const InputDecoration(labelText: 'Optional note'),
+          autofocus: true,
+          onSubmitted: (value) {
+            Navigator.of(ctx).pop(value.trim().isEmpty ? null : value.trim());
+          },
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
+            onPressed: () => Navigator.of(ctx).pop(null),
             child: const Text('Skip'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
+            onPressed: () {
+              final noteText = noteController.text.trim();
+              Navigator.of(ctx).pop(noteText.isEmpty ? null : noteText);
+            },
             child: const Text('Save'),
           ),
         ],
@@ -449,7 +455,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       padding: AppSpacing.screenPadding,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [_buildStatsRow(employees)],
+                        children: [
+                          _buildStatsRow(employees),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildMarkAllAsReadButton(employees),
+                        ],
                       ),
                     ),
                   ),
@@ -493,16 +503,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // removed skeleton placeholders
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    final totalAlerts = employees.fold<int>(
-      0,
-      (acc, emp) => acc + emp.recentAlerts.length,
-    );
+    final allAlerts = employees.expand((emp) => emp.recentAlerts).toList();
+    final unreadAlerts = allAlerts.where((a) => !a.isRead).length;
+    final totalAlerts = allAlerts.length;
     final urgentAlerts = employees.fold<int>(
       0,
       (acc, emp) =>
           acc +
           emp.recentAlerts
-              .where((a) => a.priority == AlertPriority.urgent)
+              .where((a) => a.priority == AlertPriority.urgent && !a.isRead)
               .length,
     );
     final overdueGoals = employees.fold<int>(
@@ -514,10 +523,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       children: [
         Expanded(
           child: _buildStatCard(
-            'Total Alerts',
-            totalAlerts.toString(),
+            'Unread Alerts',
+            unreadAlerts.toString(),
             AppColors.activeColor,
             Icons.notifications,
+            subtitle: totalAlerts > 0 ? 'of $totalAlerts total' : null,
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -555,8 +565,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     String title,
     String value,
     Color color,
-    IconData icon,
-  ) {
+    IconData icon, {
+    String? subtitle,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -581,6 +592,94 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary.withValues(alpha: 0.7),
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkAllAsReadButton(List<EmployeeData> employees) {
+    // Collect all alerts from all employees
+    final allAlerts = <Alert>[];
+    for (final e in employees) {
+      allAlerts.addAll(e.recentAlerts);
+    }
+
+    // Filter out synthetic alerts
+    final realAlerts = allAlerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+    final unreadCount = realAlerts.where((a) => !a.isRead).length;
+
+    // Always show button when there are employees (even if no alerts yet)
+    if (employees.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Mark All Alerts as Read',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                realAlerts.isEmpty
+                    ? 'No alerts to mark as read'
+                    : unreadCount > 0
+                        ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
+                        : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          ElevatedButton.icon(
+            onPressed: (realAlerts.isNotEmpty && unreadCount > 0)
+                ? () => _markAllAlertsAsRead(realAlerts)
+                : null,
+            icon: const Icon(Icons.done_all, size: 18),
+            label: Text(
+              realAlerts.isEmpty
+                  ? 'No Alerts'
+                  : unreadCount > 0
+                      ? 'Mark All as Read'
+                      : 'All Read',
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: (realAlerts.isNotEmpty && unreadCount > 0)
+                  ? AppColors.activeColor
+                  : AppColors.textSecondary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+            ),
           ),
         ],
       ),
@@ -1097,6 +1196,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   Widget _buildSendNudgesTab(List<EmployeeData> employees) {
     final filteredEmployees = _filterEmployees(employees);
+    final normalizedToday = _normalizedToday();
+
+    final employeesNeedingAction = filteredEmployees
+        .where((employee) => _getCriticalGoals(employee, normalizedToday).isNotEmpty)
+        .toList();
+    final remainingEmployees = filteredEmployees
+        .where((employee) => _getCriticalGoals(employee, normalizedToday).isEmpty)
+        .toList();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1145,12 +1252,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           sliver: filteredEmployees.isEmpty
               ? SliverToBoxAdapter(child: _buildNoEmployeesState())
               : SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildEmployeeNudgeCard(filteredEmployees[index]),
-                    ),
-                    childCount: filteredEmployees.length,
+                  delegate: SliverChildListDelegate(
+                    [
+                      if (employeesNeedingAction.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'Action Needed',
+                          subtitle: 'Goals overdue or due within 2 days',
+                        ),
+                        const SizedBox(height: 12),
+                        ...employeesNeedingAction.map(
+                          (employee) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _buildEmployeeNudgeCard(employee),
+                          ),
+                        ),
+                      ] else
+                        _buildNoUrgentGoalsState(),
+                      if (remainingEmployees.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _buildSectionHeader(title: 'All Team Members'),
+                        const SizedBox(height: 12),
+                        ...remainingEmployees.map(
+                          (employee) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _buildEmployeeNudgeCard(employee),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
         ),
@@ -1244,6 +1375,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ),
           const SizedBox(height: 12),
           _buildQuickNudgeButtons(employee),
+          const SizedBox(height: 12),
+          _buildGoalDeadlineActions(employee),
         ],
       ),
     );
@@ -1320,6 +1453,238 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         foregroundColor: AppColors.activeColor,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+    );
+  }
+
+  Widget _buildGoalDeadlineActions(EmployeeData employee) {
+    final normalizedToday = _normalizedToday();
+    final criticalGoals = _getCriticalGoals(employee, normalizedToday);
+
+    if (criticalGoals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Urgent goal deadlines',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...criticalGoals.map(
+          (goal) => _buildGoalDeadlineTile(goal, employee, normalizedToday),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoalDeadlineTile(
+    Goal goal,
+    EmployeeData employee,
+    DateTime normalizedToday,
+  ) {
+    final normalizedTarget =
+        DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+    final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
+    final bool isDueTomorrow = deltaDays == 1;
+    final bool isDueInTwoDays = deltaDays == 2;
+    final bool isOverdue = deltaDays <= -1;
+    final displayColor = isOverdue ? AppColors.dangerColor : AppColors.warningColor;
+    final dueLabel = _formatDueDate(goal.targetDate);
+    final overdueDays = deltaDays.abs();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            goal.title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.event_outlined, size: 16, color: displayColor),
+              const SizedBox(width: 6),
+              Text(
+                'Due $dueLabel',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: displayColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isOverdue
+                      ? 'Overdue ${overdueDays}d'
+                      : isDueTomorrow
+                          ? 'Due tomorrow'
+                          : isDueInTwoDays
+                              ? 'Due in 2 days'
+                              : 'Due soon',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: displayColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildGoalActionButton(
+                label: 'Extend',
+                icon: Icons.schedule_send_outlined,
+                onPressed: () => _extendGoalDeadline(context, goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Reschedule',
+                icon: Icons.update,
+                onPressed: () => _rescheduleGoal(context, goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Pause',
+                icon: Icons.pause_circle_outline,
+                onPressed: () => _pauseGoal(goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Mark Burnout',
+                icon: Icons.local_fire_department_outlined,
+                onPressed: () => _markGoalBurnout(goal.id, employee),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.textPrimary,
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+    );
+  }
+
+  String _formatDueDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    final yyyy = date.year.toString();
+    return '$mm/$dd/$yyyy';
+  }
+
+  DateTime _normalizedToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  List<Goal> _getCriticalGoals(
+    EmployeeData employee,
+    DateTime normalizedToday,
+  ) {
+    return employee.goals.where((goal) {
+      if (goal.status == GoalStatus.completed) return false;
+      final normalizedTarget =
+          DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+      final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
+      final isDueSoon = deltaDays >= 1 && deltaDays <= 2;
+      final isOverdue = deltaDays <= -1;
+      return isDueSoon || isOverdue;
+    }).toList()
+      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+  }
+
+  Widget _buildSectionHeader({required String title, String? subtitle}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.heading4.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildNoUrgentGoalsState() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.inbox_outlined, color: AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No urgent goals right now',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'You’ll see employees appear here when a goal is overdue or due within two days.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1431,11 +1796,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final topFollowUps = followUpSummary.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    final attentionItems = _buildAttentionItems(
-      employees: employees,
-      managerId: managerId,
-    );
-
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -1525,8 +1885,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 ] else
                   const SizedBox(height: AppSpacing.lg),
                 _buildFollowUpSection(topFollowUps),
-                const SizedBox(height: AppSpacing.lg),
-                _buildAttentionSection(attentionItems),
               ],
             ),
           ),
@@ -2405,12 +2763,34 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   void _markAllAlertsAsRead(List<Alert> alerts) async {
     try {
-      for (final alert in alerts.where((a) => !a.isRead)) {
-        await AlertService.markAsRead(alert.id);
+      // Filter out synthetic alerts (like inactivity) that don't exist in Firestore
+      final realAlerts = alerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+      final unreadAlerts = realAlerts.where((a) => !a.isRead).toList();
+      
+      if (unreadAlerts.isEmpty) {
+        if (mounted) {
+          await _showCenterNotice(context, 'All alerts are already read');
+        }
+        return;
+      }
+
+      for (final alert in unreadAlerts) {
+        try {
+          await AlertService.markAsRead(alert.id);
+        } catch (e) {
+          // Silently skip alerts that can't be marked as read (might not exist in Firestore)
+        }
+      }
+
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Marked ${unreadAlerts.length} alert${unreadAlerts.length == 1 ? '' : 's'} as read',
+        );
       }
     } catch (e) {
       if (mounted) {
-        await _showCenterNotice(context, 'Error: $e');
+        await _showCenterNotice(context, 'Error marking alerts as read: $e');
       }
     }
   }
@@ -2462,153 +2842,194 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     List<EmployeeData> employees,
     List<Alert> alerts,
   ) async {
-    if (employees.isEmpty) return;
+    if (_isLoadingInsights) return;
+    if (employees.isEmpty) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'No employees available for insights yet.',
+        );
+      }
+      return;
+    }
 
     setState(() => _isLoadingInsights = true);
 
     try {
-      // Collect team data
-      final teamData = <Map<String, dynamic>>[];
       final now = DateTime.now();
+      final alertsByUser = <String, List<Alert>>{};
+      for (final alert in alerts) {
+        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final atRiskMembers = <Map<String, dynamic>>[];
 
       for (final employee in employees) {
-        final goals = await DatabaseService.getUserGoals(employee.profile.uid);
-        final employeeAlerts = alerts
-            .where((a) => a.userId == employee.profile.uid)
-            .toList();
-
-        // Calculate risk indicators
-        final overdueGoals = goals
-            .where(
-              (g) =>
-                  g.status == GoalStatus.inProgress &&
-                  g.targetDate.isBefore(now),
-            )
-            .length;
-
-        final dueSoonGoals = goals
-            .where(
-              (g) =>
-                  g.status == GoalStatus.inProgress &&
-                  g.targetDate.difference(now).inDays <= 7 &&
-                  g.targetDate.difference(now).inDays > 0,
-            )
-            .length;
-
-        final avgProgress = goals.isEmpty
-            ? 0.0
-            : goals.map((g) => g.progress).reduce((a, b) => a + b) /
-                  goals.length;
-
+        final reasons = <String>[];
+        final recommendations = <String>[];
         final inactivityDays = now.difference(employee.lastActivity).inDays;
+        final employeeAlerts = <Alert>[
+          ...employee.recentAlerts,
+          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
+        ];
+        final urgentCount = employeeAlerts
+            .where((alert) => alert.priority == AlertPriority.urgent)
+            .length;
+        final overdue = employee.overdueGoalsCount;
+        final lowEngagement = employee.engagementScore < 55;
+        final weakProgress = employee.avgProgress < 40;
+        final lowActivity = employee.weeklyActivityCount <= 1;
 
-        teamData.add({
-          'name': employee.profile.displayName,
-          'uid': employee.profile.uid,
-          'department': employee.profile.department,
-          'goals': goals.length,
-          'overdueGoals': overdueGoals,
-          'dueSoonGoals': dueSoonGoals,
-          'avgProgress': avgProgress,
-          'alerts': employeeAlerts.length,
-          'inactivityDays': inactivityDays,
-          'level': employee.profile.level,
-          'badges': employee.profile.badges.length,
-          'goalsData': goals
-              .map(
-                (g) => {
-                  'title': g.title,
-                  'progress': g.progress,
-                  'status': g.status.name,
-                  'priority': g.priority.name,
-                  'daysUntilDeadline': g.targetDate.difference(now).inDays,
-                },
-              )
-              .toList(),
+        if (inactivityDays >= 5) {
+          reasons.add('Inactive for $inactivityDays days');
+          recommendations.add('Schedule a quick check-in to uncover blockers.');
+        }
+        if (overdue > 0) {
+          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
+          recommendations.add('Help reprioritize or rescope overdue goals.');
+        }
+        if (urgentCount > 0) {
+          reasons.add(
+            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
+          );
+          recommendations.add(
+            'Review urgent alerts together and clear blockers.',
+          );
+        }
+        if (lowEngagement) {
+          reasons.add(
+            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
+          );
+          recommendations.add('Send recognition or a motivational nudge.');
+        }
+        if (weakProgress) {
+          reasons.add(
+            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
+          );
+        }
+        if (lowActivity) {
+          reasons.add(
+            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
+          );
+        }
+
+        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
+        if (riskScore >= 2) {
+          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
+          final recommendation = recommendations.isEmpty
+              ? 'Schedule a quick sync to plan next steps.'
+              : recommendations.join(' ');
+          atRiskMembers.add({
+            'name': employee.profile.displayName,
+            'riskLevel': riskLevel,
+            'reasons': reasons,
+            'recommendations': recommendation,
+          });
+        }
+      }
+
+      atRiskMembers.sort((a, b) {
+        const ranking = {'high': 2, 'medium': 1, 'low': 0};
+        final left = ranking[a['riskLevel']] ?? 0;
+        final right = ranking[b['riskLevel']] ?? 0;
+        return right.compareTo(left);
+      });
+
+      final highMomentum =
+          employees
+              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
+              .toList()
+            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
+      final lowMomentum =
+          employees
+              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
+              .toList()
+            ..sort((a, b) {
+              final overdueDiff = b.overdueGoalsCount.compareTo(
+                a.overdueGoalsCount,
+              );
+              if (overdueDiff != 0) return overdueDiff;
+              return a.engagementScore.compareTo(b.engagementScore);
+            });
+
+      final collaborationOpportunities = <Map<String, dynamic>>[];
+      final pairLimit = math.min(
+        3,
+        math.min(highMomentum.length, lowMomentum.length),
+      );
+
+      for (var i = 0; i < pairLimit; i++) {
+        final mentor = highMomentum[i];
+        final mentee = lowMomentum[i];
+        if (mentor.profile.uid == mentee.profile.uid) continue;
+
+        final focusArea = mentee.overdueGoalsCount > 0
+            ? 'clearing overdue goals'
+            : 'building weekly habits';
+
+        collaborationOpportunities.add({
+          'member1': mentor.profile.displayName,
+          'member2': mentee.profile.displayName,
+          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
+          'suggestion':
+              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
         });
       }
 
-      // Generate AI analysis
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash',
-        systemInstruction: Content.text(
-          'You are an AI assistant specialized in team management and performance analysis. '
-          'Analyze team data to identify:\n\n'
-          '1. AT-RISK TEAM MEMBERS:\n'
-          '   - Employees likely to miss deadlines based on goal progress, overdue goals, and activity patterns\n'
-          '   - Early warning signs before problems escalate\n'
-          '   - Risk level (high, medium, low) for each at-risk member\n'
-          '   - Specific reasons why they\'re at risk\n\n'
-          '2. COLLABORATION OPPORTUNITIES:\n'
-          '   - Team members who could help each other based on complementary strengths\n'
-          '   - Employees with similar goals who could collaborate\n'
-          '   - Pairing suggestions (who can help whom and why)\n\n'
-          'Format your response as JSON with this structure:\n'
-          '{"atRiskMembers": [{"name": "...", "riskLevel": "high|medium|low", "reasons": ["...", "..."], "recommendations": "..."}], '
-          '"collaborationOpportunities": [{"member1": "...", "member2": "...", "reason": "...", "suggestion": "..."}]}',
-        ),
-      );
+      final insights = <String, dynamic>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'atRiskMembers': atRiskMembers,
+        'collaborationOpportunities': collaborationOpportunities,
+      };
 
-      final teamDataText = teamData
-          .map((e) {
-            return '${e['name']}: ${e['goals']} goals, ${e['overdueGoals']} overdue, ${e['dueSoonGoals']} due soon, '
-                '${e['avgProgress'].toStringAsFixed(1)}% avg progress, ${e['inactivityDays']} days inactive, '
-                '${e['alerts']} alerts, Level ${e['level']}, ${e['badges']} badges';
-          })
-          .join('\n');
-
-      final prompt = [
-        Content.text(
-          'Analyze this team data:\n\n$teamDataText\n\n'
-          'Identify at-risk team members and collaboration opportunities. '
-          'Focus on employees with overdue goals, low progress, high inactivity, or multiple alerts. '
-          'For collaboration, identify complementary strengths and similar goal types.',
-        ),
-      ];
-
-      final response = await model.generateContent(prompt);
-      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
-
-      // Parse JSON response
-      String jsonText = responseText.trim();
-      if (jsonText.contains('```json')) {
-        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-      } else if (jsonText.contains('```')) {
-        jsonText = jsonText.split('```')[1].split('```')[0].trim();
-      }
-
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(jsonText);
-      if (jsonMatch != null) {
-        final jsonString = jsonMatch.group(0) ?? '{}';
-        try {
-          final insights = jsonDecode(jsonString) as Map<String, dynamic>;
-          if (mounted) {
-            setState(() {
-              _teamInsights = insights;
-              _isLoadingInsights = false;
-            });
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() => _isLoadingInsights = false);
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() => _isLoadingInsights = false);
-        }
-      }
+      if (!mounted) return;
+      setState(() {
+        _teamInsights = insights;
+      });
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingInsights = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading insights: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
+        await _showCenterNotice(
+          context,
+          'Unable to generate insights right now. Please try again shortly.',
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+      } else {
+        _isLoadingInsights = false;
+      }
     }
+  }
+
+  Future<void> _sendBulkNudge(
+    List<EmployeeData> employees,
+    String message,
+  ) async {
+    var successCount = 0;
+    var errorCount = 0;
+
+    for (final employee in employees) {
+      try {
+        final goalId = employee.goals.isNotEmpty
+            ? employee.goals.first.id
+            : 'general';
+        await ManagerRealtimeService.sendNudgeToEmployee(
+          employeeId: employee.profile.uid,
+          goalId: goalId,
+          message: message,
+        );
+        successCount++;
+      } catch (_) {
+        errorCount++;
+      }
+    }
+    if (!mounted) return;
+
+    await _showCenterNotice(
+      context,
+      'Bulk nudge sent: $successCount successes, $errorCount errors',
+    );
   }
 
   Widget _buildTeamInsightsWidget() {
@@ -2872,9 +3293,171 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     );
   }
 
-  void _sendBulkNudge(List<EmployeeData> employees, String message) async {
-    int successCount = 0;
-    int errorCount = 0;
+    if (employees.isEmpty) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'No employees available for insights yet.',
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoadingInsights = true);
+
+    try {
+      final now = DateTime.now();
+      final alertsByUser = <String, List<Alert>>{};
+      for (final alert in alerts) {
+        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final atRiskMembers = <Map<String, dynamic>>[];
+
+      for (final employee in employees) {
+        final reasons = <String>[];
+        final recommendations = <String>[];
+        final inactivityDays = now.difference(employee.lastActivity).inDays;
+        final employeeAlerts = <Alert>[
+          ...employee.recentAlerts,
+          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
+        ];
+        final urgentCount = employeeAlerts
+            .where((alert) => alert.priority == AlertPriority.urgent)
+            .length;
+        final overdue = employee.overdueGoalsCount;
+        final lowEngagement = employee.engagementScore < 55;
+        final weakProgress = employee.avgProgress < 40;
+        final lowActivity = employee.weeklyActivityCount <= 1;
+
+        if (inactivityDays >= 5) {
+          reasons.add('Inactive for $inactivityDays days');
+          recommendations.add('Schedule a quick check-in to uncover blockers.');
+        }
+        if (overdue > 0) {
+          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
+          recommendations.add('Help reprioritize or rescope overdue goals.');
+        }
+        if (urgentCount > 0) {
+          reasons.add(
+            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
+          );
+          recommendations.add(
+            'Review urgent alerts together and clear blockers.',
+          );
+        }
+        if (lowEngagement) {
+          reasons.add(
+            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
+          );
+          recommendations.add('Send recognition or a motivational nudge.');
+        }
+        if (weakProgress) {
+          reasons.add(
+            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
+          );
+        }
+        if (lowActivity) {
+          reasons.add(
+            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
+          );
+        }
+
+        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
+        if (riskScore >= 2) {
+          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
+          final recommendation = recommendations.isEmpty
+              ? 'Schedule a quick sync to plan next steps.'
+              : recommendations.join(' ');
+          atRiskMembers.add({
+            'name': employee.profile.displayName,
+            'riskLevel': riskLevel,
+            'reasons': reasons,
+            'recommendations': recommendation,
+          });
+        }
+      }
+
+      atRiskMembers.sort((a, b) {
+        const ranking = {'high': 2, 'medium': 1, 'low': 0};
+        final left = ranking[a['riskLevel']] ?? 0;
+        final right = ranking[b['riskLevel']] ?? 0;
+        return right.compareTo(left);
+      });
+
+      final highMomentum =
+          employees
+              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
+              .toList()
+            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
+      final lowMomentum =
+          employees
+              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
+              .toList()
+            ..sort((a, b) {
+              final overdueDiff = b.overdueGoalsCount.compareTo(
+                a.overdueGoalsCount,
+              );
+              if (overdueDiff != 0) return overdueDiff;
+              return a.engagementScore.compareTo(b.engagementScore);
+            });
+
+      final collaborationOpportunities = <Map<String, dynamic>>[];
+      final pairLimit = math.min(
+        3,
+        math.min(highMomentum.length, lowMomentum.length),
+      );
+
+      for (var i = 0; i < pairLimit; i++) {
+        final mentor = highMomentum[i];
+        final mentee = lowMomentum[i];
+        if (mentor.profile.uid == mentee.profile.uid) continue;
+
+        final focusArea = mentee.overdueGoalsCount > 0
+            ? 'clearing overdue goals'
+            : 'building weekly habits';
+
+        collaborationOpportunities.add({
+          'member1': mentor.profile.displayName,
+          'member2': mentee.profile.displayName,
+          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
+          'suggestion':
+              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
+        });
+      }
+
+      final insights = <String, dynamic>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'atRiskMembers': atRiskMembers,
+        'collaborationOpportunities': collaborationOpportunities,
+      };
+
+      if (!mounted) return;
+      setState(() {
+        _teamInsights = insights;
+      });
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Unable to generate insights right now. Please try again shortly.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+      } else {
+        _isLoadingInsights = false;
+      }
+    }
+  }
+
+  Future<void> _sendBulkNudge(
+    List<EmployeeData> employees,
+    String message,
+  ) async {
+    var successCount = 0;
+    var errorCount = 0;
 
     for (final employee in employees) {
       try {
@@ -2887,17 +3470,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           message: message,
         );
         successCount++;
-      } catch (e) {
+      } catch (_) {
         errorCount++;
       }
     }
+    if (!mounted) return;
 
-    if (mounted) {
-      await _showCenterNotice(
-        context,
-        'Bulk nudge sent: $successCount successes, $errorCount errors',
-      );
-    }
+    await _showCenterNotice(
+      context,
+      'Bulk nudge sent: $successCount successes, $errorCount errors',
+    );
   }
 }
 

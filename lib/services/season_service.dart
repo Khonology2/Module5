@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_metrics_job.dart';
@@ -948,6 +949,23 @@ class SeasonService {
 
       // Also write to users/{userId}/badges in Badge model structure so it shows in the standard badges UI
       final userBadgeId = '${seasonBadge.id}_${season.id}';
+      
+      // Determine manager level based on badge type
+      int managerLevel;
+      switch (seasonBadge.id) {
+        case 'season_guardian':
+          managerLevel = 2; // Level 2: Supporting team by extending seasons
+          break;
+        case 'season_architect':
+          managerLevel = 3; // Level 3: Creating growth opportunities
+          break;
+        case 'season_closer':
+          managerLevel = 4; // Level 4: Strategic leadership in completing seasons
+          break;
+        default:
+          managerLevel = 4; // Default to Level 4
+      }
+      
       final userBadgeRef = _firestore
           .collection('users')
           .doc(userId)
@@ -965,6 +983,7 @@ class SeasonService {
           'seasonId': season.id,
           'seasonTitle': season.title,
           'isManager': isManager,
+          'managerLevel': managerLevel,
         },
         'earnedAt': FieldValue.serverTimestamp(),
         'isEarned': true,
@@ -984,6 +1003,8 @@ class SeasonService {
         badgeName: seasonBadge.name,
         isManager: isManager,
       );
+
+      await BadgeService.updateUserBadgeSummary(userId);
 
       developer.log(
         'Synced season badge ${seasonBadge.name} with employee system for user $userId',

@@ -1261,6 +1261,7 @@ class DatabaseService {
         'notificationFrequency': 'daily',
         'goalVisibility': 'private',
         'leaderboardOptin': false,
+        'leaderboardParticipation': false,
         'badgeName': '',
         'celebrationConsent': 'private',
       };
