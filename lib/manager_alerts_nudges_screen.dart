@@ -44,6 +44,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   AlertPriority? _selectedPriority;
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   bool _showNudgeTrend = true;
+  bool _isLoadingInsights = false;
+  Map<String, dynamic>? _teamInsights;
 
   @override
   void initState() {
@@ -267,10 +269,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                           height: 36,
                           fit: BoxFit.contain,
                         )
-                      : Icon(
-                          Icons.cancel_outlined,
-                          color: color,
-                        ),
+                      : Icon(Icons.cancel_outlined, color: color),
                   title: Text(
                     g.title,
                     style: AppTypography.bodyMedium.copyWith(
@@ -690,15 +689,46 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         SliverPadding(
           padding: AppSpacing.screenPadding,
           sliver: SliverToBoxAdapter(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Team Alerts (${alerts.length})',
-                  style: AppTypography.heading3.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Team Alerts (${alerts.length})',
+                      style: AppTypography.heading3.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _loadTeamInsights(employees, alerts),
+                      icon: _isLoadingInsights
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Icon(Icons.insights, size: 18),
+                      label: const Text('AI Team Insights'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                if (_teamInsights != null) _buildTeamInsightsWidget(),
               ],
             ),
           ),
@@ -2464,13 +2494,440 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
   }
 
-  void _sendBulkNudge(List<EmployeeData> employees, String message) async {
-    int successCount = 0;
-    int errorCount = 0;
+  Widget _buildTeamInsightsWidget() {
+    if (_teamInsights == null) return const SizedBox.shrink();
+
+    final atRiskMembers =
+        _teamInsights!['atRiskMembers'] as List<dynamic>? ?? [];
+    final collaborations =
+        _teamInsights!['collaborationOpportunities'] as List<dynamic>? ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.activeColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights, color: AppColors.activeColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'AI Team Insights',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                color: AppColors.textSecondary,
+                onPressed: () {
+                  setState(() => _teamInsights = null);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (atRiskMembers.isNotEmpty) ...[
+            Text(
+              'At-Risk Team Members',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...atRiskMembers.take(5).map((member) {
+              final riskLevel =
+                  member['riskLevel']?.toString().toLowerCase() ?? 'medium';
+              Color riskColor;
+              if (riskLevel == 'high') {
+                riskColor = AppColors.dangerColor;
+              } else if (riskLevel == 'medium') {
+                riskColor = AppColors.warningColor;
+              } else {
+                riskColor = AppColors.infoColor;
+              }
+
+              final reasons = member['reasons'] as List<dynamic>? ?? [];
+              final recommendations =
+                  member['recommendations']?.toString() ?? '';
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: riskColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: riskColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: riskColor.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              riskLevel.toUpperCase(),
+                              style: AppTypography.bodySmall.copyWith(
+                                color: riskColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              member['name']?.toString() ?? 'Unknown',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (reasons.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ...reasons.map(
+                          (reason) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: riskColor,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    reason.toString(),
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (recommendations.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.activeColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.lightbulb_outline,
+                                color: AppColors.activeColor,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  recommendations,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.activeColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+          ],
+          if (collaborations.isNotEmpty) ...[
+            Text(
+              'Collaboration Opportunities',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...collaborations.take(5).map((collab) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.successColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.successColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            color: AppColors.successColor,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${collab['member1']} ↔ ${collab['member2']}',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        collab['reason']?.toString() ?? '',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.successColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.handshake,
+                              color: AppColors.successColor,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                collab['suggestion']?.toString() ?? '',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.successColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadTeamInsights(
+    List<EmployeeData> employees,
+    List<Alert> alerts,
+  ) async {
+    if (_isLoadingInsights) return;
+    if (employees.isEmpty) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'No employees available for insights yet.',
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoadingInsights = true);
+
+    try {
+      final now = DateTime.now();
+      final alertsByUser = <String, List<Alert>>{};
+      for (final alert in alerts) {
+        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final atRiskMembers = <Map<String, dynamic>>[];
+
+      for (final employee in employees) {
+        final reasons = <String>[];
+        final recommendations = <String>[];
+        final inactivityDays = now.difference(employee.lastActivity).inDays;
+        final employeeAlerts = <Alert>[
+          ...employee.recentAlerts,
+          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
+        ];
+        final urgentCount = employeeAlerts
+            .where((alert) => alert.priority == AlertPriority.urgent)
+            .length;
+        final overdue = employee.overdueGoalsCount;
+        final lowEngagement = employee.engagementScore < 55;
+        final weakProgress = employee.avgProgress < 40;
+        final lowActivity = employee.weeklyActivityCount <= 1;
+
+        if (inactivityDays >= 5) {
+          reasons.add('Inactive for $inactivityDays days');
+          recommendations.add('Schedule a quick check-in to uncover blockers.');
+        }
+        if (overdue > 0) {
+          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
+          recommendations.add('Help reprioritize or rescope overdue goals.');
+        }
+        if (urgentCount > 0) {
+          reasons.add(
+            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
+          );
+          recommendations.add(
+            'Review urgent alerts together and clear blockers.',
+          );
+        }
+        if (lowEngagement) {
+          reasons.add(
+            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
+          );
+          recommendations.add('Send recognition or a motivational nudge.');
+        }
+        if (weakProgress) {
+          reasons.add(
+            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
+          );
+        }
+        if (lowActivity) {
+          reasons.add(
+            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
+          );
+        }
+
+        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
+        if (riskScore >= 2) {
+          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
+          final recommendation = recommendations.isEmpty
+              ? 'Schedule a quick sync to plan next steps.'
+              : recommendations.join(' ');
+          atRiskMembers.add({
+            'name': employee.profile.displayName,
+            'riskLevel': riskLevel,
+            'reasons': reasons,
+            'recommendations': recommendation,
+          });
+        }
+      }
+
+      atRiskMembers.sort((a, b) {
+        const ranking = {'high': 2, 'medium': 1, 'low': 0};
+        final left = ranking[a['riskLevel']] ?? 0;
+        final right = ranking[b['riskLevel']] ?? 0;
+        return right.compareTo(left);
+      });
+
+      final highMomentum =
+          employees
+              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
+              .toList()
+            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
+      final lowMomentum =
+          employees
+              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
+              .toList()
+            ..sort((a, b) {
+              final overdueDiff = b.overdueGoalsCount.compareTo(
+                a.overdueGoalsCount,
+              );
+              if (overdueDiff != 0) return overdueDiff;
+              return a.engagementScore.compareTo(b.engagementScore);
+            });
+
+      final collaborationOpportunities = <Map<String, dynamic>>[];
+      final pairLimit = math.min(
+        3,
+        math.min(highMomentum.length, lowMomentum.length),
+      );
+
+      for (var i = 0; i < pairLimit; i++) {
+        final mentor = highMomentum[i];
+        final mentee = lowMomentum[i];
+        if (mentor.profile.uid == mentee.profile.uid) continue;
+
+        final focusArea = mentee.overdueGoalsCount > 0
+            ? 'clearing overdue goals'
+            : 'building weekly habits';
+
+        collaborationOpportunities.add({
+          'member1': mentor.profile.displayName,
+          'member2': mentee.profile.displayName,
+          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
+          'suggestion':
+              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
+        });
+      }
+
+      final insights = <String, dynamic>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'atRiskMembers': atRiskMembers,
+        'collaborationOpportunities': collaborationOpportunities,
+      };
+
+      if (!mounted) return;
+      setState(() {
+        _teamInsights = insights;
+      });
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Unable to generate insights right now. Please try again shortly.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+      } else {
+        _isLoadingInsights = false;
+      }
+    }
+  }
+
+  Future<void> _sendBulkNudge(
+    List<EmployeeData> employees,
+    String message,
+  ) async {
+    var successCount = 0;
+    var errorCount = 0;
 
     for (final employee in employees) {
       try {
-        // Use first active goal or create a general nudge
         final goalId = employee.goals.isNotEmpty
             ? employee.goals.first.id
             : 'general';
@@ -2480,17 +2937,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           message: message,
         );
         successCount++;
-      } catch (e) {
+      } catch (_) {
         errorCount++;
       }
     }
 
-    if (mounted) {
-      await _showCenterNotice(
-        context,
-        'Bulk nudge sent: $successCount successes, $errorCount errors',
-      );
-    }
+    if (!mounted) return;
+
+    await _showCenterNotice(
+      context,
+      'Bulk nudge sent: $successCount successes, $errorCount errors',
+    );
   }
 }
 

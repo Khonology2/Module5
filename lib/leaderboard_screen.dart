@@ -214,15 +214,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (isManager) {
         filteredDocs = docs;
       } else {
-        // For employees, show ALL employees in the Full Leaderboard
-        // Filter to ensure we only have employees (role check is already in query, but double-check here)
+        // For employees, only show co-workers who opted into leaderboards
+        // Filter to ensure we only have opted-in employees (role check is already in query, but double-check here)
         filteredDocs = docs.where((doc) {
           try {
             final data = doc.data() as Map<String, dynamic>?;
             if (data != null) {
               // Ensure we only show employees (not managers)
               final role = data['role']?.toString() ?? 'employee';
-              return role == 'employee';
+              if (role != 'employee') {
+                return false;
+              }
+
+              final optIn = data['leaderboardOptin'];
+              final legacyOptIn = data['leaderboardParticipation'];
+              return optIn == true || legacyOptIn == true;
             }
             return false;
           } catch (e) {
@@ -237,7 +243,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       // If no users to display, return empty list
       if (filteredDocs.isEmpty) {
         if (!isManager) {
-          developer.log('No users have opted into leaderboard');
+          developer.log('No employees have enabled leaderboard participation');
         }
         return [];
       }
@@ -249,9 +255,30 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
+          }
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+
+          if (_currentUser != null && doc.id == _currentUser!.uid) {
+            badgeCount = max(badgeCount, _currentUser!.badges.length);
           }
         } catch (e) {
           developer.log('Error processing badges for user ${doc.id}: $e');
@@ -915,6 +942,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   ) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null || _currentUser == null) {
+      return {};
+    }
+
+    final bool isManager = _currentUser!.role == 'manager';
+    final bool optedIn = _currentUser!.leaderboardOptin;
+    if (!isManager && !optedIn) {
+      // Employees who opted out shouldn't be surfaced anywhere on the leaderboard
       return {};
     }
 

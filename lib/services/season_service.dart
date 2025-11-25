@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_metrics_job.dart';
@@ -984,6 +985,8 @@ class SeasonService {
         badgeName: seasonBadge.name,
         isManager: isManager,
       );
+
+      await BadgeService.updateUserBadgeSummary(userId);
 
       developer.log(
         'Synced season badge ${seasonBadge.name} with employee system for user $userId',

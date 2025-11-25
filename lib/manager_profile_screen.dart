@@ -1,7 +1,10 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/models/user_profile.dart'; // Removed as it is not directly used in this file's UI logic.
 import 'package:image_picker/image_picker.dart';
@@ -104,13 +107,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   final TextEditingController _longGoalsController = TextEditingController();
   final TextEditingController _notificationPrefsController =
       TextEditingController();
-  final TextEditingController _goalVisibilityController =
-      TextEditingController();
-  final TextEditingController _leaderboardOptinController =
-      TextEditingController();
-  final TextEditingController _badgeNameController = TextEditingController();
-  final TextEditingController _celebrationConsentController =
-      TextEditingController();
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
@@ -118,13 +114,33 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       []; // For preferred development activities
   String? _selectedLearningStyle;
   String? _profilePhotoUrl;
-  String? _leaderboardOptin = 'no';
-  String? _celebrationConsent = 'private';
   String? _notificationFrequency = 'daily';
-  String? _goalVisibility = 'private';
 
-  // Animation state for save button
+  bool _isGeneratingDevelopmentPlan = false;
+  String _planGenerationPhase = '';
+  String? _planGenerationError;
   double _saveButtonScale = 1.0;
+
+  static const String _developmentPlanSystemInstruction =
+      '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
+
+Respond ONLY with valid JSON following this schema (no prose outside the JSON):
+{
+  "narrative": "Overall plan summary in 3-4 sentences.",
+  "shortTermGoal": "SMART goal for the next 3-6 months.",
+  "longTermGoal": "Ambitious goal or capability for 12-24 months.",
+  "careerVision": "How this plan supports the manager's larger aspiration.",
+  "currentFocus": "Projects or business priorities the plan reinforces.",
+  "developmentAreas": ["Growth area 1", "Growth area 2"],
+  "strengthsToLeverage": ["Key strength 1", "Key strength 2"],
+  "recommendedActivities": ["Action or resource 1", "Action or resource 2"]
+}
+
+Guidelines:
+- Keep each string concise but specific.
+- Make list items actionable and unique.
+- If a field has no data, return an empty string or empty array, but keep the key present.
+- Do not include markdown, bullet characters, or explanations outside the JSON.''';
 
   @override
   void initState() {
@@ -152,7 +168,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
             ? userProfile.jobTitle
             : null;
-        _selectedDepartment = _departmentOptions.contains(userProfile.department)
+        _selectedDepartment =
+            _departmentOptions.contains(userProfile.department)
             ? userProfile.department
             : null;
         _workEmailController.text = userProfile.email;
@@ -173,10 +190,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         _shortGoalsController.text = userProfile.shortGoals;
         _longGoalsController.text = userProfile.longGoals;
         _notificationFrequency = userProfile.notificationFrequency;
-        _goalVisibility = userProfile.goalVisibility;
-        _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
-        _badgeNameController.text = userProfile.badgeName;
-        _celebrationConsent = userProfile.celebrationConsent;
         _profilePhotoUrl =
             (userProfile.profilePhotoUrl != null &&
                 userProfile.profilePhotoUrl!.isNotEmpty)
@@ -202,10 +215,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     _shortGoalsController.dispose();
     _longGoalsController.dispose();
     _notificationPrefsController.dispose();
-    _goalVisibilityController.dispose();
-    _leaderboardOptinController.dispose();
-    _badgeNameController.dispose();
-    _celebrationConsentController.dispose();
     super.dispose();
   }
 
@@ -222,6 +231,19 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     setState(() {
       list.removeAt(index);
     });
+  }
+
+  void _mergeTagValues(List<String> target, List<String> additions) {
+    for (final value in additions) {
+      final cleaned = value.trim();
+      if (cleaned.isEmpty) continue;
+      final exists = target.any(
+        (existing) => existing.toLowerCase() == cleaned.toLowerCase(),
+      );
+      if (!exists) {
+        target.add(cleaned);
+      }
+    }
   }
 
   Future<void> _showAlertDialog(String title, String message) async {
@@ -246,6 +268,555 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         );
       },
     );
+  }
+
+  List<_PlanPrepQuestion> _buildPlanPrepQuestions() {
+    return [
+      _PlanPrepQuestion(
+        id: 'short_goals',
+        prompt: 'What impact do you want to make in the next 3–6 months?',
+        helper:
+            'Think in terms of measurable outcomes, behavior shifts, or team health improvements.',
+        placeholder:
+            'e.g., "Stabilize the new onboarding program and lift CSAT to 92%"',
+        controller: _shortGoalsController,
+      ),
+      _PlanPrepQuestion(
+        id: 'long_goals',
+        prompt: 'What longer-term role or capability are you building toward?',
+        helper:
+            'Describe the next role, scope, or leadership identity you are targeting in 12–24 months.',
+        placeholder:
+            'e.g., "Move into Director of Operations with mastery in data-driven decision making."',
+        controller: _longGoalsController,
+      ),
+      _PlanPrepQuestion(
+        id: 'current_projects',
+        prompt:
+            'Which projects or business priorities should the plan reinforce?',
+        helper:
+            'Include flagship initiatives, transformation efforts, or KPIs you own.',
+        placeholder:
+            'e.g., "Launching the AI-enabled customer triage workflow across all regions."',
+        controller: _currentProjectsController,
+        maxLines: 4,
+      ),
+      _PlanPrepQuestion(
+        id: 'career_aspirations',
+        prompt: 'What lights you up about the next chapter of your career?',
+        helper:
+            'Share personal drivers, leadership philosophies, or experiences you want more of.',
+        placeholder:
+            'e.g., "Coach emerging leaders and build cultures where experimentation is safe."',
+        controller: _careerAspirationsController,
+        maxLines: 4,
+      ),
+    ];
+  }
+
+  Future<bool> _showPlanPrepSheet(List<_PlanPrepQuestion> questions) async {
+    if (questions.isEmpty) return true;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        int currentIndex = 0;
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: FractionallySizedBox(
+            heightFactor: 0.9,
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                final question = questions[currentIndex];
+                final bool isLast = currentIndex == questions.length - 1;
+
+                void goTo(int Function(int) nextIndexBuilder) {
+                  setModalState(() {
+                    currentIndex = nextIndexBuilder(
+                      currentIndex,
+                    ).clamp(0, questions.length - 1);
+                  });
+                }
+
+                void closeWith(bool value) {
+                  FocusScope.of(context).unfocus();
+                  Navigator.of(sheetContext).pop(value);
+                }
+
+                return ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  child: Material(
+                    color: const Color(0xFF040610),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 12, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Before we plan…',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Question ${currentIndex + 1} of ${questions.length}',
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      Navigator.of(sheetContext).pop(false),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                12,
+                                24,
+                                16,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    question.prompt,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    question.helper,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: question.controller,
+                                    maxLines: question.maxLines,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      hintText: question.placeholder,
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white38,
+                                      ),
+                                      fillColor: Colors.white10,
+                                      filled: true,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                            child: Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    if (currentIndex == 0) {
+                                      Navigator.of(sheetContext).pop(false);
+                                    } else {
+                                      goTo((index) => index - 1);
+                                    }
+                                  },
+                                  child: Text(
+                                    currentIndex == 0 ? 'Cancel' : 'Back',
+                                  ),
+                                ),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: () {
+                                    if (isLast) {
+                                      closeWith(true);
+                                    } else {
+                                      goTo((index) => index + 1);
+                                    }
+                                  },
+                                  child: const Text('Skip for now'),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (isLast) {
+                                      closeWith(true);
+                                    } else {
+                                      goTo((index) => index + 1);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFC10D00),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: Text(
+                                    isLast ? 'Generate plan' : 'Next question',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _refinePlanResponses(List<_PlanPrepQuestion> questions) async {
+    final Map<String, String> payload = {};
+    for (final question in questions) {
+      final value = question.controller.text.trim();
+      if (value.isNotEmpty) {
+        payload[question.id] = value;
+      }
+    }
+
+    if (payload.isEmpty) return;
+
+    try {
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are a writing coach. Refine each entry for clarity and executive tone without changing meaning. '
+          'Respond with JSON using the same keys. Keep each response under 2 sentences.',
+        ),
+      );
+
+      final response = await model.generateContent([
+        Content.text(
+          'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
+        ),
+      ]);
+
+      final rawText = response.text ?? '';
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
+      if (jsonMatch == null) return;
+      final decoded = jsonDecode(jsonMatch.group(0)!);
+      if (decoded is! Map) return;
+
+      for (final question in questions) {
+        final updated = decoded[question.id];
+        if (updated is String && updated.trim().isNotEmpty) {
+          question.controller.text = updated.trim();
+        }
+      }
+    } catch (_) {
+      // If refinement fails, keep the original inputs.
+    }
+  }
+
+  Future<_DevelopmentPlanResult> _requestDevelopmentPlan(String prompt) async {
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      systemInstruction: Content.text(_developmentPlanSystemInstruction),
+    );
+
+    final response = await model.generateContent([Content.text(prompt)]);
+    final rawText = response.text?.trim() ?? '';
+    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
+    if (jsonMatch == null) {
+      throw Exception('Plan response was not in the expected JSON format.');
+    }
+    final decoded = jsonDecode(jsonMatch.group(0)!);
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Plan response could not be parsed.');
+    }
+    return _DevelopmentPlanResult.fromJson(decoded);
+  }
+
+  Future<void> _runPlanPipeline(List<_PlanPrepQuestion> questions) async {
+    if (!mounted) return;
+
+    setState(() {
+      _isGeneratingDevelopmentPlan = true;
+      _planGenerationError = null;
+      _planGenerationPhase = 'Polishing your responses...';
+    });
+
+    try {
+      await _refinePlanResponses(questions);
+
+      if (!mounted) return;
+      setState(() {
+        _planGenerationPhase = 'Designing your personalized plan...';
+      });
+
+      final prompt = _buildDevelopmentPlanPrompt();
+      final plan = await _requestDevelopmentPlan(prompt);
+
+      if (!mounted) return;
+      setState(() {
+        if (plan.shortTermGoal.isNotEmpty) {
+          _shortGoalsController.text = plan.shortTermGoal;
+        }
+        if (plan.longTermGoal.isNotEmpty) {
+          _longGoalsController.text = plan.longTermGoal;
+        }
+        final aspirationText = plan.careerVision.isNotEmpty
+            ? plan.careerVision
+            : plan.narrative;
+        if (aspirationText.isNotEmpty) {
+          _careerAspirationsController.text = aspirationText;
+        }
+        if (plan.currentFocus.isNotEmpty) {
+          _currentProjectsController.text = plan.currentFocus;
+        }
+        _mergeTagValues(_developmentAreas, plan.developmentAreas);
+        _mergeTagValues(_skills, plan.strengthsToLeverage);
+        _mergeTagValues(_preferredDevActivities, plan.recommendedActivities);
+        _planGenerationPhase = '';
+        _planGenerationError = null;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Plan suggestions added to your profile. Review & press Save when ready.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        _isGeneratingDevelopmentPlan = false;
+        return;
+      }
+      setState(() {
+        _planGenerationError = e.toString();
+        _planGenerationPhase = '';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingDevelopmentPlan = false;
+        });
+      } else {
+        _isGeneratingDevelopmentPlan = false;
+      }
+    }
+  }
+
+  Future<void> _regenerateDevelopmentPlan() async {
+    if (_isGeneratingDevelopmentPlan) return;
+    final questions = _buildPlanPrepQuestions();
+    await _runPlanPipeline(questions);
+  }
+
+  String _buildDevelopmentPlanPrompt() {
+    final name = _fullNameController.text.trim();
+    final jobTitle = _selectedJobTitle ?? '';
+    final department = _selectedDepartment ?? '';
+    final shortGoals = _shortGoalsController.text.trim();
+    final longGoals = _longGoalsController.text.trim();
+    final aspirations = _careerAspirationsController.text.trim();
+    final currentProjects = _currentProjectsController.text.trim();
+    final learningStyle = (_selectedLearningStyle ?? '').trim();
+
+    final List<String> contextLines = [];
+
+    final roleParts = [
+      if (jobTitle.isNotEmpty) jobTitle,
+      if (department.isNotEmpty) department,
+    ];
+    if (roleParts.isNotEmpty) {
+      contextLines.add('Role context: ${roleParts.join(' • ')}');
+    }
+
+    void addListLine(String label, List<String> values) {
+      final cleaned = values
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (cleaned.isNotEmpty) {
+        contextLines.add('$label: ${cleaned.join(', ')}');
+      }
+    }
+
+    void addLine(String label, String value) {
+      if (value.isNotEmpty) {
+        contextLines.add('$label: $value');
+      }
+    }
+
+    addListLine('Key strengths', _skills);
+    addListLine('Development priorities', _developmentAreas);
+    addLine('Career aspirations', aspirations);
+    addLine('Current focus / projects', currentProjects);
+    addLine('Short-term goals (3–6 months)', shortGoals);
+    addLine('Long-term goals (1–3 years)', longGoals);
+    addListLine('Preferred development activities', _preferredDevActivities);
+    if (learningStyle.isNotEmpty) {
+      contextLines.add('Preferred learning style: $learningStyle');
+    }
+
+    if (contextLines.isEmpty) {
+      contextLines.add(
+        'No structured context captured yet — ask clarifying questions about goals, strengths, and support needs before proposing recommendations.',
+      );
+    }
+
+    final buffer = StringBuffer();
+    final displayName = name.isEmpty ? 'this manager' : name;
+
+    buffer.writeln(
+      "Collaborate with $displayName to co-design a personalized development plan that feels achievable but ambitious.",
+    );
+    buffer.writeln('\nProfile context to anchor on:');
+    buffer.writeln(contextLines.map((line) => '- $line').join('\n'));
+    buffer.writeln('\nAssistant guardrails:');
+    buffer.writeln(
+      '- Start by acknowledging what you understood and ask for missing details before prescribing steps.',
+    );
+    buffer.writeln(
+      '- Propose 2–3 focus areas that cover quick wins, capability building, and leadership behaviors tied to measurable outcomes.',
+    );
+    buffer.writeln(
+      '- For each area, outline SMART goals, suggested rituals or resources (courses, mentors, playbooks), and checkpoints (30/60/90 days or 12-week arcs).',
+    );
+    buffer.writeln(
+      '- Suggest how to track progress (metrics, reflections, stakeholder feedback) and where the manager may need support.',
+    );
+    buffer.writeln(
+      '- Close with a motivational nudge plus a question that invites the manager to refine the plan with you.',
+    );
+    buffer.writeln(
+      '\nTone: strengths-based, specific, and collaborative — behave like KhonoPal’s development copilot, not a lecturer.',
+    );
+
+    return buffer.toString();
+  }
+
+  Widget _buildDevelopmentPlanSummaryCard() {
+    final bool shouldShowCard =
+        _isGeneratingDevelopmentPlan || _planGenerationError != null;
+
+    if (!shouldShowCard) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'AI Development Plan',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_isGeneratingDevelopmentPlan) ...[
+            LinearProgressIndicator(
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFC10D00),
+              ),
+              backgroundColor: Colors.white12,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _planGenerationPhase.isEmpty
+                  ? 'Crafting your personalized development plan...'
+                  : _planGenerationPhase,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ] else if (_planGenerationError != null) ...[
+            Text(
+              'Could not generate a plan right now.',
+              style: TextStyle(
+                color: Colors.red.shade300,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _planGenerationError!,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Please adjust your inputs or try again in a moment.',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isGeneratingDevelopmentPlan
+                    ? null
+                    : _regenerateDevelopmentPlan,
+                child: const Text('Try again'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateDevelopmentPlan() async {
+    final prepQuestions = _buildPlanPrepQuestions();
+    final confirmed = await _showPlanPrepSheet(prepQuestions);
+    if (confirmed != true) return;
+    if (!mounted) return;
+    await _runPlanPipeline(prepQuestions);
   }
 
   Future<void> _removeProfilePhoto() async {
@@ -313,10 +884,10 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
         shortGoals: _shortGoalsController.text.trim(),
         longGoals: _longGoalsController.text.trim(),
         notificationFrequency: _notificationFrequency ?? 'daily',
-        goalVisibility: _goalVisibility ?? 'private',
-        leaderboardOptin: _leaderboardOptin == 'yes',
-        badgeName: _badgeNameController.text.trim(),
-        celebrationConsent: _celebrationConsent ?? 'private',
+        goalVisibility: existingUserProfile.goalVisibility,
+        leaderboardOptin: existingUserProfile.leaderboardOptin,
+        badgeName: existingUserProfile.badgeName,
+        celebrationConsent: existingUserProfile.celebrationConsent,
         profilePhotoUrl: _profilePhotoUrl,
       );
 
@@ -375,7 +946,8 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                         ),
                       ),
                       child: ClipOval(
-                        child: (_profilePhotoUrl != null &&
+                        child:
+                            (_profilePhotoUrl != null &&
                                 _profilePhotoUrl!.isNotEmpty)
                             ? Image.network(
                                 _profilePhotoUrl!,
@@ -474,6 +1046,15 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                         _addTag(_developmentInputController, _developmentAreas),
                   ),
                   const SizedBox(height: 16),
+                  _buildActionButton(
+                    text: '✨ Generate Personalized Development Plan ✨',
+                    onPressed: _isGeneratingDevelopmentPlan
+                        ? null
+                        : _generateDevelopmentPlan,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildDevelopmentPlanSummaryCard(),
+                  const SizedBox(height: 16),
                   _buildTextArea(
                     controller: _careerAspirationsController,
                     hintText: 'Career Aspirations / Future Role',
@@ -502,20 +1083,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
                   ),
                   const SizedBox(height: 16),
                   _buildNotificationPreferencesDropdown(),
-                  _buildGoalVisibilityRadios(),
-                ],
-              ),
-
-              // Gamification Section
-              _buildCardSection(
-                title: 'Gamification',
-                children: [
-                  _buildLeaderboardOptInRadios(),
-                  _buildTextField(
-                    controller: _badgeNameController,
-                    hintText: 'Preferred Badge Display Name',
-                  ),
-                  _buildCelebrationConsentRadios(),
                 ],
               ),
 
@@ -693,9 +1260,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       data: Theme.of(context).copyWith(
         dropdownMenuTheme: DropdownMenuThemeData(
           menuStyle: MenuStyle(
-            backgroundColor: WidgetStateProperty.all(
-              const Color(0xFF1F2840),
-            ),
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
           ),
         ),
       ),
@@ -722,10 +1287,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           ),
         ),
         items: _jobTitleOptions.map<DropdownMenuItem<String>>((String value) {
-          return DropdownMenuItem<String>(
-            value: value,
-            child: Text(value),
-          );
+          return DropdownMenuItem<String>(value: value, child: Text(value));
         }).toList(),
         onChanged: (String? newValue) {
           setState(() {
@@ -741,9 +1303,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       data: Theme.of(context).copyWith(
         dropdownMenuTheme: DropdownMenuThemeData(
           menuStyle: MenuStyle(
-            backgroundColor: WidgetStateProperty.all(
-              const Color(0xFF1F2840),
-            ),
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
           ),
         ),
       ),
@@ -770,10 +1330,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           ),
         ),
         items: _departmentOptions.map<DropdownMenuItem<String>>((String value) {
-          return DropdownMenuItem<String>(
-            value: value,
-            child: Text(value),
-          );
+          return DropdownMenuItem<String>(value: value, child: Text(value));
         }).toList(),
         onChanged: (String? newValue) {
           setState(() {
@@ -809,6 +1366,23 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
           borderRadius: BorderRadius.circular(8.0),
           borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({required String text, VoidCallback? onPressed}) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFC10D00),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -1024,126 +1598,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
     );
   }
 
-  Widget _buildGoalVisibilityRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Goal Visibility',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Private',
-              'private',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-            _buildRadio(
-              'Manager Only',
-              'manager',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-            _buildRadio(
-              'Team Share',
-              'team',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRadio(
-    String title,
-    String value,
-    String? groupValue,
-    ValueChanged<String?> onChanged,
-  ) {
-    return RadioListTile<String>(
-      title: Text(title, style: const TextStyle(color: Colors.white70)),
-      value: value,
-      groupValue: groupValue,
-      onChanged: onChanged,
-      activeColor: const Color(
-        0xFFC10D00,
-      ), // This is still needed for the active color of the radio button itself
-      fillColor: WidgetStateProperty.all(
-        const Color(0xFFC10D00),
-      ), // Changed to WidgetStateProperty
-      contentPadding: EdgeInsets.zero,
-    );
-  }
-
-  Widget _buildLeaderboardOptInRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Opt-in to Leaderboards',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Yes',
-              'yes',
-              _leaderboardOptin,
-              (value) => setState(() => _leaderboardOptin = value),
-            ),
-            _buildRadio(
-              'No',
-              'no',
-              _leaderboardOptin,
-              (value) => setState(() => _leaderboardOptin = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCelebrationConsentRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Celebration Feed Consent',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Share wins publicly',
-              'public',
-              _celebrationConsent,
-              (value) => setState(() => _celebrationConsent = value),
-            ),
-            _buildRadio(
-              'Private only',
-              'private',
-              _celebrationConsent,
-              (value) => setState(() => _celebrationConsent = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -1182,5 +1636,76 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       if (!mounted) return;
       _showAlertDialog('Error', 'Failed to upload photo: ${e.toString()}');
     }
+  }
+}
+
+class _PlanPrepQuestion {
+  final String id;
+  final String prompt;
+  final String helper;
+  final String placeholder;
+  final TextEditingController controller;
+  final int maxLines;
+
+  const _PlanPrepQuestion({
+    required this.id,
+    required this.prompt,
+    required this.helper,
+    required this.placeholder,
+    required this.controller,
+    this.maxLines = 3,
+  });
+}
+
+class _DevelopmentPlanResult {
+  final String narrative;
+  final String shortTermGoal;
+  final String longTermGoal;
+  final String careerVision;
+  final String currentFocus;
+  final List<String> developmentAreas;
+  final List<String> strengthsToLeverage;
+  final List<String> recommendedActivities;
+
+  const _DevelopmentPlanResult({
+    required this.narrative,
+    required this.shortTermGoal,
+    required this.longTermGoal,
+    required this.careerVision,
+    required this.currentFocus,
+    required this.developmentAreas,
+    required this.strengthsToLeverage,
+    required this.recommendedActivities,
+  });
+
+  factory _DevelopmentPlanResult.fromJson(Map<String, dynamic> json) {
+    List<String> asStringList(dynamic value) {
+      if (value is List) {
+        return value
+            .map((item) => item.toString().trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+      }
+      if (value is String && value.trim().isNotEmpty) {
+        return [value.trim()];
+      }
+      return [];
+    }
+
+    String asString(String key) {
+      final value = json[key];
+      return value == null ? '' : value.toString().trim();
+    }
+
+    return _DevelopmentPlanResult(
+      narrative: asString('narrative'),
+      shortTermGoal: asString('shortTermGoal'),
+      longTermGoal: asString('longTermGoal'),
+      careerVision: asString('careerVision'),
+      currentFocus: asString('currentFocus'),
+      developmentAreas: asStringList(json['developmentAreas']),
+      strengthsToLeverage: asStringList(json['strengthsToLeverage']),
+      recommendedActivities: asStringList(json['recommendedActivities']),
+    );
   }
 }
