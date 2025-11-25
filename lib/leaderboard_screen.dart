@@ -870,8 +870,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     bool isManager = false,
   }) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final topPerformers = leaderboardData.take(5).toList();
-    final remainingUsers = leaderboardData.skip(3).toList();
+    final bool showTopPerformersSection = !isManager;
+    final List<Map<String, dynamic>> topPerformers = showTopPerformersSection
+        ? leaderboardData.take(5).toList()
+        : const [];
+    final int alreadyShownCount =
+        showTopPerformersSection ? topPerformers.length : 3;
+    final remainingUsers = leaderboardData.skip(alreadyShownCount).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -910,16 +915,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           const SizedBox(height: 20),
         ],
 
-        const Text(
-          'Top Performers',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+        if (showTopPerformersSection && topPerformers.isNotEmpty) ...[
+          const Text(
+            'Top Performers',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        ...topPerformers.map((user) => _buildLeaderboardItem(user)),
+          const SizedBox(height: 10),
+          ...topPerformers.map((user) => _buildLeaderboardItem(user)),
+        ],
         if (remainingUsers.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(

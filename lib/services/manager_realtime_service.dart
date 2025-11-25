@@ -1019,9 +1019,11 @@ class ManagerRealtimeService {
     try {
       final startDate = _getStartDateForFilter(timeFilter);
 
-      final goals = allEmployeeGoals
-          .where((g) => g.createdAt.isAfter(startDate))
-          .toList();
+      final goals = allEmployeeGoals.where((g) {
+        final createdRecently = g.createdAt.isAfter(startDate);
+        final isActive = g.status != GoalStatus.completed;
+        return createdRecently || isActive;
+      }).toList();
 
       final completedGoals =
           allEmployeeGoals.where((g) => g.status == GoalStatus.completed).length;
