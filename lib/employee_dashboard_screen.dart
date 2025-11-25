@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
@@ -607,7 +608,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/employee_dashboard',
-      topRightAction: _profileButton(context),
+      topRightAction: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const NotificationsBell(),
+          const SizedBox(width: 8),
+          _profileButton(context),
+        ],
+      ),
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,

@@ -34,6 +34,7 @@ import 'package:pdh/ai_chatbot.dart'
     hide ChatMessage; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:pdh/team_chats.dart';
+import 'package:pdh/widgets/khonnect_chat_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
@@ -540,7 +541,12 @@ class _TeamChatButtonState extends State<TeamChatButton> {
               hoverColor: Colors.transparent,
               focusColor: Colors.transparent,
               onTap: () {
-                navigatorKey.currentState?.pushNamed('/team_chats');
+                // Use the MaterialApp navigator context so we have
+                // proper Navigator + MaterialLocalizations ancestors
+                final navContext = navigatorKey.currentContext;
+                if (navContext != null) {
+                  showKhonnectChatModal(navContext);
+                }
               },
               borderRadius: BorderRadius.circular(28.0),
               child: Container(
