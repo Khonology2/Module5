@@ -150,19 +150,27 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     if (!context.mounted) return;
     final note = await showDialog<String?>(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Add Reschedule Note'),
         content: TextField(
           controller: noteController,
           decoration: const InputDecoration(labelText: 'Optional note'),
+          autofocus: true,
+          onSubmitted: (value) {
+            Navigator.of(ctx).pop(value.trim().isEmpty ? null : value.trim());
+          },
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, null),
+            onPressed: () => Navigator.of(ctx).pop(null),
             child: const Text('Skip'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, noteController.text.trim()),
+            onPressed: () {
+              final noteText = noteController.text.trim();
+              Navigator.of(ctx).pop(noteText.isEmpty ? null : noteText);
+            },
             child: const Text('Save'),
           ),
         ],
@@ -1095,6 +1103,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   Widget _buildSendNudgesTab(List<EmployeeData> employees) {
     final filteredEmployees = _filterEmployees(employees);
+    final normalizedToday = _normalizedToday();
+
+    final employeesNeedingAction = filteredEmployees
+        .where((employee) => _getCriticalGoals(employee, normalizedToday).isNotEmpty)
+        .toList();
+    final remainingEmployees = filteredEmployees
+        .where((employee) => _getCriticalGoals(employee, normalizedToday).isEmpty)
+        .toList();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1143,12 +1159,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           sliver: filteredEmployees.isEmpty
               ? SliverToBoxAdapter(child: _buildNoEmployeesState())
               : SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildEmployeeNudgeCard(filteredEmployees[index]),
-                    ),
-                    childCount: filteredEmployees.length,
+                  delegate: SliverChildListDelegate(
+                    [
+                      if (employeesNeedingAction.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          title: 'Action Needed',
+                          subtitle: 'Goals overdue or due within 2 days',
+                        ),
+                        const SizedBox(height: 12),
+                        ...employeesNeedingAction.map(
+                          (employee) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _buildEmployeeNudgeCard(employee),
+                          ),
+                        ),
+                      ] else
+                        _buildNoUrgentGoalsState(),
+                      if (remainingEmployees.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        _buildSectionHeader(title: 'All Team Members'),
+                        const SizedBox(height: 12),
+                        ...remainingEmployees.map(
+                          (employee) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.md),
+                            child: _buildEmployeeNudgeCard(employee),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
         ),
@@ -1242,6 +1282,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ),
           const SizedBox(height: 12),
           _buildQuickNudgeButtons(employee),
+          const SizedBox(height: 12),
+          _buildGoalDeadlineActions(employee),
         ],
       ),
     );
@@ -1318,6 +1360,238 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         foregroundColor: AppColors.activeColor,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+    );
+  }
+
+  Widget _buildGoalDeadlineActions(EmployeeData employee) {
+    final normalizedToday = _normalizedToday();
+    final criticalGoals = _getCriticalGoals(employee, normalizedToday);
+
+    if (criticalGoals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Urgent goal deadlines',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...criticalGoals.map(
+          (goal) => _buildGoalDeadlineTile(goal, employee, normalizedToday),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoalDeadlineTile(
+    Goal goal,
+    EmployeeData employee,
+    DateTime normalizedToday,
+  ) {
+    final normalizedTarget =
+        DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+    final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
+    final bool isDueTomorrow = deltaDays == 1;
+    final bool isDueInTwoDays = deltaDays == 2;
+    final bool isOverdue = deltaDays <= -1;
+    final displayColor = isOverdue ? AppColors.dangerColor : AppColors.warningColor;
+    final dueLabel = _formatDueDate(goal.targetDate);
+    final overdueDays = deltaDays.abs();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            goal.title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.event_outlined, size: 16, color: displayColor),
+              const SizedBox(width: 6),
+              Text(
+                'Due $dueLabel',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: displayColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isOverdue
+                      ? 'Overdue ${overdueDays}d'
+                      : isDueTomorrow
+                          ? 'Due tomorrow'
+                          : isDueInTwoDays
+                              ? 'Due in 2 days'
+                              : 'Due soon',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: displayColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildGoalActionButton(
+                label: 'Extend',
+                icon: Icons.schedule_send_outlined,
+                onPressed: () => _extendGoalDeadline(context, goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Reschedule',
+                icon: Icons.update,
+                onPressed: () => _rescheduleGoal(context, goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Pause',
+                icon: Icons.pause_circle_outline,
+                onPressed: () => _pauseGoal(goal.id, employee),
+              ),
+              _buildGoalActionButton(
+                label: 'Mark Burnout',
+                icon: Icons.local_fire_department_outlined,
+                onPressed: () => _markGoalBurnout(goal.id, employee),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalActionButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.textPrimary,
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+    );
+  }
+
+  String _formatDueDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    final yyyy = date.year.toString();
+    return '$mm/$dd/$yyyy';
+  }
+
+  DateTime _normalizedToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  List<Goal> _getCriticalGoals(
+    EmployeeData employee,
+    DateTime normalizedToday,
+  ) {
+    return employee.goals.where((goal) {
+      if (goal.status == GoalStatus.completed) return false;
+      final normalizedTarget =
+          DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+      final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
+      final isDueSoon = deltaDays >= 1 && deltaDays <= 2;
+      final isOverdue = deltaDays <= -1;
+      return isDueSoon || isOverdue;
+    }).toList()
+      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+  }
+
+  Widget _buildSectionHeader({required String title, String? subtitle}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.heading4.copyWith(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildNoUrgentGoalsState() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.inbox_outlined, color: AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No urgent goals right now',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'You’ll see employees appear here when a goal is overdue or due within two days.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1429,11 +1703,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final topFollowUps = followUpSummary.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    final attentionItems = _buildAttentionItems(
-      employees: employees,
-      managerId: managerId,
-    );
-
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -1523,8 +1792,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 ] else
                   const SizedBox(height: AppSpacing.lg),
                 _buildFollowUpSection(topFollowUps),
-                const SizedBox(height: AppSpacing.lg),
-                _buildAttentionSection(attentionItems),
               ],
             ),
           ),
