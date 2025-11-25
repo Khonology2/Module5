@@ -19,7 +19,13 @@ class AiChatbotScreen extends StatefulWidget {
   final String? prompt; // Optional initial prompt
   final Function(String)?
   onResult; // Callback for when a result is generated and should be returned
-  const AiChatbotScreen({super.key, this.prompt, this.onResult});
+  final bool embedded;
+  const AiChatbotScreen({
+    super.key,
+    this.prompt,
+    this.onResult,
+    this.embedded = false,
+  });
 
   @override
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
@@ -314,14 +320,19 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     String? messageContent,
     String? selectedModeOverride,
   }) async {
-    String text =
-        messageContent ??
-        _messageController.text
-            .trim(); // Use messageContent if provided, otherwise controller text
+    final bool isInitialPrompt =
+        initialPrompt != null && initialPrompt.trim().isNotEmpty;
+
+    String text;
+    if (isInitialPrompt) {
+      text = initialPrompt.trim();
+    } else {
+      text = (messageContent ?? _messageController.text).trim();
+    }
     if (text.isEmpty) return;
 
     // Input validation for text length
-    if (text.length > 256) {
+    if (!isInitialPrompt && text.length > 256) {
       // Approximate token limit
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -334,7 +345,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     }
 
     setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
+      if (!isInitialPrompt) {
+        _messages.add(ChatMessage(text: text, isUser: true));
+      } else {
+        _showQuickActions = false;
+      }
       _messageController.clear();
       _isThinking = true; // Set thinking state to true
     });
@@ -345,8 +360,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
 
     String textToSendToGemini = text;
 
-    String pdpSystemInstruction =
-        "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
+    const String pdpSystemInstruction =
+        '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context you receive (skills, growth areas, projects, aspirations, learning preferences). Always:
+1) Confirm understanding and ask for any missing details before prescribing steps.
+2) Break guidance into focus areas with SMART outcomes, resources (courses, mentors, rituals, templates), and checkpoints (30/60/90 day or 12-week arcs) plus success metrics.
+3) Suggest how to secure support or accountability partners and call out potential obstacles.
+4) Close with concrete next micro-actions and invite the manager to iterate with you.
+Keep the tone strengths-based, specific, and action-oriented, and format responses with clear headings or bullet lists.''';
 
     try {
       // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
@@ -450,17 +470,139 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     }
   }
 
+  Widget _buildChatSurface() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
+        ),
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF0A0F1F),
+                Color(0x001F2840),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: _messages.length + (_isThinking ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _messages.length && _isThinking) {
+                      return const _ThinkingIndicator();
+                    }
+                    final message = _messages[index];
+                    return ChatBubble(
+                      message: message,
+                      avatarAnimation: _isThinking ? _avatarAnimation : null,
+                    );
+                  },
+                ),
+              ),
+              if (_showQuickActions) _buildQuickActions(),
+              _buildMessageInput(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmbeddedHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 12, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF040610),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 56,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Development Plan Copilot',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Co-create a plan without leaving your profile.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final chatSurface = _buildChatSurface();
+
+    if (widget.embedded) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            color: const Color(0xFF040610),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  _buildEmbeddedHeader(),
+                  Expanded(child: chatSurface),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        // title: const Text('KhonoPal AI', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 70.0, // Increased toolbar height
-        leadingWidth: 70.0, // Adjust leading width
+        toolbarHeight: 70.0,
+        leadingWidth: 70.0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () {
@@ -468,51 +610,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
           },
         ),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF0A0F1F),
-                  Color(0x001F2840),
-                ], // Slightly transparent gradient over image
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount:
-                        _messages.length +
-                        (_isThinking ? 1 : 0), // Adjust itemCount
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _isThinking) {
-                        return _ThinkingIndicator();
-                      }
-                      final message = _messages[index];
-                      return ChatBubble(
-                        message: message,
-                        avatarAnimation: _isThinking ? _avatarAnimation : null,
-                      );
-                    },
-                  ),
-                ),
-                // Conditionally display quick actions
-                if (_showQuickActions) _buildQuickActions(),
-                _buildMessageInput(),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body: chatSurface,
     );
   }
 

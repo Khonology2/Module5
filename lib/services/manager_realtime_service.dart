@@ -7,6 +7,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/badge_service.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
 
@@ -1018,9 +1019,11 @@ class ManagerRealtimeService {
     try {
       final startDate = _getStartDateForFilter(timeFilter);
 
-      final goals = allEmployeeGoals
-          .where((g) => g.createdAt.isAfter(startDate))
-          .toList();
+      final goals = allEmployeeGoals.where((g) {
+        final createdRecently = g.createdAt.isAfter(startDate);
+        final isActive = g.status != GoalStatus.completed;
+        return createdRecently || isActive;
+      }).toList();
 
       final completedGoals =
           allEmployeeGoals.where((g) => g.status == GoalStatus.completed).length;
@@ -1478,6 +1481,10 @@ class ManagerRealtimeService {
       });
 
       await batch.commit();
+
+      if (badgeName != null) {
+        await BadgeService.updateUserBadgeSummary(employeeId);
+      }
 
       // Record activity
       await recordEmployeeActivity(
