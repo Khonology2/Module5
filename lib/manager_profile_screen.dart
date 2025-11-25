@@ -11,7 +11,6 @@ import 'package:image_picker/image_picker.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 import 'package:pdh/design_system/app_typography.dart';
@@ -82,13 +81,6 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   final TextEditingController _longGoalsController = TextEditingController();
   final TextEditingController _notificationPrefsController =
       TextEditingController();
-  final TextEditingController _goalVisibilityController =
-      TextEditingController();
-  final TextEditingController _leaderboardOptinController =
-      TextEditingController();
-  final TextEditingController _badgeNameController = TextEditingController();
-  final TextEditingController _celebrationConsentController =
-      TextEditingController();
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
@@ -96,10 +88,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
       []; // For preferred development activities
   String? _selectedLearningStyle;
   String? _profilePhotoUrl;
-  String? _leaderboardOptin = 'no';
-  String? _celebrationConsent = 'private';
   String? _notificationFrequency = 'daily';
-  String? _goalVisibility = 'private';
 
   bool _isGeneratingDevelopmentPlan = false;
   String _planGenerationPhase = '';
@@ -126,30 +115,10 @@ Guidelines:
 - If a field has no data, return an empty string or empty array, but keep the key present.
 - Do not include markdown, bullet characters, or explanations outside the JSON.''';
 
-  late FlutterTts flutterTts;
-  String? _motivationalMessage; // To store the generated message
-
   @override
   void initState() {
     super.initState();
     _loadManagerProfile();
-    flutterTts = FlutterTts();
-    _initTts();
-  }
-
-  void _initTts() {
-    flutterTts.setLanguage("en-US");
-    flutterTts.setSpeechRate(1.0); // Increased speech rate
-    flutterTts.setVolume(1.0);
-    flutterTts.setPitch(1.0);
-  }
-
-  Future _speak(String text) async {
-    await flutterTts.speak(text);
-  }
-
-  Future _stop() async {
-    await flutterTts.stop();
   }
 
   Future<void> _loadManagerProfile() async {
@@ -181,10 +150,6 @@ Guidelines:
         _shortGoalsController.text = userProfile.shortGoals;
         _longGoalsController.text = userProfile.longGoals;
         _notificationFrequency = userProfile.notificationFrequency;
-        _goalVisibility = userProfile.goalVisibility;
-        _leaderboardOptin = userProfile.leaderboardOptin ? 'yes' : 'no';
-        _badgeNameController.text = userProfile.badgeName;
-        _celebrationConsent = userProfile.celebrationConsent;
         _profilePhotoUrl =
             (userProfile.profilePhotoUrl != null &&
                 userProfile.profilePhotoUrl!.isNotEmpty)
@@ -213,12 +178,6 @@ Guidelines:
     _shortGoalsController.dispose();
     _longGoalsController.dispose();
     _notificationPrefsController.dispose();
-    _goalVisibilityController.dispose();
-    _leaderboardOptinController.dispose();
-    _badgeNameController.dispose();
-    _celebrationConsentController.dispose();
-    flutterTts.stop(); // Dispose FlutterTts
-    flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
     super.dispose();
   }
 
@@ -816,66 +775,6 @@ Guidelines:
     await _runPlanPipeline(prepQuestions);
   }
 
-  void _draftMotivationalMessage() {
-    setState(() {
-      _motivationalMessage =
-          "Great job on your progress! Keep pushing forward, and remember that every small step leads to significant achievements. Your dedication is inspiring!";
-    });
-    _showMotivationalMessageDialog(_motivationalMessage!);
-  }
-
-  Future<void> _showMotivationalMessageDialog(String message) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50),
-          title: const Text(
-            'Motivational Message',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(message, style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton.icon(
-                  onPressed: () => _speak(message),
-                  icon: const Icon(Icons.volume_up, color: Colors.white),
-                  label: const Text(
-                    'Read Aloud',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'OK',
-                style: TextStyle(color: Color(0xFFC10D00)),
-              ),
-              onPressed: () {
-                _stop(); // Stop speech when dialog is dismissed
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _removeProfilePhoto() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -942,10 +841,10 @@ Guidelines:
         shortGoals: _shortGoalsController.text.trim(),
         longGoals: _longGoalsController.text.trim(),
         notificationFrequency: _notificationFrequency ?? 'daily',
-        goalVisibility: _goalVisibility ?? 'private',
-        leaderboardOptin: _leaderboardOptin == 'yes',
-        badgeName: _badgeNameController.text.trim(),
-        celebrationConsent: _celebrationConsent ?? 'private',
+        goalVisibility: existingUserProfile.goalVisibility,
+        leaderboardOptin: existingUserProfile.leaderboardOptin,
+        badgeName: existingUserProfile.badgeName,
+        celebrationConsent: existingUserProfile.celebrationConsent,
         profilePhotoUrl: _profilePhotoUrl,
       );
 
@@ -1156,26 +1055,8 @@ Guidelines:
                     controller: _longGoalsController,
                     hintText: 'Long-Term Goals (1–3 years)',
                   ),
-                  _buildActionButton(
-                    text: '✨ Draft Motivational Message ✨',
-                    onPressed: _draftMotivationalMessage,
-                  ),
                   const SizedBox(height: 16),
                   _buildNotificationPreferencesDropdown(),
-                  _buildGoalVisibilityRadios(),
-                ],
-              ),
-
-              // Gamification & Motivation Section
-              _buildCardSection(
-                title: 'Gamification & Motivation',
-                children: [
-                  _buildLeaderboardOptInRadios(),
-                  _buildTextField(
-                    controller: _badgeNameController,
-                    hintText: 'Preferred Badge Display Name',
-                  ),
-                  _buildCelebrationConsentRadios(),
                 ],
               ),
 
@@ -1583,126 +1464,6 @@ Guidelines:
     );
   }
 
-  Widget _buildGoalVisibilityRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Goal Visibility',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Private',
-              'private',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-            _buildRadio(
-              'Manager Only',
-              'manager',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-            _buildRadio(
-              'Team Share',
-              'team',
-              _goalVisibility,
-              (value) => setState(() => _goalVisibility = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRadio(
-    String title,
-    String value,
-    String? groupValue,
-    ValueChanged<String?> onChanged,
-  ) {
-    return RadioListTile<String>(
-      title: Text(title, style: const TextStyle(color: Colors.white70)),
-      value: value,
-      groupValue: groupValue,
-      onChanged: onChanged,
-      activeColor: const Color(
-        0xFFC10D00,
-      ), // This is still needed for the active color of the radio button itself
-      fillColor: WidgetStateProperty.all(
-        const Color(0xFFC10D00),
-      ), // Changed to WidgetStateProperty
-      contentPadding: EdgeInsets.zero,
-    );
-  }
-
-  Widget _buildLeaderboardOptInRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Opt-in to Leaderboards',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Yes',
-              'yes',
-              _leaderboardOptin,
-              (value) => setState(() => _leaderboardOptin = value),
-            ),
-            _buildRadio(
-              'No',
-              'no',
-              _leaderboardOptin,
-              (value) => setState(() => _leaderboardOptin = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCelebrationConsentRadios() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Celebration Feed Consent',
-          style: TextStyle(fontSize: 14, color: Colors.white70),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 16,
-          runSpacing: 8,
-          children: [
-            _buildRadio(
-              'Share wins publicly',
-              'public',
-              _celebrationConsent,
-              (value) => setState(() => _celebrationConsent = value),
-            ),
-            _buildRadio(
-              'Private only',
-              'private',
-              _celebrationConsent,
-              (value) => setState(() => _celebrationConsent = value),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
   Future<void> _pickAndUploadImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
@@ -1784,7 +1545,7 @@ class _DevelopmentPlanResult {
   });
 
   factory _DevelopmentPlanResult.fromJson(Map<String, dynamic> json) {
-    List<String> _asStringList(dynamic value) {
+    List<String> asStringList(dynamic value) {
       if (value is List) {
         return value
             .map((item) => item.toString().trim())
@@ -1797,20 +1558,20 @@ class _DevelopmentPlanResult {
       return [];
     }
 
-    String _asString(String key) {
+    String asString(String key) {
       final value = json[key];
       return value == null ? '' : value.toString().trim();
     }
 
     return _DevelopmentPlanResult(
-      narrative: _asString('narrative'),
-      shortTermGoal: _asString('shortTermGoal'),
-      longTermGoal: _asString('longTermGoal'),
-      careerVision: _asString('careerVision'),
-      currentFocus: _asString('currentFocus'),
-      developmentAreas: _asStringList(json['developmentAreas']),
-      strengthsToLeverage: _asStringList(json['strengthsToLeverage']),
-      recommendedActivities: _asStringList(json['recommendedActivities']),
+      narrative: asString('narrative'),
+      shortTermGoal: asString('shortTermGoal'),
+      longTermGoal: asString('longTermGoal'),
+      careerVision: asString('careerVision'),
+      currentFocus: asString('currentFocus'),
+      developmentAreas: asStringList(json['developmentAreas']),
+      strengthsToLeverage: asStringList(json['strengthsToLeverage']),
+      recommendedActivities: asStringList(json['recommendedActivities']),
     );
   }
 }

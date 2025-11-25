@@ -214,15 +214,21 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (isManager) {
         filteredDocs = docs;
       } else {
-        // For employees, show ALL employees in the Full Leaderboard
-        // Filter to ensure we only have employees (role check is already in query, but double-check here)
+        // For employees, only show co-workers who opted into leaderboards
+        // Filter to ensure we only have opted-in employees (role check is already in query, but double-check here)
         filteredDocs = docs.where((doc) {
           try {
             final data = doc.data() as Map<String, dynamic>?;
             if (data != null) {
               // Ensure we only show employees (not managers)
               final role = data['role']?.toString() ?? 'employee';
-              return role == 'employee';
+              if (role != 'employee') {
+                return false;
+              }
+
+              final optIn = data['leaderboardOptin'];
+              final legacyOptIn = data['leaderboardParticipation'];
+              return optIn == true || legacyOptIn == true;
             }
             return false;
           } catch (e) {
@@ -237,7 +243,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       // If no users to display, return empty list
       if (filteredDocs.isEmpty) {
         if (!isManager) {
-          developer.log('No users have opted into leaderboard');
+          developer.log('No employees have enabled leaderboard participation');
         }
         return [];
       }
@@ -936,6 +942,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   ) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null || _currentUser == null) {
+      return {};
+    }
+
+    final bool isManager = _currentUser!.role == 'manager';
+    final bool optedIn = _currentUser!.leaderboardOptin;
+    if (!isManager && !optedIn) {
+      // Employees who opted out shouldn't be surfaced anywhere on the leaderboard
       return {};
     }
 
