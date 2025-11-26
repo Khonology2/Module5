@@ -119,9 +119,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                         ? 72
                         : 280), // Increased from 240 to 280
               decoration: BoxDecoration(
-                color: backgroundColor.withValues(
-                  alpha: _isEmployeeSidebar() ? 0.5 : 0.3,
-                ),
+                color: backgroundColor.withValues(alpha: 0.95),
                 border: Border(
                   right: BorderSide(
                     color: Colors.white.withValues(alpha: 0.1),
