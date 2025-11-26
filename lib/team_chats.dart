@@ -151,6 +151,20 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     try {
+      // Try to get name from onboarding collection first (like dashboard does)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+      
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        setState(() {
+          _displayName = onboardingName;
+        });
+        return;
+      }
+
+      // Fallback to user profile
       final profile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         _displayName = profile.displayName.isNotEmpty
@@ -178,6 +192,18 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
     }
 
     try {
+      // Try to get name from onboarding collection first (like dashboard does)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: userId,
+        email: currentUser?.email,
+      );
+      
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        _userNameCache[userId] = onboardingName;
+        return onboardingName;
+      }
+
+      // Fallback to user profile
       final profile = await DatabaseService.getUserProfile(userId);
       final name = profile.displayName.isNotEmpty
           ? profile.displayName
@@ -823,32 +849,53 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                           Builder(
                             builder: (context) {
                               final user = FirebaseAuth.instance.currentUser;
-                              final name =
-                                  _displayName ??
-                                  user?.displayName ??
-                                  user?.email ??
-                                  '';
-                              return Row(
-                                children: [
-                                  const Icon(
-                                    Icons.person_outline,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Tooltip(
-                                    message: name.isEmpty
-                                        ? 'Not signed in'
-                                        : name,
-                                    child: Text(
-                                      name.isEmpty ? 'Guest' : name,
-                                      style: const TextStyle(
-                                        color: chatPrimary,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                              return FutureBuilder<String?>(
+                                future: user != null
+                                    ? DatabaseService.getUserNameFromOnboarding(
+                                        userId: user.uid,
+                                        email: user.email,
+                                      )
+                                    : Future.value(null),
+                                builder: (context, nameSnapshot) {
+                                  String userName = 'Guest';
+                                  if (nameSnapshot.hasData &&
+                                      nameSnapshot.data != null &&
+                                      nameSnapshot.data!.isNotEmpty) {
+                                    userName = nameSnapshot.data!;
+                                  } else if (_displayName != null &&
+                                      _displayName!.isNotEmpty) {
+                                    userName = _displayName!;
+                                  } else if (user?.displayName != null &&
+                                      user!.displayName!.isNotEmpty) {
+                                    userName = user.displayName!;
+                                  } else if (user?.email != null &&
+                                      user!.email!.isNotEmpty) {
+                                    userName = user.email!.split('@').first;
+                                  }
+
+                                  return Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.person_outline,
+                                        color: Colors.white,
                                       ),
-                                    ),
-                                  ),
-                                ],
+                                      const SizedBox(width: 8),
+                                      Tooltip(
+                                        message: userName.isEmpty
+                                            ? 'Not signed in'
+                                            : userName,
+                                        child: Text(
+                                          userName.isEmpty ? 'Guest' : userName,
+                                          style: const TextStyle(
+                                            color: chatPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               );
                             },
                           ),

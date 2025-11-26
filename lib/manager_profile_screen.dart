@@ -918,9 +918,11 @@ Guidelines:
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Profile',
-                style: AppTypography.heading2.copyWith(color: Colors.white),
+              Center(
+                child: Text(
+                  'Profile',
+                  style: AppTypography.heading2.copyWith(color: Colors.white),
+                ),
               ),
               const SizedBox(height: 8.0),
               const Text(
