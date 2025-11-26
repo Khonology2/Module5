@@ -617,7 +617,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
 
     // Filter out synthetic alerts
-    final realAlerts = allAlerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+    final realAlerts = allAlerts
+        .where((a) => !a.id.startsWith('synthetic_'))
+        .toList();
     final unreadCount = realAlerts.where((a) => !a.isRead).length;
 
     // Always show button when there are employees (even if no alerts yet)
@@ -650,8 +652,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 realAlerts.isEmpty
                     ? 'No alerts to mark as read'
                     : unreadCount > 0
-                        ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
-                        : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
+                    ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
+                    : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
                 style: AppTypography.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -667,18 +669,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               realAlerts.isEmpty
                   ? 'No Alerts'
                   : unreadCount > 0
-                      ? 'Mark All as Read'
-                      : 'All Read',
+                  ? 'Mark All as Read'
+                  : 'All Read',
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: (realAlerts.isNotEmpty && unreadCount > 0)
                   ? AppColors.activeColor
                   : AppColors.textSecondary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
         ],
@@ -1199,10 +1198,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final normalizedToday = _normalizedToday();
 
     final employeesNeedingAction = filteredEmployees
-        .where((employee) => _getCriticalGoals(employee, normalizedToday).isNotEmpty)
+        .where(
+          (employee) => _getCriticalGoals(employee, normalizedToday).isNotEmpty,
+        )
         .toList();
     final remainingEmployees = filteredEmployees
-        .where((employee) => _getCriticalGoals(employee, normalizedToday).isEmpty)
+        .where(
+          (employee) => _getCriticalGoals(employee, normalizedToday).isEmpty,
+        )
         .toList();
 
     return CustomScrollView(
@@ -1252,37 +1255,33 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           sliver: filteredEmployees.isEmpty
               ? SliverToBoxAdapter(child: _buildNoEmployeesState())
               : SliverList(
-                  delegate: SliverChildListDelegate(
-                    [
-                      if (employeesNeedingAction.isNotEmpty) ...[
-                        _buildSectionHeader(
-                          title: 'Action Needed',
-                          subtitle: 'Goals overdue or due within 2 days',
+                  delegate: SliverChildListDelegate([
+                    if (employeesNeedingAction.isNotEmpty) ...[
+                      _buildSectionHeader(
+                        title: 'Action Needed',
+                        subtitle: 'Goals overdue or due within 2 days',
+                      ),
+                      const SizedBox(height: 12),
+                      ...employeesNeedingAction.map(
+                        (employee) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: _buildEmployeeNudgeCard(employee),
                         ),
-                        const SizedBox(height: 12),
-                        ...employeesNeedingAction.map(
-                          (employee) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.md),
-                            child: _buildEmployeeNudgeCard(employee),
-                          ),
+                      ),
+                    ] else
+                      _buildNoUrgentGoalsState(),
+                    if (remainingEmployees.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildSectionHeader(title: 'All Team Members'),
+                      const SizedBox(height: 12),
+                      ...remainingEmployees.map(
+                        (employee) => Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: _buildEmployeeNudgeCard(employee),
                         ),
-                      ] else
-                        _buildNoUrgentGoalsState(),
-                      if (remainingEmployees.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        _buildSectionHeader(title: 'All Team Members'),
-                        const SizedBox(height: 12),
-                        ...remainingEmployees.map(
-                          (employee) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.md),
-                            child: _buildEmployeeNudgeCard(employee),
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
-                  ),
+                  ]),
                 ),
         ),
       ],
@@ -1488,13 +1487,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     EmployeeData employee,
     DateTime normalizedToday,
   ) {
-    final normalizedTarget =
-        DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+    final normalizedTarget = DateTime(
+      goal.targetDate.year,
+      goal.targetDate.month,
+      goal.targetDate.day,
+    );
     final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
     final bool isDueTomorrow = deltaDays == 1;
     final bool isDueInTwoDays = deltaDays == 2;
     final bool isOverdue = deltaDays <= -1;
-    final displayColor = isOverdue ? AppColors.dangerColor : AppColors.warningColor;
+    final displayColor = isOverdue
+        ? AppColors.dangerColor
+        : AppColors.warningColor;
     final dueLabel = _formatDueDate(goal.targetDate);
     final overdueDays = deltaDays.abs();
 
@@ -1538,10 +1542,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   isOverdue
                       ? 'Overdue ${overdueDays}d'
                       : isDueTomorrow
-                          ? 'Due tomorrow'
-                          : isDueInTwoDays
-                              ? 'Due in 2 days'
-                              : 'Due soon',
+                      ? 'Due tomorrow'
+                      : isDueInTwoDays
+                      ? 'Due in 2 days'
+                      : 'Due soon',
                   style: AppTypography.bodySmall.copyWith(
                     color: displayColor,
                     fontWeight: FontWeight.w600,
@@ -1559,7 +1563,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               _buildGoalActionButton(
                 label: 'Extend',
                 icon: Icons.schedule_send_outlined,
-                onPressed: () => _extendGoalDeadline(context, goal.id, employee),
+                onPressed: () =>
+                    _extendGoalDeadline(context, goal.id, employee),
               ),
               _buildGoalActionButton(
                 label: 'Reschedule',
@@ -1617,14 +1622,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   ) {
     return employee.goals.where((goal) {
       if (goal.status == GoalStatus.completed) return false;
-      final normalizedTarget =
-          DateTime(goal.targetDate.year, goal.targetDate.month, goal.targetDate.day);
+      final normalizedTarget = DateTime(
+        goal.targetDate.year,
+        goal.targetDate.month,
+        goal.targetDate.day,
+      );
       final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
       final isDueSoon = deltaDays >= 1 && deltaDays <= 2;
       final isOverdue = deltaDays <= -1;
       return isDueSoon || isOverdue;
-    }).toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+    }).toList()..sort((a, b) => a.targetDate.compareTo(b.targetDate));
   }
 
   Widget _buildSectionHeader({required String title, String? subtitle}) {
@@ -2764,9 +2771,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   void _markAllAlertsAsRead(List<Alert> alerts) async {
     try {
       // Filter out synthetic alerts (like inactivity) that don't exist in Firestore
-      final realAlerts = alerts.where((a) => !a.id.startsWith('synthetic_')).toList();
+      final realAlerts = alerts
+          .where((a) => !a.id.startsWith('synthetic_'))
+          .toList();
       final unreadAlerts = realAlerts.where((a) => !a.isRead).toList();
-      
+
       if (unreadAlerts.isEmpty) {
         if (mounted) {
           await _showCenterNotice(context, 'All alerts are already read');
@@ -3292,195 +3301,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       ),
     );
   }
-
-    if (employees.isEmpty) {
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          'No employees available for insights yet.',
-        );
-      }
-      return;
-    }
-
-    setState(() => _isLoadingInsights = true);
-
-    try {
-      final now = DateTime.now();
-      final alertsByUser = <String, List<Alert>>{};
-      for (final alert in alerts) {
-        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
-      }
-
-      final atRiskMembers = <Map<String, dynamic>>[];
-
-      for (final employee in employees) {
-        final reasons = <String>[];
-        final recommendations = <String>[];
-        final inactivityDays = now.difference(employee.lastActivity).inDays;
-        final employeeAlerts = <Alert>[
-          ...employee.recentAlerts,
-          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
-        ];
-        final urgentCount = employeeAlerts
-            .where((alert) => alert.priority == AlertPriority.urgent)
-            .length;
-        final overdue = employee.overdueGoalsCount;
-        final lowEngagement = employee.engagementScore < 55;
-        final weakProgress = employee.avgProgress < 40;
-        final lowActivity = employee.weeklyActivityCount <= 1;
-
-        if (inactivityDays >= 5) {
-          reasons.add('Inactive for $inactivityDays days');
-          recommendations.add('Schedule a quick check-in to uncover blockers.');
-        }
-        if (overdue > 0) {
-          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
-          recommendations.add('Help reprioritize or rescope overdue goals.');
-        }
-        if (urgentCount > 0) {
-          reasons.add(
-            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
-          );
-          recommendations.add(
-            'Review urgent alerts together and clear blockers.',
-          );
-        }
-        if (lowEngagement) {
-          reasons.add(
-            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
-          );
-          recommendations.add('Send recognition or a motivational nudge.');
-        }
-        if (weakProgress) {
-          reasons.add(
-            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
-          );
-        }
-        if (lowActivity) {
-          reasons.add(
-            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
-          );
-        }
-
-        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
-        if (riskScore >= 2) {
-          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
-          final recommendation = recommendations.isEmpty
-              ? 'Schedule a quick sync to plan next steps.'
-              : recommendations.join(' ');
-          atRiskMembers.add({
-            'name': employee.profile.displayName,
-            'riskLevel': riskLevel,
-            'reasons': reasons,
-            'recommendations': recommendation,
-          });
-        }
-      }
-
-      atRiskMembers.sort((a, b) {
-        const ranking = {'high': 2, 'medium': 1, 'low': 0};
-        final left = ranking[a['riskLevel']] ?? 0;
-        final right = ranking[b['riskLevel']] ?? 0;
-        return right.compareTo(left);
-      });
-
-      final highMomentum =
-          employees
-              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
-              .toList()
-            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
-      final lowMomentum =
-          employees
-              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
-              .toList()
-            ..sort((a, b) {
-              final overdueDiff = b.overdueGoalsCount.compareTo(
-                a.overdueGoalsCount,
-              );
-              if (overdueDiff != 0) return overdueDiff;
-              return a.engagementScore.compareTo(b.engagementScore);
-            });
-
-      final collaborationOpportunities = <Map<String, dynamic>>[];
-      final pairLimit = math.min(
-        3,
-        math.min(highMomentum.length, lowMomentum.length),
-      );
-
-      for (var i = 0; i < pairLimit; i++) {
-        final mentor = highMomentum[i];
-        final mentee = lowMomentum[i];
-        if (mentor.profile.uid == mentee.profile.uid) continue;
-
-        final focusArea = mentee.overdueGoalsCount > 0
-            ? 'clearing overdue goals'
-            : 'building weekly habits';
-
-        collaborationOpportunities.add({
-          'member1': mentor.profile.displayName,
-          'member2': mentee.profile.displayName,
-          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
-          'suggestion':
-              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
-        });
-      }
-
-      final insights = <String, dynamic>{
-        'generatedAt': DateTime.now().toIso8601String(),
-        'atRiskMembers': atRiskMembers,
-        'collaborationOpportunities': collaborationOpportunities,
-      };
-
-      if (!mounted) return;
-      setState(() {
-        _teamInsights = insights;
-      });
-    } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          'Unable to generate insights right now. Please try again shortly.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingInsights = false);
-      } else {
-        _isLoadingInsights = false;
-      }
-    }
-  }
-
-  Future<void> _sendBulkNudge(
-    List<EmployeeData> employees,
-    String message,
-  ) async {
-    var successCount = 0;
-    var errorCount = 0;
-
-    for (final employee in employees) {
-      try {
-        final goalId = employee.goals.isNotEmpty
-            ? employee.goals.first.id
-            : 'general';
-        await ManagerRealtimeService.sendNudgeToEmployee(
-          employeeId: employee.profile.uid,
-          goalId: goalId,
-          message: message,
-        );
-        successCount++;
-      } catch (_) {
-        errorCount++;
-      }
-    }
-    if (!mounted) return;
-
-    await _showCenterNotice(
-      context,
-      'Bulk nudge sent: $successCount successes, $errorCount errors',
-    );
-  }
 }
 
 // Nudge Dialog Widget
@@ -3841,7 +3661,7 @@ class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   final EdgeInsets margin;
   final BoxDecoration decoration;
 
-  _TabBarHeaderDelegate({
+  const _TabBarHeaderDelegate({
     required this.tabBar,
     required this.margin,
     required this.decoration,
@@ -3866,10 +3686,13 @@ class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  bool shouldRebuild(covariant _TabBarHeaderDelegate oldDelegate) {
-    return tabBar != oldDelegate.tabBar ||
-        margin != oldDelegate.margin ||
-        decoration != oldDelegate.decoration;
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+    if (oldDelegate is _TabBarHeaderDelegate) {
+      return tabBar != oldDelegate.tabBar ||
+          margin != oldDelegate.margin ||
+          decoration != oldDelegate.decoration;
+    }
+    return true;
   }
 }
 
