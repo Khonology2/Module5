@@ -172,17 +172,30 @@ service cloud.firestore {
 
     // Goals collection - managers can read/write employee goals
     match /goals/{goalId} {
-      // Managers or narrowly scoped approval/review updates by a non-owner
-      allow update: if isSignedIn() && (isManager() || isApprovalOrReviewUpdate());
-      // Ensure managers can read goal documents even if department metadata is missing/mismatched
-      allow read: if isSignedIn() && isManager();
-      allow read, write: if isSignedIn() && (
+      // Allow goal owner to update their own goals
+      allow update: if isSignedIn() && userId() == resource.data.userId;
+      
+      // Allow managers to update any goal (for extending deadlines, pausing, marking burnout, rescheduling, etc.)
+      allow update: if isSignedIn() && isManager();
+      
+      // Allow approval/review updates by non-owners
+      allow update: if isSignedIn() && isApprovalOrReviewUpdate();
+      
+      // Allow admins to update any goal
+      allow update: if isSignedIn() && isAdmin();
+      // Allow goal owner, managers, and admins to delete goals
+      allow delete: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
-      
-        allow create: if isSignedIn();
+      // Ensure managers can read goal documents even if department metadata is missing/mismatched
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        isManager() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn();
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);

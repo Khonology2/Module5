@@ -960,23 +960,86 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   onPressed: () => _showGoalReviewSheet(alert),
                   child: const Text('View Goal'),
                 )
-              else if (alert.type == AlertType.goalMilestoneCompleted)
+              else if (alert.type == AlertType.goalMilestoneCompleted ||
+                      alert.type == AlertType.goalCreated ||
+                      alert.type == AlertType.goalCompleted ||
+                      alert.type == AlertType.goalDueSoon ||
+                      alert.type == AlertType.goalOverdue)
+                TextButton.icon(
+                  onPressed: () {
+                    if (alert.relatedGoalId != null) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {
+                          'initialRoute': '/manager_review_team_dashboard',
+                          'goalId': alert.relatedGoalId,
+                        },
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.flag),
+                  label: const Text('View Goal'),
+                )
+              else if (alert.type == AlertType.badgeEarned ||
+                      alert.type == AlertType.achievementUnlocked)
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(
                       context,
                       '/manager_portal',
-                      arguments: {
-                        'initialRoute': '/manager_review_team_dashboard',
-                        'goalId': alert.relatedGoalId,
-                      },
+                      arguments: {'initialRoute': '/manager_badges_points'},
                     );
                   },
-                  icon: const Icon(Icons.flag),
-                  label: const Text('Open Goal'),
+                  icon: const Icon(Icons.emoji_events),
+                  label: const Text('View Badges'),
+                )
+              else if (alert.actionText != null && alert.actionRoute != null)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      alert.actionRoute!,
+                      arguments: alert.relatedGoalId != null
+                          ? {'goalId': alert.relatedGoalId}
+                          : null,
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(alert.actionText!),
                 )
               else if (alert.actionText != null)
-                TextButton(onPressed: () {}, child: Text(alert.actionText!)),
+                TextButton(
+                  onPressed: () {
+                    // Try to navigate using common routes based on action text
+                    final actionLower = alert.actionText!.toLowerCase();
+                    if (actionLower.contains('badge') || actionLower.contains('achievement')) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {'initialRoute': '/manager_badges_points'},
+                      );
+                    } else if (actionLower.contains('goal')) {
+                      if (alert.relatedGoalId != null) {
+                        Navigator.pushNamed(
+                          context,
+                          '/manager_portal',
+                          arguments: {
+                            'initialRoute': '/manager_review_team_dashboard',
+                            'goalId': alert.relatedGoalId,
+                          },
+                        );
+                      }
+                    } else if (actionLower.contains('leaderboard')) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {'initialRoute': '/manager_leaderboard'},
+                      );
+                    }
+                  },
+                  child: Text(alert.actionText!),
+                ),
               const Spacer(),
               IconButton(
                 tooltip: 'Mark read',
