@@ -50,12 +50,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     setState(() => _isLoadingRisks = true);
 
     try {
+      // Use cached goals if available, otherwise fetch
       final goals = await DatabaseService.getUserGoals(user.uid);
       if (goals.isEmpty) {
-        setState(() {
-          _predictiveRisks = [];
-          _isLoadingRisks = false;
-        });
+        if (mounted) {
+          setState(() {
+            _predictiveRisks = [];
+            _isLoadingRisks = false;
+          });
+        }
         return;
       }
 

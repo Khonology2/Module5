@@ -144,12 +144,20 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        // Load profile data first for immediate display
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final leaderboardData = await BadgeService.getLeaderboard();
-        final rank = await BadgeService.getUserRank(user.uid);
-        final streak = await StreakService.getCurrentStreak(user.uid);
-        final activityToday = await StreakService.hasActivityToday(user.uid);
+        // Load all data in parallel for faster performance
+        final results = await Future.wait([
+          DatabaseService.getUserProfile(user.uid),
+          BadgeService.getLeaderboard(),
+          BadgeService.getUserRank(user.uid),
+          StreakService.getCurrentStreak(user.uid),
+          StreakService.hasActivityToday(user.uid),
+        ]);
+        
+        final profile = results[0] as UserProfile;
+        final leaderboardData = results[1] as List<Map<String, dynamic>>;
+        final rank = results[2] as int;
+        final streak = results[3] as int;
+        final activityToday = results[4] as bool;
 
         // On first profile load during this screen session, initialize baselines
         if (!_didInitialProfileLoad) {

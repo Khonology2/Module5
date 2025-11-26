@@ -47,6 +47,7 @@ import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScre
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/services/cache_service.dart'; // Import CacheService
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -75,6 +76,8 @@ void main() async {
       // Non-web or older SDKs will ignore
     }
   }
+  // Start periodic cache cleanup for optimal performance
+  CacheService.startPeriodicCleanup();
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {

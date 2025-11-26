@@ -57,12 +57,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    // Load streak data after a short delay to ensure other data loads first
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _loadStreakData();
-    });
-
+    // Load all data in parallel for faster performance
+    _loadAllData();
+    
     // Start real-time badge tracking and streak tracking for this user
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -399,32 +396,46 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
   }
 
-  Future<void> _loadStreakData() async {
+  Future<void> _loadAllData() async {
     try {
+      if (!mounted) return;
+      setState(() {
+        isLoading = true;
+        error = null;
+      });
+
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final streak = await StreakService.getCurrentStreak(user.uid);
-        final activityToday = await StreakService.hasActivityToday(user.uid);
+        // Load all data in parallel for faster performance
+        final results = await Future.wait([
+          DatabaseService.getUserProfile(user.uid),
+          DatabaseService.getUserGoals(user.uid),
+          StreakService.getCurrentStreak(user.uid),
+          StreakService.hasActivityToday(user.uid),
+        ]);
 
-        if (mounted) {
-          setState(() {
-            currentStreak = streak;
-            hasActivityToday = activityToday;
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          userProfile = results[0] as UserProfile;
+          userGoals = results[1] as List<Goal>;
+          currentStreak = results[2] as int;
+          hasActivityToday = results[3] as bool;
+          isLoading = false;
+        });
       }
     } catch (e) {
       developer.log(
-        'Error loading streak data: $e',
+        'Error loading data: $e',
         name: 'EmployeeDashboardScreen',
       );
-      // Set default values on error
-      if (mounted) {
-        setState(() {
-          currentStreak = 0;
-          hasActivityToday = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        error = e.toString();
+        isLoading = false;
+        // Set default values on error
+        currentStreak = 0;
+        hasActivityToday = false;
+      });
     }
   }
 
@@ -436,35 +447,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       StreakService.stopRealtimeTracking(user.uid);
     }
     super.dispose();
-  }
-
-  Future<void> _loadUserData() async {
-    try {
-      if (!mounted) return;
-      setState(() {
-        isLoading = true;
-        error = null;
-      });
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final goals = await DatabaseService.getUserGoals(user.uid);
-
-        if (!mounted) return;
-        setState(() {
-          userProfile = profile;
-          userGoals = goals;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e.toString();
-        isLoading = false;
-      });
-    }
   }
 
   Stream<UserProfile?> _getUserProfileStream() {
