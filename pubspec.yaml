@@ -41,6 +41,9 @@ dependencies:
   crypto: ^3.0.6 # For cryptographic operations (already included via other packages)
   flutter_dotenv: ^5.1.0 # For loading environment variables from .env file
   pdf: ^3.11.0 # For generating PDF exports
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -49,6 +52,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/
     - assets/Account_User_Profile/
@@ -149,4 +153,4 @@ flutter:
           style: italic
         - asset: assets/fonts/poppins/Poppins-BlackItalic.ttf
           weight: 900
-          style: italic 
+          style: italic

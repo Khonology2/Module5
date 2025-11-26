@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
@@ -16,6 +17,7 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/upcoming_goals_list_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
@@ -57,9 +59,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Load all data in parallel for faster performance
     _loadAllData();
-    
+
     // Start real-time badge tracking and streak tracking for this user
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -425,17 +426,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       }
     } catch (e) {
       developer.log(
-        'Error loading data: $e',
+        'Error loading streak data: $e',
         name: 'EmployeeDashboardScreen',
       );
-      if (!mounted) return;
-      setState(() {
-        error = e.toString();
-        isLoading = false;
-        // Set default values on error
-        currentStreak = 0;
-        hasActivityToday = false;
-      });
+      // Set default values on error
+      if (mounted) {
+        setState(() {
+          currentStreak = 0;
+          hasActivityToday = false;
+        });
+      }
     }
   }
 
@@ -596,7 +596,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/employee_dashboard',
-      topRightAction: null, // Hide profile button on dashboard
+      topRightAction: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const NotificationsBell(),
+          const SizedBox(width: 8),
+          _profileButton(context),
+        ],
+      ),
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -1540,5 +1547,60 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       case GoalPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  Widget _profileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    return FutureBuilder<String?>(
+      future: user != null
+          ? DatabaseService.getUserNameFromOnboarding(
+              userId: user.uid,
+              email: user.email,
+            )
+          : Future.value(null),
+      builder: (context, nameSnapshot) {
+        String userName = 'User';
+        if (nameSnapshot.hasData &&
+            nameSnapshot.data != null &&
+            nameSnapshot.data!.isNotEmpty) {
+          userName = nameSnapshot.data!;
+        } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+          userName = user.displayName!;
+        } else if (user?.email != null && user!.email!.isNotEmpty) {
+          userName = user.email!.split('@').first;
+        }
+
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EmployeeProfileScreen(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A3652),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

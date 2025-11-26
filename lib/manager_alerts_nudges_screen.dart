@@ -2875,7 +2875,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         goalId: goalId,
         message: message,
       );
-
       if (mounted) {
         await _showCenterNotice(context, 'Nudge sent successfully!');
       }
@@ -2884,6 +2883,200 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         await _showCenterNotice(context, 'Error sending nudge: $e');
       }
     }
+  }
+
+  Future<void> _loadTeamInsights(
+    List<EmployeeData> employees,
+    List<Alert> alerts,
+  ) async {
+    if (_isLoadingInsights) return;
+    if (employees.isEmpty) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'No employees available for insights yet.',
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoadingInsights = true);
+
+    try {
+      final now = DateTime.now();
+      final alertsByUser = <String, List<Alert>>{};
+      for (final alert in alerts) {
+        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final atRiskMembers = <Map<String, dynamic>>[];
+
+      for (final employee in employees) {
+        final reasons = <String>[];
+        final recommendations = <String>[];
+        final inactivityDays = now.difference(employee.lastActivity).inDays;
+        final employeeAlerts = <Alert>[
+          ...employee.recentAlerts,
+          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
+        ];
+        final urgentCount = employeeAlerts
+            .where((alert) => alert.priority == AlertPriority.urgent)
+            .length;
+        final overdue = employee.overdueGoalsCount;
+        final lowEngagement = employee.engagementScore < 55;
+        final weakProgress = employee.avgProgress < 40;
+        final lowActivity = employee.weeklyActivityCount <= 1;
+
+        if (inactivityDays >= 5) {
+          reasons.add('Inactive for $inactivityDays days');
+          recommendations.add('Schedule a quick check-in to uncover blockers.');
+        }
+        if (overdue > 0) {
+          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
+          recommendations.add('Help reprioritize or rescope overdue goals.');
+        }
+        if (urgentCount > 0) {
+          reasons.add(
+            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
+          );
+          recommendations.add(
+            'Review urgent alerts together and clear blockers.',
+          );
+        }
+        if (lowEngagement) {
+          reasons.add(
+            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
+          );
+          recommendations.add('Send recognition or a motivational nudge.');
+        }
+        if (weakProgress) {
+          reasons.add(
+            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
+          );
+        }
+        if (lowActivity) {
+          reasons.add(
+            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
+          );
+        }
+
+        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
+        if (riskScore >= 2) {
+          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
+          final recommendation = recommendations.isEmpty
+              ? 'Schedule a quick sync to plan next steps.'
+              : recommendations.join(' ');
+          atRiskMembers.add({
+            'name': employee.profile.displayName,
+            'riskLevel': riskLevel,
+            'reasons': reasons,
+            'recommendations': recommendation,
+          });
+        }
+      }
+
+      atRiskMembers.sort((a, b) {
+        const ranking = {'high': 2, 'medium': 1, 'low': 0};
+        final left = ranking[a['riskLevel']] ?? 0;
+        final right = ranking[b['riskLevel']] ?? 0;
+        return right.compareTo(left);
+      });
+
+      final highMomentum =
+          employees
+              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
+              .toList()
+            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
+      final lowMomentum =
+          employees
+              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
+              .toList()
+            ..sort((a, b) {
+              final overdueDiff = b.overdueGoalsCount.compareTo(
+                a.overdueGoalsCount,
+              );
+              if (overdueDiff != 0) return overdueDiff;
+              return a.engagementScore.compareTo(b.engagementScore);
+            });
+
+      final collaborationOpportunities = <Map<String, dynamic>>[];
+      final pairLimit = math.min(
+        3,
+        math.min(highMomentum.length, lowMomentum.length),
+      );
+
+      for (var i = 0; i < pairLimit; i++) {
+        final mentor = highMomentum[i];
+        final mentee = lowMomentum[i];
+        if (mentor.profile.uid == mentee.profile.uid) continue;
+
+        final focusArea = mentee.overdueGoalsCount > 0
+            ? 'clearing overdue goals'
+            : 'building weekly habits';
+
+        collaborationOpportunities.add({
+          'member1': mentor.profile.displayName,
+          'member2': mentee.profile.displayName,
+          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
+          'suggestion':
+              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
+        });
+      }
+
+      final insights = <String, dynamic>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'atRiskMembers': atRiskMembers,
+        'collaborationOpportunities': collaborationOpportunities,
+      };
+
+      if (!mounted) return;
+      setState(() {
+        _teamInsights = insights;
+      });
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Unable to generate insights right now. Please try again shortly.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingInsights = false);
+      } else {
+        _isLoadingInsights = false;
+      }
+    }
+  }
+
+  Future<void> _sendBulkNudge(
+    List<EmployeeData> employees,
+    String message,
+  ) async {
+    var successCount = 0;
+    var errorCount = 0;
+
+    for (final employee in employees) {
+      try {
+        final goalId = employee.goals.isNotEmpty
+            ? employee.goals.first.id
+            : 'general';
+        await ManagerRealtimeService.sendNudgeToEmployee(
+          employeeId: employee.profile.uid,
+          goalId: goalId,
+          message: message,
+        );
+        successCount++;
+      } catch (_) {
+        errorCount++;
+      }
+    }
+    if (!mounted) return;
+
+    await _showCenterNotice(
+      context,
+      'Bulk nudge sent: $successCount successes, $errorCount errors',
+    );
   }
 
   Widget _buildTeamInsightsWidget() {
@@ -3144,201 +3337,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ],
         ],
       ),
-    );
-  }
-
-  Future<void> _loadTeamInsights(
-    List<EmployeeData> employees,
-    List<Alert> alerts,
-  ) async {
-    if (_isLoadingInsights) return;
-    if (employees.isEmpty) {
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          'No employees available for insights yet.',
-        );
-      }
-      return;
-    }
-
-    setState(() => _isLoadingInsights = true);
-
-    try {
-      final now = DateTime.now();
-      final alertsByUser = <String, List<Alert>>{};
-      for (final alert in alerts) {
-        alertsByUser.putIfAbsent(alert.userId, () => []).add(alert);
-      }
-
-      final atRiskMembers = <Map<String, dynamic>>[];
-
-      for (final employee in employees) {
-        final reasons = <String>[];
-        final recommendations = <String>[];
-        final inactivityDays = now.difference(employee.lastActivity).inDays;
-        final employeeAlerts = <Alert>[
-          ...employee.recentAlerts,
-          ...alertsByUser[employee.profile.uid] ?? const <Alert>[],
-        ];
-        final urgentCount = employeeAlerts
-            .where((alert) => alert.priority == AlertPriority.urgent)
-            .length;
-        final overdue = employee.overdueGoalsCount;
-        final lowEngagement = employee.engagementScore < 55;
-        final weakProgress = employee.avgProgress < 40;
-        final lowActivity = employee.weeklyActivityCount <= 1;
-
-        if (inactivityDays >= 5) {
-          reasons.add('Inactive for $inactivityDays days');
-          recommendations.add('Schedule a quick check-in to uncover blockers.');
-        }
-        if (overdue > 0) {
-          reasons.add('$overdue overdue goal${overdue == 1 ? '' : 's'}');
-          recommendations.add('Help reprioritize or rescope overdue goals.');
-        }
-        if (urgentCount > 0) {
-          reasons.add(
-            '$urgentCount urgent alert${urgentCount == 1 ? '' : 's'} pending',
-          );
-          recommendations.add(
-            'Review urgent alerts together and clear blockers.',
-          );
-        }
-        if (lowEngagement) {
-          reasons.add(
-            'Engagement at ${employee.engagementScore.toStringAsFixed(0)}%',
-          );
-          recommendations.add('Send recognition or a motivational nudge.');
-        }
-        if (weakProgress) {
-          reasons.add(
-            'Average progress ${employee.avgProgress.toStringAsFixed(0)}%',
-          );
-        }
-        if (lowActivity) {
-          reasons.add(
-            '${employee.weeklyActivityCount} check-in${employee.weeklyActivityCount == 1 ? '' : 's'} this week',
-          );
-        }
-
-        final riskScore = reasons.where((reason) => reason.isNotEmpty).length;
-        if (riskScore >= 2) {
-          final riskLevel = riskScore >= 3 ? 'high' : 'medium';
-          final recommendation = recommendations.isEmpty
-              ? 'Schedule a quick sync to plan next steps.'
-              : recommendations.join(' ');
-          atRiskMembers.add({
-            'name': employee.profile.displayName,
-            'riskLevel': riskLevel,
-            'reasons': reasons,
-            'recommendations': recommendation,
-          });
-        }
-      }
-
-      atRiskMembers.sort((a, b) {
-        const ranking = {'high': 2, 'medium': 1, 'low': 0};
-        final left = ranking[a['riskLevel']] ?? 0;
-        final right = ranking[b['riskLevel']] ?? 0;
-        return right.compareTo(left);
-      });
-
-      final highMomentum =
-          employees
-              .where((e) => e.engagementScore >= 75 && e.overdueGoalsCount == 0)
-              .toList()
-            ..sort((a, b) => b.engagementScore.compareTo(a.engagementScore));
-      final lowMomentum =
-          employees
-              .where((e) => e.engagementScore <= 55 || e.overdueGoalsCount > 0)
-              .toList()
-            ..sort((a, b) {
-              final overdueDiff = b.overdueGoalsCount.compareTo(
-                a.overdueGoalsCount,
-              );
-              if (overdueDiff != 0) return overdueDiff;
-              return a.engagementScore.compareTo(b.engagementScore);
-            });
-
-      final collaborationOpportunities = <Map<String, dynamic>>[];
-      final pairLimit = math.min(
-        3,
-        math.min(highMomentum.length, lowMomentum.length),
-      );
-
-      for (var i = 0; i < pairLimit; i++) {
-        final mentor = highMomentum[i];
-        final mentee = lowMomentum[i];
-        if (mentor.profile.uid == mentee.profile.uid) continue;
-
-        final focusArea = mentee.overdueGoalsCount > 0
-            ? 'clearing overdue goals'
-            : 'building weekly habits';
-
-        collaborationOpportunities.add({
-          'member1': mentor.profile.displayName,
-          'member2': mentee.profile.displayName,
-          'reason': '${mentee.profile.displayName} needs help with $focusArea.',
-          'suggestion':
-              'Pair them for a quick sync so ${mentor.profile.displayName} can share routines that keep engagement at ${mentor.engagementScore.toStringAsFixed(0)}%.',
-        });
-      }
-
-      final insights = <String, dynamic>{
-        'generatedAt': DateTime.now().toIso8601String(),
-        'atRiskMembers': atRiskMembers,
-        'collaborationOpportunities': collaborationOpportunities,
-      };
-
-      if (!mounted) return;
-      setState(() {
-        _teamInsights = insights;
-      });
-    } catch (e) {
-      if (mounted) {
-        await _showCenterNotice(
-          context,
-          'Unable to generate insights right now. Please try again shortly.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingInsights = false);
-      } else {
-        _isLoadingInsights = false;
-      }
-    }
-  }
-
-  Future<void> _sendBulkNudge(
-    List<EmployeeData> employees,
-    String message,
-  ) async {
-    var successCount = 0;
-    var errorCount = 0;
-
-    for (final employee in employees) {
-      try {
-        final goalId = employee.goals.isNotEmpty
-            ? employee.goals.first.id
-            : 'general';
-        await ManagerRealtimeService.sendNudgeToEmployee(
-          employeeId: employee.profile.uid,
-          goalId: goalId,
-          message: message,
-        );
-        successCount++;
-      } catch (_) {
-        errorCount++;
-      }
-    }
-
-    if (!mounted) return;
-
-    await _showCenterNotice(
-      context,
-      'Bulk nudge sent: $successCount successes, $errorCount errors',
     );
   }
 }
@@ -3705,7 +3703,7 @@ class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   final EdgeInsets margin;
   final BoxDecoration decoration;
 
-  _TabBarHeaderDelegate({
+  const _TabBarHeaderDelegate({
     required this.tabBar,
     required this.margin,
     required this.decoration,
@@ -3730,10 +3728,13 @@ class _TabBarHeaderDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  bool shouldRebuild(covariant _TabBarHeaderDelegate oldDelegate) {
-    return tabBar != oldDelegate.tabBar ||
-        margin != oldDelegate.margin ||
-        decoration != oldDelegate.decoration;
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+    if (oldDelegate is _TabBarHeaderDelegate) {
+      return tabBar != oldDelegate.tabBar ||
+          margin != oldDelegate.margin ||
+          decoration != oldDelegate.decoration;
+    }
+    return true;
   }
 }
 
