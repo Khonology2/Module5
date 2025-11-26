@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 
@@ -87,6 +88,16 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     }
   }
 
+  bool _isEmployeeSidebar() {
+    // Check if the sidebar items match the employee items configuration
+    return widget.items.length == SidebarConfig.employeeItems.length &&
+        widget.items.every(
+          (item) => SidebarConfig.employeeItems.any(
+            (employeeItem) => employeeItem.route == item.route,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Use design system breakpoints
@@ -108,7 +119,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                         ? 72
                         : 280), // Increased from 240 to 280
               decoration: BoxDecoration(
-                color: backgroundColor.withValues(alpha: 0.3),
+                color: backgroundColor.withValues(
+                  alpha: _isEmployeeSidebar() ? 0.5 : 0.3,
+                ),
                 border: Border(
                   right: BorderSide(
                     color: Colors.white.withValues(alpha: 0.1),
