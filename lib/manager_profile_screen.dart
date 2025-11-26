@@ -1094,6 +1094,27 @@ Guidelines:
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    if (!widget.embedded)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(
+                              color: Color.fromARGB(51, 255, 255, 255),
+                            ),
+                          ),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    if (!widget.embedded) const SizedBox(width: 16),
                     AnimatedScale(
                       scale: _saveButtonScale,
                       duration: const Duration(milliseconds: 150),
