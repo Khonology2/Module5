@@ -88,6 +88,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     }
   }
 
+  // ignore: unused_element
   bool _isEmployeeSidebar() {
     // Check if the sidebar items match the employee items configuration
     return widget.items.length == SidebarConfig.employeeItems.length &&
