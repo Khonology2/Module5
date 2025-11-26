@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Manager Profile',
       theme: ThemeData(
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins',
         scaffoldBackgroundColor: const Color(
           0xFF040610,
         ), // Set scaffold background color here

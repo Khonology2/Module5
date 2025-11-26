@@ -1474,7 +1474,7 @@ ${goalsDocs.map((doc) {
               children: [
                 SelectableText(
                   debugInfo,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 12),
                 ),
               ],
             ),

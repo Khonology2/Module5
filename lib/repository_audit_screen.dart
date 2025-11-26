@@ -30,8 +30,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _statusFilter;
-  String? _monthFilter; // YYYY-MM
-  double? _minScore;
 
   @override
   void initState() {
@@ -270,65 +268,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Month (YYYY-MM)',
-                        labelStyle: TextStyle(color: AppColors.textMuted),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.4),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.activeColor),
-                        ),
-                        isDense: true,
-                      ),
-                      style: TextStyle(color: AppColors.textPrimary),
-                      onChanged: (v) => setState(() => _monthFilter = v.trim()),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 120,
-                    child: TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Min Score',
-                        labelStyle: TextStyle(color: AppColors.textMuted),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.4),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.activeColor),
-                        ),
-                        isDense: true,
-                      ),
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: AppColors.textPrimary),
-                      onChanged: (v) =>
-                          setState(() => _minScore = double.tryParse(v)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   IconButton(
                     onPressed: () {
                       setState(() {
                         _searchController.clear();
                         _searchQuery = '';
                         _statusFilter = null;
-                        _monthFilter = null;
-                        _minScore = null;
                       });
                     },
                     icon: Icon(Icons.clear, color: AppColors.textMuted),
@@ -387,52 +332,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Month (YYYY-MM)',
-                      labelStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: Colors.black.withValues(alpha: 0.4),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.activeColor),
-                      ),
-                      isDense: true,
-                    ),
-                    style: TextStyle(color: AppColors.textPrimary),
-                    onChanged: (v) => setState(() => _monthFilter = v.trim()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Min Score',
-                      labelStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: Colors.black.withValues(alpha: 0.4),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.activeColor),
-                      ),
-                      isDense: true,
-                    ),
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: AppColors.textPrimary),
-                    onChanged: (v) =>
-                        setState(() => _minScore = double.tryParse(v)),
-                  ),
-                  const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
@@ -441,8 +340,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           _searchController.clear();
                           _searchQuery = '';
                           _statusFilter = null;
-                          _monthFilter = null;
-                          _minScore = null;
                         });
                       },
                       icon: Icon(Icons.clear, color: AppColors.textMuted),
@@ -1727,21 +1624,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           );
                         }
 
-                        if (_monthFilter != null && _monthFilter!.isNotEmpty) {
-                          filtered = filtered.where((g) {
-                            final d = g.completedDate;
-                            if (d == null) return false;
-                            final key =
-                                '${d.year}-${d.month.toString().padLeft(2, '0')}';
-                            return key == _monthFilter;
-                          });
-                        }
-
-                        if (_minScore != null) {
-                          filtered = filtered.where(
-                            (g) => (g.score ?? 0) >= _minScore!,
-                          );
-                        }
 
                         return filtered.toList()..sort((a, b) {
                           final ad =
@@ -1792,8 +1674,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   stream: RepositoryService.queryRepositoryGoals(
                     uid,
                     search: _searchQuery,
-                    dateFilter: _monthFilter,
-                    minScore: _minScore,
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1886,8 +1766,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     if (role == 'manager') {
                       await RepositoryExportService.exportManagerVerifiedAsCSV(
                         search: _searchQuery.isEmpty ? null : _searchQuery,
-                        monthFilter: _monthFilter,
-                        minScore: _minScore,
                       );
                     } else {
                       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1912,8 +1790,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     if (role == 'manager') {
                       await RepositoryExportService.exportManagerVerifiedAsPDF(
                         search: _searchQuery.isEmpty ? null : _searchQuery,
-                        monthFilter: _monthFilter,
-                        minScore: _minScore,
                       );
                     } else {
                       final uid = FirebaseAuth.instance.currentUser?.uid;

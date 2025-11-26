@@ -16,10 +16,7 @@ Future<bool> showTestNotification(String title, String body) async {
   try {
     final permission = web.Notification.permission;
     if (permission.toString() == 'granted') {
-      web.Notification(
-        title,
-        web.NotificationOptions(body: body),
-      );
+      web.Notification(title, web.NotificationOptions(body: body));
       return true;
     }
   } catch (_) {}
