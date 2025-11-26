@@ -468,12 +468,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
           final goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          // Removed in-memory sort - using Firestore orderBy instead
           return goals;
         });
   }

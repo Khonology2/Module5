@@ -1094,64 +1094,42 @@ Guidelines:
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  if (!widget.embedded)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(
-                            color: Color.fromARGB(51, 255, 255, 255),
+                    AnimatedScale(
+                      scale: _saveButtonScale,
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          // Pop-out animation
+                          setState(() {
+                            _saveButtonScale = 1.1;
+                          });
+                          await Future.delayed(
+                            const Duration(milliseconds: 150),
+                          );
+                          setState(() {
+                            _saveButtonScale = 1.0;
+                          });
+                          // Save profile after animation
+                          _saveProfile();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
                           ),
                         ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  if (!widget.embedded) const SizedBox(width: 16),
-                  AnimatedScale(
-                    scale: _saveButtonScale,
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOut,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        // Pop-out animation
-                        setState(() {
-                          _saveButtonScale = 1.1;
-                        });
-                        await Future.delayed(const Duration(milliseconds: 150));
-                        setState(() {
-                          _saveButtonScale = 1.0;
-                        });
-                        // Save profile after animation
-                        _saveProfile();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC10D00),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                        child: const Text(
+                          'Save Profile',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                      child: const Text(
-                        'Save Profile',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
                     ),
-                  ),
                   ],
                 ),
               ),
@@ -1274,7 +1252,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
           hintText: 'Select Job Title',
-          hintStyle: const TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1317,7 +1295,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Department / Team',
           hintText: 'Select Department',
-          hintStyle: const TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1467,7 +1445,7 @@ Guidelines:
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',
-          hintStyle: const TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Colors.white),
           filled: true,
           fillColor: Colors.white10,
           border: OutlineInputBorder(

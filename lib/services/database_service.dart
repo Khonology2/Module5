@@ -11,7 +11,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
-import 'package:pdh/services/cache_service.dart';
+import 'package:pdh/services/performance_cache_service.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -26,17 +26,14 @@ class DatabaseService {
     return '$y$m$d';
   }
 
-  // Privacy enforcement helpers with caching
+  // Privacy enforcement helpers
   static Future<String> _getUserRole(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
-      final role = (doc.data()?['role'] ?? 'employee') as String;
-      // Cache the result
-      CacheService().setUserRole(uid, role);
-      return role;
+      return (doc.data()?['role'] ?? 'employee') as String;
     } catch (_) {
       return 'employee';
     }
@@ -51,25 +48,19 @@ class DatabaseService {
           .doc(uid)
           .get();
       final data = doc.data() ?? <String, dynamic>{};
-      final settings = {
+      return {
         'privateGoals': data['privateGoals'] == true,
         'managerOnly': data['managerOnly'] == true,
         'teamShare': data['teamShare'] != false, // default true
         'profileVisible': data['profileVisible'] != false, // default true
       };
-      // Cache the result
-      CacheService().setPrivacySettings(uid, settings);
-      return settings;
     } catch (_) {
-      final defaultSettings = {
+      return {
         'privateGoals': false,
         'managerOnly': false,
         'teamShare': true,
         'profileVisible': true,
       };
-      // Cache default settings too
-      CacheService().setPrivacySettings(uid, defaultSettings);
-      return defaultSettings;
     }
   }
 
@@ -89,13 +80,8 @@ class DatabaseService {
     required String targetUserId,
   }) async {
     final isOwner = viewerId == targetUserId;
-    // Load role and settings in parallel
-    final results = await Future.wait([
-      _getUserRole(viewerId),
-      _getUserPrivacySettings(targetUserId),
-    ]);
-    final viewerRole = results[0] as String;
-    final settings = results[1] as Map<String, dynamic>;
+    final viewerRole = await _getUserRole(viewerId);
+    final settings = await _getUserPrivacySettings(targetUserId);
 
     // Enforce managerOnly/privateGoals for non-owners and non-managers
     if (!isOwner && viewerRole != 'manager') {
@@ -107,14 +93,14 @@ class DatabaseService {
       }
     }
 
-    // Fetch goals with limit for performance
+    // Fetch goals with optimized query
     final snapshot = await FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
         .orderBy('createdAt', descending: true)
-        .limit(100) // Limit to prevent loading too many goals
         .get();
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+    // Removed in-memory sort - using Firestore orderBy instead
 
     // If teamShare is disabled, hide completed goals from non-owners/non-managers
     if (!isOwner && viewerRole != 'manager' && settings['teamShare'] == false) {
@@ -141,12 +127,13 @@ class DatabaseService {
     yield* FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          // Removed in-memory sort - using Firestore orderBy instead
           if (!isOwner &&
               viewerRole != 'manager' &&
               settings['teamShare'] == false) {
@@ -243,6 +230,13 @@ class DatabaseService {
   }
 
   static Future<UserProfile> getUserProfile(String uid) async {
+    // Check cache first
+    final cache = PerformanceCacheService();
+    final cached = cache.getCachedUserProfile();
+    if (cached != null && cached.uid == uid) {
+      return cached;
+    }
+
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -277,6 +271,9 @@ class DatabaseService {
       badgeName: data['badgeName'] ?? '',
       celebrationConsent: data['celebrationConsent'] ?? 'private',
     );
+
+    // Cache the profile
+    cache.cacheUserProfile(profile);
     return profile;
   }
 
@@ -454,8 +451,6 @@ class DatabaseService {
       'approvedAt': null,
       'rejectionReason': null,
     });
-    // Invalidate goals cache for this user
-    CacheService().invalidateUser(goal.userId);
     // Do not auto-notify managers; require explicit submit for approval.
     // Auto-request approval asynchronously to avoid blocking UI navigation
     // ignore: unawaited_futures
@@ -466,10 +461,7 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
-      } catch (e) {
-        developer.log('Error requesting goal approval: $e');
-        // Don't rethrow - this is async and shouldn't block goal creation
-      }
+      } catch (_) {}
     });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
@@ -511,8 +503,6 @@ class DatabaseService {
       'points': goal.points,
       'kpa': goal.kpa,
     });
-    // Invalidate goals cache for this user
-    CacheService().invalidateUser(goal.userId);
   }
 
   static Future<void> deleteGoal({
@@ -1285,7 +1275,6 @@ class DatabaseService {
         'notificationFrequency': 'daily',
         'goalVisibility': 'private',
         'leaderboardOptin': false,
-        'leaderboardParticipation': false,
         'badgeName': '',
         'celebrationConsent': 'private',
       };
@@ -1320,10 +1309,6 @@ class DatabaseService {
         .collection('users')
         .doc(userProfile.uid);
     await userDocRef.update(userProfile.toFirestore());
-    // Invalidate cache after update
-    CacheService().invalidateUser(userProfile.uid);
-    // Update cache with new profile
-    CacheService().setUserProfile(userProfile.uid, userProfile);
   }
 
   static Future<Map<String, dynamic>> getDashboardData(String uid) async {

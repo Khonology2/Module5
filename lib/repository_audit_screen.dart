@@ -18,6 +18,7 @@ import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/debouncer.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
@@ -30,10 +31,23 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _statusFilter;
+  late final ValueDebouncer<String> _searchDebouncer;
 
   @override
   void initState() {
     super.initState();
+    // Initialize debouncer for search queries
+    _searchDebouncer = ValueDebouncer<String>(
+      delay: const Duration(milliseconds: 500),
+      callback: (value) {
+        if (mounted) {
+          setState(() {
+            _searchQuery = value;
+          });
+        }
+      },
+    );
+
     // Ensure repository auto-sync is running to mirror verified audits
     try {
       RepositoryService.startAutoSync();
@@ -88,6 +102,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebouncer.dispose();
     try {
       RepositoryService.stopAutoSync();
     } catch (e) {
@@ -182,9 +197,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         TextField(
           controller: _searchController,
           onChanged: (value) {
-            setState(() {
-              _searchQuery = value;
-            });
+            // Use debouncer to avoid excessive queries while typing
+            _searchDebouncer.setValue(value);
           },
           decoration: InputDecoration(
             hintText: 'Search completed goals, audit logs...',
@@ -1048,9 +1062,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...entry.evidence
-              .map((evidence) => _buildEvidenceItem(evidence, entry.evidence))
-              ,
+          ...entry.evidence.map(
+            (evidence) => _buildEvidenceItem(evidence, entry.evidence),
+          ),
 
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
@@ -1624,7 +1638,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 ),
                           );
                         }
-
 
                         return filtered.toList()..sort((a, b) {
                           final ad =

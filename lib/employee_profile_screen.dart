@@ -44,6 +44,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   String? _leaderboardOptin = 'no';
   String? _celebrationConsent = 'private';
   String? _profilePhotoUrl; // State variable for profile photo URL
+  double _saveButtonScale = 1.0; // Animation scale for save button
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
@@ -95,13 +96,15 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         userId: user.uid,
         email: user.email,
       );
-      
+
       final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         // Use fullName from onboarding, fallback to displayName
-        _fullNameController.text = onboardingData['fullName'] ?? userProfile.displayName;
+        _fullNameController.text =
+            onboardingData['fullName'] ?? userProfile.displayName;
         // Use designation from onboarding for jobTitle, fallback to jobTitle
-        _jobTitleController.text = onboardingData['designation'] ?? userProfile.jobTitle;
+        _jobTitleController.text =
+            onboardingData['designation'] ?? userProfile.jobTitle;
         _departmentController.text = userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
@@ -370,9 +373,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(
-            color: Colors.white,
-          ), // white hint text
+          hintStyle: const TextStyle(color: Colors.white), // white hint text
           filled: true,
           fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(
@@ -492,17 +493,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                 children: [
                   Text(
                     'Profile',
-                    style: AppTypography.heading2.copyWith(
-                      color: Colors.white,
-                    ),
+                    style: AppTypography.heading2.copyWith(color: Colors.white),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    width: 100,
-                    height: 2,
-                    color: Colors.white,
-                  ),
+                  Container(width: 100, height: 2, color: Colors.white),
                 ],
               ),
             ),
@@ -920,51 +915,40 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                if (!widget.embedded) ...[
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(
-                          color: Color.fromARGB(51, 255, 255, 255),
+                  AnimatedScale(
+                    scale: _saveButtonScale,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        // Pop-out animation
+                        setState(() {
+                          _saveButtonScale = 1.1;
+                        });
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        setState(() {
+                          _saveButtonScale = 1.0;
+                        });
+                        // Save profile after animation
+                        _saveProfile();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC10D00),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
                       ),
-                    ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                ],
-                ElevatedButton(
-                  onPressed: () {
-                    _saveProfile();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC10D00),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      child: const Text(
+                        'Save Profile',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
-                  child: const Text(
-                    'Save Profile',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
                 ],
               ),
             ),
