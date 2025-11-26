@@ -633,8 +633,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 stream: _getUserGoalsStream(),
                 builder: (context, goalsSnapshot) {
                   // Use any available data while streams connect to avoid showing a spinner
+                  // Always prefer stream data, but fall back to cached data if streams fail
+                  // This prevents flashing of error messages when streams temporarily fail
                   final effectiveProfile = profileSnapshot.data ?? userProfile;
                   final effectiveGoals = goalsSnapshot.data ?? userGoals;
+
+                  // If we have no profile data at all, show loading spinner
                   if (effectiveProfile == null) {
                     return const Center(
                       child: CircularProgressIndicator(
@@ -645,89 +649,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     );
                   }
 
-                  // Handle errors
-                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                    final error = profileSnapshot.error ?? goalsSnapshot.error;
-                    final errorMessage = error.toString();
-
-                    // Check if it's a Firestore index error
-                    if (errorMessage.contains('failed-precondition') ||
-                        errorMessage.contains('index')) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 64,
-                              color: AppColors.warningColor,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Setting up your dashboard...',
-                              style: AppTypography.heading4,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'This is your first time using the app. Let\'s get you started!',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/my_goal_workspace',
-                                );
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text('Create Your First Goal'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.activeColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: AppColors.dangerColor,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading dashboard',
-                            style: AppTypography.heading4,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Please try again in a moment',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              setState(
-                                () {},
-                              ); // Trigger rebuild to restart streams
-                            },
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+                  // Always show the dashboard if we have profile data, even if there are stream errors
+                  // This prevents the "first time user" message from flashing
+                  // The dashboard will use cached data (userProfile/userGoals) if streams fail
 
                   // Update local state with latest (or fallback) data
                   userProfile = effectiveProfile;
