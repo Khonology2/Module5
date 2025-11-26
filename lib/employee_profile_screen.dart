@@ -25,9 +25,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _jobTitleController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
-  final TextEditingController _employeeIdController = TextEditingController(
-    text: 'P-123456',
-  ); // Read-only
   final TextEditingController _workEmailController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
@@ -55,7 +52,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _employeeIdController.text = 'P-123456'; // Set initial read-only value
     _loadUserProfile();
   }
 
@@ -94,10 +90,18 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     if (user == null) return; // User not logged in
 
     try {
+      // First, get onboarding data for fullName and designation
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
+      
       final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
-        _fullNameController.text = userProfile.displayName;
-        _jobTitleController.text = userProfile.jobTitle;
+        // Use fullName from onboarding, fallback to displayName
+        _fullNameController.text = onboardingData['fullName'] ?? userProfile.displayName;
+        // Use designation from onboarding for jobTitle, fallback to jobTitle
+        _jobTitleController.text = onboardingData['designation'] ?? userProfile.jobTitle;
         _departmentController.text = userProfile.department;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
@@ -141,7 +145,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     _fullNameController.dispose();
     _jobTitleController.dispose();
     _departmentController.dispose();
-    _employeeIdController.dispose();
     _workEmailController.dispose();
     _phoneNumberController.dispose();
     _skillsInputController.dispose();
@@ -305,12 +308,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+      child: Center(
+        child: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -366,8 +371,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: const TextStyle(
-            color: Color(0xFFC10D00),
-          ), // match manager red hint
+            color: Colors.white,
+          ), // white hint text
           filled: true,
           fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(
@@ -482,19 +487,105 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Profile',
-              style: AppTypography.heading2.copyWith(
-                color: Colors.white,
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    'Profile',
+                    style: AppTypography.heading2.copyWith(
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 100,
+                    height: 2,
+                    color: Colors.white,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
             Text(
               'These fields allow you to set up your identity, preferences, and development context.',
               style: const TextStyle(color: Colors.white70, fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
+            // Profile Photo Section - Centered at the top
+            Center(
+              child: Column(
+                children: [
+                  Container(
+                    width: 160,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child:
+                          (_profilePhotoUrl != null &&
+                              _profilePhotoUrl!.isNotEmpty)
+                          ? Image.network(
+                              _profilePhotoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(
+                                    Icons.person,
+                                    color: Colors.white70,
+                                    size: 80,
+                                  ),
+                            )
+                          : const Icon(
+                              Icons.person,
+                              color: Colors.white70,
+                              size: 80,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: _pickAndUploadImage,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white10,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Upload Photo',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if ((_profilePhotoUrl ?? '').isNotEmpty)
+                        TextButton(
+                          onPressed: _removeProfilePhoto,
+                          child: const Text('Remove Photo'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
             // Basic Information Section
             _buildSectionCard(
               children: [
@@ -521,12 +612,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       hintText: 'e.g., Engineering - Platform Team',
                     ),
                     const SizedBox(height: 24),
-                    _buildInputLabel('Employee ID'),
-                    _buildInputField(
-                      controller: _employeeIdController,
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 24),
                     _buildInputLabel('Work Email'),
                     _buildInputField(
                       controller: _workEmailController,
@@ -537,86 +622,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Phone Number (optional)'),
                     _buildInputField(
                       controller: _phoneNumberController,
-                      hintText: 'e.g., +1 (555) 123-4567',
+                      hintText: 'use a south african format',
                       keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: const Color.fromARGB(25, 255, 255, 255),
-                            shape: BoxShape.circle,
-                          ),
-                          child: ClipOval(
-                            child:
-                                (_profilePhotoUrl != null &&
-                                    _profilePhotoUrl!.isNotEmpty)
-                                ? Image.network(
-                                    _profilePhotoUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Icon(
-                                              Icons.person,
-                                              color: Colors.white70,
-                                              size: 40,
-                                            ),
-                                  )
-                                : const Icon(
-                                    Icons.person,
-                                    color: Colors.white70,
-                                    size: 40,
-                                  ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildInputLabel('Profile Photo'),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                ElevatedButton(
-                                  onPressed: _pickAndUploadImage,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color.fromARGB(
-                                      25,
-                                      255,
-                                      255,
-                                      255,
-                                    ),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    side: const BorderSide(
-                                      color: Color.fromARGB(51, 255, 255, 255),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Upload Photo',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if ((_profilePhotoUrl ?? '').isNotEmpty)
-                                  TextButton(
-                                    onPressed: _removeProfilePhoto,
-                                    child: const Text('Remove Photo'),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -633,14 +640,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildInputLabel('Current Skills / Strengths'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Type a skill and press Enter to add it as a tag',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
-                    ),
                     const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _skillsInputController,
@@ -660,14 +659,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     _buildInputLabel('Areas for Development'),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Add each development focus as its own tag',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
-                    ),
                     const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _developmentInputController,
@@ -925,9 +916,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             const SizedBox(height: 40),
 
             // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
+            Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                 if (!widget.embedded) ...[
                   TextButton(
                     onPressed: () {
@@ -961,7 +953,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     backgroundColor: const Color(0xFFC10D00),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -973,7 +965,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

@@ -1090,9 +1090,10 @@ Guidelines:
 
               // Action Buttons
               const SizedBox(height: 32.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   if (!widget.embedded)
                     TextButton(
                       onPressed: () {
@@ -1142,7 +1143,7 @@ Guidelines:
                           vertical: 12,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                       child: const Text(
@@ -1151,7 +1152,8 @@ Guidelines:
                       ),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -1238,7 +1240,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFFC10D00)),
+        hintStyle: const TextStyle(color: Colors.white),
         filled: true,
         fillColor: color ?? Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1272,7 +1274,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Job Title / Role',
           hintText: 'Select Job Title',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: const TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1315,7 +1317,7 @@ Guidelines:
         decoration: const InputDecoration(
           labelText: 'Department / Team',
           hintText: 'Select Department',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: const TextStyle(color: Colors.white),
           filled: true,
           fillColor: Color.fromARGB(13, 255, 255, 255),
           border: OutlineInputBorder(
@@ -1353,7 +1355,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFFC10D00)),
+        hintStyle: const TextStyle(color: Colors.white),
         filled: true,
         fillColor: Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1465,7 +1467,7 @@ Guidelines:
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: const TextStyle(color: Colors.white),
           filled: true,
           fillColor: Colors.white10,
           border: OutlineInputBorder(
