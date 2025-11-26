@@ -96,18 +96,15 @@ class AlertService {
       final userDoc = await _firestore.collection('users').doc(employeeId).get();
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
 
-      Query mgrQuery = _firestore.collection('users').where('role', isEqualTo: 'manager');
-      final dept = userDoc.data()?['department'] as String?;
-      if (dept != null && dept.isNotEmpty) {
-        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
-      }
-      var mgrs = await mgrQuery.get();
-      // Fallback: if no managers found in the department, notify all managers
+      // Notify all managers regardless of department (managers can see all employees)
+      final mgrs = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'manager')
+          .get();
+
       if (mgrs.docs.isEmpty) {
-        mgrs = await _firestore
-            .collection('users')
-            .where('role', isEqualTo: 'manager')
-            .get();
+        developer.log('No managers found to notify for goal approval');
+        return;
       }
 
       for (final mgr in mgrs.docs) {
@@ -126,8 +123,10 @@ class AlertService {
         );
         await _createAlert(alert);
       }
+      developer.log('Created approval request alerts for ${mgrs.docs.length} manager(s)');
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
+      rethrow; // Re-throw to help with debugging
     }
   }
 
