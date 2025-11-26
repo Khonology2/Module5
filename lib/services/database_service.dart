@@ -437,7 +437,6 @@ class DatabaseService {
       'approvedAt': null,
       'rejectionReason': null,
     });
-    // Do not auto-notify managers; require explicit submit for approval.
     // Auto-request approval asynchronously to avoid blocking UI navigation
     // ignore: unawaited_futures
     Future(() async {
@@ -447,7 +446,10 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
-      } catch (_) {}
+      } catch (e) {
+        developer.log('Error requesting goal approval: $e');
+        // Don't rethrow - this is async and shouldn't block goal creation
+      }
     });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
