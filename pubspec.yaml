@@ -37,6 +37,9 @@ dependencies:
   http: ^1.1.0 # For HTTP requests to Cloudinary
   showcaseview: ^3.0.0 # For tutorial overlay system
   pdf: ^3.11.0 # For generating PDF exports
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -45,6 +48,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/
     - assets/Account_User_Profile/
@@ -126,4 +130,4 @@ flutter:
           style: italic
         - asset: assets/fonts/poppins/Poppins-BlackItalic.ttf
           weight: 900
-          style: italic 
+          style: italic
