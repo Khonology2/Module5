@@ -28,10 +28,6 @@ class DatabaseService {
 
   // Privacy enforcement helpers with caching
   static Future<String> _getUserRole(String uid) async {
-    // Check cache first
-    final cached = CacheService().getUserRole(uid);
-    if (cached != null) return cached;
-    
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -49,10 +45,6 @@ class DatabaseService {
   static Future<Map<String, dynamic>> _getUserPrivacySettings(
     String uid,
   ) async {
-    // Check cache first
-    final cached = CacheService().getPrivacySettings(uid);
-    if (cached != null) return cached;
-    
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -96,13 +88,6 @@ class DatabaseService {
     required String viewerId,
     required String targetUserId,
   }) async {
-    // Check cache first (only for owner viewing their own goals)
-    final cacheKey = viewerId == targetUserId 
-        ? 'goals_$targetUserId' 
-        : 'goals_${viewerId}_$targetUserId';
-    final cached = CacheService().getGoals(cacheKey);
-    if (cached != null) return cached;
-    
     final isOwner = viewerId == targetUserId;
     // Load role and settings in parallel
     final results = await Future.wait([
@@ -135,9 +120,6 @@ class DatabaseService {
     if (!isOwner && viewerRole != 'manager' && settings['teamShare'] == false) {
       goals = goals.where((g) => g.status != GoalStatus.completed).toList();
     }
-    
-    // Cache the result
-    CacheService().setGoals(cacheKey, goals);
     return goals;
   }
 
@@ -261,10 +243,6 @@ class DatabaseService {
   }
 
   static Future<UserProfile> getUserProfile(String uid) async {
-    // Check cache first
-    final cached = CacheService().getUserProfile(uid);
-    if (cached != null) return cached;
-    
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -299,9 +277,6 @@ class DatabaseService {
       badgeName: data['badgeName'] ?? '',
       celebrationConsent: data['celebrationConsent'] ?? 'private',
     );
-    
-    // Cache the result
-    CacheService().setUserProfile(uid, profile);
     return profile;
   }
 
@@ -491,7 +466,10 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
-      } catch (_) {}
+      } catch (e) {
+        developer.log('Error requesting goal approval: $e');
+        // Don't rethrow - this is async and shouldn't block goal creation
+      }
     });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
