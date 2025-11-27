@@ -6,8 +6,48 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 
-class NotificationsBell extends StatelessWidget {
+class NotificationsBell extends StatefulWidget {
   const NotificationsBell({super.key});
+
+  @override
+  State<NotificationsBell> createState() => _NotificationsBellState();
+}
+
+class _NotificationsBellState extends State<NotificationsBell>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _updateAnimation(bool hasUnread) {
+    if (hasUnread) {
+      _animationController.repeat(reverse: true);
+    } else {
+      _animationController.stop();
+      _animationController.reset();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +62,11 @@ class NotificationsBell extends StatelessWidget {
         final alerts = snapshot.data ?? const <Alert>[];
         final unreadCount = alerts.where((a) => !a.isRead).length;
         final hasUnread = unreadCount > 0;
+
+        // Update animation based on unread status
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _updateAnimation(hasUnread);
+        });
 
         void openAlerts() {
           final role = RoleService.instance.cachedRole;
@@ -47,10 +92,18 @@ class NotificationsBell extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0x1FFFFFFF)),
                 ),
-                child: const Icon(
-                  Icons.notifications_none,
-                  color: Colors.white,
-                  size: 18,
+                child: AnimatedBuilder(
+                  animation: _opacityAnimation,
+                  builder: (context, child) {
+                    return Opacity(
+                      opacity: hasUnread ? _opacityAnimation.value : 1.0,
+                      child: const Icon(
+                        Icons.notifications_none,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    );
+                  },
                 ),
               ),
               if (hasUnread)
