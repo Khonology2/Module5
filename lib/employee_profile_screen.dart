@@ -21,10 +21,38 @@ class EmployeeProfileScreen extends StatefulWidget {
 }
 
 class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
+  // Job title and department options
+  static const List<String> _jobTitleOptions = [
+    'Director',
+    'Developer',
+    'Support Analyst',
+    'Learner',
+    'UX Designer',
+    'AWS Cloud Engineer',
+    'Tester',
+    'RMB Small Talk Developer',
+    'Finance',
+    'Business Analyst',
+    'Manager',
+    'Delivery Manager',
+    'Analyst',
+    'Sales Person',
+    'HR',
+    'Junior Analyst',
+  ];
+
+  static const List<String> _departmentOptions = [
+    'Management',
+    'Operations',
+    'Finance',
+    'HR',
+    'Sales',
+  ];
+
   // Text editing controllers for input fields
   final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _jobTitleController = TextEditingController();
-  final TextEditingController _departmentController = TextEditingController();
+  String? _selectedJobTitle;
+  String? _selectedDepartment;
   final TextEditingController _workEmailController = TextEditingController();
   final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
@@ -102,9 +130,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         _fullNameController.text =
             onboardingData['fullName'] ?? userProfile.displayName;
         // Use designation from onboarding for jobTitle, fallback to jobTitle
-        _jobTitleController.text =
-            onboardingData['designation'] ?? userProfile.jobTitle;
-        _departmentController.text = userProfile.department;
+        final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
+        _selectedJobTitle = _jobTitleOptions.contains(jobTitle)
+            ? jobTitle
+            : null;
+        _selectedDepartment =
+            _departmentOptions.contains(userProfile.department)
+            ? userProfile.department
+            : null;
         _workEmailController.text = userProfile.email;
         _phoneNumberController.text = userProfile.phoneNumber;
         _skills
@@ -145,8 +178,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   @override
   void dispose() {
     _fullNameController.dispose();
-    _jobTitleController.dispose();
-    _departmentController.dispose();
     _workEmailController.dispose();
     _phoneNumberController.dispose();
     _skillsInputController.dispose();
@@ -207,28 +238,34 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   }) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50), // Matches dark-card-2
-          title: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+        return Center(
+          child: AlertDialog(
+            backgroundColor: const Color(0xFF2C3E50), // Matches dark-card-2
+            title: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                ), // Matches primary-red
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          content: Text(message, style: const TextStyle(color: Colors.white70)),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ), // Matches primary-red
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('OK', style: TextStyle(color: Colors.white)),
-            ),
-          ],
         );
       },
     );
@@ -273,8 +310,8 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         existingUserProfile.copyWith(
           displayName: _fullNameController.text.trim(),
           email: _workEmailController.text.trim(),
-          jobTitle: _jobTitleController.text.trim(),
-          department: _departmentController.text.trim(),
+          jobTitle: _selectedJobTitle ?? '',
+          department: _selectedDepartment ?? '',
           phoneNumber: _phoneNumberController.text.trim(),
           profilePhotoUrl: _profilePhotoUrl, // Pass the profile photo URL
           skills: _skills.toList(),
@@ -595,16 +632,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     ),
                     const SizedBox(height: 24),
                     _buildInputLabel('Job Title / Role'),
-                    _buildInputField(
-                      controller: _jobTitleController,
-                      hintText: 'e.g., Software Engineer',
-                    ),
+                    _buildJobTitleDropdown(),
                     const SizedBox(height: 24),
                     _buildInputLabel('Department / Team'),
-                    _buildInputField(
-                      controller: _departmentController,
-                      hintText: 'e.g., Engineering - Platform Team',
-                    ),
+                    _buildDepartmentDropdown(),
                     const SizedBox(height: 24),
                     _buildInputLabel('Work Email'),
                     _buildInputField(
@@ -616,7 +647,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     _buildInputLabel('Phone Number (optional)'),
                     _buildInputField(
                       controller: _phoneNumberController,
-                      hintText: 'use a south african format',
+                      hintText: 'e.g., +27 12 345 6789 or 012 345 6789',
                       keyboardType: TextInputType.phone,
                     ),
                   ],
@@ -911,52 +942,25 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
             // Action Buttons
             Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (!widget.embedded) ...[
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(
-                            color: Color.fromARGB(51, 255, 255, 255),
-                          ),
-                        ),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 16),
-                  ],
-                  ElevatedButton(
-                    onPressed: () {
-                      _saveProfile();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text(
-                      'Save Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
+              child: ElevatedButton(
+                onPressed: () {
+                  _saveProfile();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Save Profile',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],
@@ -969,19 +973,38 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   Widget build(BuildContext context) {
     if (widget.embedded) {
       // When embedded in MainLayout, return just the content without Scaffold/AppBar/background
-      return _buildProfileContent();
+      return PopScope(
+        canPop: _isBasicInfoComplete(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) async {
+          if (!didPop && !_isBasicInfoComplete()) {
+            await _onWillPop();
+          }
+        },
+        child: _buildProfileContent(),
+      );
     }
 
     // Standalone mode with full Scaffold
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-          child: _buildProfileContent(),
+    return PopScope(
+      canPop: _isBasicInfoComplete(),
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (!didPop && !_isBasicInfoComplete()) {
+          await _onWillPop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+        body: AppComponents.backgroundWithImage(
+          imagePath: 'assets/khono_bg.png',
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 64.0,
+            ),
+            child: _buildProfileContent(),
+          ),
         ),
       ),
     );
@@ -1028,5 +1051,136 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         Text(title, style: const TextStyle(color: Colors.white70)),
       ],
     );
+  }
+
+  Widget _buildJobTitleDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedJobTitle,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Select Job Title',
+          hintStyle: TextStyle(color: Colors.white30),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _jobTitleOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(value: value, child: Text(value));
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedJobTitle = newValue;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedDepartment,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          hintText: 'Select Department',
+          hintStyle: TextStyle(color: Colors.white30),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _departmentOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(value: value, child: Text(value));
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedDepartment = newValue;
+          });
+        },
+      ),
+    );
+  }
+
+  bool _isBasicInfoComplete() {
+    return _fullNameController.text.trim().isNotEmpty &&
+        _selectedJobTitle != null &&
+        _selectedDepartment != null &&
+        _workEmailController.text.trim().isNotEmpty;
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_isBasicInfoComplete()) {
+      final shouldLeave = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: AlertDialog(
+              backgroundColor: const Color(0xFF2C3E50),
+              title: const Text(
+                'Incomplete Profile',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: const Text(
+                'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) before leaving the profile screen.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      return shouldLeave ?? false;
+    }
+    return true;
   }
 }

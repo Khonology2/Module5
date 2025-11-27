@@ -246,25 +246,35 @@ Guidelines:
     }
   }
 
-  Future<void> _showAlertDialog(String title, String message) async {
+  Future<void> _showAlertDialog(
+    String title,
+    String message, {
+    bool isSuccess = false,
+  }) async {
     return showDialog<void>(
       context: context,
+      barrierDismissible: isSuccess,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50),
-          title: Text(title, style: const TextStyle(color: Colors.white)),
-          content: Text(message, style: const TextStyle(color: Colors.white70)),
-          actions: <Widget>[
-            TextButton(
-              child: const Text(
-                'OK',
-                style: TextStyle(color: Color(0xFFC10D00)),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+        return Center(
+          child: AlertDialog(
+            backgroundColor: const Color(0xFF2C3E50),
+            title: Text(title, style: const TextStyle(color: Colors.white)),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
             ),
-          ],
+            actions: <Widget>[
+              TextButton(
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                ),
+                child: const Text('OK', style: TextStyle(color: Colors.white)),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
         );
       },
     );
@@ -896,6 +906,7 @@ Guidelines:
         _showAlertDialog(
           successTitle ?? 'Profile Saved',
           successMessage ?? 'Your manager profile has been saved successfully!',
+          isSuccess: true,
         );
       }
     } catch (e) {
@@ -1091,67 +1102,39 @@ Guidelines:
               // Action Buttons
               const SizedBox(height: 32.0),
               Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (!widget.embedded)
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: const BorderSide(
-                              color: Color.fromARGB(51, 255, 255, 255),
-                            ),
-                          ),
-                        ),
-                        child: const Text('Cancel'),
+                child: AnimatedScale(
+                  scale: _saveButtonScale,
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      // Pop-out animation
+                      setState(() {
+                        _saveButtonScale = 1.1;
+                      });
+                      await Future.delayed(const Duration(milliseconds: 150));
+                      setState(() {
+                        _saveButtonScale = 1.0;
+                      });
+                      // Save profile after animation
+                      _saveProfile();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
                       ),
-                    if (!widget.embedded) const SizedBox(width: 16),
-                    AnimatedScale(
-                      scale: _saveButtonScale,
-                      duration: const Duration(milliseconds: 150),
-                      curve: Curves.easeOut,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          // Pop-out animation
-                          setState(() {
-                            _saveButtonScale = 1.1;
-                          });
-                          await Future.delayed(
-                            const Duration(milliseconds: 150),
-                          );
-                          setState(() {
-                            _saveButtonScale = 1.0;
-                          });
-                          // Save profile after animation
-                          _saveProfile();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFC10D00),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: const Text(
-                          'Save Profile',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
                       ),
                     ),
-                  ],
+                    child: const Text(
+                      'Save Profile',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -1161,21 +1144,87 @@ Guidelines:
     );
   }
 
+  bool _isBasicInfoComplete() {
+    return _fullNameController.text.trim().isNotEmpty &&
+        _selectedJobTitle != null &&
+        _selectedDepartment != null &&
+        _workEmailController.text.trim().isNotEmpty;
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_isBasicInfoComplete()) {
+      final shouldLeave = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: AlertDialog(
+              backgroundColor: const Color(0xFF2C3E50),
+              title: const Text(
+                'Incomplete Profile',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: const Text(
+                'Please fill in all basic information fields (Full Name, Job Title, Department, and Email Address) before leaving the profile screen.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+      return shouldLeave ?? false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
-      return _buildProfileContent();
+      return PopScope(
+        canPop: _isBasicInfoComplete(),
+        onPopInvokedWithResult: (bool didPop, dynamic result) async {
+          if (!didPop && !_isBasicInfoComplete()) {
+            await _onWillPop();
+          }
+        },
+        child: _buildProfileContent(),
+      );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
-      body: AppComponents.backgroundWithImage(
-        imagePath: 'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 64.0),
-          child: _buildProfileContent(),
+    return PopScope(
+      canPop: _isBasicInfoComplete(),
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (!didPop && !_isBasicInfoComplete()) {
+          await _onWillPop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+        body: AppComponents.backgroundWithImage(
+          imagePath: 'assets/khono_bg.png',
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 64.0,
+            ),
+            child: _buildProfileContent(),
+          ),
         ),
       ),
     );

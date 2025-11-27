@@ -254,20 +254,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen>
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
     if (user != null) {
-      // Try to get display name from Firebase Auth first
-      if (user.displayName != null && user.displayName!.isNotEmpty) {
-        userName = user.displayName!;
+      // Try to get name from onboarding collection first (same as dashboard)
+      final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      if (onboardingName != null && onboardingName.isNotEmpty) {
+        // Use full name from onboarding
+        userName = onboardingName;
       } else {
-        // Fallback to Firestore for full name if displayName is null or empty
+        // Fallback to other sources
         try {
           final userProfile = await DatabaseService.getUserProfile(user.uid);
-          userName = userProfile.displayName.isNotEmpty
-              ? userProfile.displayName
-              : 'User';
+          if (userProfile.displayName.isNotEmpty) {
+            userName = userProfile.displayName;
+          } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
         } catch (e) {
           // ignore: avoid_print
           print('Error fetching user profile: $e');
-          userName = 'User'; // Default to 'User' on error
+          // Fallback to Firebase Auth displayName or email
+          if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
         }
       }
     }
