@@ -55,6 +55,48 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     _redirectIfManager();
   }
 
+  Future<bool> _isProfileIncomplete() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final userProfile = await DatabaseService.getUserProfile(user.uid);
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      final fullName = onboardingData['fullName'] ?? userProfile.displayName;
+      final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
+      final department = userProfile.department;
+      final email = userProfile.email;
+
+      return fullName.trim().isEmpty ||
+          jobTitle.trim().isEmpty ||
+          department.trim().isEmpty ||
+          email.trim().isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Alert? _buildProfileIncompleteAlert() {
+    return Alert(
+      id: 'profile_incomplete_alert',
+      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+      type: AlertType.profileIncomplete,
+      priority: AlertPriority.high,
+      title: 'Complete Your Profile',
+      message:
+          'Please fill in all basic information fields (Full Name, Job Title, Department, and Email Address) in your profile.',
+      actionText: 'Go to Profile',
+      actionRoute: '/manager_profile',
+      createdAt: DateTime.now(),
+      isRead: false,
+      isDismissed: false,
+    );
+  }
+
   String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
 
   @override
@@ -784,81 +826,180 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final alerts = dedup.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverPadding(
-          padding: AppSpacing.screenPadding,
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    // Check if profile is incomplete and add alert
+    return FutureBuilder<bool>(
+      future: _isProfileIncomplete(),
+      builder: (context, profileSnapshot) {
+        final List<Alert> alertsToShow = List.from(alerts);
+
+        if (profileSnapshot.hasData && profileSnapshot.data == true) {
+          final profileAlert = _buildProfileIncompleteAlert();
+          if (profileAlert != null) {
+            // Add profile incomplete alert at the beginning
+            alertsToShow.insert(0, profileAlert);
+          }
+        }
+
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: AppSpacing.screenPadding,
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Team Alerts (${alertsToShow.length})',
+                          style: AppTypography.heading3.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => _loadTeamInsights(employees, alerts),
+                          icon: _isLoadingInsights
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.insights, size: 18),
+                          label: const Text('AI Team Insights'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.activeColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (_teamInsights != null) _buildTeamInsightsWidget(),
+                  ],
+                ),
+              ),
+            ),
+            if (alertsToShow.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: AppSpacing.screenPadding,
+                  child: _buildEmptyAlertsState(),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: AppSpacing.screenPadding,
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final alert = alertsToShow[index];
+                    // Profile incomplete alert doesn't have an employee
+                    if (alert.id == 'profile_incomplete_alert') {
+                      return _buildProfileIncompleteAlertCard(alert);
+                    }
+                    final employee =
+                        employeesById[alert.userId] ??
+                        (employees.isNotEmpty ? employees.first : null);
+                    if (employee == null) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildTeamAlertCard(alert, employee);
+                  }, childCount: alertsToShow.length),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProfileIncompleteAlertCard(Alert alert) {
+    final alertColor = _getAlertColor(alert.priority);
+    final alertIconData = _getAlertIcon(alert.type);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: alertColor.withValues(alpha: 0.3), width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8.0),
+                decoration: BoxDecoration(
+                  color: alertColor.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(alertIconData, color: alertColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Team Alerts (${alerts.length})',
-                      style: AppTypography.heading3.copyWith(
+                      alert.title,
+                      style: AppTypography.bodyMedium.copyWith(
                         color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    ElevatedButton.icon(
-                      onPressed: () => _loadTeamInsights(employees, alerts),
-                      icon: _isLoadingInsights
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.insights, size: 18),
-                      label: const Text('AI Team Insights'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      alert.message,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                if (_teamInsights != null) _buildTeamInsightsWidget(),
-              ],
-            ),
+              ),
+              if (!alert.isRead)
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
           ),
-        ),
-        if (alerts.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Padding(
-              padding: AppSpacing.screenPadding,
-              child: _buildEmptyAlertsState(),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: AppSpacing.screenPadding,
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final alert = alerts[index];
-                final employee =
-                    employeesById[alert.userId] ??
-                    (employees.isNotEmpty ? employees.first : null);
-                if (employee == null) {
-                  return const SizedBox.shrink();
+          if (alert.actionText != null) ...[
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final actionRoute = alert.actionRoute;
+                if (actionRoute != null) {
+                  navigator.pushNamed(actionRoute);
                 }
-                return _buildTeamAlertCard(alert, employee);
-              }, childCount: alerts.length),
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(alert.actionText!),
             ),
-          ),
-      ],
+          ],
+        ],
+      ),
     );
   }
 

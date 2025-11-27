@@ -24,6 +24,7 @@ enum AlertType {
   seasonProgressUpdate, // Employee completed a season goal / progress (manager-facing)
   seasonCompleted, // Season fully completed (manager-facing)
   goalMilestoneCompleted, // Employee milestone completion surfaced to managers
+  profileIncomplete, // Profile basic information is incomplete
 }
 
 enum AlertPriority {

@@ -43,6 +43,47 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     _loadPredictiveRisks();
   }
 
+  Future<bool> _isProfileIncomplete() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+
+    try {
+      final userProfile = await DatabaseService.getUserProfile(user.uid);
+      final onboardingData = await DatabaseService.getOnboardingData(
+        userId: user.uid,
+        email: user.email,
+      );
+
+      final fullName = onboardingData['fullName'] ?? userProfile.displayName;
+      final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
+      final department = userProfile.department;
+      final email = userProfile.email;
+
+      return fullName.trim().isEmpty ||
+          jobTitle.trim().isEmpty ||
+          department.trim().isEmpty ||
+          email.trim().isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Alert? _buildProfileIncompleteAlert() {
+    return Alert(
+      id: 'profile_incomplete_alert',
+      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+      type: AlertType.profileIncomplete,
+      priority: AlertPriority.high,
+      title: 'Complete Your Profile',
+      message: 'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) in your profile.',
+      actionText: 'Go to Profile',
+      actionRoute: '/my_profile',
+      createdAt: DateTime.now(),
+      isRead: false,
+      isDismissed: false,
+    );
+  }
+
   Future<void> _loadPredictiveRisks() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -280,43 +321,59 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           .where((a) => a.type != AlertType.goalOverdue)
                           .toList();
 
-                      return Column(
-                        children: [
-                          _buildAlertSummary(filtered),
-                          const SizedBox(height: AppSpacing.lg),
-                          _buildPredictiveRiskAlerts(),
-                          const SizedBox(height: AppSpacing.lg),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Check if profile is incomplete and add alert
+                      return FutureBuilder<bool>(
+                        future: _isProfileIncomplete(),
+                        builder: (context, profileSnapshot) {
+                          final List<Alert> alertsToShow = List.from(filtered);
+                          
+                          if (profileSnapshot.hasData && profileSnapshot.data == true) {
+                            final profileAlert = _buildProfileIncompleteAlert();
+                            if (profileAlert != null) {
+                              // Add profile incomplete alert at the beginning
+                              alertsToShow.insert(0, profileAlert);
+                            }
+                          }
+
+                          return Column(
                             children: [
-                              Text(
-                                'Recent Alerts',
-                                style: AppTypography.heading3.copyWith(
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              ElevatedButton.icon(
-                                onPressed: () =>
-                                    _showAIChatAssistant(context, filtered),
-                                icon: const Icon(
-                                  Icons.chat_bubble_outline,
-                                  size: 18,
-                                ),
-                                label: const Text('AI Assistant'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.activeColor,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                              _buildAlertSummary(alertsToShow),
+                              const SizedBox(height: AppSpacing.lg),
+                              _buildPredictiveRiskAlerts(),
+                              const SizedBox(height: AppSpacing.lg),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Recent Alerts',
+                                    style: AppTypography.heading3.copyWith(
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
-                                ),
+                                  ElevatedButton.icon(
+                                    onPressed: () =>
+                                        _showAIChatAssistant(context, alertsToShow),
+                                    icon: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 18,
+                                    ),
+                                    label: const Text('AI Assistant'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.activeColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildAlertsList(alertsToShow),
                             ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          _buildAlertsList(filtered),
-                        ],
+                          );
+                        },
                       );
                     },
                   ),
@@ -881,7 +938,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       final navigator = Navigator.of(context);
                       final actionRoute = alert.actionRoute;
 
-                      await AlertService.markAsRead(alert.id);
+                      // Only mark as read if it's a real Firestore alert (not a virtual one)
+                      if (alert.id != 'profile_incomplete_alert') {
+                        await AlertService.markAsRead(alert.id);
+                      }
 
                       if (!mounted) return;
 
@@ -1022,6 +1082,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.profileIncomplete:
+        return Icon(Icons.person_outline);
     }
   }
 
@@ -2090,6 +2152,8 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.profileIncomplete:
+        return Icon(Icons.person_outline);
     }
   }
 
