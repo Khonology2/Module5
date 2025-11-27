@@ -184,20 +184,9 @@ class _MyAppState extends State<MyApp> {
                 GlobalMaterialLocalizations.delegate,
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
+                DefaultMaterialLocalizations.delegate,
               ],
-              supportedLocales: const [
-                Locale('en', 'ZA'),
-                Locale('af'),
-                Locale('zu'),
-                Locale('xh'),
-                Locale('nr'),
-                Locale('nso'),
-                Locale('st'),
-                Locale('tn'),
-                Locale('ss'),
-                Locale('ve'),
-                Locale('ts'),
-              ],
+              supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
                 return FocusTraversalGroup(

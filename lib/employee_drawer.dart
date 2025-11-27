@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/sign_in_screen.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class EmployeeDrawer extends StatelessWidget {
   const EmployeeDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     final currentRoute = ModalRoute.of(context)?.settings.name;
 
     return Drawer(
@@ -25,7 +27,7 @@ class EmployeeDrawer extends StatelessWidget {
             child: Align(
               alignment: Alignment.bottomLeft,
               child: Text(
-                'Employee Portal',
+                localizations.employee_portal_title,
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
@@ -37,63 +39,63 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.dashboard,
-            text: 'Dashboard',
+            text: localizations.nav_dashboard,
             route: '/employee_dashboard',
             isSelected: currentRoute == '/employee_dashboard',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.person_outline,
-            text: 'Goal Workspace',
+            text: localizations.nav_goal_workspace,
             route: '/my_pdp',
             isSelected: currentRoute == '/my_pdp',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.track_changes,
-            text: 'MyPdp',
+            text: localizations.nav_my_pdp,
             route: '/my_goal_workspace',
             isSelected: currentRoute == '/my_goal_workspace',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.bar_chart,
-            text: 'Progress Visuals.',
+            text: localizations.nav_progress_visuals,
             route: '/progress_visuals',
             isSelected: currentRoute == '/progress_visuals',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.notifications_none,
-          text: 'Alerts & Nudges.',
+            text: localizations.nav_alerts_nudges,
             route: '/alerts_nudges',
             isSelected: currentRoute == '/alerts_nudges',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.workspace_premium,
-            text: 'Badges & Points.',
+            text: localizations.nav_badges_points,
             route: '/badges_points',
             isSelected: currentRoute == '/badges_points',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.emoji_events,
-            text: 'Season Challenges',
+            text: localizations.nav_season_challenges,
             route: '/season_challenges',
             isSelected: currentRoute == '/season_challenges',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.leaderboard,
-            text: 'Leaderboard.',
+            text: localizations.nav_leaderboard,
             route: '/leaderboard',
             isSelected: currentRoute == '/leaderboard',
           ),
           _buildDrawerItem(
             context: context,
             icon: Icons.folder_open,
-            text: 'Repository & Audit.',
+            text: localizations.nav_repository_audit,
             route: '/repository_audit',
             isSelected: currentRoute == '/repository_audit',
           ),
@@ -101,14 +103,17 @@ class EmployeeDrawer extends StatelessWidget {
           _buildDrawerItem(
             context: context,
             icon: Icons.settings_outlined,
-            text: 'Settings & Privacy.',
+            text: localizations.nav_settings_privacy,
             route: '/settings',
             isSelected: currentRoute == '/settings',
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.exit_to_app, color: Colors.red),
-            title: const Text('Exit', style: TextStyle(color: Colors.red)),
+            title: Text(
+              localizations.employee_drawer_exit,
+              style: const TextStyle(color: Colors.red),
+            ),
             onTap: () async {
               Navigator.pop(context);
               await FirebaseAuth.instance.signOut();
@@ -192,7 +197,7 @@ class EmployeeDrawer extends StatelessWidget {
       ),
     );
   }
-  
+
   void _showCenterNotice(BuildContext context, String message) {
     showDialog<void>(
       context: context,
@@ -200,7 +205,9 @@ class EmployeeDrawer extends StatelessWidget {
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF0E1A2E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
           content: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,7 +217,11 @@ class EmployeeDrawer extends StatelessWidget {
               Expanded(
                 child: Text(
                   message,
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontFamily: 'Poppins'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
                 ),
               ),
             ],
@@ -219,7 +230,10 @@ class EmployeeDrawer extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
             ),
           ],
         );

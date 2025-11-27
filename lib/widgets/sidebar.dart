@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
@@ -143,7 +144,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               ),
               _NavTile(
                 icon: Icons.exit_to_app,
-                label: 'Exit',
+                label: AppLocalizations.of(context).employee_drawer_exit,
                 route: '__logout__',
                 isActive: false,
                 collapsed: effectiveCollapsed,
@@ -151,17 +152,21 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               ),
               _CollapseToggle(
                 collapsed: effectiveCollapsed,
-                tutorialKey: widget.sidebarTutorialKeys != null &&
+                tutorialKey:
+                    widget.sidebarTutorialKeys != null &&
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length &&
-                        widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length
+                        widget.tutorialStepIndex! <
+                            widget.sidebarTutorialKeys!.length
                     ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                     : null,
-                showTutorial: widget.tutorialStepIndex != null &&
+                showTutorial:
+                    widget.tutorialStepIndex != null &&
                     widget.tutorialStepIndex == widget.items.length,
                 onTutorialNext: widget.onTutorialNext,
                 onTutorialSkip: widget.onTutorialSkip,
-                isLastTutorialStep: widget.tutorialStepIndex != null &&
+                isLastTutorialStep:
+                    widget.tutorialStepIndex != null &&
                     widget.tutorialStepIndex == widget.items.length,
               ),
             ],
@@ -335,10 +340,7 @@ class _CollapseToggle extends StatelessWidget {
                       minimumSize: const Size(0, 28),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
@@ -436,13 +438,86 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
 
+    final localizations = AppLocalizations.of(context);
+    String label = widget.label;
+    switch (widget.route) {
+      case '/employee_dashboard':
+      case '/dashboard':
+        label = localizations.nav_dashboard;
+        break;
+      case '/my_pdp':
+        label = localizations.nav_goal_workspace;
+        break;
+      case '/my_profile':
+        label = localizations.nav_my_profile;
+        break;
+      case '/my_goal_workspace':
+        label = localizations.nav_my_pdp;
+        break;
+      case '/progress_visuals':
+        label = localizations.nav_progress_visuals;
+        break;
+      case '/alerts_nudges':
+        label = localizations.nav_alerts_nudges;
+        break;
+      case '/badges_points':
+      case '/manager_badges_points':
+        label = localizations.nav_badges_points;
+        break;
+      case '/season_challenges':
+        label = localizations.nav_season_challenges;
+        break;
+      case '/leaderboard':
+      case '/manager_leaderboard':
+        label = localizations.nav_leaderboard;
+        break;
+      case '/repository_audit':
+        label = localizations.nav_repository_audit;
+        break;
+      case '/settings':
+        label = localizations.nav_settings_privacy;
+        break;
+      case '/team_challenges_seasons':
+        label = localizations.nav_team_challenges;
+        break;
+      case '/manager_alerts_nudges':
+        label = localizations.nav_team_alerts_nudges;
+        break;
+      case '/manager_inbox':
+        label = localizations.nav_manager_inbox;
+        break;
+      case '/manager_review_team_dashboard':
+        label = localizations.nav_review_team;
+        break;
+      case '/admin_dashboard':
+        label = localizations.nav_admin_dashboard;
+        break;
+      case '/user_management':
+        label = localizations.nav_user_management;
+        break;
+      case '/analytics':
+        label = localizations.nav_analytics;
+        break;
+      case '/system_settings':
+        label = localizations.nav_system_settings;
+        break;
+      case '/security':
+        label = localizations.nav_security;
+        break;
+      case '/backup':
+        label = localizations.nav_backup_restore;
+        break;
+      default:
+        break;
+    }
+
     Widget navTileContent = Padding(
       padding: AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
         child: Tooltip(
-          message: isCollapsed ? widget.label : '',
+          message: isCollapsed ? label : '',
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(12),
@@ -496,7 +571,7 @@ class _NavTileState extends State<_NavTile> {
                             const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
-                                widget.label,
+                                label,
                                 style: isSelected
                                     ? AppTypography.navigationActive
                                     : AppTypography.navigation,
@@ -604,10 +679,7 @@ class _NavTileState extends State<_NavTile> {
                       minimumSize: const Size(0, 28),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button

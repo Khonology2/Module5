@@ -23,6 +23,7 @@ import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -695,7 +696,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                                 );
                               },
                               icon: const Icon(Icons.add),
-                              label: const Text('Create Your First Goal'),
+                              label: Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).employee_create_first_goal,
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.activeColor,
                               ),
