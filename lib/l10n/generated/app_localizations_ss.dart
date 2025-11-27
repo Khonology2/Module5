@@ -628,6 +628,72 @@ class AppLocalizationsSs extends AppLocalizations {
   String get employee_drawer_exit => 'Phuma';
 
   @override
+  String get nav_dashboard => 'Dashboard';
+
+  @override
+  String get nav_goal_workspace => 'Goal Workspace';
+
+  @override
+  String get nav_my_profile => 'My Profile';
+
+  @override
+  String get nav_my_pdp => 'MyPdp';
+
+  @override
+  String get nav_progress_visuals => 'Progress Visuals';
+
+  @override
+  String get nav_alerts_nudges => 'Alerts & Nudges';
+
+  @override
+  String get nav_badges_points => 'Badges & Points';
+
+  @override
+  String get nav_season_challenges => 'Season Challenges';
+
+  @override
+  String get nav_leaderboard => 'Leaderboard';
+
+  @override
+  String get nav_repository_audit => 'Repository & Audit';
+
+  @override
+  String get nav_settings_privacy => 'Settings & Privacy';
+
+  @override
+  String get nav_team_challenges => 'Team Challenges';
+
+  @override
+  String get nav_team_alerts_nudges => 'Team Alerts & Nudges';
+
+  @override
+  String get nav_manager_inbox => 'Inbox';
+
+  @override
+  String get nav_review_team => 'Review Team';
+
+  @override
+  String get nav_admin_dashboard => 'Admin Dashboard';
+
+  @override
+  String get nav_user_management => 'User Management';
+
+  @override
+  String get nav_analytics => 'Analytics';
+
+  @override
+  String get nav_system_settings => 'System Settings';
+
+  @override
+  String get nav_security => 'Security';
+
+  @override
+  String get nav_backup_restore => 'Backup & Restore';
+
+  @override
+  String get employee_portal_title => 'Employee Portal';
+
+  @override
   String get progress_visuals_error_loading_user_data =>
       'Liphutsa ekulayisheni idatha yemsebenzisi';
 

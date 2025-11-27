@@ -623,6 +623,72 @@ class AppLocalizationsAf extends AppLocalizations {
   String get employee_drawer_exit => 'Verlaat';
 
   @override
+  String get nav_dashboard => 'Paneelbord';
+
+  @override
+  String get nav_goal_workspace => 'Doelwit-werksruimte';
+
+  @override
+  String get nav_my_profile => 'My Profiel';
+
+  @override
+  String get nav_my_pdp => 'MyPdp';
+
+  @override
+  String get nav_progress_visuals => 'Vorderingsvisualisasies';
+
+  @override
+  String get nav_alerts_nudges => 'Kennisgewings & Stootjies';
+
+  @override
+  String get nav_badges_points => 'Kentekens & Punte';
+
+  @override
+  String get nav_season_challenges => 'Seisoen-uitdagings';
+
+  @override
+  String get nav_leaderboard => 'Ranglys';
+
+  @override
+  String get nav_repository_audit => 'Bewaarplek & Oudit';
+
+  @override
+  String get nav_settings_privacy => 'Instellings & Privaatheid';
+
+  @override
+  String get nav_team_challenges => 'Spanutdagings';
+
+  @override
+  String get nav_team_alerts_nudges => 'Span-kennisgewings & Stootjies';
+
+  @override
+  String get nav_manager_inbox => 'Posbus';
+
+  @override
+  String get nav_review_team => 'Hersien span';
+
+  @override
+  String get nav_admin_dashboard => 'Admin-paneelbord';
+
+  @override
+  String get nav_user_management => 'Gebruikerbestuur';
+
+  @override
+  String get nav_analytics => 'Analitiese data';
+
+  @override
+  String get nav_system_settings => 'Stelselinstellings';
+
+  @override
+  String get nav_security => 'Sekuriteit';
+
+  @override
+  String get nav_backup_restore => 'Rugsteun & Herstel';
+
+  @override
+  String get employee_portal_title => 'Werknemerportaal';
+
+  @override
   String get progress_visuals_error_loading_user_data =>
       'Fout met laai van gebruikersdata';
 

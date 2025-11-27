@@ -632,6 +632,72 @@ class AppLocalizationsSt extends AppLocalizations {
   String get employee_drawer_exit => 'Tsoa';
 
   @override
+  String get nav_dashboard => 'Desheboto';
+
+  @override
+  String get nav_goal_workspace => 'Sebaka sa mesebetsi ya sepheo';
+
+  @override
+  String get nav_my_profile => 'Profaele ya ka';
+
+  @override
+  String get nav_my_pdp => 'MyPdp';
+
+  @override
+  String get nav_progress_visuals => 'Diponahatso tsa tswelopele';
+
+  @override
+  String get nav_alerts_nudges => 'Ditsiboso & Dikgothatso';
+
+  @override
+  String get nav_badges_points => 'Dibejana & Dintlha';
+
+  @override
+  String get nav_season_challenges => 'Diphephetso tsa sehla';
+
+  @override
+  String get nav_leaderboard => 'Lenane la ba etellang pele';
+
+  @override
+  String get nav_repository_audit => 'Polokelo & Tlhahlobo';
+
+  @override
+  String get nav_settings_privacy => 'Diseting & Lekunutu';
+
+  @override
+  String get nav_team_challenges => 'Diphephetso tsa sehlopha';
+
+  @override
+  String get nav_team_alerts_nudges => 'Ditsiboso tsa sehlopha & Dikgothatso';
+
+  @override
+  String get nav_manager_inbox => 'Lebokose la melaetsa';
+
+  @override
+  String get nav_review_team => 'Sheba sehlopha';
+
+  @override
+  String get nav_admin_dashboard => 'Desheboto ya molaodi';
+
+  @override
+  String get nav_user_management => 'Taolo ya basebedisi';
+
+  @override
+  String get nav_analytics => 'Dihlahlobo';
+
+  @override
+  String get nav_system_settings => 'Diseting tsa tsamaiso';
+
+  @override
+  String get nav_security => 'Tshireletso';
+
+  @override
+  String get nav_backup_restore => 'Bekapo & Ho kgutlisa';
+
+  @override
+  String get employee_portal_title => 'Portale ya mosebedi';
+
+  @override
   String get progress_visuals_error_loading_user_data =>
       'Phoso ha ho jariswa data ya mosebedisi';
 

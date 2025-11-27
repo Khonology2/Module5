@@ -629,6 +629,72 @@ class AppLocalizationsZu extends AppLocalizations {
   String get employee_drawer_exit => 'Phuma';
 
   @override
+  String get nav_dashboard => 'Iphaneli';
+
+  @override
+  String get nav_goal_workspace => 'Indawo yokusebenza ngezinhloso';
+
+  @override
+  String get nav_my_profile => 'Iphrofayela yami';
+
+  @override
+  String get nav_my_pdp => 'MyPdp';
+
+  @override
+  String get nav_progress_visuals => 'Izibonakaliso zenqubekelaphambili';
+
+  @override
+  String get nav_alerts_nudges => 'Izexwayiso & Izikhuthazo';
+
+  @override
+  String get nav_badges_points => 'Amabhajhi & Amaphuzu';
+
+  @override
+  String get nav_season_challenges => 'Izinselelo zesizini';
+
+  @override
+  String get nav_leaderboard => 'Uhlu lokuhola';
+
+  @override
+  String get nav_repository_audit => 'I-Repository & Ucwaningo';
+
+  @override
+  String get nav_settings_privacy => 'Izilungiselelo & Ubumfihlo';
+
+  @override
+  String get nav_team_challenges => 'Izinselelo zeqembu';
+
+  @override
+  String get nav_team_alerts_nudges => 'Izexwayiso nezinxushunxushu zeqembu';
+
+  @override
+  String get nav_manager_inbox => 'Ibhokisi lemiyalezo';
+
+  @override
+  String get nav_review_team => 'Buyekeza iqembu';
+
+  @override
+  String get nav_admin_dashboard => 'Iphaneli yomlawuli';
+
+  @override
+  String get nav_user_management => 'Ukuphathwa kwabasebenzisi';
+
+  @override
+  String get nav_analytics => 'Ukuhlaziywa';
+
+  @override
+  String get nav_system_settings => 'Izilungiselelo zesistimu';
+
+  @override
+  String get nav_security => 'Ezokuphepha';
+
+  @override
+  String get nav_backup_restore => 'Ukugcinwa nokubuyiselwa';
+
+  @override
+  String get employee_portal_title => 'Iphothali yabasebenzi';
+
+  @override
   String get progress_visuals_error_loading_user_data =>
       'Iphutha ekulayisheni idatha yomsebenzisi';
 
