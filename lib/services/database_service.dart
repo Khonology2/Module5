@@ -231,7 +231,20 @@ class DatabaseService {
         .collection('users')
         .doc(uid)
         .get();
-    final data = doc.data() ?? {};
+    var data = doc.data() ?? {};
+    
+    // If displayName is missing/empty, try to sync from onboarding
+    final displayName = data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
+    if (displayName.isEmpty) {
+      await syncOnboardingData(uid);
+      // Re-fetch user data after sync
+      final updatedDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      data = updatedDoc.data() ?? data;
+    }
+    
     return UserProfile(
       uid: uid,
       email: data['email'] ?? '',
@@ -1236,13 +1249,49 @@ class DatabaseService {
   }) async {
     final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
+    // Check onboarding collection for user data if displayName is missing
+    String? resolvedDisplayName = displayName;
+    String? resolvedEmail = email;
+    
+    if ((resolvedDisplayName == null || resolvedDisplayName.isEmpty) ||
+        (resolvedEmail == null || resolvedEmail.isEmpty)) {
+      try {
+        final onboardingDoc = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .doc(uid)
+            .get();
+        
+        if (onboardingDoc.exists) {
+          final onboardingData = onboardingDoc.data();
+          // Try multiple possible field names for name in onboarding
+          resolvedDisplayName = resolvedDisplayName?.isNotEmpty == true 
+              ? resolvedDisplayName 
+              : onboardingData?['displayName'] ?? 
+                onboardingData?['fullName'] ?? 
+                onboardingData?['name'] ?? 
+                onboardingData?['firstName'] ?? 
+                (onboardingData?['firstName'] != null && onboardingData?['lastName'] != null
+                    ? '${onboardingData?['firstName']} ${onboardingData?['lastName']}'.trim()
+                    : null);
+          
+          resolvedEmail = resolvedEmail?.isNotEmpty == true 
+              ? resolvedEmail 
+              : onboardingData?['email'] ?? email;
+        }
+      } catch (e) {
+        developer.log('Error checking onboarding collection: $e');
+        // Continue with original values if onboarding check fails
+      }
+    }
+
     final docSnapshot = await userDocRef.get();
     if (!docSnapshot.exists) {
       final userData = {
         'displayName':
-            displayName ??
-            '', // Use displayName as full name, or an empty string
-        'email': email ?? '',
+            resolvedDisplayName?.isNotEmpty == true
+                ? resolvedDisplayName
+                : '', // Use displayName from onboarding or provided, or an empty string
+        'email': resolvedEmail ?? '',
         'createdAt': FieldValue.serverTimestamp(),
         'role': role, // default role, only set on creation
         'totalPoints': 0,
@@ -1283,14 +1332,81 @@ class DatabaseService {
       await userDocRef.set(userData);
     } else {
       // Only update fields that might change, excluding 'role'
+      // Also check if displayName is currently empty and update from onboarding if needed
+      final currentDisplayName = docSnapshot.data()?['displayName'] ?? '';
+      final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
+          ? resolvedDisplayName
+          : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
+      
       await userDocRef.update({
-        'displayName': displayName ?? docSnapshot.data()?['displayName'] ?? '',
-        'email': email ?? docSnapshot.data()?['email'] ?? '',
+        'displayName': finalDisplayName.isNotEmpty 
+            ? finalDisplayName 
+            : (docSnapshot.data()?['displayName'] ?? ''),
+        'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
         // Other fields will be updated by a dedicated updateUserProfile method.
       });
     }
 
     await initializeSubcollections(userDocRef);
+  }
+
+  /// Syncs user data from onboarding collection if displayName or email is missing
+  /// This helps resolve "Anonymous" user issues
+  static Future<void> syncOnboardingData(String uid) async {
+    try {
+      final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      final userDoc = await userDocRef.get();
+      
+      if (!userDoc.exists) {
+        return; // User document doesn't exist yet
+      }
+      
+      final userData = userDoc.data() ?? {};
+      final currentDisplayName = userData['displayName']?.toString() ?? '';
+      final currentEmail = userData['email']?.toString() ?? '';
+      
+      // If displayName is empty or missing, check onboarding
+      if (currentDisplayName.isEmpty) {
+        try {
+          final onboardingDoc = await FirebaseFirestore.instance
+              .collection('onboarding')
+              .doc(uid)
+              .get();
+          
+          if (onboardingDoc.exists) {
+            final onboardingData = onboardingDoc.data() ?? {};
+            // Try multiple possible field names for name in onboarding
+            final onboardingName = onboardingData['displayName'] ?? 
+                onboardingData['fullName'] ?? 
+                onboardingData['name'] ?? 
+                onboardingData['firstName'] ?? 
+                (onboardingData['firstName'] != null && onboardingData['lastName'] != null
+                    ? '${onboardingData['firstName']} ${onboardingData['lastName']}'.trim()
+                    : null);
+            
+            final onboardingEmail = onboardingData['email']?.toString();
+            
+            // Update user document if we found name or email from onboarding
+            final updates = <String, dynamic>{};
+            if (onboardingName != null && onboardingName.toString().isNotEmpty) {
+              updates['displayName'] = onboardingName.toString();
+            }
+            if (onboardingEmail != null && onboardingEmail.isNotEmpty && currentEmail.isEmpty) {
+              updates['email'] = onboardingEmail;
+            }
+            
+            if (updates.isNotEmpty) {
+              await userDocRef.update(updates);
+              developer.log('Synced onboarding data for user $uid: ${updates.keys.join(", ")}');
+            }
+          }
+        } catch (e) {
+          developer.log('Error syncing onboarding data for $uid: $e');
+        }
+      }
+    } catch (e) {
+      developer.log('Error in syncOnboardingData for $uid: $e');
+    }
   }
 
   static Future<void> updateUserProfile(UserProfile userProfile) async {

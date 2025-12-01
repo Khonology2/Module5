@@ -1689,6 +1689,9 @@ class BadgeService {
     try {
       Query query = _firestore.collection('users');
 
+      // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
+      query = query.where('role', isEqualTo: 'employee');
+
       // Add department filter if specified
       if (department != null && department.isNotEmpty) {
         query = query.where('department', isEqualTo: department);
@@ -1701,20 +1704,30 @@ class BadgeService {
 
       final snapshot = await query.get();
 
-      // Filter for opted-in users after fetching
-      final filteredDocs = onlyOptedIn
-          ? snapshot.docs.where((doc) {
-              try {
-                final data = doc.data() as Map<String, dynamic>?;
-                if (data == null) return false;
-                final optIn = data['leaderboardOptin'];
-                final legacyOptIn = data['leaderboardParticipation'];
-                return optIn == true || legacyOptIn == true;
-              } catch (e) {
-                return false;
-              }
-            }).toList()
-          : snapshot.docs;
+      // Filter for opted-in users after fetching and ensure no managers slipped through
+      final filteredDocs = snapshot.docs.where((doc) {
+        try {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) return false;
+          
+          // Double-check: ALWAYS exclude managers
+          final role = data['role']?.toString() ?? 'employee';
+          if (role != 'employee') {
+            return false;
+          }
+          
+          // Filter by opt-in status if required
+          if (onlyOptedIn) {
+            final optIn = data['leaderboardOptin'];
+            final legacyOptIn = data['leaderboardParticipation'];
+            return optIn == true || legacyOptIn == true;
+          }
+          
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }).toList();
 
       return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
