@@ -422,7 +422,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.white), // white hint text
+          hintStyle: const TextStyle(color: Colors.white70),
           filled: true,
           fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(

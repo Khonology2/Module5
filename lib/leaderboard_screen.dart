@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -20,6 +21,12 @@ enum LeaderboardFilter {
 }
 
 enum LeaderboardMetric { points, level, badges, streaks }
+
+/// Helper class to represent onboarding users as document-like objects
+class _OnboardingUserDoc {
+  final Map<String, dynamic> data;
+  _OnboardingUserDoc(this.data);
+}
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -110,11 +117,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       'users',
     );
 
-    // For employees, filter to only show employees (not managers)
-    final isManager = userRole == 'manager';
-    if (!isManager) {
-      query = query.where('role', isEqualTo: 'employee');
-    }
+    // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
+    query = query.where('role', isEqualTo: 'employee');
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
@@ -127,6 +131,38 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     // We'll handle sorting in the processing step
     // Increased limit to 10000 to show all employees in Full Leaderboard
     return query.limit(10000);
+  }
+
+  /// Fetch onboarding users and convert them to a list of maps compatible with user format
+  Future<List<Map<String, dynamic>>> _fetchOnboardingUsers() async {
+    try {
+      final onboardingSnapshot = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .get();
+
+      // Filter onboarding users to only include those with 'employee' persona for PDH
+      final employeeOnboardingUsers = onboardingSnapshot.docs.where((doc) {
+        final data = doc.data();
+        final moduleAccessRole = data['moduleAccessRole'] as String?;
+        return OnboardingService.shouldIncludeUser(
+          moduleAccessRole,
+          'employee',
+        );
+      }).toList();
+
+      // Convert onboarding users to user format
+      return employeeOnboardingUsers.map((doc) {
+        final data = doc.data();
+        final convertedData =
+            OnboardingService.convertOnboardingUserToUserFormat(data, doc.id);
+        // Add the document ID for reference
+        convertedData['_id'] = doc.id;
+        return convertedData;
+      }).toList();
+    } catch (e) {
+      developer.log('Error fetching onboarding users: $e');
+      return [];
+    }
   }
 
   // Calculate monthly points from daily points data
@@ -177,8 +213,27 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     }
   }
 
-  Future<List<Map<String, dynamic>>> _processLeaderboardData(
+  Future<List<Map<String, dynamic>>> _processLeaderboardDataWithOnboarding(
     List<QueryDocumentSnapshot> docs, {
+    String? userRole,
+  }) async {
+    // Fetch onboarding users
+    final onboardingUsers = await _fetchOnboardingUsers();
+
+    // Convert onboarding users to a format that can be processed like regular docs
+    final onboardingDocs = onboardingUsers.map((userData) {
+      // Create a mock document-like structure
+      return _OnboardingUserDoc(userData);
+    }).toList();
+
+    // Combine regular docs with onboarding docs
+    final allDocs = <dynamic>[...docs, ...onboardingDocs];
+
+    return _processLeaderboardData(allDocs, userRole: userRole);
+  }
+
+  Future<List<Map<String, dynamic>>> _processLeaderboardData(
+    List<dynamic> docs, {
     String? userRole,
   }) async {
     try {
@@ -208,35 +263,51 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
       // Use the role parameter instead of checking filters
       final isManager = userRole == 'manager';
-      List<QueryDocumentSnapshot> filteredDocs;
+      List<dynamic> filteredDocs;
 
-      // For managers, show all users regardless of opt-in status
-      if (isManager) {
-        filteredDocs = docs;
-      } else {
-        // For employees, only show co-workers who opted into leaderboards
-        // Filter to ensure we only have opted-in employees (role check is already in query, but double-check here)
-        filteredDocs = docs.where((doc) {
-          try {
-            final data = doc.data() as Map<String, dynamic>?;
-            if (data != null) {
-              // Ensure we only show employees (not managers)
-              final role = data['role']?.toString() ?? 'employee';
-              if (role != 'employee') {
-                return false;
-              }
+      // ALWAYS filter to exclude managers - leaderboard is for employees only
+      // Filter to ensure we only have employees (role check is already in query, but double-check here)
+      // For managers viewing, show all opted-in employees
+      // For employees viewing, show only opted-in employees
+      filteredDocs = docs.where((doc) {
+        try {
+          Map<String, dynamic>? data;
 
-              final optIn = data['leaderboardOptin'];
-              final legacyOptIn = data['leaderboardParticipation'];
-              return optIn == true || legacyOptIn == true;
-            }
-            return false;
-          } catch (e) {
-            developer.log('Error processing doc ${doc.id}: $e');
-            return false;
+          // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
+          if (doc is QueryDocumentSnapshot) {
+            data = doc.data() as Map<String, dynamic>?;
+          } else if (doc is _OnboardingUserDoc) {
+            data = doc.data;
           }
-        }).toList();
-      }
+
+          if (data != null) {
+            // ALWAYS exclude managers from leaderboard
+            final role = data['role']?.toString() ?? 'employee';
+            if (role != 'employee') {
+              return false; // Exclude managers and any other non-employee roles
+            }
+
+            // Check opt-in status (onboarding users don't have opt-in, so include them)
+            final optIn = data['leaderboardOptin'];
+            final legacyOptIn = data['leaderboardParticipation'];
+            final fromOnboarding = data['fromOnboarding'] == true;
+
+            // Managers can see all employees regardless of opt-in, employees only see opted-in
+            // Onboarding users are always included
+            if (isManager || fromOnboarding) {
+              return true; // Managers see all employees, onboarding users always visible
+            } else {
+              return optIn == true ||
+                  legacyOptIn == true; // Employees only see opted-in
+            }
+          }
+          return false;
+        } catch (e) {
+          final docId = doc is QueryDocumentSnapshot ? doc.id : 'unknown';
+          developer.log('Error processing doc $docId: $e');
+          return false;
+        }
+      }).toList();
 
       developer.log('${filteredDocs.length} users to display on leaderboard');
 
@@ -251,7 +322,20 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       // Process and sort data with better error handling
       // First pass: extract all data without async operations
       final List<Map<String, dynamic>> initialData = filteredDocs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        Map<String, dynamic> data;
+        String docId;
+
+        // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
+        if (doc is QueryDocumentSnapshot) {
+          data = doc.data() as Map<String, dynamic>;
+          docId = doc.id;
+        } else if (doc is _OnboardingUserDoc) {
+          data = doc.data;
+          docId = data['_id'] as String? ?? 'unknown';
+        } else {
+          data = {};
+          docId = 'unknown';
+        }
 
         // Safely extract values with defaults
         int badgeCount = 0;
@@ -278,11 +362,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             }
           }
 
-          if (_currentUser != null && doc.id == _currentUser!.uid) {
+          if (_currentUser != null && docId == _currentUser!.uid) {
             badgeCount = max(badgeCount, _currentUser!.badges.length);
           }
         } catch (e) {
-          developer.log('Error processing badges for user ${doc.id}: $e');
+          developer.log('Error processing badges for user $docId: $e');
         }
 
         // Calculate points based on time filter
@@ -296,7 +380,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               points = data['totalPoints'] as num;
             }
           } catch (e) {
-            developer.log('Error processing points for user ${doc.id}: $e');
+            developer.log('Error processing points for user $docId: $e');
           }
         }
 
@@ -306,7 +390,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             level = data['level'] as num;
           }
         } catch (e) {
-          developer.log('Error processing level for user ${doc.id}: $e');
+          developer.log('Error processing level for user $docId: $e');
         }
 
         // Extract streak data
@@ -324,7 +408,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     ? data['longestStreak'] as int
                     : 0);
         } catch (e) {
-          developer.log('Error processing streaks for user ${doc.id}: $e');
+          developer.log('Error processing streaks for user $docId: $e');
         }
 
         // Get display name - will fetch from profile if missing in second pass
@@ -334,7 +418,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         }
 
         return {
-          'userId': doc.id,
+          'userId': docId,
           'name': displayName,
           'points': points,
           'level': level,
@@ -479,7 +563,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                             ? leaderboardSnapshot.data!.docs.toList()
                             : const <QueryDocumentSnapshot>[];
                         if (docs.isNotEmpty) {
-                          final data = await _processLeaderboardData(
+                          final data = await _processLeaderboardDataWithOnboarding(
                             docs,
                             userRole: role,
                           );
@@ -490,11 +574,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         }
                       } catch (e) {
                         developer.log('Error processing leaderboard data: $e');
-                        return <Map<String, dynamic>>[];
+                        return _lastLeaderboardData;
                       }
                     }(),
-                    builder: (context, dataSnapshot) {
-                      if (dataSnapshot.connectionState ==
+                    builder: (context, snapshot) {
+                      List<Map<String, dynamic>> leaderboardData;
+                      if (snapshot.hasData) {
+                        leaderboardData = snapshot.data!;
+                        _lastLeaderboardData = leaderboardData;
+                      } else if (snapshot.hasError) {
+                        developer.log(
+                          'Error in FutureBuilder: ${snapshot.error}',
+                        );
+                        return _buildErrorState();
+                      } else {
+                        leaderboardData = _lastLeaderboardData;
+                      }
+
+                      if (snapshot.connectionState ==
                           ConnectionState.waiting) {
                         return const Center(
                           child: CircularProgressIndicator(
@@ -505,13 +602,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         );
                       }
 
-                      final leaderboardData = dataSnapshot.data ?? [];
-                      if (leaderboardData.isEmpty && dataSnapshot.hasError) {
-                        return _buildErrorState();
-                      }
-
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                        padding: const EdgeInsets.fromLTRB(
+                          24.0,
+                          32.0,
+                          24.0,
+                          24.0,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
@@ -523,7 +620,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                             leaderboardData.isEmpty
                                 ? _buildEmptyState()
                                 : Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       _buildPodium(leaderboardData),
@@ -928,8 +1026,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     final List<Map<String, dynamic>> topPerformers = showTopPerformersSection
         ? leaderboardData.take(5).toList()
         : const [];
-    final int alreadyShownCount =
-        showTopPerformersSection ? topPerformers.length : 3;
+    final int alreadyShownCount = showTopPerformersSection
+        ? topPerformers.length
+        : 3;
     final remainingUsers = leaderboardData.skip(alreadyShownCount).toList();
 
     return Column(
@@ -950,13 +1049,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () => _showCompetitorAnalysis(context, leaderboardData),
+                onPressed: () =>
+                    _showCompetitorAnalysis(context, leaderboardData),
                 icon: const Icon(Icons.insights, size: 16),
                 label: const Text('AI Competitor Analysis'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.activeColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ],
@@ -1400,8 +1503,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
     try {
       // Get goals for current user and competitors
-      final currentUserGoals = await DatabaseService.getUserGoals(currentUserId);
-      
+      final currentUserGoals = await DatabaseService.getUserGoals(
+        currentUserId,
+      );
+
       // Build comparison data
       final comparisonData = StringBuffer();
       comparisonData.writeln('Current User (Rank $currentRank):');
@@ -1413,8 +1518,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
       for (var competitor in usersAbove) {
         final competitorId = competitor['userId'];
-        final competitorGoals = await DatabaseService.getUserGoals(competitorId);
-        comparisonData.writeln('Competitor Above (Rank ${competitor['rank']}):');
+        final competitorGoals = await DatabaseService.getUserGoals(
+          competitorId,
+        );
+        comparisonData.writeln(
+          'Competitor Above (Rank ${competitor['rank']}):',
+        );
         comparisonData.writeln('Name: ${competitor['name']}');
         comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
         comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
@@ -1425,8 +1534,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
       for (var competitor in usersBelow) {
         final competitorId = competitor['userId'];
-        final competitorGoals = await DatabaseService.getUserGoals(competitorId);
-        comparisonData.writeln('Competitor Below (Rank ${competitor['rank']}):');
+        final competitorGoals = await DatabaseService.getUserGoals(
+          competitorId,
+        );
+        comparisonData.writeln(
+          'Competitor Below (Rank ${competitor['rank']}):',
+        );
         comparisonData.writeln('Name: ${competitor['name']}');
         comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
         comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
@@ -1462,7 +1575,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       ];
 
       final response = await model.generateContent(prompt);
-      final analysis = response.text?.replaceAll('*', '').trim() ?? 
+      final analysis =
+          response.text?.replaceAll('*', '').trim() ??
           'Unable to generate analysis. Please try again.';
 
       // Close loading dialog

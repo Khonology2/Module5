@@ -1128,7 +1128,9 @@ Guidelines:
                           setState(() {
                             _saveButtonScale = 1.1;
                           });
-                          await Future.delayed(const Duration(milliseconds: 150));
+                          await Future.delayed(
+                            const Duration(milliseconds: 150),
+                          );
                           setState(() {
                             _saveButtonScale = 1.0;
                           });
@@ -1301,7 +1303,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Colors.white),
+        hintStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: color ?? Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1416,7 +1418,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Colors.white),
+        hintStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1528,7 +1530,7 @@ Guidelines:
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',
-          hintStyle: TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Colors.white70),
           filled: true,
           fillColor: Colors.white10,
           border: OutlineInputBorder(
