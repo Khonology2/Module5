@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 
@@ -37,6 +38,7 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
+  bool _isProfileIncomplete = false;
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -45,6 +47,26 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void initState() {
     super.initState();
     _previousTutorialStep = widget.tutorialStepIndex;
+    _checkProfileCompletion();
+  }
+
+  Future<void> _checkProfileCompletion() async {
+    try {
+      final isComplete =
+          await ProfileCompletionService.isCurrentUserProfileComplete();
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = !isComplete;
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't show indicator if check fails
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = false;
+        });
+      }
+    }
   }
 
   @override
@@ -65,6 +87,11 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToTutorialItem(widget.tutorialStepIndex!);
       });
+    }
+    // Refresh profile completion check when widget updates (e.g., after profile save)
+    if (widget.currentRouteName == '/my_profile' ||
+        oldWidget.currentRouteName == '/my_profile') {
+      _checkProfileCompletion();
     }
   }
 
@@ -113,6 +140,12 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   children: widget.items.asMap().entries.map((entry) {
                     final index = entry.key;
                     final it = entry.value;
+                    // Check if this is the My Profile route and profile is incomplete
+                    final bool showProfileIndicator =
+                        (it.route == '/my_profile' ||
+                            it.route == '/manager_profile') &&
+                        (_isProfileIncomplete == true);
+
                     final navTile = _NavTile(
                       icon: it.icon,
                       iconWidget: it.iconWidget,
@@ -123,6 +156,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       isActive: widget.currentRouteName == it.route,
                       collapsed: effectiveCollapsed,
                       onTap: () => widget.onNavigate(it.route),
+                      showProfileIndicator: showProfileIndicator,
                       tutorialKey:
                           widget.sidebarTutorialKeys != null &&
                               index < widget.sidebarTutorialKeys!.length
@@ -151,17 +185,21 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
               ),
               _CollapseToggle(
                 collapsed: effectiveCollapsed,
-                tutorialKey: widget.sidebarTutorialKeys != null &&
+                tutorialKey:
+                    widget.sidebarTutorialKeys != null &&
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length &&
-                        widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length
+                        widget.tutorialStepIndex! <
+                            widget.sidebarTutorialKeys!.length
                     ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                     : null,
-                showTutorial: widget.tutorialStepIndex != null &&
+                showTutorial:
+                    widget.tutorialStepIndex != null &&
                     widget.tutorialStepIndex == widget.items.length,
                 onTutorialNext: widget.onTutorialNext,
                 onTutorialSkip: widget.onTutorialSkip,
-                isLastTutorialStep: widget.tutorialStepIndex != null &&
+                isLastTutorialStep:
+                    widget.tutorialStepIndex != null &&
                     widget.tutorialStepIndex == widget.items.length,
               ),
             ],
@@ -335,10 +373,7 @@ class _CollapseToggle extends StatelessWidget {
                       minimumSize: const Size(0, 28),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
@@ -400,12 +435,14 @@ class _NavTile extends StatefulWidget {
     required this.isActive,
     required this.collapsed,
     required this.onTap,
+    bool? showProfileIndicator,
     this.tutorialKey,
     this.showTutorial = false,
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
-  }) : assert(
+  }) : showProfileIndicator = showProfileIndicator ?? false,
+       assert(
          icon != null || iconWidget != null || assetWhite != null,
          'Provide icon, iconWidget, or assetWhite',
        );
@@ -418,6 +455,7 @@ class _NavTile extends StatefulWidget {
   final bool isActive;
   final bool collapsed;
   final VoidCallback onTap;
+  final bool showProfileIndicator;
   final GlobalKey? tutorialKey;
   final bool showTutorial;
   final VoidCallback? onTutorialNext;
@@ -495,14 +533,30 @@ class _NavTileState extends State<_NavTile> {
                             _buildIcon(isSelected),
                             const SizedBox(width: AppSpacing.xs),
                             Expanded(
-                              child: Text(
-                                widget.label,
-                                style: isSelected
-                                    ? AppTypography.navigationActive
-                                    : AppTypography.navigation,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                softWrap: false,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.label,
+                                      style: isSelected
+                                          ? AppTypography.navigationActive
+                                          : AppTypography.navigation,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                    ),
+                                  ),
+                                  if (widget.showProfileIndicator &&
+                                      !widget.collapsed)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 4),
+                                      child: Icon(
+                                        Icons.error_outline,
+                                        size: 16,
+                                        color: AppColors.dangerColor,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
@@ -604,10 +658,7 @@ class _NavTileState extends State<_NavTile> {
                       minimumSize: const Size(0, 28),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
-                      'Skip',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button

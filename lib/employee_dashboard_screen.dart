@@ -21,6 +21,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
@@ -746,6 +747,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const ProfileCompletionBanner(),
                           _buildWelcomeCard(),
                           const SizedBox(height: AppSpacing.xl),
                           _buildDailyMotivationCard(),

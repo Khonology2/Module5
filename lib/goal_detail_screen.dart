@@ -93,7 +93,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildKpaSelector() {
-    final String? formattedKpa = (currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
+    final String? formattedKpa =
+        (currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
         ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
         : null;
 
@@ -491,7 +492,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   const SizedBox(height: AppSpacing.xl),
                   _buildActionButtons(),
                   const SizedBox(height: AppSpacing.xl),
-          _buildGoalMilestonesSection(),
+                  _buildGoalMilestonesSection(),
                   const SizedBox(height: AppSpacing.xl),
                   _buildMilestoneTracker(),
                 ],
@@ -1294,7 +1295,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: Text(
                     canAddMilestones
@@ -1314,12 +1317,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _GoalMilestoneTile(
                           milestone: milestone,
-                          canEdit: isOwner &&
+                          canEdit:
+                              isOwner &&
                               !(isGoalCompleted &&
-                                  milestone.status == GoalMilestoneStatus.completed),
-                          isLocked: isGoalCompleted &&
+                                  milestone.status ==
+                                      GoalMilestoneStatus.completed),
+                          isLocked:
+                              isGoalCompleted &&
                               milestone.status == GoalMilestoneStatus.completed,
-                          onEdit: () => _showMilestoneDialog(milestone: milestone),
+                          onEdit: () =>
+                              _showMilestoneDialog(milestone: milestone),
                           onUpdateStatus: (status) =>
                               _updateMilestoneStatus(milestone, status),
                           onDelete: () => _deleteMilestone(milestone),
@@ -1339,7 +1346,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be signed in to manage milestones.')),
+        const SnackBar(
+          content: Text('You must be signed in to manage milestones.'),
+        ),
       );
       return;
     }
@@ -1352,8 +1361,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       return;
     }
     final titleController = TextEditingController(text: milestone?.title ?? '');
-    final descController =
-        TextEditingController(text: milestone?.description ?? '');
+    final descController = TextEditingController(
+      text: milestone?.description ?? '',
+    );
     DateTime? dueDate =
         milestone?.dueDate ?? DateTime.now().add(const Duration(days: 7));
     GoalMilestoneStatus status =
@@ -1375,7 +1385,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               );
               if (selected != null) {
                 setDialogState(() {
-                  dueDate = DateTime(selected.year, selected.month, selected.day);
+                  dueDate = DateTime(
+                    selected.year,
+                    selected.month,
+                    selected.day,
+                  );
                 });
               }
             }
@@ -1395,6 +1409,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 );
                 return;
               }
+
               setDialogState(() => saving = true);
               try {
                 if (milestone == null) {
@@ -1501,9 +1516,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<GoalMilestoneStatus>(
                       initialValue: status,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Status'),
                       items: GoalMilestoneStatus.values
                           .map(
                             (value) => DropdownMenuItem(
@@ -1523,7 +1536,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(),
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -1537,7 +1552,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : Text(milestone == null ? 'Create Milestone' : 'Save Changes'),
+                      : Text(
+                          milestone == null
+                              ? 'Create Milestone'
+                              : 'Save Changes',
+                        ),
                 ),
               ],
             );
@@ -1586,10 +1605,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -1601,9 +1617,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         milestoneId: milestone.id,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Milestone deleted.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Milestone deleted.')));
       }
     } catch (e) {
       if (mounted) {
@@ -1653,7 +1669,8 @@ class _GoalMilestoneTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isOverdue = milestone.status != GoalMilestoneStatus.completed &&
+    final bool isOverdue =
+        milestone.status != GoalMilestoneStatus.completed &&
         milestone.dueDate.isBefore(DateTime.now());
     final Color statusColor = _statusColor(milestone.status);
 
@@ -1663,7 +1680,9 @@ class _GoalMilestoneTile extends StatelessWidget {
         color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isOverdue ? AppColors.dangerColor : Colors.white.withValues(alpha: 0.1),
+          color: isOverdue
+              ? AppColors.dangerColor
+              : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
@@ -1705,7 +1724,10 @@ class _GoalMilestoneTile extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -1744,7 +1766,10 @@ class _GoalMilestoneTile extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit details')),
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit details'),
+                    ),
                     const PopupMenuDivider(),
                     const PopupMenuItem(
                       value: 'start',
@@ -1774,7 +1799,8 @@ class _GoalMilestoneTile extends StatelessWidget {
                 ),
               if (!canEdit && isLocked)
                 Tooltip(
-                  message: 'This milestone is locked because the goal is completed.',
+                  message:
+                      'This milestone is locked because the goal is completed.',
                   child: Icon(
                     Icons.lock_outline,
                     color: AppColors.textSecondary,

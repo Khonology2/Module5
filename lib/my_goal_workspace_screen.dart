@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_ai/firebase_ai.dart';
@@ -487,7 +488,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
               try {
                 await updatePhase('Generating description...');
-                
+
                 // Initialize Firebase AI model
                 final model = FirebaseAI.googleAI().generativeModel(
                   model: 'gemini-2.5-flash',
@@ -521,8 +522,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   ),
                 ];
 
-                await updatePhase('Generating dependencies and prerequisites...');
-                
+                await updatePhase(
+                  'Generating dependencies and prerequisites...',
+                );
+
                 final response = await model.generateContent(prompt);
                 final responseText =
                     response.text?.replaceAll('*', '').trim() ?? '';
@@ -609,17 +612,30 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     _successMetricsController.text = successMetrics;
 
                     await updatePhase('Generating success metrics...');
-                    
+
                     // Extract and set SMART scores
                     final smartScores = generatedData['smartScores'];
                     if (smartScores is Map<String, dynamic>) {
                       setState(() {
                         _clarity = _parseSmartScore(smartScores['clarity'], 3);
-                        _measurability = _parseSmartScore(smartScores['measurability'], 3);
-                        _achievability = _parseSmartScore(smartScores['achievability'], 3);
-                        _relevance = _parseSmartScore(smartScores['relevance'], 3);
-                        _timeline = _parseSmartScore(smartScores['timeline'], 3);
-                        _smartScoresGenerated = true; // Mark that AI has generated scores
+                        _measurability = _parseSmartScore(
+                          smartScores['measurability'],
+                          3,
+                        );
+                        _achievability = _parseSmartScore(
+                          smartScores['achievability'],
+                          3,
+                        );
+                        _relevance = _parseSmartScore(
+                          smartScores['relevance'],
+                          3,
+                        );
+                        _timeline = _parseSmartScore(
+                          smartScores['timeline'],
+                          3,
+                        );
+                        _smartScoresGenerated =
+                            true; // Mark that AI has generated scores
                       });
                     } else {
                       // If no SMART scores in response, mark as not generated
@@ -1262,7 +1278,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
             _buildScoreSelector(
               title: 'Measurable - Progress can be tracked',
-              value: _smartScoresGenerated ? _measurability : 0, // 0 means unselected
+              value: _smartScoresGenerated
+                  ? _measurability
+                  : 0, // 0 means unselected
               onChanged: null, // Disabled - AI will set scores
               helper:
                   '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
@@ -1271,7 +1289,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
             _buildScoreSelector(
               title: 'Achievable - Goal is realistic and attainable',
-              value: _smartScoresGenerated ? _achievability : 0, // 0 means unselected
+              value: _smartScoresGenerated
+                  ? _achievability
+                  : 0, // 0 means unselected
               onChanged: null, // Disabled - AI will set scores
               helper: '1=unlikely, 3=stretch, 5=realistic with resources',
               enabled: false,
@@ -1279,7 +1299,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
             _buildScoreSelector(
               title: 'Relevant - Goal aligns with your values/role/OKR',
-              value: _smartScoresGenerated ? _relevance : 0, // 0 means unselected
+              value: _smartScoresGenerated
+                  ? _relevance
+                  : 0, // 0 means unselected
               onChanged: null, // Disabled - AI will set scores
               helper: '1=not aligned, 3=indirect, 5=direct OKR/competency fit',
               enabled: false,
@@ -1287,7 +1309,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             ),
             _buildScoreSelector(
               title: 'Time-bound - Goal has a clear deadline',
-              value: _smartScoresGenerated ? _timeline : 0, // 0 means unselected
+              value: _smartScoresGenerated
+                  ? _timeline
+                  : 0, // 0 means unselected
               onChanged: null, // Disabled - AI will set scores
               helper: '1=no date, 3=date tight, 5=realistic + milestones',
               enabled: false,
@@ -1300,7 +1324,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   int _computeSmartTotal() {
-    if (!_smartScoresGenerated) return 0; // Return 0 if scores haven't been generated
+    if (!_smartScoresGenerated)
+      return 0; // Return 0 if scores haven't been generated
     return _clarity + _measurability + _achievability + _relevance + _timeline;
   }
 
@@ -1351,7 +1376,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             spacing: 8,
             children: List.generate(5, (index) {
               final score = index + 1;
-              final selected = value == score && value > 0; // Only selected if value > 0
+              final selected =
+                  value == score && value > 0; // Only selected if value > 0
               // Use red color #C10D00 for AI-generated selections
               final selectedColor = aiGenerated && selected
                   ? const Color(0xFFC10D00)
@@ -1361,12 +1387,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
                     color: enabled
-                        ? (selected
-                            ? Colors.white
-                            : AppColors.textSecondary)
+                        ? (selected ? Colors.white : AppColors.textSecondary)
                         : (selected
-                            ? Colors.white
-                            : AppColors.textSecondary.withValues(alpha: 0.5)),
+                              ? Colors.white
+                              : AppColors.textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
                 selected: selected,
@@ -1379,8 +1403,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                     color: selected
                         ? selectedColor
                         : (enabled
-                            ? AppColors.borderColor
-                            : AppColors.borderColor.withValues(alpha: 0.3)),
+                              ? AppColors.borderColor
+                              : AppColors.borderColor.withValues(alpha: 0.3)),
                     width: selected ? 2 : 1,
                   ),
                 ),
