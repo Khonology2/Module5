@@ -698,6 +698,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                               label: const Text('Create Your First Goal'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.activeColor,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
                               ),
                             ),
                           ],
