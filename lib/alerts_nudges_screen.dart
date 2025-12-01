@@ -307,6 +307,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                     horizontal: 16,
                                     vertical: 12,
                                   ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
                                 ),
                               ),
                             ],
@@ -709,6 +712,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
             ),
           ),
         ],
@@ -1815,6 +1821,9 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
             ),
           ),
         ],
