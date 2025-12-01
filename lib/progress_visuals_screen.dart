@@ -1546,6 +1546,9 @@ class _EmployeeProgressVisualsContentState
                     horizontal: 16,
                     vertical: 12,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
               ),
             ],

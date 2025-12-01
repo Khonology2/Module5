@@ -1331,7 +1331,7 @@ class DatabaseService {
 
   /// Get onboarding data from onboarding collection
   /// Queries by user_id first, then by email if user_id not found
-  /// Returns a map with fullName, designation, and department fields
+  /// Returns a map with fullName, designation, department, and phoneNumber fields
   static Future<Map<String, String?>> getOnboardingData({
     String? userId,
     String? email,
@@ -1342,6 +1342,7 @@ class DatabaseService {
         'fullName': null,
         'designation': null,
         'department': null,
+        'phoneNumber': null,
       };
 
       // Try to get by user_id first (most reliable)
@@ -1354,10 +1355,11 @@ class DatabaseService {
 
         if (docById.exists) {
           final data = docById.data();
-          // Always retrieve designation and department from onboarding
+          // Always retrieve designation, department, and phoneNumber from onboarding
           result['fullName'] = data?['fullName'] as String?;
           result['designation'] = data?['designation'] as String?;
           result['department'] = data?['department'] as String?;
+          result['phoneNumber'] = data?['phoneNumber'] as String?;
 
           // If fullName is not available, try name + surname
           if (result['fullName'] == null || result['fullName']!.isEmpty) {
@@ -1382,10 +1384,11 @@ class DatabaseService {
 
         if (queryByUserId.docs.isNotEmpty) {
           final data = queryByUserId.docs.first.data();
-          // Always retrieve designation and department from onboarding
+          // Always retrieve designation, department, and phoneNumber from onboarding
           result['fullName'] = data['fullName'] as String?;
           result['designation'] = data['designation'] as String?;
           result['department'] = data['department'] as String?;
+          result['phoneNumber'] = data['phoneNumber'] as String?;
 
           // If fullName is not available, try name + surname
           if (result['fullName'] == null || result['fullName']!.isEmpty) {
@@ -1412,10 +1415,11 @@ class DatabaseService {
 
         if (queryByEmail.docs.isNotEmpty) {
           final data = queryByEmail.docs.first.data();
-          // Always retrieve designation and department from onboarding
+          // Always retrieve designation, department, and phoneNumber from onboarding
           result['fullName'] = data['fullName'] as String?;
           result['designation'] = data['designation'] as String?;
           result['department'] = data['department'] as String?;
+          result['phoneNumber'] = data['phoneNumber'] as String?;
 
           // If fullName is not available, try name + surname
           if (result['fullName'] == null || result['fullName']!.isEmpty) {
@@ -1434,7 +1438,67 @@ class DatabaseService {
       return result;
     } catch (e) {
       developer.log('Error getting onboarding data: $e');
-      return {'fullName': null, 'designation': null, 'department': null};
+      return {'fullName': null, 'designation': null, 'department': null, 'phoneNumber': null};
+    }
+  }
+
+  /// Update onboarding collection with phone number
+  static Future<void> updateOnboardingPhoneNumber({
+    required String userId,
+    String? email,
+    required String phoneNumber,
+  }) async {
+    try {
+      final firestore = FirebaseFirestore.instance;
+      
+      // Try to update by document ID first
+      final docRef = firestore.collection('onboarding').doc(userId);
+      final doc = await docRef.get();
+      
+      if (doc.exists) {
+        await docRef.update({'phoneNumber': phoneNumber});
+        return;
+      }
+      
+      // Try to find by user_id field
+      if (userId.isNotEmpty) {
+        final queryByUserId = await firestore
+            .collection('onboarding')
+            .where('user_id', isEqualTo: userId)
+            .limit(1)
+            .get();
+        
+        if (queryByUserId.docs.isNotEmpty) {
+          await queryByUserId.docs.first.reference.update({'phoneNumber': phoneNumber});
+          return;
+        }
+      }
+      
+      // Fallback: try by email if provided
+      if (email != null && email.isNotEmpty) {
+        final queryByEmail = await firestore
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+        
+        if (queryByEmail.docs.isNotEmpty) {
+          await queryByEmail.docs.first.reference.update({'phoneNumber': phoneNumber});
+          return;
+        }
+      }
+      
+      // If no document found, create one with phone number
+      if (userId.isNotEmpty) {
+        await docRef.set({
+          'user_id': userId,
+          if (email != null) 'email': email,
+          'phoneNumber': phoneNumber,
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      developer.log('Error updating onboarding phone number: $e');
+      // Don't throw - phone number update is not critical
     }
   }
 

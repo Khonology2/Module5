@@ -572,11 +572,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: const Icon(Icons.download),
             label: const Text('Export My Data'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textPrimary,
-              side: BorderSide(color: AppColors.borderColor),
+              foregroundColor: const Color(0xFFC10D00),
+              side: const BorderSide(color: Color(0xFFC10D00)),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
           ),

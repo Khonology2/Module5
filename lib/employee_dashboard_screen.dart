@@ -649,9 +649,92 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     );
                   }
 
-                  // Always show the dashboard if we have profile data, even if there are stream errors
-                  // This prevents the "first time user" message from flashing
-                  // The dashboard will use cached data (userProfile/userGoals) if streams fail
+                  // Handle errors
+                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                    final error = profileSnapshot.error ?? goalsSnapshot.error;
+                    final errorMessage = error.toString();
+
+                    // Check if it's a Firestore index error
+                    if (errorMessage.contains('failed-precondition') ||
+                        errorMessage.contains('index')) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 64,
+                              color: AppColors.warningColor,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Setting up your dashboard...',
+                              style: AppTypography.heading4,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'This is your first time using the app. Let\'s get you started!',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/my_goal_workspace',
+                                );
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create Your First Goal'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.activeColor,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: AppColors.dangerColor,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading dashboard',
+                            style: AppTypography.heading4,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Please try again in a moment',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(
+                                () {},
+                              ); // Trigger rebuild to restart streams
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
                   // Update local state with latest (or fallback) data
                   userProfile = effectiveProfile;

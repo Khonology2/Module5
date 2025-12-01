@@ -991,7 +991,7 @@ Guidelines:
                               vertical: 8,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(28),
                             ),
                           ),
                           child: const Text(
@@ -1102,37 +1102,50 @@ Guidelines:
               // Action Buttons
               const SizedBox(height: 32.0),
               Center(
-                child: AnimatedScale(
-                  scale: _saveButtonScale,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOut,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      // Pop-out animation
-                      setState(() {
-                        _saveButtonScale = 1.1;
-                      });
-                      await Future.delayed(const Duration(milliseconds: 150));
-                      setState(() {
-                        _saveButtonScale = 1.0;
-                      });
-                      // Save profile after animation
-                      _saveProfile();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: AnimatedScale(
+                    scale: _saveButtonScale,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        color: const Color(0xFFC10D00),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFC10D00).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                      child: TextButton(
+                        onPressed: () async {
+                          // Pop-out animation
+                          setState(() {
+                            _saveButtonScale = 1.1;
+                          });
+                          await Future.delayed(const Duration(milliseconds: 150));
+                          setState(() {
+                            _saveButtonScale = 1.0;
+                          });
+                          // Save profile after animation
+                          _saveProfile();
+                        },
+                        child: const Text(
+                          'Save Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
-                    ),
-                    child: const Text(
-                      'Save Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),

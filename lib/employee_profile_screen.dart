@@ -72,6 +72,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   String? _leaderboardOptin = 'no';
   String? _celebrationConsent = 'private';
   String? _profilePhotoUrl; // State variable for profile photo URL
+  double _saveButtonScale = 1.0; // Animation scale for save button
 
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
@@ -139,7 +140,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             ? userProfile.department
             : null;
         _workEmailController.text = userProfile.email;
-        _phoneNumberController.text = userProfile.phoneNumber;
+        // Use phoneNumber from onboarding first, fallback to userProfile
+        _phoneNumberController.text =
+            onboardingData['phoneNumber'] ?? userProfile.phoneNumber;
         _skills
           ..clear()
           ..addAll(userProfile.skills);
@@ -306,13 +309,15 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     try {
       // ignore: avoid_print
       print('Saving profile...');
+      final phoneNumber = _phoneNumberController.text.trim();
+
       await DatabaseService.updateUserProfile(
         existingUserProfile.copyWith(
           displayName: _fullNameController.text.trim(),
           email: _workEmailController.text.trim(),
           jobTitle: _selectedJobTitle ?? '',
           department: _selectedDepartment ?? '',
-          phoneNumber: _phoneNumberController.text.trim(),
+          phoneNumber: phoneNumber,
           profilePhotoUrl: _profilePhotoUrl, // Pass the profile photo URL
           skills: _skills.toList(),
           developmentAreas: _developmentAreas.toList(),
@@ -329,6 +334,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           celebrationConsent: _celebrationConsent ?? 'private',
         ),
       );
+
+      // Also save phone number to onboarding collection
+      await DatabaseService.updateOnboardingPhoneNumber(
+        userId: user.uid,
+        email: user.email,
+        phoneNumber: phoneNumber,
+      );
+
       await _loadUserProfile();
       if (showDialog) {
         _showProfileSavedDialog(
@@ -589,6 +602,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white10,
                           foregroundColor: Colors.white,
+                          side: const BorderSide(
+                            color: Color.fromARGB(51, 255, 255, 255),
+                          ),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 8,
@@ -942,24 +958,51 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
 
             // Action Buttons
             Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  _saveProfile();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFC10D00),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: AnimatedScale(
+                  scale: _saveButtonScale,
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
+                  child: Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(28),
+                      color: const Color(0xFFC10D00),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFC10D00).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextButton(
+                      onPressed: () async {
+                        // Pop-out animation
+                        setState(() {
+                          _saveButtonScale = 1.1;
+                        });
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        setState(() {
+                          _saveButtonScale = 1.0;
+                        });
+                        // Save profile after animation
+                        _saveProfile();
+                      },
+                      child: const Text(
+                        'Save Profile',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Poppins',
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-                child: const Text(
-                  'Save Profile',
-                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ),

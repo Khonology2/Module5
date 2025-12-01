@@ -261,83 +261,81 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  StreamBuilder<List<Alert>>(
-                    stream: AlertService.getUserAlertsStream(user.uid),
-                    builder: (context, alertsSnapshot) {
-                      if (alertsSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
-                            ),
-                          ),
-                        );
-                      }
-
-                      if (alertsSnapshot.hasError) {
-                        final errorMessage = alertsSnapshot.error.toString();
-
-                        // Check if it's a permission error
-                        if (errorMessage.contains('permission-denied') ||
-                            errorMessage.contains(
-                              'Missing or insufficient permissions',
-                            )) {
-                          return _buildPermissionErrorState();
-                        }
-
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: AppColors.dangerColor,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Error loading alerts',
-                                style: AppTypography.heading4.copyWith(
-                                  color: AppColors.textPrimary,
+                  FutureBuilder<bool>(
+                    future: _isProfileIncomplete(),
+                    builder: (context, profileSnapshot) {
+                      return StreamBuilder<List<Alert>>(
+                        stream: AlertService.getUserAlertsStream(user.uid),
+                        builder: (context, alertsSnapshot) {
+                          if (alertsSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.activeColor,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Please try again later',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final alerts = alertsSnapshot.data ?? [];
-                      // Filter: hide overdue goal alerts in this view
-                      final filtered = alerts
-                          .where((a) => a.type != AlertType.goalOverdue)
-                          .toList();
-
-                      // Check if profile is incomplete and add alert
-                      return FutureBuilder<bool>(
-                        future: _isProfileIncomplete(),
-                        builder: (context, profileSnapshot) {
-                          final List<Alert> alertsToShow = List.from(filtered);
-                          
-                          if (profileSnapshot.hasData && profileSnapshot.data == true) {
-                            final profileAlert = _buildProfileIncompleteAlert();
-                            if (profileAlert != null) {
-                              // Add profile incomplete alert at the beginning
-                              alertsToShow.insert(0, profileAlert);
-                            }
+                            );
                           }
+
+                          if (alertsSnapshot.hasError) {
+                            final errorMessage = alertsSnapshot.error.toString();
+
+                            // Check if it's a permission error
+                            if (errorMessage.contains('permission-denied') ||
+                                errorMessage.contains(
+                                  'Missing or insufficient permissions',
+                                )) {
+                              return _buildPermissionErrorState();
+                            }
+
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    size: 48,
+                                    color: AppColors.dangerColor,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Error loading alerts',
+                                    style: AppTypography.heading4.copyWith(
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Please try again later',
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final alerts = alertsSnapshot.data ?? [];
+                          // Filter: hide overdue goal alerts in this view
+                          final filtered = alerts
+                              .where((a) => a.type != AlertType.goalOverdue)
+                              .toList();
+
+                          // Add profile incomplete alert if profile is incomplete
+                          final isIncomplete = profileSnapshot.data ?? false;
+                          final allAlerts = isIncomplete
+                              ? [
+                                  _buildProfileIncompleteAlert()!,
+                                  ...filtered,
+                                ]
+                              : filtered;
 
                           return Column(
                             children: [
-                              _buildAlertSummary(alertsToShow),
+                              _buildAlertSummary(allAlerts),
                               const SizedBox(height: AppSpacing.lg),
                               _buildPredictiveRiskAlerts(),
                               const SizedBox(height: AppSpacing.lg),
@@ -352,7 +350,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                   ),
                                   ElevatedButton.icon(
                                     onPressed: () =>
-                                        _showAIChatAssistant(context, alertsToShow),
+                                        _showAIChatAssistant(context, allAlerts),
                                     icon: const Icon(
                                       Icons.chat_bubble_outline,
                                       size: 18,
@@ -365,12 +363,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                                         horizontal: 16,
                                         vertical: 12,
                                       ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.md),
-                              _buildAlertsList(alertsToShow),
+                              _buildAlertsList(allAlerts),
                             ],
                           );
                         },
@@ -769,6 +770,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
             ),
           ),
         ],
@@ -1880,6 +1884,9 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
             ),
           ),
         ],
