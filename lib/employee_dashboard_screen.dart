@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/widgets/notifications_bell.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
@@ -23,6 +24,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -608,7 +610,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/employee_dashboard',
-      topRightAction: _profileButton(context),
+      topRightAction: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const NotificationsBell(),
+          const SizedBox(width: 8),
+          _profileButton(context),
+        ],
+      ),
       tutorialStepIndex: tutorialStep,
       sidebarTutorialKeys: tutorialKeys,
       onTutorialNext: onTutorialNext,
@@ -688,7 +697,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                                 );
                               },
                               icon: const Icon(Icons.add),
-                              label: const Text('Create Your First Goal'),
+                              label: Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).employee_create_first_goal,
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.activeColor,
                               ),
