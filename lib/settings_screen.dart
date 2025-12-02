@@ -1043,13 +1043,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('appLocale', selectedCode);
-    await prefs.setString('languageCode', locale.languageCode);
-    if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-      await prefs.setString('countryCode', locale.countryCode!);
-    } else {
-      await prefs.remove('countryCode');
-    }
-
     appLocaleNotifier.value = locale;
   }
 

@@ -147,16 +147,28 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initializeLocale() async {
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString('appLocale');
+
+    Locale resolvedLocale;
     if (code == null || code.isEmpty) {
-      appLocaleNotifier.value = const Locale('en', 'ZA');
-      return;
-    }
-    final parts = code.split('_');
-    if (parts.length == 2) {
-      appLocaleNotifier.value = Locale(parts[0], parts[1]);
+      // If no explicit app locale is stored yet, prefer the device locale
+      // when it is supported; otherwise fall back to English (South Africa).
+      final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
+      final supported = AppLocalizations.supportedLocales;
+      resolvedLocale = supported.firstWhere(
+        (l) =>
+            l.languageCode == deviceLocale.languageCode &&
+            (l.countryCode == null ||
+                l.countryCode == deviceLocale.countryCode),
+        orElse: () => const Locale('en', 'ZA'),
+      );
     } else {
-      appLocaleNotifier.value = Locale(code);
+      final parts = code.split('_');
+      resolvedLocale = parts.length == 2
+          ? Locale(parts[0], parts[1])
+          : Locale(parts[0]);
     }
+
+    appLocaleNotifier.value = resolvedLocale;
   }
 
   @override
@@ -187,6 +199,28 @@ class _MyAppState extends State<MyApp> {
                 DefaultMaterialLocalizations.delegate,
               ],
               supportedLocales: AppLocalizations.supportedLocales,
+              localeResolutionCallback: (deviceLocale, supportedLocales) {
+                // If a specific app locale has been chosen, always honor it.
+                if (locale != null) {
+                  return locale;
+                }
+
+                if (deviceLocale == null) {
+                  return supportedLocales.first;
+                }
+
+                for (final supportedLocale in supportedLocales) {
+                  if (supportedLocale.languageCode ==
+                          deviceLocale.languageCode &&
+                      (supportedLocale.countryCode == null ||
+                          supportedLocale.countryCode ==
+                              deviceLocale.countryCode)) {
+                    return supportedLocale;
+                  }
+                }
+
+                return supportedLocales.first;
+              },
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
                 return FocusTraversalGroup(
