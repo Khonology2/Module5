@@ -1324,8 +1324,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   int _computeSmartTotal() {
-    if (!_smartScoresGenerated)
+    if (!_smartScoresGenerated) {
       return 0; // Return 0 if scores haven't been generated
+    }
     return _clarity + _measurability + _achievability + _relevance + _timeline;
   }
 

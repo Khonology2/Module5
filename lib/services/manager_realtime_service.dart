@@ -741,7 +741,7 @@ class ManagerRealtimeService {
 
   // Stream real-time team data based on current manager
   static const int _initialEmployeeLimit =
-      12; // lower cap for faster first paint; lazy-enrich later
+      1000; // Increased limit to show all employees for managers
 
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -907,8 +907,9 @@ class ManagerRealtimeService {
             final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
             final activeAlerts = rawAlerts.where((a) {
               if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now))
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
                 return false;
+              }
               return true;
             }).toList();
             final employeeData = await _buildEmployeeData(
@@ -926,8 +927,9 @@ class ManagerRealtimeService {
             final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
             final activeAlerts = rawAlerts.where((a) {
               if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now))
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
                 return false;
+              }
               return true;
             }).toList();
             final employeeData = await _buildEmployeeData(
