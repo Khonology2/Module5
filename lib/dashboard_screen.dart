@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -136,7 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton.icon(
             onPressed: _loadEmployeeData,
             icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
-            label: const Text('Refresh Data'),
+            label: Text(AppLocalizations.of(context).dashboard_refresh_data),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFC10D00),
               foregroundColor: Colors.white,

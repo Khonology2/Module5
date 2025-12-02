@@ -27,6 +27,7 @@ import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
+import 'package:pdh/widgets/notifications_bell.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
@@ -171,12 +172,16 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                     onNavigate: _onNavigate,
                     currentRouteName: _currentRoute,
                     onLogout: _onLogout,
-                    tutorialStepIndex: _shouldShowTutorial ? _currentTutorialStep : null,
+                    tutorialStepIndex: _shouldShowTutorial
+                        ? _currentTutorialStep
+                        : null,
                     sidebarTutorialKeys:
                         _shouldShowTutorial && _sidebarTutorialKeys.isNotEmpty
                         ? _sidebarTutorialKeys
                         : null,
-                    onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
+                    onTutorialNext: _shouldShowTutorial
+                        ? _moveToNextTutorialStep
+                        : null,
                     onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
                   ),
                   Expanded(child: _getBodyWidget()),
@@ -185,7 +190,18 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
             ),
           ),
           // Profile button positioned in top-right corner
-          Positioned(top: 16, right: 16, child: _buildProfileButton(context)),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const NotificationsBell(),
+                const SizedBox(width: 8),
+                _buildProfileButton(context),
+              ],
+            ),
+          ),
         ],
       ),
     );

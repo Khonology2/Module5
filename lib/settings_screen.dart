@@ -12,6 +12,7 @@ import 'package:pdh/services/notification_service.dart' as notif;
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/main.dart' show appLocaleNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -340,25 +341,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Language',
           value: _normalizeLanguage(settings.language),
           items: const [
-            DropdownMenuItem<String>(value: 'en_ZA', child: Text('English (South Africa)')),
+            DropdownMenuItem<String>(
+              value: 'en_ZA',
+              child: Text('English (South Africa)'),
+            ),
             DropdownMenuItem<String>(value: 'af', child: Text('Afrikaans')),
             DropdownMenuItem<String>(value: 'zu', child: Text('isiZulu')),
-            DropdownMenuItem<String>(value: 'xh', child: Text('isiXhosa')),
-            DropdownMenuItem<String>(value: 'nr', child: Text('isiNdebele')),
-            DropdownMenuItem<String>(value: 'nso', child: Text('Sepedi (Northern Sotho)')),
-            DropdownMenuItem<String>(value: 'st', child: Text('Sesotho (Southern Sotho)')),
-            DropdownMenuItem<String>(value: 'tn', child: Text('Setswana (Tswana)')),
-            DropdownMenuItem<String>(value: 'ss', child: Text('siSwati (Swati)')),
-            DropdownMenuItem<String>(value: 've', child: Text('Tshivenda (Venda)')),
-            DropdownMenuItem<String>(value: 'ts', child: Text('Xitsonga (Tsonga)')),
+            DropdownMenuItem<String>(value: 'st', child: Text('Sotho')),
           ],
           onChanged: (value) {
             if (value != null) {
               _updateSetting('language', value);
               _onLanguageChanged(value);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Language updated')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Language updated')));
             }
           },
         ),
@@ -570,7 +567,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: OutlinedButton.icon(
             onPressed: _exportUserData,
             icon: const Icon(Icons.download),
-            label: const Text('Export My Data'),
+            label: Text(AppLocalizations.of(context).export_my_data),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFFC10D00),
               side: const BorderSide(color: Color(0xFFC10D00)),
@@ -700,16 +697,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _onLanguageChanged(String selectedCode) async {
     final parts = selectedCode.split('_');
-    final locale = parts.length == 2 ? Locale(parts[0], parts[1]) : Locale(parts[0]);
+    final locale = parts.length == 2
+        ? Locale(parts[0], parts[1])
+        : Locale(parts[0]);
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('languageCode', locale.languageCode);
-    if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-      await prefs.setString('countryCode', locale.countryCode!);
-    } else {
-      await prefs.remove('countryCode');
-    }
-
+    await prefs.setString('appLocale', selectedCode);
     appLocaleNotifier.value = locale;
   }
 

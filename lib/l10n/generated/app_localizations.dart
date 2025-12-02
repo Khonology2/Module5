@@ -1227,6 +1227,138 @@ abstract class AppLocalizations {
   /// **'Exit'**
   String get employee_drawer_exit;
 
+  /// No description provided for @nav_dashboard.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Dashboard'**
+  String get nav_dashboard;
+
+  /// No description provided for @nav_goal_workspace.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Goal Workspace'**
+  String get nav_goal_workspace;
+
+  /// No description provided for @nav_my_profile.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'My Profile'**
+  String get nav_my_profile;
+
+  /// No description provided for @nav_my_pdp.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'MyPdp'**
+  String get nav_my_pdp;
+
+  /// No description provided for @nav_progress_visuals.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Progress Visuals'**
+  String get nav_progress_visuals;
+
+  /// No description provided for @nav_alerts_nudges.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Alerts & Nudges'**
+  String get nav_alerts_nudges;
+
+  /// No description provided for @nav_badges_points.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Badges & Points'**
+  String get nav_badges_points;
+
+  /// No description provided for @nav_season_challenges.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Season Challenges'**
+  String get nav_season_challenges;
+
+  /// No description provided for @nav_leaderboard.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Leaderboard'**
+  String get nav_leaderboard;
+
+  /// No description provided for @nav_repository_audit.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Repository & Audit'**
+  String get nav_repository_audit;
+
+  /// No description provided for @nav_settings_privacy.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Settings & Privacy'**
+  String get nav_settings_privacy;
+
+  /// No description provided for @nav_team_challenges.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Team Challenges'**
+  String get nav_team_challenges;
+
+  /// No description provided for @nav_team_alerts_nudges.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Team Alerts & Nudges'**
+  String get nav_team_alerts_nudges;
+
+  /// No description provided for @nav_manager_inbox.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Inbox'**
+  String get nav_manager_inbox;
+
+  /// No description provided for @nav_review_team.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Review Team'**
+  String get nav_review_team;
+
+  /// No description provided for @nav_admin_dashboard.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Admin Dashboard'**
+  String get nav_admin_dashboard;
+
+  /// No description provided for @nav_user_management.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'User Management'**
+  String get nav_user_management;
+
+  /// No description provided for @nav_analytics.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Analytics'**
+  String get nav_analytics;
+
+  /// No description provided for @nav_system_settings.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'System Settings'**
+  String get nav_system_settings;
+
+  /// No description provided for @nav_security.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Security'**
+  String get nav_security;
+
+  /// No description provided for @nav_backup_restore.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Backup & Restore'**
+  String get nav_backup_restore;
+
+  /// No description provided for @employee_portal_title.
+  ///
+  /// In en_ZA, this message translates to:
+  /// **'Employee Portal'**
+  String get employee_portal_title;
+
   /// No description provided for @progress_visuals_error_loading_user_data.
   ///
   /// In en_ZA, this message translates to:
