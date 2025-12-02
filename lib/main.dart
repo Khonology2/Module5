@@ -34,6 +34,7 @@ import 'package:pdh/ai_chatbot.dart'
     hide ChatMessage; // Import the new AI Chatbot screen
 import 'package:pdh/services/speech_recognition_service.dart'; // Import the speech recognition service
 import 'package:pdh/team_chats.dart';
+import 'package:pdh/widgets/khonnect_chat_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import 'package:pdh/design_system/app_theme.dart'; // Import the reload_system theme
 import 'package:pdh/team_goals_screen.dart'; // Added import for team goals screen
@@ -46,6 +47,8 @@ import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScre
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -58,6 +61,10 @@ final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(
 // Add a ValueNotifier for speech recognition status
 final ValueNotifier<String?> speechRecognitionStatusNotifier =
     ValueNotifier<String?>(null);
+
+// Global locale notifier for runtime language changes
+// Global notifier used by Settings screen to trigger locale changes
+final ValueNotifier<Locale?> appLocaleNotifier = ValueNotifier<Locale?>(null);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,6 +121,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initializeSpeechRecognition();
+    _initializeLocale(); // Load persisted language
     _speechRecognitionService.speechCommands.listen((command) {
       speechRecognitionStatusNotifier.value = 'Recognized: $command';
       // Implement navigation logic here later
@@ -136,6 +144,21 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _initializeLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString('appLocale');
+    if (code == null || code.isEmpty) {
+      appLocaleNotifier.value = const Locale('en', 'ZA');
+      return;
+    }
+    final parts = code.split('_');
+    if (parts.length == 2) {
+      appLocaleNotifier.value = Locale(parts[0], parts[1]);
+    } else {
+      appLocaleNotifier.value = Locale(code);
+    }
+  }
+
   @override
   void dispose() {
     _speechRecognitionService.dispose();
@@ -146,17 +169,24 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return ShowCaseWidget(
       builder: (context) => _GlobalChatbotWrapper(
-        currentRouteNotifier: currentRouteNotifier, // Pass the ValueNotifier
-        child: Stack(
-          fit: StackFit.expand,
-          textDirection: TextDirection.ltr,
-          children: [
-            MaterialApp(
-              navigatorKey:
-                  navigatorKey, // Assign the global key to MaterialApp
+        currentRouteNotifier: currentRouteNotifier,
+        child: ValueListenableBuilder<Locale?>(
+          valueListenable: appLocaleNotifier,
+          builder: (context, locale, _) {
+            return MaterialApp(
+              navigatorKey: navigatorKey,
               title: 'Personal Development Hub',
               theme: AppTheme.darkTheme,
               initialRoute: '/landing',
+              locale: locale,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+                DefaultMaterialLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
                 return FocusTraversalGroup(
@@ -166,8 +196,7 @@ class _MyAppState extends State<MyApp> {
               },
               routes: {
                 '/landing': (context) => const PersonalDevelopmentHubScreen(),
-                '/': (context) =>
-                    const AuthWrapper(), // Set the root route to AuthWrapper
+                '/': (context) => const AuthWrapper(),
                 '/register': (context) => const RegisterScreen(),
                 '/sign_in': (context) => const LoginScreen(),
                 '/my_pdp': (context) => RoleGate(
@@ -226,7 +255,6 @@ class _MyAppState extends State<MyApp> {
                   requiredRole: RequiredRole.manager,
                   child: const ManagerLeaderboardScreen(),
                 ),
-                // Map legacy employee_portal route to the dashboard to remove the old portal screen
                 '/employee_portal': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
                   child: const EmployeeDashboardScreen(),
@@ -309,8 +337,7 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ),
                 ),
-                '/ai_chatbot': (context) =>
-                    const AiChatbotScreen(), // Add the new AI Chatbot route
+                '/ai_chatbot': (context) => const AiChatbotScreen(),
                 '/team_chats': (context) => const TeamChatsScreen(),
                 '/team_management': (context) => RoleGate(
                   requiredRole: RequiredRole.manager,
@@ -323,47 +350,11 @@ class _MyAppState extends State<MyApp> {
                     ),
                   ),
                 ),
-                // Goal Proof route removed
               },
               debugShowCheckedModeBanner: false,
-              // Add the custom NavigatorObserver
               navigatorObservers: [MyNavigatorObserver()],
-            ),
-            // Speech recognition feedback overlay
-            ValueListenableBuilder<String?>(
-              valueListenable: speechRecognitionStatusNotifier,
-              builder: (context, status, child) {
-                if (status == null) {
-                  return const SizedBox.shrink();
-                }
-                return Positioned(
-                  top: 50,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.mic, color: Colors.white),
-                          const SizedBox(width: 8.0),
-                          Text(
-                            status,
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -540,7 +531,12 @@ class _TeamChatButtonState extends State<TeamChatButton> {
               hoverColor: Colors.transparent,
               focusColor: Colors.transparent,
               onTap: () {
-                navigatorKey.currentState?.pushNamed('/team_chats');
+                // Use the MaterialApp navigator context so we have
+                // proper Navigator + MaterialLocalizations ancestors
+                final navContext = navigatorKey.currentContext;
+                if (navContext != null) {
+                  showKhonnectChatModal(navContext);
+                }
               },
               borderRadius: BorderRadius.circular(28.0),
               child: Container(

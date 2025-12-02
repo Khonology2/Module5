@@ -10,6 +10,7 @@ import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
+import 'package:pdh/widgets/notifications_bell.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
 /// application pages. It reuses the dashboard's sidebar and visuals.
@@ -71,7 +72,14 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: currentRouteName,
-      topRightAction: _ProfileButton(),
+      topRightAction: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const NotificationsBell(),
+          const SizedBox(width: 8),
+          _ProfileButton(),
+        ],
+      ),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys:
           tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
