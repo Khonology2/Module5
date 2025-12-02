@@ -102,10 +102,30 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     BuildContext context, {
     required bool isStartDate,
   }) async {
+    // For Target Date (End Date), restrict selection to dates after Start Date
+    DateTime? firstDate;
+    DateTime? initialDate;
+
+    if (!isStartDate && _startDate != null) {
+      // End date must be after start date - set firstDate to the day after start date
+      firstDate = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+      ).add(const Duration(days: 1));
+      // Set initial date to be a reasonable default after start date
+      initialDate = firstDate.isBefore(DateTime.now())
+          ? DateTime.now()
+          : firstDate;
+    } else {
+      firstDate = DateTime(2000);
+      initialDate = DateTime.now();
+    }
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
+      initialDate: initialDate,
+      firstDate: firstDate,
       lastDate: DateTime(2101),
       builder: (BuildContext context, Widget? child) {
         return Theme(
@@ -128,6 +148,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       setState(() {
         if (isStartDate) {
           _startDate = picked;
+          // If target date is already set and is before or equal to the new start date,
+          // clear it so user must select a new target date
+          if (_targetDate != null && !_targetDate!.isAfter(picked)) {
+            _targetDate = null;
+          }
         } else {
           _targetDate = picked;
         }
