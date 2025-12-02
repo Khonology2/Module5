@@ -995,10 +995,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildQuickStats() {
     // Calculate real stats from user data
+    // Only count approved goals as active (pending/rejected goals should not appear)
     final activeGoals = userGoals
         .where(
           (goal) =>
-              (goal.status != GoalStatus.completed) && (goal.progress < 100),
+              goal.approvalStatus == GoalApprovalStatus.approved &&
+              (goal.status != GoalStatus.completed) &&
+              (goal.progress < 100),
         )
         .length;
     final completedGoals = userGoals

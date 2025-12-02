@@ -25,16 +25,11 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     _redirectIfManagerStandalone();
   }
 
-  
-
   Widget _buildEmptyState() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: const [
-        Icon(
-          Icons.trending_up_outlined,
-          color: AppColors.textSecondary,
-        ),
+        Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
         SizedBox(height: 8),
         Text(
           'No opted-in employees found',
@@ -43,10 +38,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         SizedBox(height: 4),
         Text(
           'Ask your team to enable Leaderboard Participation',
-          style: TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -89,10 +81,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.dangerColor,
-                ),
+                const Icon(Icons.error_outline, color: AppColors.dangerColor),
                 const SizedBox(height: 8),
                 const Text(
                   'Failed to load leaderboard',
@@ -113,7 +102,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
         // Prefer live data, otherwise show last cached team to avoid spinners
         final raw = snapshot.data ?? _lastTeam;
-        var team = raw.where((e) => e.profile.leaderboardOptin == true).toList();
+        // Managers see all employees, not just those who opted in
+        var team = raw.toList();
 
         // Sort by metric
         team.sort((a, b) {
@@ -132,7 +122,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           _lastTeam = team;
         }
 
-        if (team.isEmpty && (snapshot.connectionState == ConnectionState.waiting)) {
+        if (team.isEmpty &&
+            (snapshot.connectionState == ConnectionState.waiting)) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -181,9 +172,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         backgroundColor: AppColors.backgroundColor,
         title: Text(
           'Manager Leaderboard',
-          style: AppTypography.heading2.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
         ),
         centerTitle: false,
       ),
@@ -235,9 +224,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               children: [
                 Text(
                   'Top Team Performers',
-                  style: AppTypography.heading2.copyWith(
-                    color: Colors.white,
-                  ),
+                  style: AppTypography.heading2.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -303,7 +290,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.35),
@@ -393,12 +382,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
       child: Row(
         children: [
           CircleAvatar(
@@ -429,10 +418,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   e.profile.department,
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
                 ),
               ],
             ),
