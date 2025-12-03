@@ -470,6 +470,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildFieldLabel(String label) {
     return Text(
       label,

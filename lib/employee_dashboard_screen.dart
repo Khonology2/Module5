@@ -57,7 +57,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       if (user != null) {
         final streak = await StreakService.getCurrentStreak(user.uid);
         final activityToday = await StreakService.hasActivityToday(user.uid);
-        
+
         if (mounted) {
           setState(() {
             currentStreak = streak;
@@ -89,7 +89,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
     super.dispose();
   }
-
 
   Future<void> _loadUserData() async {
     try {
@@ -183,7 +182,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       "Success is the sum of small efforts repeated day in and day out.",
       "The only way to do great work is to love what you do.",
     ];
-    
+
     // Use day of year to get consistent daily motivation
     final dayOfYear = DateTime.now()
         .difference(DateTime(DateTime.now().year, 1, 1))
@@ -215,8 +214,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       content: FocusTraversalGroup(
         policy: WidgetOrderTraversalPolicy(),
         child: AppComponents.backgroundWithImage(
-          imagePath:
-              'assets/khono_bg.png',
+          imagePath: 'assets/khono_bg.png',
           child: StreamBuilder<UserProfile?>(
             stream: _getUserProfileStream(),
             builder: (context, profileSnapshot) {
@@ -241,84 +239,84 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     final error = profileSnapshot.error ?? goalsSnapshot.error;
                     final errorMessage = error.toString();
 
-                  // Check if it's a Firestore index error
-                  if (errorMessage.contains('failed-precondition') ||
-                      errorMessage.contains('index')) {
+                    // Check if it's a Firestore index error
+                    if (errorMessage.contains('failed-precondition') ||
+                        errorMessage.contains('index')) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 64,
+                              color: AppColors.warningColor,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Setting up your dashboard...',
+                              style: AppTypography.heading4,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'This is your first time using the app. Let\'s get you started!',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/my_goal_workspace',
+                                );
+                              },
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create Your First Goal'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.activeColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.info_outline,
+                            Icons.error_outline,
                             size: 64,
-                            color: AppColors.warningColor,
+                            color: AppColors.dangerColor,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Setting up your dashboard...',
+                            'Error loading dashboard',
                             style: AppTypography.heading4,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'This is your first time using the app. Let\'s get you started!',
+                            'Please try again in a moment',
                             style: AppTypography.bodyMedium.copyWith(
                               color: AppColors.textSecondary,
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 16),
-                          ElevatedButton.icon(
+                          ElevatedButton(
                             onPressed: () {
-                              Navigator.pushNamed(
-                                context,
-                                '/my_goal_workspace',
-                              );
+                              setState(
+                                () {},
+                              ); // Trigger rebuild to restart streams
                             },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Create Your First Goal'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.activeColor,
-                            ),
+                            child: const Text('Retry'),
                           ),
                         ],
                       ),
                     );
                   }
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: AppColors.dangerColor,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading dashboard',
-                          style: AppTypography.heading4,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Please try again in a moment',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(
-                              () {},
-                            ); // Trigger rebuild to restart streams
-                          },
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
 
                   // Update local state with latest (or fallback) data
                   userProfile = effectiveProfile;
@@ -379,9 +377,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -401,7 +399,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Widget _buildWelcomeCard() {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
-    
+
     // Use userProfile data if available, otherwise fallback to Firebase Auth
     if (userProfile?.displayName != null &&
         userProfile!.displayName.isNotEmpty) {
@@ -501,8 +499,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              AppColors.activeColor.withOpacity(0.1),
-              AppColors.warningColor.withOpacity(0.1),
+              AppColors.activeColor.withValues(alpha: 0.1),
+              AppColors.warningColor.withValues(alpha: 0.1),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -1013,12 +1011,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   decoration: BoxDecoration(
                     color: _getPriorityColor(
                       goal.priority,
-                    ).withOpacity(0.1),
+                    ).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _getPriorityColor(
                         goal.priority,
-                      ).withOpacity(0.3),
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(

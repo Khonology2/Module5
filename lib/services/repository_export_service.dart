@@ -1,13 +1,24 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:js_interop' show JSArray;
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:pdh/models/repository_goal.dart';
 
 class RepositoryExportService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Helper to create JSArray<BlobPart> from Uint8List
+  static JSArray<web.BlobPart> _createBlobPartsArray(List<Uint8List> parts) {
+    // Uint8List is automatically interop-able as BlobPart
+    // Use JSArray constructor with list conversion
+    // Note: This uses an unsafe cast but is necessary for web interop
+    // ignore: invalid_runtime_check_with_js_interop_types
+    return parts as JSArray<web.BlobPart>;
+  }
 
   static Future<List<RepositoryGoal>> _fetchGoals(String userId) async {
     final snap = await _firestore
@@ -49,9 +60,7 @@ class RepositoryExportService {
         .limit(limit);
 
     final snap = await query.get();
-    var items = snap.docs
-        .map((d) => d.data() as Map<String, dynamic>)
-        .toList();
+    var items = snap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
 
     // Client-side filters to match UI
     if (search != null && search.trim().isNotEmpty) {
@@ -81,7 +90,9 @@ class RepositoryExportService {
     }
 
     if (minScore != null) {
-      items = items.where((m) => ((m['score'] as num?)?.toDouble() ?? 0) >= minScore).toList();
+      items = items
+          .where((m) => ((m['score'] as num?)?.toDouble() ?? 0) >= minScore)
+          .toList();
     }
 
     return items;
@@ -107,34 +118,44 @@ class RepositoryExportService {
       );
 
       for (final m in items) {
-        final completed = (m['completedDate'] as Timestamp?)?.toDate().toIso8601String() ?? '';
-        final submitted = (m['submittedDate'] as Timestamp?)?.toDate().toIso8601String() ?? '';
+        final completed =
+            (m['completedDate'] as Timestamp?)?.toDate().toIso8601String() ??
+            '';
+        final submitted =
+            (m['submittedDate'] as Timestamp?)?.toDate().toIso8601String() ??
+            '';
         final title = (m['goalTitle'] ?? '').toString().replaceAll(',', ' ');
         final comments = (m['comments'] ?? '').toString().replaceAll(',', ' ');
         final evidence = (m['evidence'] as List<dynamic>? ?? []);
-        buffer.writeln([
-          m['userId'] ?? '',
-          (m['userDisplayName'] ?? '').toString().replaceAll(',', ' '),
-          (m['userDepartment'] ?? '').toString().replaceAll(',', ' '),
-          m['goalId'] ?? '',
-          title,
-          completed,
-          submitted,
-          (m['score'] as num?)?.toStringAsFixed(2) ?? '',
-          m['acknowledgedBy'] ?? '',
-          evidence.length.toString(),
-          comments,
-        ].join(','));
+        buffer.writeln(
+          [
+            m['userId'] ?? '',
+            (m['userDisplayName'] ?? '').toString().replaceAll(',', ' '),
+            (m['userDepartment'] ?? '').toString().replaceAll(',', ' '),
+            m['goalId'] ?? '',
+            title,
+            completed,
+            submitted,
+            (m['score'] as num?)?.toStringAsFixed(2) ?? '',
+            m['acknowledgedBy'] ?? '',
+            evidence.length.toString(),
+            comments,
+          ].join(','),
+        );
       }
 
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final blobParts = _createBlobPartsArray([bytes]);
+      final blob = web.Blob(blobParts, web.BlobPropertyBag(type: 'text/csv'));
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
+      web.URL.revokeObjectURL(url);
 
       developer.log('Manager verified CSV export downloaded: $fileName');
     } catch (e) {
@@ -164,10 +185,14 @@ class RepositoryExportService {
       for (final m in items) {
         final completed = (m['completedDate'] as Timestamp?)?.toDate();
         buffer.writeln('- ${m['goalTitle'] ?? ''}');
-        buffer.writeln('  Employee: ${(m['userDisplayName'] ?? '')} (${(m['userDepartment'] ?? '')})');
+        buffer.writeln(
+          '  Employee: ${(m['userDisplayName'] ?? '')} (${(m['userDepartment'] ?? '')})',
+        );
         buffer.writeln('  Goal ID: ${(m['goalId'] ?? '')}');
         buffer.writeln('  Completed: ${completed?.toIso8601String() ?? ''}');
-        buffer.writeln('  Score: ${(m['score'] as num?)?.toStringAsFixed(1) ?? '-'}');
+        buffer.writeln(
+          '  Score: ${(m['score'] as num?)?.toStringAsFixed(1) ?? '-'}',
+        );
         buffer.writeln('  Verified by: ${(m['acknowledgedBy'] ?? '-')}');
         final evidence = (m['evidence'] as List<dynamic>? ?? []);
         buffer.writeln('  Evidence count: ${evidence.length}');
@@ -175,13 +200,19 @@ class RepositoryExportService {
       }
 
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'evidence_verified_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final blob = web.Blob(
+        _createBlobPartsArray([bytes]),
+        web.BlobPropertyBag(type: 'application/pdf'),
+      );
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
+      web.URL.revokeObjectURL(url);
 
       developer.log('Manager verified PDF export downloaded: $fileName');
     } catch (e) {
@@ -223,14 +254,20 @@ class RepositoryExportService {
 
       // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'repository_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final blob = web.Blob(
+        _createBlobPartsArray([bytes]),
+        web.BlobPropertyBag(type: 'text/csv'),
+      );
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
-      
+      web.URL.revokeObjectURL(url);
+
       developer.log('CSV export downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting repository CSV: $e');
@@ -245,7 +282,9 @@ class RepositoryExportService {
           .collectionGroup('completedGoals')
           .orderBy('verifiedDate', descending: true)
           .get();
-      final goals = snap.docs.map((d) => RepositoryGoal.fromFirestore(d)).toList();
+      final goals = snap.docs
+          .map((d) => RepositoryGoal.fromFirestore(d))
+          .toList();
 
       final buffer = StringBuffer();
       buffer.writeln(
@@ -256,31 +295,39 @@ class RepositoryExportService {
         final verified = g.verifiedDate?.toIso8601String() ?? '';
         final safeTitle = g.goalTitle.replaceAll(',', ' ');
         final safeComments = (g.comments ?? '').replaceAll(',', ' ');
-        buffer.writeln([
-          g.userId,
-          g.userDisplayName.replaceAll(',', ' '),
-          g.userDepartment.replaceAll(',', ' '),
-          g.goalId,
-          safeTitle,
-          completed,
-          verified,
-          g.score?.toStringAsFixed(2) ?? '',
-          g.managerAcknowledgedBy ?? '',
-          g.evidence.length.toString(),
-          safeComments,
-        ].join(','));
+        buffer.writeln(
+          [
+            g.userId,
+            g.userDisplayName.replaceAll(',', ' '),
+            g.userDepartment.replaceAll(',', ' '),
+            g.goalId,
+            safeTitle,
+            completed,
+            verified,
+            g.score?.toStringAsFixed(2) ?? '',
+            g.managerAcknowledgedBy ?? '',
+            g.evidence.length.toString(),
+            safeComments,
+          ].join(','),
+        );
       }
 
       // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.csv';
-      final blob = html.Blob([bytes], 'text/csv');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'repository_all_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final blob = web.Blob(
+        _createBlobPartsArray([bytes]),
+        web.BlobPropertyBag(type: 'text/csv'),
+      );
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
-      
+      web.URL.revokeObjectURL(url);
+
       developer.log('CSV export (all) downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting all repositories CSV: $e');
@@ -295,10 +342,14 @@ class RepositoryExportService {
           .collectionGroup('completedGoals')
           .orderBy('verifiedDate', descending: true)
           .get();
-      final goals = snap.docs.map((d) => RepositoryGoal.fromFirestore(d)).toList();
+      final goals = snap.docs
+          .map((d) => RepositoryGoal.fromFirestore(d))
+          .toList();
 
       final buffer = StringBuffer();
-      buffer.writeln('Personal Development Hub – Repository Export (All Users)');
+      buffer.writeln(
+        'Personal Development Hub – Repository Export (All Users)',
+      );
       buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
       buffer.writeln('');
       for (final g in goals) {
@@ -315,14 +366,20 @@ class RepositoryExportService {
 
       // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'repository_all_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'repository_all_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final blob = web.Blob(
+        _createBlobPartsArray([bytes]),
+        web.BlobPropertyBag(type: 'application/pdf'),
+      );
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
-      
+      web.URL.revokeObjectURL(url);
+
       developer.log('PDF export (all) downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting all repositories PDF: $e');
@@ -355,14 +412,20 @@ class RepositoryExportService {
 
       // Direct download instead of Firebase Storage
       final bytes = utf8.encode(buffer.toString());
-      final fileName = 'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final blob = html.Blob([bytes], 'application/pdf');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
+      final fileName =
+          'repository_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final blob = web.Blob(
+        _createBlobPartsArray([bytes]),
+        web.BlobPropertyBag(type: 'application/pdf'),
+      );
+      final url = web.URL.createObjectURL(blob);
+      // ignore: unused_local_variable
+      final anchor = web.HTMLAnchorElement()
+        ..href = url
         ..setAttribute('download', fileName)
         ..click();
-      html.Url.revokeObjectUrl(url);
-      
+      web.URL.revokeObjectURL(url);
+
       developer.log('PDF export downloaded: $fileName');
     } catch (e) {
       developer.log('Error exporting repository PDF: $e');

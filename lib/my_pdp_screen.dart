@@ -250,9 +250,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
+                color: Colors.green.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -363,9 +363,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,9 +505,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       color: Colors.transparent, // Ensure it's transparent
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -587,10 +587,10 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
               children: goals.map((goal) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
+                    color: Colors.black.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                   ),
                   child: Padding(
@@ -634,7 +634,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                               color: const Color(0xFF2A3441),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: Colors.green.withOpacity(0.3),
+                                color: Colors.green.withValues(alpha: 0.3),
                               ),
                             ),
                             child: Column(
@@ -785,8 +785,8 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                               ),
                               style: goal.evidence.isNotEmpty
                                   ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green.withOpacity(
-                                        0.1,
+                                      backgroundColor: Colors.green.withValues(
+                                        alpha: 0.1,
                                       ),
                                       foregroundColor: Colors.green,
                                       side: const BorderSide(
