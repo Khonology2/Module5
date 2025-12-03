@@ -1170,6 +1170,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
+  // ignore: unused_element
   Widget _buildBadgeCard(badge_model.Badge badge) {
     final isNewlyEarned = _newlyEarnedBadges.any((b) => b.id == badge.id);
 

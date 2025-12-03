@@ -78,37 +78,26 @@ class AppColors {
   // ===== UTILITY METHODS =====
   /// Get color with opacity
   static Color withOpacity(Color color, double opacity) {
-    return color.withOpacity(opacity);
+    return color.withValues(alpha: opacity);
   }
 
   /// Get success color with opacity
   static Color successWithOpacity(double opacity) {
-    return successColor.withOpacity(opacity);
+    return successColor.withValues(alpha: opacity);
   }
 
   /// Get warning color with opacity
   static Color warningWithOpacity(double opacity) {
-    return warningColor.withOpacity(opacity);
+    return warningColor.withValues(alpha: opacity);
   }
 
   /// Get danger color with opacity
   static Color dangerWithOpacity(double opacity) {
-    return dangerColor.withOpacity(opacity);
+    return dangerColor.withValues(alpha: opacity);
   }
 
   /// Get active color with opacity
   static Color activeWithOpacity(double opacity) {
-    return activeColor.withOpacity(opacity);
-  }
-}
-
-/// Backward compatibility for code that used `Color.withValues(alpha: ...)`.
-/// Flutter's `Color` does not have `withValues`; use `withOpacity` instead.
-extension ColorCompatibility on Color {
-  Color withValues({double? alpha}) {
-    if (alpha != null) {
-      return withOpacity(alpha);
-    }
-    return this;
+    return activeColor.withValues(alpha: opacity);
   }
 }

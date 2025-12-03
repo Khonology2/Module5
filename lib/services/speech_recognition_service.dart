@@ -1,10 +1,19 @@
 import 'dart:async';
-import 'dart:js_interop'; // Modern replacement for dart:js
-import 'package:web/web.dart' as web; // Modern replacement for dart:html
-import 'package:js/js_util.dart' as js_util; // Import for js_util
+import 'dart:js_interop';
+import 'package:web/web.dart' as web;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart' show visibleForTesting;
+
+@JSExport()
+extension type _WindowInterop(JSObject _) implements JSObject {
+  external JSAny? operator [](String key);
+  external void operator []=(String key, JSAny? value);
+}
+
+extension type _SpeechCommandFunction(JSFunction _) implements JSFunction {
+  external void callAsFunction([JSAny? arg]);
+}
 
 class SpeechRecognitionService {
   static final SpeechRecognitionService _instance = SpeechRecognitionService._internal();
@@ -15,15 +24,15 @@ class SpeechRecognitionService {
 
   SpeechRecognitionService._internal() {
     if (kIsWeb) {
-      // Use js_interop to expose a Dart function to JavaScript
-      js_util.setProperty(
-        web.window as JSAny,
-        'flutterSpeechCommand'.toJS,
-        ((JSString command) {
-          _commandController.add(command.toDart);
-        }).toJS,
-      );
+      // Expose Dart function to JavaScript using js_interop
+      final windowInterop = _WindowInterop(web.window as JSObject);
+      windowInterop['flutterSpeechCommand'] = _handleSpeechCommand.toJS;
     }
+  }
+
+  @JSExport('flutterSpeechCommand')
+  static void _handleSpeechCommand(JSString command) {
+    _instance._commandController.add(command.toDart);
   }
 
   final _commandController = StreamController<String>.broadcast();
@@ -31,13 +40,21 @@ class SpeechRecognitionService {
 
   void startSpeechRecognition() {
     if (kIsWeb) {
-      js_util.callMethod(web.window as JSAny, 'startSpeechRecognition'.toJS, []);
+      final windowInterop = _WindowInterop(web.window as JSObject);
+      final startFn = windowInterop['startSpeechRecognition'];
+      if (startFn != null && startFn.isA<JSFunction>()) {
+        _SpeechCommandFunction(startFn as JSFunction).callAsFunction();
+      }
     }
   }
 
   void stopSpeechRecognition() {
     if (kIsWeb) {
-      js_util.callMethod(web.window as JSAny, 'stopSpeechRecognition'.toJS, []);
+      final windowInterop = _WindowInterop(web.window as JSObject);
+      final stopFn = windowInterop['stopSpeechRecognition'];
+      if (stopFn != null && stopFn.isA<JSFunction>()) {
+        _SpeechCommandFunction(stopFn as JSFunction).callAsFunction();
+      }
     }
   }
 

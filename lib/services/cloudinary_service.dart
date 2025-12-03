@@ -6,7 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 class CloudinaryService {
   // Cloudinary configuration - you'll need to get these from your Cloudinary dashboard
   static const String _cloudName = 'dj7phyugw'; // Replace with your cloud name
+  // ignore: unused_field
   static const String _apiKey = '946333512921255'; // Replace with your API key
+  // ignore: unused_field
   static const String _apiSecret = '2d_4NtGANso3Cdn2X_KFDAdR-Zk'; // Replace with your API secret
   static const String _uploadPreset = 'evidence_upload'; // Replace with your upload preset
 
