@@ -159,7 +159,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                     final bool showProfileIndicator =
                         (it.route == '/my_profile' ||
                             it.route == '/manager_profile') &&
-                        (_isProfileIncomplete == true);
+                        _isProfileIncomplete;
 
                         final navTile = _NavTile(
                           icon: it.icon,
@@ -608,7 +608,29 @@ class _NavTileState extends State<_NavTile> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: isCollapsed
-                  ? Center(child: _buildIcon(isSelected))
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _buildIcon(isSelected),
+                        if (widget.showProfileIndicator)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: AppColors.activeColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.backgroundColor,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // If there isn't enough width to safely render icon + label,
@@ -638,6 +660,14 @@ class _NavTileState extends State<_NavTile> {
                                 softWrap: false,
                               ),
                             ),
+                            if (widget.showProfileIndicator) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.error,
+                                size: 16,
+                                color: AppColors.activeColor,
+                              ),
+                            ],
                           ],
                         );
                       },
