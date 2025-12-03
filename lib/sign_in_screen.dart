@@ -48,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSigningIn = false;
+  String? _lastRememberedEmail;
 
   final microsoftProvider = MicrosoftAuthProvider();
   final githubProvider = GithubAuthProvider();
@@ -74,11 +75,35 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
       final prefs = await SharedPreferences.getInstance();
       final lastEmail = prefs.getString('lastLoginEmail');
       if (lastEmail != null && lastEmail.isNotEmpty && mounted) {
+        _lastRememberedEmail = lastEmail;
         _emailController.text = lastEmail;
       }
     } catch (_) {
       // Ignore failures; login still works without remembered email
     }
+  }
+
+  Future<void> _applyRememberedEmail() async {
+    if (_lastRememberedEmail == null || _lastRememberedEmail!.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final lastEmail = prefs.getString('lastLoginEmail');
+        if (lastEmail != null && lastEmail.isNotEmpty) {
+          _lastRememberedEmail = lastEmail;
+        }
+      } catch (_) {
+        // Ignore; we'll just show a message below
+      }
+    }
+
+    if (_lastRememberedEmail == null || _lastRememberedEmail!.isEmpty) {
+      await _showCenterNotice(
+        'We couldn\'t find a saved email for this device yet. Please sign in once so we can remember it.',
+      );
+      return;
+    }
+
+    _emailController.text = _lastRememberedEmail!;
   }
 
   // Helper function to handle post-login navigation
@@ -377,47 +402,72 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () async {
-                                    final email = _emailController.text.trim();
-                                    if (email.isEmpty) {
-                                      await _showCenterNotice(
-                                        'Please enter your email first so we can send the reset link.',
-                                      );
-                                      return;
-                                    }
-                                    try {
-                                      await SettingsService.resetPassword(
-                                        email,
-                                      );
-                                      await _showCenterNotice(
-                                        'If an account exists for $email, a password reset email has been sent.',
-                                      );
-                                    } catch (e) {
-                                      await _showCenterNotice(
-                                        'Could not send reset email: ${e.toString()}',
-                                      );
-                                    }
-                                  },
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.white.withOpacity(
-                                      0.8,
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton(
+                                    onPressed: () async {
+                                      await _applyRememberedEmail();
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white.withOpacity(
+                                        0.8,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
+                                    child: const Text(
+                                      'Remember me',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        decoration: TextDecoration.underline,
+                                        fontFamily: 'Poppins',
+                                      ),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Forgot password?',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      decoration: TextDecoration.underline,
-                                      fontFamily: 'Poppins',
+                                  TextButton(
+                                    onPressed: () async {
+                                      final email = _emailController.text
+                                          .trim();
+                                      if (email.isEmpty) {
+                                        await _showCenterNotice(
+                                          'Please enter your email first so we can send the reset link.',
+                                        );
+                                        return;
+                                      }
+                                      try {
+                                        await SettingsService.resetPassword(
+                                          email,
+                                        );
+                                        await _showCenterNotice(
+                                          'If an account exists for $email, a password reset email has been sent.',
+                                        );
+                                      } catch (e) {
+                                        await _showCenterNotice(
+                                          'Could not send reset email: ${e.toString()}',
+                                        );
+                                      }
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white.withOpacity(
+                                        0.8,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Forgot password?',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        decoration: TextDecoration.underline,
+                                        fontFamily: 'Poppins',
+                                      ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                               const SizedBox(height: 16),
                               // Primary Sign In button
