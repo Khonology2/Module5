@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
+import 'package:shared_preferences/shared_preferences.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -57,6 +58,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadLastEmail();
   }
 
   @override
@@ -65,6 +67,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     _passwordController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  Future<void> _loadLastEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastEmail = prefs.getString('lastLoginEmail');
+      if (lastEmail != null && lastEmail.isNotEmpty && mounted) {
+        _emailController.text = lastEmail;
+      }
+    } catch (_) {
+      // Ignore failures; login still works without remembered email
+    }
   }
 
   // Helper function to handle post-login navigation
@@ -445,6 +459,20 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                               // Store lastLoginAt and record daily login activity
                                               final user = cred.user;
                                               if (user != null) {
+                                                try {
+                                                  final prefs =
+                                                      await SharedPreferences.getInstance();
+                                                  final effectiveEmail =
+                                                      _emailController.text
+                                                          .trim();
+                                                  if (effectiveEmail
+                                                      .isNotEmpty) {
+                                                    await prefs.setString(
+                                                      'lastLoginEmail',
+                                                      effectiveEmail,
+                                                    );
+                                                  }
+                                                } catch (_) {}
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
                                                     .doc(user.uid)
@@ -608,6 +636,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             // Store lastLoginAt and record daily login activity
                                             final user = cred.user;
                                             if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
                                               await FirebaseFirestore.instance
                                                   .collection('users')
                                                   .doc(user.uid)
@@ -735,6 +775,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             }
                                             final user = cred.user;
                                             if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
                                               await FirebaseFirestore.instance
                                                   .collection('users')
                                                   .doc(user.uid)
@@ -865,6 +917,18 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             }
                                             final user = cred.user;
                                             if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
                                               await FirebaseFirestore.instance
                                                   .collection('users')
                                                   .doc(user.uid)
