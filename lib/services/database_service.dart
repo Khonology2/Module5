@@ -11,6 +11,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/performance_cache_service.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -92,13 +93,14 @@ class DatabaseService {
       }
     }
 
-    // Fetch goals
+    // Fetch goals with optimized query
     final snapshot = await FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
+        .orderBy('createdAt', descending: true)
         .get();
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-    goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Removed in-memory sort - using Firestore orderBy instead
 
     // If teamShare is disabled, hide completed goals from non-owners/non-managers
     if (!isOwner && viewerRole != 'manager' && settings['teamShare'] == false) {
@@ -125,12 +127,13 @@ class DatabaseService {
     yield* FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: targetUserId)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          // Removed in-memory sort - using Firestore orderBy instead
           if (!isOwner &&
               viewerRole != 'manager' &&
               settings['teamShare'] == false) {
@@ -227,6 +230,13 @@ class DatabaseService {
   }
 
   static Future<UserProfile> getUserProfile(String uid) async {
+    // Check cache first
+    final cache = PerformanceCacheService();
+    final cached = cache.getCachedUserProfile();
+    if (cached != null && cached.uid == uid) {
+      return cached;
+    }
+
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -246,7 +256,7 @@ class DatabaseService {
       data = updatedDoc.data() ?? data;
     }
 
-    return UserProfile(
+    final profile = UserProfile(
       uid: uid,
       email: data['email'] ?? '',
       displayName: data['displayName'] ?? data['fullName'] ?? '',
@@ -275,6 +285,10 @@ class DatabaseService {
       badgeName: data['badgeName'] ?? '',
       celebrationConsent: data['celebrationConsent'] ?? 'private',
     );
+
+    // Cache the profile
+    cache.cacheUserProfile(profile);
+    return profile;
   }
 
   static Future<void> approveGoal({

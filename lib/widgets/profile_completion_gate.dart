@@ -27,6 +27,7 @@ class ProfileCompletionGate extends StatelessWidget {
     try {
       final completionStatus =
           await ProfileCompletionService.getCurrentUserCompletionStatus();
+      if (!context.mounted) return true;
       if (!completionStatus.isComplete) {
         await _showProfileCompletionDialog(
           context,

@@ -42,8 +42,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // ignore: unused_field
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
-  Map<String, dynamic>? _teamInsights;
+  Future<NudgeAnalyticsSummary>? _analyticsFuture;
+  bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
+  Map<String, dynamic>? _teamInsights;
 
   @override
   void initState() {
@@ -256,12 +258,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   ),
                 ),
                 child: ListTile(
-                  leading: Icon(
-                    isApproved
-                        ? Icons.check_circle_outline
-                        : Icons.cancel_outlined,
-                    color: color,
-                  ),
+                  leading: isApproved
+                      ? Image.asset(
+                          'assets/Approved_Tick/Approve_2.png',
+                          width: 36,
+                          height: 36,
+                          fit: BoxFit.contain,
+                        )
+                      : Icon(Icons.cancel_outlined, color: color),
                   title: Text(
                     g.title,
                     style: AppTypography.bodyMedium.copyWith(
@@ -415,18 +419,42 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   labelStyle: AppTypography.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
-                  tabs: const [
+                  tabs: [
                     Tab(
                       text: 'Approvals',
-                      icon: Icon(Icons.fact_check_outlined, size: 20),
+                      icon: Image.asset(
+                        'assets/Data_Approval/Approval_Red Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     Tab(
                       text: 'Team Alerts',
-                      icon: Icon(Icons.notifications, size: 20),
+                      icon: Image.asset(
+                        'assets/red_bell.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     Tab(
                       text: 'Send Nudges',
-                      icon: Icon(Icons.message_outlined, size: 20),
+                      icon: Image.asset(
+                        'assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    Tab(
+                      text: 'Analytics',
+                      icon: Image.asset(
+                        'assets/Project Management/Project_Red Badge_White.png',
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
                 );
@@ -517,7 +545,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Urgent',
             urgentAlerts.toString(),
             AppColors.dangerColor,
-            Icons.priority_high,
+            null,
+            imageAsset:
+                'assets/Information_Detail/Information_Red_Badge_White.png',
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -526,7 +556,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Overdue Goals',
             overdueGoals.toString(),
             AppColors.warningColor,
-            Icons.schedule,
+            null,
+            imageAsset:
+                'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -535,7 +567,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             'Team Members',
             employees.length.toString(),
             AppColors.successColor,
-            Icons.people_outline,
+            null,
+            imageAsset: 'assets/Team_Meeting/Meeting_Red Badge_White.png',
           ),
         ),
       ],
@@ -546,8 +579,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     String title,
     String value,
     Color color,
-    IconData icon, {
+    IconData? icon, {
     String? subtitle,
+    String? imageAsset,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -558,7 +592,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
+          if (imageAsset != null)
+            Image.asset(imageAsset, width: 24, height: 24, fit: BoxFit.contain)
+          else if (icon != null)
+            Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
           Text(
             value,
@@ -792,13 +829,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           SliverPadding(
             padding: AppSpacing.screenPadding,
             sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildTeamAlertCard(
-                  alerts[index],
-                  employeesById[alerts[index].userId] ?? employees.first,
-                ),
-                childCount: alerts.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final alert = alerts[index];
+                final employee =
+                    employeesById[alert.userId] ??
+                    (employees.isNotEmpty ? employees.first : null);
+                if (employee == null) {
+                  return const SizedBox.shrink();
+                }
+                return _buildTeamAlertCard(alert, employee);
+              }, childCount: alerts.length),
             ),
           ),
       ],
@@ -2771,6 +2811,10 @@ class _NudgeDialogState extends State<_NudgeDialog> {
           );
         },
       );
+      return;
+    }
+
+    if (widget.employee == null) {
       return;
     }
 

@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Manager Profile',
       theme: ThemeData(
-        fontFamily: 'Inter',
+        fontFamily: 'Poppins',
         scaffoldBackgroundColor: const Color(
           0xFF040610,
         ), // Set scaffold background color here
@@ -63,11 +63,37 @@ class ManagerProfileScreen extends StatefulWidget {
 }
 
 class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
+  static const List<String> _jobTitleOptions = [
+    'Director',
+    'Developer',
+    'Support Analyst',
+    'Learner',
+    'UX Designer',
+    'AWS Cloud Engineer',
+    'Tester',
+    'RMB Small Talk Developer',
+    'Finance',
+    'Business Analyst',
+    'Manager',
+    'Delivery Manager',
+    'Analyst',
+    'Sales Person',
+    'HR',
+    'Junior Analyst',
+  ];
+
+  static const List<String> _departmentOptions = [
+    'Management',
+    'Operations',
+    'Finance',
+    'HR',
+    'Sales',
+  ];
+
   final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _jobTitleController = TextEditingController();
-  final TextEditingController _departmentController = TextEditingController();
+  String? _selectedJobTitle;
+  String? _selectedDepartment;
   final TextEditingController _workEmailController = TextEditingController();
-  final TextEditingController _phoneNumberController = TextEditingController();
   final TextEditingController _skillsInputController = TextEditingController();
   final TextEditingController _developmentInputController =
       TextEditingController();
@@ -93,6 +119,7 @@ class _ManagerProfileScreenState extends State<ManagerProfileScreen> {
   bool _isGeneratingDevelopmentPlan = false;
   String _planGenerationPhase = '';
   String? _planGenerationError;
+  double _saveButtonScale = 1.0;
 
   static const String _developmentPlanSystemInstruction =
       '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context provided (skills, growth areas, projects, aspirations, learning preferences). Always synthesize a practical, strengths-based plan.
@@ -129,10 +156,14 @@ Guidelines:
       final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         _fullNameController.text = userProfile.displayName;
-        _jobTitleController.text = userProfile.jobTitle;
-        _departmentController.text = userProfile.department;
+        _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
+            ? userProfile.jobTitle
+            : null;
+        _selectedDepartment =
+            _departmentOptions.contains(userProfile.department)
+            ? userProfile.department
+            : null;
         _workEmailController.text = userProfile.email;
-        _phoneNumberController.text = userProfile.phoneNumber;
         _skills
           ..clear()
           ..addAll(userProfile.skills);
@@ -166,10 +197,7 @@ Guidelines:
   @override
   void dispose() {
     _fullNameController.dispose();
-    _jobTitleController.dispose();
-    _departmentController.dispose();
     _workEmailController.dispose();
-    _phoneNumberController.dispose();
     _skillsInputController.dispose();
     _developmentInputController.dispose();
     _careerAspirationsController.dispose();
@@ -591,10 +619,11 @@ Guidelines:
         _planGenerationPhase = '';
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGeneratingDevelopmentPlan = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isGeneratingDevelopmentPlan = false;
+        });
+      }
     }
   }
 
@@ -606,8 +635,8 @@ Guidelines:
 
   String _buildDevelopmentPlanPrompt() {
     final name = _fullNameController.text.trim();
-    final jobTitle = _jobTitleController.text.trim();
-    final department = _departmentController.text.trim();
+    final jobTitle = _selectedJobTitle ?? '';
+    final department = _selectedDepartment ?? '';
     final shortGoals = _shortGoalsController.text.trim();
     final longGoals = _longGoalsController.text.trim();
     final aspirations = _careerAspirationsController.text.trim();
@@ -829,10 +858,9 @@ Guidelines:
 
       final updatedProfile = existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
-        jobTitle: _jobTitleController.text.trim(),
-        department: _departmentController.text.trim(),
+        jobTitle: _selectedJobTitle ?? '',
+        department: _selectedDepartment ?? '',
         email: _workEmailController.text.trim(),
-        phoneNumber: _phoneNumberController.text.trim(),
         skills: _skills.toList(),
         developmentAreas: _developmentAreas.toList(),
         careerAspirations: _careerAspirationsController.text.trim(),
@@ -888,115 +916,99 @@ Guidelines:
               ),
               const SizedBox(height: 40.0),
 
+              // Profile Photo Section - Centered at the top
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child:
+                            (_profilePhotoUrl != null &&
+                                _profilePhotoUrl!.isNotEmpty)
+                            ? Image.network(
+                                _profilePhotoUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    Image.asset(
+                                      'assets/Account_User_Profile/Profile.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                              )
+                            : Image.asset(
+                                'assets/Account_User_Profile/Profile.png',
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _pickAndUploadImage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white10,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                          child: const Text(
+                            'Upload Photo',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if ((_profilePhotoUrl ?? '').isNotEmpty)
+                          TextButton(
+                            onPressed: _removeProfilePhoto,
+                            child: const Text('Remove Photo'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 40.0),
+
               // Basic Information Section
               _buildCardSection(
                 title: 'Basic Information',
                 children: [
+                  _buildInputLabel('Full Name'),
+                  const SizedBox(height: 8),
                   _buildTextField(
                     controller: _fullNameController,
                     hintText: 'Enter your full name',
                   ),
-                  _buildTextField(
-                    controller: _jobTitleController,
-                    hintText: 'Job Title / Role',
-                  ),
-                  _buildTextField(
-                    controller: _departmentController,
-                    hintText: 'Department / Team',
-                  ),
-                  _buildTextField(
-                    controller: TextEditingController(text: 'M-123456'),
-                    hintText: 'Employee ID',
-                    readOnly: true,
-                    color: Colors.white10,
-                  ),
+                  const SizedBox(height: 16),
+                  _buildJobTitleDropdown(),
+                  const SizedBox(height: 16),
+                  _buildDepartmentDropdown(),
+                  const SizedBox(height: 16),
+                  _buildInputLabel('Email Address'),
+                  const SizedBox(height: 8),
                   _buildTextField(
                     controller: _workEmailController,
                     hintText: 'Work Email',
                     keyboardType: TextInputType.emailAddress,
-                  ),
-                  _buildTextField(
-                    controller: _phoneNumberController,
-                    hintText: 'Phone Number (optional)',
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16.0),
-                  Row(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white10,
-                          borderRadius: BorderRadius.circular(40),
-                        ),
-                        child: ClipOval(
-                          child:
-                              (_profilePhotoUrl != null &&
-                                  _profilePhotoUrl!.isNotEmpty)
-                              ? Image.network(
-                                  _profilePhotoUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(
-                                        Icons.person,
-                                        size: 40,
-                                        color: Colors.white54,
-                                      ),
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.white54,
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 16.0),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Profile Photo',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 4.0),
-                          Row(
-                            children: [
-                              ElevatedButton(
-                                onPressed: _pickAndUploadImage,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white10,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Upload Photo',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              if ((_profilePhotoUrl ?? '').isNotEmpty)
-                                TextButton(
-                                  onPressed: _removeProfilePhoto,
-                                  child: const Text('Remove Photo'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -1062,52 +1074,56 @@ Guidelines:
 
               // Action Buttons
               const SizedBox(height: 32.0),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (!widget.embedded)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(
-                            color: Color.fromARGB(51, 255, 255, 255),
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: AnimatedScale(
+                    scale: _saveButtonScale,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      width: double.infinity,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        color: const Color(0xFFC10D00),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFC10D00).withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: TextButton(
+                        onPressed: () async {
+                          // Pop-out animation
+                          setState(() {
+                            _saveButtonScale = 1.1;
+                          });
+                          await Future.delayed(
+                            const Duration(milliseconds: 150),
+                          );
+                          setState(() {
+                            _saveButtonScale = 1.0;
+                          });
+                          // Save profile after animation
+                          _saveProfile();
+                        },
+                        child: const Text(
+                          'Save Profile',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Poppins',
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  if (!widget.embedded) const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: _saveProfile,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Save Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
-                ],
+                ),
               ),
             ],
           ),
@@ -1151,9 +1167,11 @@ Guidelines:
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          Center(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           ),
           const SizedBox(height: 24.0),
           ...children.map((child) {
@@ -1168,6 +1186,13 @@ Guidelines:
           }),
         ],
       ),
+    );
+  }
+
+  Widget _buildInputLabel(String label) {
+    return Text(
+      label,
+      style: const TextStyle(color: Colors.white70, fontSize: 14),
     );
   }
 
@@ -1200,6 +1225,92 @@ Guidelines:
           borderRadius: BorderRadius.circular(8.0),
           borderSide: const BorderSide(color: Color(0xFFC10D00), width: 1.0),
         ),
+      ),
+    );
+  }
+
+  Widget _buildJobTitleDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedJobTitle,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          labelText: 'Job Title / Role',
+          hintText: 'Select Job Title',
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _jobTitleOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(value: value, child: Text(value));
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedJobTitle = newValue;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildDepartmentDropdown() {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: WidgetStateProperty.all(const Color(0xFF1F2840)),
+          ),
+        ),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedDepartment,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(
+          labelText: 'Department / Team',
+          hintText: 'Select Department',
+          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          filled: true,
+          fillColor: Color.fromARGB(13, 255, 255, 255),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            borderSide: BorderSide(color: Color(0xFFC10D00), width: 1.0),
+          ),
+        ),
+        items: _departmentOptions.map<DropdownMenuItem<String>>((String value) {
+          return DropdownMenuItem<String>(value: value, child: Text(value));
+        }).toList(),
+        onChanged: (String? newValue) {
+          setState(() {
+            _selectedDepartment = newValue;
+          });
+        },
       ),
     );
   }
