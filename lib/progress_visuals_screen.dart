@@ -1582,15 +1582,14 @@ class _ManagerProgressVisualsContentState
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () => _sendNudgeToEmployee(insight.employeeName),
-                    icon: const Icon(Icons.send, size: 16),
-                    label: const Text('Send Nudge'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: priorityColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                     ),
+                    child: const Text('Send Nudge'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1921,27 +1920,25 @@ class _ManagerProgressVisualsContentState
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: OutlinedButton(
                   onPressed: () => _viewEmployeeDetails(employee),
-                  icon: const Icon(Icons.person_outline, size: 16),
-                  label: const Text('View Details'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.activeColor,
                     side: BorderSide(color: AppColors.activeColor),
                   ),
+                  child: const Text('View Details'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: ElevatedButton.icon(
+                child: ElevatedButton(
                   onPressed: () =>
                       _sendNudgeToEmployee(employee.profile.displayName),
-                  icon: const Icon(Icons.send, size: 16),
-                  label: const Text('Send Nudge'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
                     foregroundColor: Colors.white,
                   ),
+                  child: const Text('Send Nudge'),
                 ),
               ),
             ],
@@ -2389,7 +2386,7 @@ ${goalsDocs.map((doc) {
               children: [
                 SelectableText(
                   debugInfo,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(fontFamily: 'Poppins', fontSize: 12),
                 ),
               ],
             ),
@@ -2460,6 +2457,9 @@ class _EmployeeProgressVisualsContentState
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
                   ),
                 ),
               ),

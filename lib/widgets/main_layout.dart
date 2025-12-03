@@ -72,7 +72,7 @@ class MainLayout extends StatelessWidget {
       showAppBar: false,
       items: SidebarConfig.employeeItems,
       currentRouteName: currentRouteName,
-      topRightAction: Row(
+      topRightAction: currentRouteName == '/my_profile' ? null : Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const NotificationsBell(),

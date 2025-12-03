@@ -505,10 +505,10 @@ class _SeasonGoalCompletionScreenState
             : null,
       );
 
-      if (mounted) {
-        await _showCenterNotice(context, 'Goal completed successfully! 🎉');
-        Navigator.of(context).pop();
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Goal completed successfully! 🎉');
+      if (!mounted) return;
+      Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
         await _showCenterNotice(context, 'Error completing goal: $e');

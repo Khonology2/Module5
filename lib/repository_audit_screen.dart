@@ -18,6 +18,7 @@ import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/utils/debouncer.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
   const RepositoryAuditScreen({super.key});
@@ -30,12 +31,23 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _statusFilter;
-  String? _monthFilter; // YYYY-MM
-  double? _minScore;
+  late final ValueDebouncer<String> _searchDebouncer;
 
   @override
   void initState() {
     super.initState();
+    // Initialize debouncer for search queries
+    _searchDebouncer = ValueDebouncer<String>(
+      delay: const Duration(milliseconds: 500),
+      callback: (value) {
+        if (mounted) {
+          setState(() {
+            _searchQuery = value;
+          });
+        }
+      },
+    );
+
     // Ensure repository auto-sync is running to mirror verified audits
     try {
       RepositoryService.startAutoSync();
@@ -90,6 +102,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebouncer.dispose();
     try {
       RepositoryService.stopAutoSync();
     } catch (e) {
@@ -184,9 +197,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         TextField(
           controller: _searchController,
           onChanged: (value) {
-            setState(() {
-              _searchQuery = value;
-            });
+            // Use debouncer to avoid excessive queries while typing
+            _searchDebouncer.setValue(value);
           },
           decoration: InputDecoration(
             hintText: 'Search completed goals, audit logs...',
@@ -270,65 +282,12 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Month (YYYY-MM)',
-                        labelStyle: TextStyle(color: AppColors.textMuted),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.4),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.activeColor),
-                        ),
-                        isDense: true,
-                      ),
-                      style: TextStyle(color: AppColors.textPrimary),
-                      onChanged: (v) => setState(() => _monthFilter = v.trim()),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 120,
-                    child: TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Min Score',
-                        labelStyle: TextStyle(color: AppColors.textMuted),
-                        filled: true,
-                        fillColor: Colors.black.withValues(alpha: 0.4),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.activeColor),
-                        ),
-                        isDense: true,
-                      ),
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: AppColors.textPrimary),
-                      onChanged: (v) =>
-                          setState(() => _minScore = double.tryParse(v)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
                   IconButton(
                     onPressed: () {
                       setState(() {
                         _searchController.clear();
                         _searchQuery = '';
                         _statusFilter = null;
-                        _monthFilter = null;
-                        _minScore = null;
                       });
                     },
                     icon: Icon(Icons.clear, color: AppColors.textMuted),
@@ -387,52 +346,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Month (YYYY-MM)',
-                      labelStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: Colors.black.withValues(alpha: 0.4),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.activeColor),
-                      ),
-                      isDense: true,
-                    ),
-                    style: TextStyle(color: AppColors.textPrimary),
-                    onChanged: (v) => setState(() => _monthFilter = v.trim()),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Min Score',
-                      labelStyle: TextStyle(color: AppColors.textMuted),
-                      filled: true,
-                      fillColor: Colors.black.withValues(alpha: 0.4),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.activeColor),
-                      ),
-                      isDense: true,
-                    ),
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(color: AppColors.textPrimary),
-                    onChanged: (v) =>
-                        setState(() => _minScore = double.tryParse(v)),
-                  ),
-                  const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerRight,
                     child: IconButton(
@@ -441,8 +354,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           _searchController.clear();
                           _searchQuery = '';
                           _statusFilter = null;
-                          _monthFilter = null;
-                          _minScore = null;
                         });
                       },
                       icon: Icon(Icons.clear, color: AppColors.textMuted),
@@ -1151,9 +1062,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...entry.evidence
-              .map((evidence) => _buildEvidenceItem(evidence, entry.evidence))
-              ,
+          ...entry.evidence.map(
+            (evidence) => _buildEvidenceItem(evidence, entry.evidence),
+          ),
 
           if (isManager && entry.status == 'pending') ...[
             const SizedBox(height: 16),
@@ -1563,16 +1474,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   );
                   if (mounted) navigator.pop();
                 } catch (e) {
-                  if (mounted) {
-                    await _showCenterNotice(
-                      context,
-                      'Error verifying entry: $e',
-                    );
-                  }
+                  if (!mounted) return;
+                  await _showCenterNotice(
+                    this.context,
+                    'Error verifying entry: $e',
+                  );
                 }
               } else {
+                if (!mounted) return;
                 await _showCenterNotice(
-                  context,
+                  this.context,
                   'Please enter a valid score between 1.0 and 5.0',
                 );
               }
@@ -1635,16 +1546,16 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   );
                   if (mounted) navigator.pop();
                 } catch (e) {
-                  if (mounted) {
-                    await _showCenterNotice(
-                      context,
-                      'Error requesting changes: $e',
-                    );
-                  }
+                  if (!mounted) return;
+                  await _showCenterNotice(
+                    this.context,
+                    'Error requesting changes: $e',
+                  );
                 }
               } else {
+                if (!mounted) return;
                 await _showCenterNotice(
-                  context,
+                  this.context,
                   'Please provide a reason for the changes',
                 );
               }
@@ -1727,22 +1638,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           );
                         }
 
-                        if (_monthFilter != null && _monthFilter!.isNotEmpty) {
-                          filtered = filtered.where((g) {
-                            final d = g.completedDate;
-                            if (d == null) return false;
-                            final key =
-                                '${d.year}-${d.month.toString().padLeft(2, '0')}';
-                            return key == _monthFilter;
-                          });
-                        }
-
-                        if (_minScore != null) {
-                          filtered = filtered.where(
-                            (g) => (g.score ?? 0) >= _minScore!,
-                          );
-                        }
-
                         return filtered.toList()..sort((a, b) {
                           final ad =
                               a.verifiedDate ??
@@ -1792,8 +1687,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   stream: RepositoryService.queryRepositoryGoals(
                     uid,
                     search: _searchQuery,
-                    dateFilter: _monthFilter,
-                    minScore: _minScore,
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1886,8 +1779,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     if (role == 'manager') {
                       await RepositoryExportService.exportManagerVerifiedAsCSV(
                         search: _searchQuery.isEmpty ? null : _searchQuery,
-                        monthFilter: _monthFilter,
-                        minScore: _minScore,
                       );
                     } else {
                       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1912,8 +1803,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     if (role == 'manager') {
                       await RepositoryExportService.exportManagerVerifiedAsPDF(
                         search: _searchQuery.isEmpty ? null : _searchQuery,
-                        monthFilter: _monthFilter,
-                        minScore: _minScore,
                       );
                     } else {
                       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -2373,22 +2262,21 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                                 uploadedFiles.addAll(files);
                                 isUploading = false;
                               });
-                              if (context.mounted) {
-                                await _showCenterNotice(
-                                  context,
-                                  '${files.length} file(s) uploaded successfully',
-                                );
-                                // Close dialog automatically after successful upload
-                                Navigator.of(context).pop();
-                              }
+                              if (!mounted) return;
+                              await _showCenterNotice(
+                                this.context,
+                                '${files.length} file(s) uploaded successfully',
+                              );
+                              // Close dialog automatically after successful upload
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop();
                             } catch (e) {
                               setState(() => isUploading = false);
-                              if (context.mounted) {
-                                await _showCenterNotice(
-                                  context,
-                                  'Error uploading files: $e',
-                                );
-                              }
+                              if (!mounted) return;
+                              await _showCenterNotice(
+                                this.context,
+                                'Error uploading files: $e',
+                              );
                             }
                           },
                     icon: isUploading
