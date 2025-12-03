@@ -6,8 +6,10 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/l10n/generated/app_localizations.dart';
 
 class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
@@ -38,6 +40,7 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
+  bool _isProfileIncomplete = false;
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -46,6 +49,26 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void initState() {
     super.initState();
     _previousTutorialStep = widget.tutorialStepIndex;
+    _checkProfileCompletion();
+  }
+
+  Future<void> _checkProfileCompletion() async {
+    try {
+      final isComplete =
+          await ProfileCompletionService.isCurrentUserProfileComplete();
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = !isComplete;
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't show indicator if check fails
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = false;
+        });
+      }
+    }
   }
 
   @override
@@ -66,6 +89,11 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToTutorialItem(widget.tutorialStepIndex!);
       });
+    }
+    // Refresh profile completion check when widget updates (e.g., after profile save)
+    if (widget.currentRouteName == '/my_profile' ||
+        oldWidget.currentRouteName == '/my_profile') {
+      _checkProfileCompletion();
     }
   }
 
@@ -127,6 +155,12 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       children: widget.items.asMap().entries.map((entry) {
                         final index = entry.key;
                         final it = entry.value;
+                    // Check if this is the My Profile route and profile is incomplete
+                    final bool showProfileIndicator =
+                        (it.route == '/my_profile' ||
+                            it.route == '/manager_profile') &&
+                        (_isProfileIncomplete == true);
+
                         final navTile = _NavTile(
                           icon: it.icon,
                           iconWidget: it.iconWidget,
@@ -137,6 +171,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           isActive: widget.currentRouteName == it.route,
                           collapsed: effectiveCollapsed,
                           onTap: () => widget.onNavigate(it.route),
+                      showProfileIndicator: showProfileIndicator,
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
                                   index < widget.sidebarTutorialKeys!.length
@@ -158,7 +193,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   ),
                   _NavTile(
                     icon: Icons.exit_to_app,
-                    label: 'Exit',
+                    label: AppLocalizations.of(context).employee_drawer_exit,
                     route: '__logout__',
                     isActive: false,
                     collapsed: effectiveCollapsed,
@@ -167,19 +202,23 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   _CollapseToggle(
                     collapsed: effectiveCollapsed,
                     tutorialKey:
+                   
                         widget.sidebarTutorialKeys != null &&
                             widget.tutorialStepIndex != null &&
                             widget.tutorialStepIndex == widget.items.length &&
                             widget.tutorialStepIndex! <
+                           
                                 widget.sidebarTutorialKeys!.length
                         ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                         : null,
                     showTutorial:
+                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                     onTutorialNext: widget.onTutorialNext,
                     onTutorialSkip: widget.onTutorialSkip,
                     isLastTutorialStep:
+                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                   ),
@@ -418,12 +457,14 @@ class _NavTile extends StatefulWidget {
     required this.isActive,
     required this.collapsed,
     required this.onTap,
+    bool? showProfileIndicator,
     this.tutorialKey,
     this.showTutorial = false,
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
-  }) : assert(
+  }) : showProfileIndicator = showProfileIndicator ?? false,
+       assert(
          icon != null || iconWidget != null || assetWhite != null,
          'Provide icon, iconWidget, or assetWhite',
        );
@@ -436,6 +477,7 @@ class _NavTile extends StatefulWidget {
   final bool isActive;
   final bool collapsed;
   final VoidCallback onTap;
+  final bool showProfileIndicator;
   final GlobalKey? tutorialKey;
   final bool showTutorial;
   final VoidCallback? onTutorialNext;
@@ -454,13 +496,86 @@ class _NavTileState extends State<_NavTile> {
     final bool isSelected = widget.isActive;
     final bool isCollapsed = widget.collapsed;
 
+    final localizations = AppLocalizations.of(context);
+    String label = widget.label;
+    switch (widget.route) {
+      case '/employee_dashboard':
+      case '/dashboard':
+        label = localizations.nav_dashboard;
+        break;
+      case '/my_pdp':
+        label = localizations.nav_goal_workspace;
+        break;
+      case '/my_profile':
+        label = localizations.nav_my_profile;
+        break;
+      case '/my_goal_workspace':
+        label = localizations.nav_my_pdp;
+        break;
+      case '/progress_visuals':
+        label = localizations.nav_progress_visuals;
+        break;
+      case '/alerts_nudges':
+        label = localizations.nav_alerts_nudges;
+        break;
+      case '/badges_points':
+      case '/manager_badges_points':
+        label = localizations.nav_badges_points;
+        break;
+      case '/season_challenges':
+        label = localizations.nav_season_challenges;
+        break;
+      case '/leaderboard':
+      case '/manager_leaderboard':
+        label = localizations.nav_leaderboard;
+        break;
+      case '/repository_audit':
+        label = localizations.nav_repository_audit;
+        break;
+      case '/settings':
+        label = localizations.nav_settings_privacy;
+        break;
+      case '/team_challenges_seasons':
+        label = localizations.nav_team_challenges;
+        break;
+      case '/manager_alerts_nudges':
+        label = localizations.nav_team_alerts_nudges;
+        break;
+      case '/manager_inbox':
+        label = localizations.nav_manager_inbox;
+        break;
+      case '/manager_review_team_dashboard':
+        label = localizations.nav_review_team;
+        break;
+      case '/admin_dashboard':
+        label = localizations.nav_admin_dashboard;
+        break;
+      case '/user_management':
+        label = localizations.nav_user_management;
+        break;
+      case '/analytics':
+        label = localizations.nav_analytics;
+        break;
+      case '/system_settings':
+        label = localizations.nav_system_settings;
+        break;
+      case '/security':
+        label = localizations.nav_security;
+        break;
+      case '/backup':
+        label = localizations.nav_backup_restore;
+        break;
+      default:
+        break;
+    }
+
     Widget navTileContent = Padding(
       padding: AppSpacing.sidebarItemPadding,
       child: MouseRegion(
         onEnter: (_) => setState(() => hovering = true),
         onExit: (_) => setState(() => hovering = false),
         child: Tooltip(
-          message: isCollapsed ? widget.label : '',
+          message: isCollapsed ? label : '',
           child: InkWell(
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(12),
@@ -514,7 +629,7 @@ class _NavTileState extends State<_NavTile> {
                             const SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
-                                widget.label,
+                                label,
                                 style: isSelected
                                     ? AppTypography.navigationActive
                                     : AppTypography.navigation,

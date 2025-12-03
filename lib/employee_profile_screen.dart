@@ -269,6 +269,20 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       return;
     }
 
+    // Flush any pending tag text so the latest entry gets saved even if the user didn't press enter
+    final pendingSkill = _skillsInputController.text.trim();
+    if (pendingSkill.isNotEmpty && !_skills.contains(pendingSkill)) {
+      _skills.add(pendingSkill);
+      _skillsInputController.clear();
+    }
+
+    final pendingDevelopment = _developmentInputController.text.trim();
+    if (pendingDevelopment.isNotEmpty &&
+        !_developmentAreas.contains(pendingDevelopment)) {
+      _developmentAreas.add(pendingDevelopment);
+      _developmentInputController.clear();
+    }
+
     // Fetch the existing user profile to get non-editable fields like totalPoints, level, and badges
     final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
 
@@ -377,9 +391,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(
-            color: Color(0xFFC10D00),
-          ), // match manager red hint
+          hintStyle: const TextStyle(color: Colors.white70),
           filled: true,
           fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(
@@ -549,11 +561,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Text(
-                'Profile',
-                style: AppTypography.heading2.copyWith(color: Colors.white),
-              ),
+            Text(
+              'Profile',
+              style: AppTypography.heading2.copyWith(color: Colors.white),
             ),
             const SizedBox(height: 8),
             Text(
@@ -679,6 +689,12 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildInputLabel('Current Skills / Strengths'),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Type a skill and press Enter to add it as a tag',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
                     _buildTagInput(
                       controller: _skillsInputController,
                       tagsList: _skills,
@@ -692,6 +708,30 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       onTagRemoved: (tag) {
                         setState(() {
                           _skills.remove(tag);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputLabel('Areas for Development'),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Add each development focus as its own tag',
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTagInput(
+                      controller: _developmentInputController,
+                      tagsList: _developmentAreas,
+                      hintText: 'e.g., Machine Learning, Leadership',
+                      onTagAdded: (tag) {
+                        setState(() {
+                          _developmentAreas.add(tag);
+                          _developmentInputController.clear();
+                        });
+                      },
+                      onTagRemoved: (tag) {
+                        setState(() {
+                          _developmentAreas.remove(tag);
                         });
                       },
                     ),

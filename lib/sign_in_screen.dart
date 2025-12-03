@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
+import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -361,7 +362,50 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 30),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () async {
+                                    final email = _emailController.text.trim();
+                                    if (email.isEmpty) {
+                                      await _showCenterNotice(
+                                        'Please enter your email first so we can send the reset link.',
+                                      );
+                                      return;
+                                    }
+                                    try {
+                                      await SettingsService.resetPassword(
+                                        email,
+                                      );
+                                      await _showCenterNotice(
+                                        'If an account exists for $email, a password reset email has been sent.',
+                                      );
+                                    } catch (e) {
+                                      await _showCenterNotice(
+                                        'Could not send reset email: ${e.toString()}',
+                                      );
+                                    }
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white.withOpacity(
+                                      0.8,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Forgot password?',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                               // Primary Sign In button
                               Container(
                                 width: double.infinity,
@@ -572,9 +616,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                         FieldValue.serverTimestamp(),
                                                     if (user.email != null)
                                                       'email': user.email,
-                                                    if (user.displayName != null)
-                                                      'displayName': user.displayName,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
                                                   }, SetOptions(merge: true));
+                                              // Sync onboarding data if displayName is missing
+                                              try {
+                                                await DatabaseService.syncOnboardingData(
+                                                  user.uid,
+                                                );
+                                              } catch (_) {}
                                               try {
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
@@ -691,9 +743,17 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                         FieldValue.serverTimestamp(),
                                                     if (user.email != null)
                                                       'email': user.email,
-                                                    if (user.displayName != null)
-                                                      'displayName': user.displayName,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
                                                   }, SetOptions(merge: true));
+                                              // Sync onboarding data if displayName is missing
+                                              try {
+                                                await DatabaseService.syncOnboardingData(
+                                                  user.uid,
+                                                );
+                                              } catch (_) {}
                                               try {
                                                 await FirebaseFirestore.instance
                                                     .collection('users')
@@ -813,8 +873,10 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                                         FieldValue.serverTimestamp(),
                                                     if (user.email != null)
                                                       'email': user.email,
-                                                    if (user.displayName != null)
-                                                      'displayName': user.displayName,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
                                                   }, SetOptions(merge: true));
                                               try {
                                                 await FirebaseFirestore.instance
