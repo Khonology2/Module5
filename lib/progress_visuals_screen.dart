@@ -16,6 +16,8 @@ import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
+import 'dart:developer' as developer;
+import 'package:pdh/models/alert.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -186,10 +188,41 @@ class ManagerProgressVisualsContent extends StatefulWidget {
       _ManagerProgressVisualsContentState();
 }
 
+enum ProgressViewType { team, myProgress }
+
+enum ManagerActivityType { nudge, approval, replan, meeting, checkIn }
+
+class ManagerActivity {
+  final String id;
+  final ManagerActivityType type;
+  final String title;
+  final String description;
+  final String? employeeId;
+  final String? employeeName;
+  final DateTime createdAt;
+  final DateTime? scheduledFor;
+  final bool isCompleted;
+  final Map<String, dynamic>? metadata;
+
+  const ManagerActivity({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.description,
+    this.employeeId,
+    this.employeeName,
+    required this.createdAt,
+    this.scheduledFor,
+    this.isCompleted = true,
+    this.metadata,
+  });
+}
+
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
+  ProgressViewType currentViewType = ProgressViewType.team;
 
   @override
   Widget build(BuildContext context) {
@@ -203,78 +236,945 @@ class _ManagerProgressVisualsContentState
             children: [
               Expanded(
                 child: Text(
-                  'Team Progress Overview',
+                  currentViewType == ProgressViewType.team
+                      ? 'Team Progress Overview'
+                      : 'My Progress Overview',
                   style: AppTypography.heading2.copyWith(
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              _buildFilterDropdown(),
+              _buildViewTypeFilter(),
               const SizedBox(width: AppSpacing.md),
-              _buildDepartmentDropdown(),
+              if (currentViewType == ProgressViewType.team) ...[
+                _buildFilterDropdown(),
+                const SizedBox(width: AppSpacing.md),
+                _buildDepartmentDropdown(),
+              ],
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          StreamBuilder<List<EmployeeData>>(
-            stream: ManagerRealtimeService.getTeamDataStream(
-              department: selectedDepartment,
-              timeFilter: currentTimeFilter,
+          if (currentViewType == ProgressViewType.team)
+            _buildTeamProgressView()
+          else
+            _buildMyProgressView(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamProgressView() {
+    return StreamBuilder<List<EmployeeData>>(
+      stream: ManagerRealtimeService.getTeamDataStream(
+        department: selectedDepartment,
+        timeFilter: currentTimeFilter,
+      ),
+      builder: (context, teamSnapshot) {
+        if (teamSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
             ),
-            builder: (context, teamSnapshot) {
-              if (teamSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
+          );
+        }
+
+        if (teamSnapshot.hasError) {
+          return _buildErrorState(teamSnapshot.error.toString());
+        }
+
+        final employees = teamSnapshot.data ?? [];
+        if (employees.isEmpty) {
+          return _buildNoDataState();
+        }
+
+        final metrics = _calculateTeamMetrics(employees);
+
+        return Column(
+          children: [
+            _buildTeamMetricsCards(metrics),
+            const SizedBox(height: AppSpacing.xxl),
+            Text(
+              'Team Member Progress',
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (employees.isEmpty)
+              _buildNoEmployeesState()
+            else
+              Column(
+                children: employees
+                    .map(
+                      (employee) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: _buildEmployeeCard(employee),
+                      ),
+                    )
+                    .toList(),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMyProgressView() {
+    return StreamBuilder<List<ManagerActivity>>(
+      stream: _getManagerActivitiesStream(),
+      builder: (context, activitiesSnapshot) {
+        if (activitiesSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+
+        if (activitiesSnapshot.hasError) {
+          return _buildErrorState(activitiesSnapshot.error.toString());
+        }
+
+        final activities = activitiesSnapshot.data ?? [];
+        final completedActivities = activities
+            .where((a) => a.isCompleted)
+            .toList();
+        final upcomingActivities = activities
+            .where((a) => !a.isCompleted && a.scheduledFor != null)
+            .toList();
+        final pendingActivities = activities
+            .where((a) => !a.isCompleted && a.scheduledFor == null)
+            .toList();
+
+        // Group by type
+        final nudges = completedActivities
+            .where((a) => a.type == ManagerActivityType.nudge)
+            .length;
+        final approvals = completedActivities
+            .where((a) => a.type == ManagerActivityType.approval)
+            .length;
+        final replans = completedActivities
+            .where((a) => a.type == ManagerActivityType.replan)
+            .length;
+        final meetings = completedActivities
+            .where((a) => a.type == ManagerActivityType.meeting)
+            .length;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildManagerProgressMetrics(
+              completedActivities.length,
+              nudges,
+              approvals,
+              replans,
+              meetings,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            if (completedActivities.isNotEmpty) ...[
+              Text(
+                'Completed Activities',
+                style: AppTypography.heading3.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ...completedActivities
+                  .take(10)
+                  .map(
+                    (activity) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: _buildManagerActivityCard(activity),
                     ),
+                  ),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+            if (upcomingActivities.isNotEmpty) ...[
+              Text(
+                'Upcoming Activities',
+                style: AppTypography.heading3.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ...upcomingActivities
+                  .take(5)
+                  .map(
+                    (activity) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: _buildManagerActivityCard(activity),
+                    ),
+                  ),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+            if (pendingActivities.isNotEmpty) ...[
+              Text(
+                'Pending Activities',
+                style: AppTypography.heading3.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ...pendingActivities
+                  .take(5)
+                  .map(
+                    (activity) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: _buildManagerActivityCard(activity),
+                    ),
+                  ),
+            ],
+            if (activities.isEmpty) _buildNoManagerActivitiesState(),
+          ],
+        );
+      },
+    );
+  }
+
+  Stream<List<ManagerActivity>> _getManagerActivitiesStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value([]);
+
+    return Stream.periodic(const Duration(seconds: 5)).asyncMap((_) async {
+      final activities = <ManagerActivity>[];
+      final seenActivityIds = <String>{}; // Track to avoid duplicates
+
+      try {
+        // Fetch nudges from alerts - try with composite index first, fallback to simpler query
+        List<QueryDocumentSnapshot> nudgeDocs = [];
+        try {
+          final nudgesSnapshot = await FirebaseFirestore.instance
+              .collection('alerts')
+              .where('type', isEqualTo: AlertType.managerNudge.name)
+              .where('fromUserId', isEqualTo: user.uid)
+              .orderBy('createdAt', descending: true)
+              .limit(50)
+              .get();
+          nudgeDocs = nudgesSnapshot.docs;
+        } catch (e) {
+          // If composite index fails, try without orderBy and sort in memory
+          developer.log(
+            'Alerts composite index query failed, using fallback: $e',
+          );
+          try {
+            final allNudges = await FirebaseFirestore.instance
+                .collection('alerts')
+                .where('type', isEqualTo: AlertType.managerNudge.name)
+                .where('fromUserId', isEqualTo: user.uid)
+                .limit(100)
+                .get();
+
+            // Sort in memory and take top 50
+            nudgeDocs = allNudges.docs.toList()
+              ..sort((a, b) {
+                final aTime =
+                    (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                final bTime =
+                    (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+                    DateTime.fromMillisecondsSinceEpoch(0);
+                return bTime.compareTo(aTime);
+              });
+            nudgeDocs = nudgeDocs.take(50).toList();
+          } catch (e2) {
+            developer.log('Fallback alerts query also failed: $e2');
+            // Continue - nudges will be picked up from manager_actions
+          }
+        }
+
+        // Process nudges from alerts
+        for (final doc in nudgeDocs) {
+          final activityId = 'alert_${doc.id}';
+          if (seenActivityIds.contains(activityId)) continue;
+          seenActivityIds.add(activityId);
+
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+
+          final employeeId = data['userId'] as String?;
+          String? employeeName;
+          if (employeeId != null) {
+            try {
+              final empDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(employeeId)
+                  .get();
+              employeeName = empDoc.data()?['displayName'] as String?;
+            } catch (_) {
+              // Ignore errors fetching employee name
+            }
+          }
+
+          // Format description from manager's perspective
+          // Alert message format: "$managerName sent you a nudge about "$goalTitle": $nudgeMessage"
+          // We need: "You sent a nudge to [employee name]"
+          String description = 'Sent a nudge to employee';
+          if (employeeName != null) {
+            description = 'You sent a nudge to $employeeName';
+          } else if (employeeId != null) {
+            description = 'You sent a nudge to employee';
+          }
+
+          activities.add(
+            ManagerActivity(
+              id: activityId,
+              type: ManagerActivityType.nudge,
+              title: 'Sent Nudge',
+              description: description,
+              employeeId: employeeId,
+              employeeName: employeeName,
+              createdAt:
+                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              isCompleted: true,
+              metadata: {'goalTitle': data['relatedGoalId']},
+            ),
+          );
+        }
+
+        // Fetch approvals from goals
+        final approvalsSnapshot = await FirebaseFirestore.instance
+            .collection('goals')
+            .where('approvedByUserId', isEqualTo: user.uid)
+            .orderBy('approvedAt', descending: true)
+            .limit(50)
+            .get();
+
+        for (final doc in approvalsSnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+
+          final employeeId = data['userId'] as String?;
+          String? employeeName;
+          if (employeeId != null) {
+            try {
+              final empDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(employeeId)
+                  .get();
+              employeeName = empDoc.data()?['displayName'] as String?;
+            } catch (_) {
+              // Ignore errors fetching employee name
+            }
+          }
+
+          activities.add(
+            ManagerActivity(
+              id: doc.id,
+              type: ManagerActivityType.approval,
+              title: 'Approved Goal',
+              description: data['title'] as String? ?? 'Approved a goal',
+              employeeId: employeeId,
+              employeeName: employeeName,
+              createdAt:
+                  (data['approvedAt'] as Timestamp?)?.toDate() ??
+                  DateTime.now(),
+              isCompleted: true,
+              metadata: {'goalTitle': data['title']},
+            ),
+          );
+        }
+
+        // Fetch replans and other actions from manager_actions (primary source for nudges)
+        try {
+          List<QueryDocumentSnapshot> actionDocs = [];
+          try {
+            final actionsSnapshot = await FirebaseFirestore.instance
+                .collection('manager_actions')
+                .where('managerId', isEqualTo: user.uid)
+                .orderBy('createdAt', descending: true)
+                .limit(50)
+                .get();
+            actionDocs = actionsSnapshot.docs;
+          } catch (e) {
+            // If orderBy fails, try without it and sort in memory
+            developer.log('Manager actions orderBy failed, using fallback: $e');
+            try {
+              final allActions = await FirebaseFirestore.instance
+                  .collection('manager_actions')
+                  .where('managerId', isEqualTo: user.uid)
+                  .limit(100)
+                  .get();
+
+              actionDocs = allActions.docs.toList()
+                ..sort((a, b) {
+                  final aTime =
+                      (a.data()['createdAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime =
+                      (b.data()['createdAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
+              actionDocs = actionDocs.take(50).toList();
+            } catch (e2) {
+              developer.log('Manager actions fallback also failed: $e2');
+            }
+          }
+
+          // Process all manager actions (including nudges)
+          developer.log('Processing ${actionDocs.length} manager actions');
+          for (final doc in actionDocs) {
+            final activityId = 'action_${doc.id}';
+            if (seenActivityIds.contains(activityId)) continue;
+            seenActivityIds.add(activityId);
+
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data == null) continue;
+
+            final actionType = data['actionType'] as String? ?? '';
+            final type = data['type'] as String? ?? '';
+
+            developer.log(
+              'Processing action: actionType=$actionType, type=$type, id=${doc.id}',
+            );
+
+            ManagerActivityType activityType;
+            String title;
+            String description;
+
+            if (type == 'replan_helped' || actionType == 'replan_helped') {
+              activityType = ManagerActivityType.replan;
+              title = 'Helped Replan Goal';
+              description =
+                  data['note'] as String? ?? 'Helped employee replan a goal';
+            } else if (actionType == 'scheduleMeeting' ||
+                actionType == 'schedule_meeting') {
+              activityType = ManagerActivityType.meeting;
+              title = 'Scheduled Meeting';
+              description =
+                  data['description'] as String? ?? 'Scheduled a 1:1 meeting';
+              final scheduledFor = data['scheduledFor'] as Timestamp?;
+              if (scheduledFor != null) {
+                activities.add(
+                  ManagerActivity(
+                    id: activityId,
+                    type: activityType,
+                    title: title,
+                    description: description,
+                    employeeId: data['employeeId'] as String?,
+                    employeeName: data['employeeName'] as String?,
+                    createdAt:
+                        (data['createdAt'] as Timestamp?)?.toDate() ??
+                        DateTime.now(),
+                    scheduledFor: scheduledFor.toDate(),
+                    isCompleted: scheduledFor.toDate().isBefore(DateTime.now()),
+                    metadata: data['details'] as Map<String, dynamic>?,
                   ),
                 );
+                continue;
               }
-
-              if (teamSnapshot.hasError) {
-                return _buildErrorState(teamSnapshot.error.toString());
+            } else if (actionType == 'giveRecognition') {
+              activityType = ManagerActivityType.checkIn;
+              title = 'Gave Recognition';
+              description =
+                  data['description'] as String? ??
+                  'Recognized employee achievement';
+            } else if (actionType == 'sendNudge') {
+              activityType = ManagerActivityType.nudge;
+              title = 'Sent Nudge';
+              // Format description from manager's perspective
+              final employeeName = data['employeeName'] as String?;
+              if (employeeName != null) {
+                description = 'You sent a nudge to $employeeName';
+              } else {
+                description =
+                    data['description'] as String? ??
+                    'Sent a nudge to employee';
+                // If description exists but doesn't have employee name, try to enhance it
+                if (description != 'Sent a nudge to employee' &&
+                    !description.toLowerCase().startsWith('you sent')) {
+                  description = 'You sent a nudge to employee';
+                }
               }
-
-              final employees = teamSnapshot.data ?? [];
-              if (employees.isEmpty) {
-                return _buildNoDataState();
-              }
-
-              final metrics = _calculateTeamMetrics(employees);
-
-              return Column(
-                children: [
-                  _buildTeamMetricsCards(metrics),
-                  const SizedBox(height: AppSpacing.xxl),
-                  Text(
-                    'Team Member Progress',
-                    style: AppTypography.heading3.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  if (employees.isEmpty)
-                    _buildNoEmployeesState()
-                  else
-                    Column(
-                      children: employees
-                          .map(
-                            (employee) => Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSpacing.md,
-                              ),
-                              child: _buildEmployeeCard(employee),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                ],
+              developer.log(
+                'Found nudge in manager_actions: ${doc.id}, actionType: $actionType, description: $description',
               );
+            } else {
+              activityType = ManagerActivityType.checkIn;
+              title = 'Manager Action';
+              description =
+                  data['description'] as String? ?? 'Performed manager action';
+            }
+
+            final status = data['status'] as String? ?? 'completed';
+            activities.add(
+              ManagerActivity(
+                id: activityId,
+                type: activityType,
+                title: title,
+                description: description,
+                employeeId: data['employeeId'] as String?,
+                employeeName: data['employeeName'] as String?,
+                createdAt:
+                    (data['createdAt'] as Timestamp?)?.toDate() ??
+                    DateTime.now(),
+                scheduledFor: data['scheduledFor'] != null
+                    ? (data['scheduledFor'] as Timestamp).toDate()
+                    : null,
+                isCompleted: status == 'completed',
+                metadata: data['details'] as Map<String, dynamic>?,
+              ),
+            );
+          }
+        } catch (e) {
+          developer.log('Error fetching manager_actions: $e');
+        }
+
+        // Sort by date (most recent first)
+        activities.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      } catch (e) {
+        developer.log('Error fetching manager activities: $e');
+      }
+
+      return activities;
+    });
+  }
+
+  Widget _buildViewTypeFilter() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildViewTypeButton(
+            label: 'Team',
+            isSelected: currentViewType == ProgressViewType.team,
+            onTap: () {
+              setState(() {
+                currentViewType = ProgressViewType.team;
+              });
+            },
+          ),
+          _buildViewTypeButton(
+            label: 'My Progress',
+            isSelected: currentViewType == ProgressViewType.myProgress,
+            onTap: () {
+              setState(() {
+                currentViewType = ProgressViewType.myProgress;
+              });
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildViewTypeButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.bodyMedium.copyWith(
+            color: isSelected ? Colors.white : AppColors.textPrimary,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManagerProgressMetrics(
+    int totalActivities,
+    int nudges,
+    int approvals,
+    int replans,
+    int meetings,
+  ) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Total Activities',
+                value: totalActivities.toString(),
+                icon: Icons.work_outline,
+                color: AppColors.activeColor,
+                subtitle: 'Completed this period',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Nudges Sent',
+                value: nudges.toString(),
+                icon: Icons.send,
+                color: AppColors.infoColor,
+                subtitle: 'Employee nudges',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Approvals',
+                value: approvals.toString(),
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Goals approved',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Replans',
+                value: replans.toString(),
+                icon: Icons.update,
+                color: AppColors.warningColor,
+                subtitle: 'Goals replanned',
+              ),
+            ),
+          ],
+        ),
+        if (meetings > 0) ...[
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  title: 'Meetings',
+                  value: meetings.toString(),
+                  icon: Icons.calendar_today,
+                  color: AppColors.activeColor,
+                  subtitle: '1:1 meetings',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildManagerActivityCard(ManagerActivity activity) {
+    Color statusColor;
+    IconData statusIcon;
+    String statusText;
+    IconData typeIcon;
+
+    // Determine color and icon based on activity type
+    switch (activity.type) {
+      case ManagerActivityType.nudge:
+        statusColor = AppColors.infoColor;
+        typeIcon = Icons.send;
+        break;
+      case ManagerActivityType.approval:
+        statusColor = AppColors.successColor;
+        typeIcon = Icons.check_circle;
+        break;
+      case ManagerActivityType.replan:
+        statusColor = AppColors.warningColor;
+        typeIcon = Icons.update;
+        break;
+      case ManagerActivityType.meeting:
+        statusColor = AppColors.activeColor;
+        typeIcon = Icons.calendar_today;
+        break;
+      case ManagerActivityType.checkIn:
+        statusColor = AppColors.activeColor;
+        typeIcon = Icons.person_search;
+        break;
+    }
+
+    if (activity.isCompleted) {
+      statusIcon = Icons.check_circle;
+      statusText = 'Completed';
+    } else if (activity.scheduledFor != null) {
+      statusIcon = Icons.schedule;
+      statusText = 'Scheduled';
+    } else {
+      statusIcon = Icons.pending;
+      statusText = 'Pending';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(typeIcon, color: statusColor, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.title,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (activity.employeeName != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'With: ${activity.employeeName}',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, color: statusColor, size: 14),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusText,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (activity.description.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              activity.description,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.access_time, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                activity.isCompleted
+                    ? 'Completed: ${_formatDate(activity.createdAt)}'
+                    : activity.scheduledFor != null
+                    ? 'Scheduled: ${_formatDate(activity.scheduledFor!)}'
+                    : 'Created: ${_formatDate(activity.createdAt)}',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoManagerActivitiesState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.work_outline, size: 64, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text(
+            'No activities yet',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start managing your team by sending nudges, approving goals, and helping with replans',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Map<String, dynamic> _calculateNudgeAnalytics(List<EmployeeData> employees) {
+    final managerId = FirebaseAuth.instance.currentUser?.uid;
+    if (managerId == null) {
+      return {
+        'responseRate': 0.0,
+        'pendingNudges': 0,
+        'openedNudges': 0,
+        'totalNudges': 0,
+      };
+    }
+
+    // Get all nudge alerts from employees
+    final nudgeAlerts = employees.expand((e) => e.recentAlerts).where((alert) {
+      if (alert.type != AlertType.managerNudge) return false;
+      if (alert.fromUserId == null) return true;
+      return alert.fromUserId == managerId;
+    }).toList();
+
+    final openedNudges = nudgeAlerts
+        .where((alert) => alert.isRead && !alert.isDismissed)
+        .length;
+    final dismissedNudges = nudgeAlerts
+        .where((alert) => alert.isDismissed)
+        .length;
+    final pendingNudges = nudgeAlerts.length - openedNudges - dismissedNudges;
+
+    final responseRate = nudgeAlerts.isNotEmpty
+        ? (openedNudges / nudgeAlerts.length) * 100
+        : 0.0;
+
+    return {
+      'responseRate': responseRate,
+      'pendingNudges': pendingNudges,
+      'openedNudges': openedNudges,
+      'totalNudges': nudgeAlerts.length,
+    };
+  }
+
+  Widget _buildNudgeAnalyticsSummary(Map<String, dynamic> analytics) {
+    final responseRate = analytics['responseRate'] as double;
+    final pendingNudges = analytics['pendingNudges'] as int;
+    final openedNudges = analytics['openedNudges'] as int;
+    final totalNudges = analytics['totalNudges'] as int;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.insights_outlined,
+                      size: 18,
+                      color: AppColors.activeColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Nudge Analytics',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildAnalyticsMetric(
+                        label: 'Response Rate',
+                        value: '${responseRate.toStringAsFixed(0)}%',
+                        color: responseRate >= 70
+                            ? AppColors.successColor
+                            : responseRate >= 40
+                            ? AppColors.warningColor
+                            : AppColors.dangerColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildAnalyticsMetric(
+                        label: 'Pending Nudges',
+                        value: pendingNudges.toString(),
+                        color: pendingNudges == 0
+                            ? AppColors.successColor
+                            : AppColors.warningColor,
+                      ),
+                    ),
+                  ],
+                ),
+                if (totalNudges > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '$openedNudges of $totalNudges nudges opened',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsMetric({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: AppTypography.heading4.copyWith(
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -337,70 +1237,82 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildFilterDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: DropdownButton<TimeFilter>(
-        value: currentTimeFilter,
-        underline: const SizedBox(),
-        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-        onChanged: (TimeFilter? filter) {
-          if (filter != null) {
-            setState(() {
-              currentTimeFilter = filter;
-            });
-          }
-        },
-        items: TimeFilter.values.map((filter) {
-          return DropdownMenuItem<TimeFilter>(
-            value: filter,
-            child: Text(filter.name.toUpperCase()),
-          );
-        }).toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: DropdownButton<TimeFilter>(
+          value: currentTimeFilter,
+          underline: const SizedBox(),
+          isExpanded: false,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
+          onChanged: (TimeFilter? filter) {
+            if (filter != null) {
+              setState(() {
+                currentTimeFilter = filter;
+              });
+            }
+          },
+          items: TimeFilter.values.map((filter) {
+            return DropdownMenuItem<TimeFilter>(
+              value: filter,
+              child: Text(filter.name.toUpperCase()),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
 
   Widget _buildDepartmentDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      child: DropdownButton<String?>(
-        value: selectedDepartment,
-        underline: const SizedBox(),
-        style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-        hint: Text(
-          'All Departments',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: DropdownButton<String?>(
+          value: selectedDepartment,
+          underline: const SizedBox(),
+          isExpanded: false,
           style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
+            color: AppColors.textPrimary,
           ),
-        ),
-        onChanged: (String? department) {
-          setState(() {
-            selectedDepartment = department;
-          });
-        },
-        items: [
-          DropdownMenuItem<String?>(
-            value: null,
-            child: Text('All Departments'),
-          ),
-          DropdownMenuItem<String?>(
-            value: widget.userProfile.department,
-            child: Text(
-              widget.userProfile.department.isEmpty
-                  ? 'Department'
-                  : widget.userProfile.department,
+          hint: Text(
+            'All Departments',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
-        ],
+          onChanged: (String? department) {
+            setState(() {
+              selectedDepartment = department;
+            });
+          },
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text('All Departments'),
+            ),
+            DropdownMenuItem<String?>(
+              value: widget.userProfile.department,
+              child: Text(
+                widget.userProfile.department.isEmpty
+                    ? 'Department'
+                    : widget.userProfile.department,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
