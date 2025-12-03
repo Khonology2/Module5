@@ -219,6 +219,88 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handleEmailPasswordSignIn() async {
+    if (_isSigningIn) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSigningIn = true;
+    });
+
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      // Store lastLoginAt and record daily login activity
+      final user = cred.user;
+      if (user != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final effectiveEmail = _emailController.text.trim();
+          if (effectiveEmail.isNotEmpty) {
+            await prefs.setString('lastLoginEmail', effectiveEmail);
+          }
+        } catch (_) {}
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // Also record a light-weight daily activity for streaks
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('daily_activities')
+              .doc(
+                '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+              )
+              .set({
+                'date': FieldValue.serverTimestamp(),
+                'activities': FieldValue.arrayUnion(['login']),
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      await _handlePostLoginNavigation(context);
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+        case 'invalid-login-credentials':
+          message = 'Email or password is incorrect. Please try again.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many attempts. Please wait a moment and try again.';
+          break;
+        case 'user-disabled':
+          message = 'This account is disabled. Please contact support.';
+          break;
+        default:
+          message = 'We couldn\'t sign you in right now. Please try again.';
+      }
+      if (!mounted) return;
+      await _showCenterNotice(message);
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSigningIn = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -358,6 +440,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   child: TextFormField(
                                     controller: _passwordController,
                                     obscureText: true,
+                                    textInputAction: TextInputAction.done,
                                     decoration: InputDecoration(
                                       filled: true,
                                       fillColor: Colors.black.withOpacity(0.3),
@@ -397,6 +480,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                         return 'Please enter your password';
                                       }
                                       return null;
+                                    },
+                                    onFieldSubmitted: (_) async {
+                                      await _handleEmailPasswordSignIn();
                                     },
                                   ),
                                 ),
@@ -491,112 +577,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   onPressed: _isSigningIn
                                       ? null
                                       : () async {
-                                          if (_formKey.currentState!
-                                              .validate()) {
-                                            setState(() {
-                                              _isSigningIn = true;
-                                            });
-                                            try {
-                                              final cred = await FirebaseAuth
-                                                  .instance
-                                                  .signInWithEmailAndPassword(
-                                                    email:
-                                                        _emailController.text,
-                                                    password:
-                                                        _passwordController
-                                                            .text,
-                                                  );
-                                              // Store lastLoginAt and record daily login activity
-                                              final user = cred.user;
-                                              if (user != null) {
-                                                try {
-                                                  final prefs =
-                                                      await SharedPreferences.getInstance();
-                                                  final effectiveEmail =
-                                                      _emailController.text
-                                                          .trim();
-                                                  if (effectiveEmail
-                                                      .isNotEmpty) {
-                                                    await prefs.setString(
-                                                      'lastLoginEmail',
-                                                      effectiveEmail,
-                                                    );
-                                                  }
-                                                } catch (_) {}
-                                                await FirebaseFirestore.instance
-                                                    .collection('users')
-                                                    .doc(user.uid)
-                                                    .set({
-                                                      'lastLoginAt':
-                                                          FieldValue.serverTimestamp(),
-                                                    }, SetOptions(merge: true));
-                                                // Also record a light-weight daily activity for streaks
-                                                try {
-                                                  await FirebaseFirestore
-                                                      .instance
-                                                      .collection('users')
-                                                      .doc(user.uid)
-                                                      .collection(
-                                                        'daily_activities',
-                                                      )
-                                                      .doc(
-                                                        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
-                                                      )
-                                                      .set({
-                                                        'date':
-                                                            FieldValue.serverTimestamp(),
-                                                        'activities':
-                                                            FieldValue.arrayUnion(
-                                                              ['login'],
-                                                            ),
-                                                        'createdAt':
-                                                            FieldValue.serverTimestamp(),
-                                                      }, SetOptions(merge: true));
-                                                } catch (_) {}
-                                              }
-                                              if (!mounted) return;
-                                              await _handlePostLoginNavigation(
-                                                context,
-                                              );
-                                            } on FirebaseAuthException catch (
-                                              e
-                                            ) {
-                                              String message;
-                                              switch (e.code) {
-                                                case 'user-not-found':
-                                                case 'wrong-password':
-                                                case 'invalid-credential':
-                                                case 'invalid-login-credentials':
-                                                  message =
-                                                      'Email or password is incorrect. Please try again.';
-                                                  break;
-                                                case 'too-many-requests':
-                                                  message =
-                                                      'Too many attempts. Please wait a moment and try again.';
-                                                  break;
-                                                case 'user-disabled':
-                                                  message =
-                                                      'This account is disabled. Please contact support.';
-                                                  break;
-                                                default:
-                                                  message =
-                                                      'We couldn\'t sign you in right now. Please try again.';
-                                              }
-                                              if (!mounted) return;
-                                              await _showCenterNotice(message);
-                                            } catch (e) {
-                                              if (!mounted) return;
-                                              await _showCenterNotice(
-                                                'An unexpected error occurred: ${e.toString()}',
-                                              );
-                                            } finally {
-                                              if (mounted) {
-                                                setState(() {
-                                                  _isSigningIn = false;
-                                                });
-                                              }
-                                            }
-                                          }
+                                          await _handleEmailPasswordSignIn();
                                         },
                                   child: _isSigningIn
                                       ? const SizedBox(
