@@ -362,7 +362,50 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 30),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () async {
+                                    final email = _emailController.text.trim();
+                                    if (email.isEmpty) {
+                                      await _showCenterNotice(
+                                        'Please enter your email first so we can send the reset link.',
+                                      );
+                                      return;
+                                    }
+                                    try {
+                                      await SettingsService.resetPassword(
+                                        email,
+                                      );
+                                      await _showCenterNotice(
+                                        'If an account exists for $email, a password reset email has been sent.',
+                                      );
+                                    } catch (e) {
+                                      await _showCenterNotice(
+                                        'Could not send reset email: ${e.toString()}',
+                                      );
+                                    }
+                                  },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white.withOpacity(
+                                      0.8,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Forgot password?',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                               // Primary Sign In button
                               Container(
                                 width: double.infinity,
