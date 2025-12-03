@@ -299,8 +299,9 @@ Guidelines:
 
                 void goTo(int Function(int) nextIndexBuilder) {
                   setModalState(() {
-                    currentIndex = nextIndexBuilder(currentIndex)
-                        .clamp(0, questions.length - 1);
+                    currentIndex = nextIndexBuilder(
+                      currentIndex,
+                    ).clamp(0, questions.length - 1);
                   });
                 }
 
@@ -310,8 +311,9 @@ Guidelines:
                 }
 
                 return ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
                   child: Material(
                     color: const Color(0xFF040610),
                     child: SafeArea(
@@ -347,8 +349,8 @@ Guidelines:
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: () => Navigator.of(sheetContext)
-                                      .pop(false),
+                                  onPressed: () =>
+                                      Navigator.of(sheetContext).pop(false),
                                   icon: const Icon(
                                     Icons.close,
                                     color: Colors.white54,
@@ -388,12 +390,12 @@ Guidelines:
                                   TextField(
                                     controller: question.controller,
                                     maxLines: question.maxLines,
-                                    style:
-                                        const TextStyle(color: Colors.white),
+                                    style: const TextStyle(color: Colors.white),
                                     decoration: InputDecoration(
                                       hintText: question.placeholder,
-                                      hintStyle:
-                                          const TextStyle(color: Colors.white38),
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white38,
+                                      ),
                                       fillColor: Colors.white10,
                                       filled: true,
                                       border: OutlineInputBorder(
@@ -488,13 +490,11 @@ Guidelines:
         ),
       );
 
-      final response = await model.generateContent(
-        [
-          Content.text(
-            'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
-          ),
-        ],
-      );
+      final response = await model.generateContent([
+        Content.text(
+          'Refine the following responses and return JSON only:\n${jsonEncode(payload)}',
+        ),
+      ]);
 
       final rawText = response.text ?? '';
       final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
@@ -560,8 +560,9 @@ Guidelines:
         if (plan.longTermGoal.isNotEmpty) {
           _longGoalsController.text = plan.longTermGoal;
         }
-        final aspirationText =
-            plan.careerVision.isNotEmpty ? plan.careerVision : plan.narrative;
+        final aspirationText = plan.careerVision.isNotEmpty
+            ? plan.careerVision
+            : plan.narrative;
         if (aspirationText.isNotEmpty) {
           _careerAspirationsController.text = aspirationText;
         }
@@ -624,8 +625,10 @@ Guidelines:
     }
 
     void addListLine(String label, List<String> values) {
-      final cleaned =
-          values.map((value) => value.trim()).where((value) => value.isNotEmpty).toList();
+      final cleaned = values
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
       if (cleaned.isNotEmpty) {
         contextLines.add('$label: ${cleaned.join(', ')}');
       }
@@ -743,10 +746,7 @@ Guidelines:
             const SizedBox(height: 8),
             Text(
               _planGenerationError!,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
             const SizedBox(height: 12),
             const Text(
@@ -756,8 +756,9 @@ Guidelines:
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed:
-                    _isGeneratingDevelopmentPlan ? null : _regenerateDevelopmentPlan,
+                onPressed: _isGeneratingDevelopmentPlan
+                    ? null
+                    : _regenerateDevelopmentPlan,
                 child: const Text('Try again'),
               ),
             ),
@@ -877,9 +878,7 @@ Guidelines:
             children: [
               Text(
                 'Profile',
-                style: AppTypography.heading2.copyWith(
-                  color: Colors.white,
-                ),
+                style: AppTypography.heading2.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 8.0),
               const Text(
@@ -1023,8 +1022,9 @@ Guidelines:
                   const SizedBox(height: 16),
                   _buildActionButton(
                     text: '✨ Generate Personalized Development Plan ✨',
-                    onPressed:
-                        _isGeneratingDevelopmentPlan ? null : _generateDevelopmentPlan,
+                    onPressed: _isGeneratingDevelopmentPlan
+                        ? null
+                        : _generateDevelopmentPlan,
                   ),
                   const SizedBox(height: 12),
                   _buildDevelopmentPlanSummaryCard(),
@@ -1185,7 +1185,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFFC10D00)),
+        hintStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: color ?? Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1214,7 +1214,7 @@ Guidelines:
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFFC10D00)),
+        hintStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: Color.fromARGB(13, 255, 255, 255),
         border: OutlineInputBorder(
@@ -1233,10 +1233,7 @@ Guidelines:
     );
   }
 
-  Widget _buildActionButton({
-    required String text,
-    VoidCallback? onPressed,
-  }) {
+  Widget _buildActionButton({required String text, VoidCallback? onPressed}) {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
@@ -1329,7 +1326,7 @@ Guidelines:
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',
-          hintStyle: TextStyle(color: Color(0xFFC10D00)),
+          hintStyle: TextStyle(color: Colors.white70),
           filled: true,
           fillColor: Colors.white10,
           border: OutlineInputBorder(

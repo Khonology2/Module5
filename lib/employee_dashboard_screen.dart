@@ -22,6 +22,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 
@@ -759,6 +760,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const ProfileCompletionBanner(),
                           _buildWelcomeCard(),
                           const SizedBox(height: AppSpacing.xl),
                           _buildDailyMotivationCard(),
@@ -1006,10 +1008,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildQuickStats() {
     // Calculate real stats from user data
+    // Only count approved goals as active (pending/rejected goals should not appear)
     final activeGoals = userGoals
         .where(
           (goal) =>
-              (goal.status != GoalStatus.completed) && (goal.progress < 100),
+              goal.approvalStatus == GoalApprovalStatus.approved &&
+              (goal.status != GoalStatus.completed) &&
+              (goal.progress < 100),
         )
         .length;
     final completedGoals = userGoals

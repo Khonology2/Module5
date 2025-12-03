@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
@@ -38,6 +39,7 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
+  bool _isProfileIncomplete = false;
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -46,6 +48,26 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void initState() {
     super.initState();
     _previousTutorialStep = widget.tutorialStepIndex;
+    _checkProfileCompletion();
+  }
+
+  Future<void> _checkProfileCompletion() async {
+    try {
+      final isComplete =
+          await ProfileCompletionService.isCurrentUserProfileComplete();
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = !isComplete;
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't show indicator if check fails
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = false;
+        });
+      }
+    }
   }
 
   @override
@@ -66,6 +88,11 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToTutorialItem(widget.tutorialStepIndex!);
       });
+    }
+    // Refresh profile completion check when widget updates (e.g., after profile save)
+    if (widget.currentRouteName == '/my_profile' ||
+        oldWidget.currentRouteName == '/my_profile') {
+      _checkProfileCompletion();
     }
   }
 
@@ -114,6 +141,12 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   children: widget.items.asMap().entries.map((entry) {
                     final index = entry.key;
                     final it = entry.value;
+                    // Check if this is the My Profile route and profile is incomplete
+                    final bool showProfileIndicator =
+                        (it.route == '/my_profile' ||
+                            it.route == '/manager_profile') &&
+                        (_isProfileIncomplete == true);
+
                     final navTile = _NavTile(
                       icon: it.icon,
                       iconWidget: it.iconWidget,
@@ -124,6 +157,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       isActive: widget.currentRouteName == it.route,
                       collapsed: effectiveCollapsed,
                       onTap: () => widget.onNavigate(it.route),
+                      showProfileIndicator: showProfileIndicator,
                       tutorialKey:
                           widget.sidebarTutorialKeys != null &&
                               index < widget.sidebarTutorialKeys!.length
@@ -402,12 +436,14 @@ class _NavTile extends StatefulWidget {
     required this.isActive,
     required this.collapsed,
     required this.onTap,
+    bool? showProfileIndicator,
     this.tutorialKey,
     this.showTutorial = false,
     this.onTutorialNext,
     this.onTutorialSkip,
     this.isLastTutorialStep = false,
-  }) : assert(
+  }) : showProfileIndicator = showProfileIndicator ?? false,
+       assert(
          icon != null || iconWidget != null || assetWhite != null,
          'Provide icon, iconWidget, or assetWhite',
        );
@@ -420,6 +456,7 @@ class _NavTile extends StatefulWidget {
   final bool isActive;
   final bool collapsed;
   final VoidCallback onTap;
+  final bool showProfileIndicator;
   final GlobalKey? tutorialKey;
   final bool showTutorial;
   final VoidCallback? onTutorialNext;

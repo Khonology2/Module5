@@ -365,9 +365,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         ), // text-white / text-white/50
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: const TextStyle(
-            color: Color(0xFFC10D00),
-          ), // match manager red hint
+          hintStyle: const TextStyle(color: Colors.white70),
           filled: true,
           fillColor: const Color.fromARGB(13, 255, 255, 255),
           contentPadding: const EdgeInsets.symmetric(
@@ -484,9 +482,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
           children: [
             Text(
               'Profile',
-              style: AppTypography.heading2.copyWith(
-                color: Colors.white,
-              ),
+              style: AppTypography.heading2.copyWith(color: Colors.white),
             ),
             const SizedBox(height: 8),
             Text(
@@ -636,10 +632,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     const SizedBox(height: 4),
                     const Text(
                       'Type a skill and press Enter to add it as a tag',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     _buildTagInput(
@@ -663,10 +656,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                     const SizedBox(height: 4),
                     const Text(
                       'Add each development focus as its own tag',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     _buildTagInput(
