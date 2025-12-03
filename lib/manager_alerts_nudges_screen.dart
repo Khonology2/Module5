@@ -383,6 +383,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
+        key: const ValueKey('team_data_stream'),
         stream: ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
@@ -397,7 +398,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppColors.dangerColor,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading team data',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final employees = snapshot.data ?? [];
@@ -530,7 +560,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
     return Row(
       children: [
-        Expanded(
+        Flexible(
+          flex: 1,
           child: _buildStatCard(
             'Unread Alerts',
             unreadAlerts.toString(),
@@ -539,8 +570,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             subtitle: totalAlerts > 0 ? 'of $totalAlerts total' : null,
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
           child: _buildStatCard(
             'Urgent',
             urgentAlerts.toString(),
@@ -550,8 +582,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 'assets/Information_Detail/Information_Red_Badge_White.png',
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
           child: _buildStatCard(
             'Overdue Goals',
             overdueGoals.toString(),
@@ -561,8 +594,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
           child: _buildStatCard(
             'Team Members',
             employees.length.toString(),
@@ -848,7 +882,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   Widget _buildFilterRow() {
     return Row(
       children: [
-        Expanded(
+        Flexible(
+          flex: 3,
           child: TextField(
             onChanged: (value) => setState(() => _searchQuery = value),
             decoration: InputDecoration(
@@ -876,40 +911,45 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             ),
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: DropdownButton<AlertPriority?>(
-            value: _selectedPriority,
-            underline: const SizedBox(),
-            hint: Text(
-              'Priority',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-              ),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
-            ),
-            onChanged: (priority) =>
-                setState(() => _selectedPriority = priority),
-            items: [
-              const DropdownMenuItem(
-                value: null,
-                child: Text('All Priorities'),
-              ),
-              ...AlertPriority.values.map(
-                (p) => DropdownMenuItem(
-                  value: p,
-                  child: Text(p.name.toUpperCase()),
+            child: DropdownButton<AlertPriority?>(
+              value: _selectedPriority,
+              underline: const SizedBox(),
+              isExpanded: true,
+              hint: Text(
+                'Priority',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+              onChanged: (priority) =>
+                  setState(() => _selectedPriority = priority),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('All Priorities'),
+                ),
+                ...AlertPriority.values.map(
+                  (p) => DropdownMenuItem(
+                    value: p,
+                    child: Text(p.name.toUpperCase()),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
