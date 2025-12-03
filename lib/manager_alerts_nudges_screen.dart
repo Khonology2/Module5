@@ -42,7 +42,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // ignore: unused_field
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
+  // ignore: unused_field
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
+  // ignore: unused_field, prefer_final_fields
   bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _teamInsights;
