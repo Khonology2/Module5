@@ -8,6 +8,7 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
 
@@ -103,10 +104,9 @@ class EmployeeData {
               map['profile'] ?? {},
               id: map['profile']?['uid'] ?? id,
             ),
-      goals:
-          (map['goals'] as List<dynamic>? ?? [])
-                  .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
-                  .toList(),
+      goals: (map['goals'] as List<dynamic>? ?? [])
+          .map((g) => g is Goal ? g : Goal.fromMap(g ?? {}))
+          .toList(),
       recentActivities: (map['recentActivities'] as List<dynamic>? ?? [])
           .map(
             (a) =>
@@ -363,6 +363,88 @@ class ManagerRealtimeService {
     }
   }
 
+  /// Fetch onboarding employees and convert to UserProfile objects
+  static Future<List<UserProfile>> _fetchOnboardingEmployees(
+    String? department,
+  ) async {
+    try {
+      Query onboardingQuery = _firestore.collection('onboarding');
+
+      // Note: We can't filter by department in onboarding collection easily
+      // So we fetch all and filter in memory if needed
+      final onboardingSnapshot = await onboardingQuery.get();
+
+      final onboardingProfiles = onboardingSnapshot.docs
+          .where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final moduleAccessRole = data['moduleAccessRole'] as String?;
+            // Only include employees (not managers) for PDH app
+            return OnboardingService.shouldIncludeUser(
+              moduleAccessRole,
+              'employee',
+            );
+          })
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final convertedData =
+                OnboardingService.convertOnboardingUserToUserFormat(
+                  data,
+                  doc.id,
+                );
+
+            // Convert to UserProfile
+            return UserProfile(
+              uid: doc.id,
+              email: convertedData['email'] ?? '',
+              displayName: convertedData['displayName'] ?? 'Unknown User',
+              totalPoints: (convertedData['totalPoints'] ?? 0) as int,
+              level: (convertedData['level'] ?? 1) as int,
+              badges: List<String>.from(convertedData['badges'] ?? const []),
+              role: convertedData['role'] ?? 'employee',
+              jobTitle: convertedData['jobTitle'] ?? '',
+              department: convertedData['department'] ?? '',
+              phoneNumber: convertedData['phoneNumber'] ?? '',
+              profilePhotoUrl: convertedData['profilePhotoUrl'],
+              skills: List<String>.from(convertedData['skills'] ?? const []),
+              developmentAreas: List<String>.from(
+                convertedData['developmentAreas'] ?? const [],
+              ),
+              careerAspirations: convertedData['careerAspirations'] ?? '',
+              currentProjects: convertedData['currentProjects'] ?? '',
+              learningStyle: convertedData['learningStyle'] ?? '',
+              preferredDevActivities: List<String>.from(
+                convertedData['preferredDevActivities'] ?? const [],
+              ),
+              shortGoals: convertedData['shortGoals'] ?? '',
+              longGoals: convertedData['longGoals'] ?? '',
+              notificationFrequency:
+                  convertedData['notificationFrequency'] ?? 'daily',
+              goalVisibility: convertedData['goalVisibility'] ?? 'private',
+              leaderboardOptin: convertedData['leaderboardOptin'] ?? false,
+              badgeName: convertedData['badgeName'] ?? '',
+              celebrationConsent:
+                  convertedData['celebrationConsent'] ?? 'private',
+              lastLoginAt: convertedData['lastLoginAt'] is Timestamp
+                  ? (convertedData['lastLoginAt'] as Timestamp).toDate()
+                  : null,
+            );
+          })
+          .toList();
+
+      // Filter by department if specified
+      if (department != null && department.trim().isNotEmpty) {
+        return onboardingProfiles
+            .where((profile) => profile.department == department.trim())
+            .toList();
+      }
+
+      return onboardingProfiles;
+    } catch (e) {
+      developer.log('Error fetching onboarding employees: $e');
+      return [];
+    }
+  }
+
   Stream<List<EmployeeData>> employeesStream() {
     return getTeamDataStream();
   }
@@ -489,11 +571,7 @@ class ManagerRealtimeService {
         final data = doc.data() as Map<String, dynamic>;
         final actionType = (data['actionType'] ?? '').toString();
         final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? now;
-        final dayKey = DateTime(
-          createdAt.year,
-          createdAt.month,
-          createdAt.day,
-        );
+        final dayKey = DateTime(createdAt.year, createdAt.month, createdAt.day);
 
         if (actionType == ManagementAction.sendNudge.name) {
           totalNudges++;
@@ -540,8 +618,10 @@ class ManagerRealtimeService {
 
         if (userId.isEmpty) continue;
 
-        final accumulator =
-            employeeAccum.putIfAbsent(userId, () => _EmployeeNudgeAccumulator());
+        final accumulator = employeeAccum.putIfAbsent(
+          userId,
+          () => _EmployeeNudgeAccumulator(),
+        );
 
         if (!isRead && !isDismissed) {
           accumulator.unread += 1;
@@ -558,30 +638,33 @@ class ManagerRealtimeService {
       final unreadNudges =
           alertsQuery.docs.length - readNudges - dismissedNudges;
 
-      final List<EmployeeNudgeMetric> outstandingEmployees = employeeAccum.entries
-          .map(
-            (entry) => EmployeeNudgeMetric(
-              employeeId: entry.key,
-              unreadCount: entry.value.unread,
-              urgentCount: entry.value.urgent,
-              lastNudgedAt: entry.value.lastNudgedAt,
-            ),
-          )
-          .where((metric) => metric.unreadCount > 0 || metric.urgentCount > 0)
-          .toList()
-        ..sort(
-          (a, b) {
-            if (b.urgentCount != a.urgentCount) {
-              return b.urgentCount.compareTo(a.urgentCount);
-            }
-            if (b.unreadCount != a.unreadCount) {
-              return b.unreadCount.compareTo(a.unreadCount);
-            }
-            final aTime = a.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            final bTime = b.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-            return bTime.compareTo(aTime);
-          },
-        );
+      final List<EmployeeNudgeMetric> outstandingEmployees =
+          employeeAccum.entries
+              .map(
+                (entry) => EmployeeNudgeMetric(
+                  employeeId: entry.key,
+                  unreadCount: entry.value.unread,
+                  urgentCount: entry.value.urgent,
+                  lastNudgedAt: entry.value.lastNudgedAt,
+                ),
+              )
+              .where(
+                (metric) => metric.unreadCount > 0 || metric.urgentCount > 0,
+              )
+              .toList()
+            ..sort((a, b) {
+              if (b.urgentCount != a.urgentCount) {
+                return b.urgentCount.compareTo(a.urgentCount);
+              }
+              if (b.unreadCount != a.unreadCount) {
+                return b.unreadCount.compareTo(a.unreadCount);
+              }
+              final aTime =
+                  a.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final bTime =
+                  b.lastNudgedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+              return bTime.compareTo(aTime);
+            });
 
       final today = DateTime(now.year, now.month, now.day);
       final List<DailyNudgeStat> trend = List.generate(14, (index) {
@@ -657,7 +740,8 @@ class ManagerRealtimeService {
   }
 
   // Stream real-time team data based on current manager
-  static const int _initialEmployeeLimit = 12; // lower cap for faster first paint; lazy-enrich later
+  static const int _initialEmployeeLimit =
+      1000; // Increased limit to show all employees for managers
 
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -674,8 +758,8 @@ class ManagerRealtimeService {
         // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
         final String? explicitDepartment =
             (department != null && department.trim().isNotEmpty)
-                ? department.trim()
-                : null;
+            ? department.trim()
+            : null;
 
         // Build employee query; if department known, constrain to that team
         Query usersQuery = _firestore
@@ -683,48 +767,90 @@ class ManagerRealtimeService {
             .where('role', isEqualTo: 'employee')
             .limit(_initialEmployeeLimit);
         if (explicitDepartment != null) {
-          usersQuery =
-              usersQuery.where('department', isEqualTo: explicitDepartment);
+          usersQuery = usersQuery.where(
+            'department',
+            isEqualTo: explicitDepartment,
+          );
         }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
-          if (usersSnapshot.docs.isEmpty) {
+          // Fetch onboarding users with employee persona and convert to UserProfile
+          final onboardingProfiles =
+              await ManagerRealtimeService._fetchOnboardingEmployees(
+                department,
+              );
+
+          // Get regular employee IDs
+          final regularEmployeeIds = usersSnapshot.docs
+              .map((doc) => doc.id)
+              .toList();
+
+          // Get onboarding employee IDs
+          final onboardingEmployeeIds = onboardingProfiles
+              .map((profile) => profile.uid)
+              .toList();
+
+          // Combine all employee IDs
+          final allEmployeeIds = <String>[
+            ...regularEmployeeIds,
+            ...onboardingEmployeeIds,
+          ];
+
+          if (allEmployeeIds.isEmpty) {
             controller.add([]);
             return;
           }
 
-          final employeeIds = usersSnapshot.docs.map((doc) => doc.id).toList();
-          
           // Firestore whereIn supports up to 10 values. Fetch in batches.
           final startDate = _getStartDateForFilter(timeFilter);
 
-          Future<List<QueryDocumentSnapshot>> fetchInBatches(String collection) async {
+          Future<List<QueryDocumentSnapshot>> fetchInBatches(
+            String collection,
+          ) async {
             final results = <QueryDocumentSnapshot>[];
-            for (int i = 0; i < employeeIds.length; i += 10) {
-              final batch = employeeIds.sublist(i, i + 10 > employeeIds.length ? employeeIds.length : i + 10);
-              Query base = _firestore.collection(collection).where('userId', whereIn: batch);
+            for (int i = 0; i < allEmployeeIds.length; i += 10) {
+              final batch = allEmployeeIds.sublist(
+                i,
+                i + 10 > allEmployeeIds.length ? allEmployeeIds.length : i + 10,
+              );
+              Query base = _firestore
+                  .collection(collection)
+                  .where('userId', whereIn: batch);
 
               // Apply collection-specific filters to minimize data
               try {
                 if (collection == 'activities') {
                   // Last 30 days of activity, newest first
-                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  final thirtyDaysAgo = DateTime.now().subtract(
+                    const Duration(days: 30),
+                  );
                   base = base
-                      .where('timestamp', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .where(
+                        'timestamp',
+                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                      )
                       .orderBy('timestamp', descending: true)
                       .limit(200);
                 } else if (collection == 'alerts') {
                   // Only active/undismissed alerts, recent first
-                  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+                  final thirtyDaysAgo = DateTime.now().subtract(
+                    const Duration(days: 30),
+                  );
                   base = base
                       .where('isDismissed', isEqualTo: false)
-                      .where('createdAt', isGreaterThan: Timestamp.fromDate(thirtyDaysAgo))
+                      .where(
+                        'createdAt',
+                        isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                      )
                       .orderBy('createdAt', descending: true)
                       .limit(200);
                 } else if (collection == 'goals') {
                   // Only goals created in current time window for dashboard metrics
                   base = base
-                      .where('createdAt', isGreaterThan: Timestamp.fromDate(startDate))
+                      .where(
+                        'createdAt',
+                        isGreaterThan: Timestamp.fromDate(startDate),
+                      )
                       .limit(500);
                 }
 
@@ -761,7 +887,9 @@ class ManagerRealtimeService {
           final activitiesByEmployee = <String, List<EmployeeActivity>>{};
           for (var doc in activitiesDocs) {
             final activity = EmployeeActivity.fromFirestore(doc);
-            activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
+            activitiesByEmployee
+                .putIfAbsent(activity.userId, () => [])
+                .add(activity);
           }
 
           final alertsByEmployee = <String, List<Alert>>{};
@@ -772,12 +900,16 @@ class ManagerRealtimeService {
 
           final now = DateTime.now();
           final employeeDataList = <EmployeeData>[];
+
+          // Process regular employees
           for (final userDoc in usersSnapshot.docs) {
             final userProfile = UserProfile.fromFirestore(userDoc);
             final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
             final activeAlerts = rawAlerts.where((a) {
               if (a.isDismissed) return false;
-              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
+                return false;
+              }
               return true;
             }).toList();
             final employeeData = await _buildEmployeeData(
@@ -785,6 +917,26 @@ class ManagerRealtimeService {
               timeFilter,
               goalsByEmployee[userDoc.id] ?? [],
               activitiesByEmployee[userDoc.id] ?? [],
+              activeAlerts,
+            );
+            employeeDataList.add(employeeData);
+          }
+
+          // Process onboarding employees
+          for (final userProfile in onboardingProfiles) {
+            final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
+            final activeAlerts = rawAlerts.where((a) {
+              if (a.isDismissed) return false;
+              if (a.expiresAt != null && a.expiresAt!.isBefore(now)) {
+                return false;
+              }
+              return true;
+            }).toList();
+            final employeeData = await _buildEmployeeData(
+              userProfile,
+              timeFilter,
+              goalsByEmployee[userProfile.uid] ?? [],
+              activitiesByEmployee[userProfile.uid] ?? [],
               activeAlerts,
             );
             employeeDataList.add(employeeData);
@@ -815,7 +967,9 @@ class ManagerRealtimeService {
                   completedGoalsCount: 0,
                   overdueGoalsCount: 0,
                   totalPoints: profile.totalPoints,
-                  lastActivity: profile.lastLoginAt ?? now.subtract(const Duration(days: 30)),
+                  lastActivity:
+                      profile.lastLoginAt ??
+                      now.subtract(const Duration(days: 30)),
                   avgProgress: 0.0,
                   streakDays: 0,
                   status: EmployeeStatus.onTrack,
@@ -1025,24 +1179,28 @@ class ManagerRealtimeService {
         return createdRecently || isActive;
       }).toList();
 
-      final completedGoals =
-          allEmployeeGoals.where((g) => g.status == GoalStatus.completed).length;
+      final completedGoals = allEmployeeGoals
+          .where((g) => g.status == GoalStatus.completed)
+          .length;
       final overdueGoals = allEmployeeGoals
-          .where((g) =>
-              g.status != GoalStatus.completed &&
-              g.targetDate.isBefore(DateTime.now()))
+          .where(
+            (g) =>
+                g.status != GoalStatus.completed &&
+                g.targetDate.isBefore(DateTime.now()),
+          )
           .length;
 
       final avgProgress = allEmployeeGoals.isNotEmpty
           ? allEmployeeGoals.map((g) => g.progress).fold(0.0, (a, b) => a + b) /
-              allEmployeeGoals.length
+                allEmployeeGoals.length
           : 0.0;
 
       allEmployeeActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       final lastActivity = allEmployeeActivities.isNotEmpty
           ? allEmployeeActivities.first.timestamp
-          : (profile.lastLoginAt ?? DateTime.now().subtract(const Duration(days: 30)));
+          : (profile.lastLoginAt ??
+                DateTime.now().subtract(const Duration(days: 30)));
 
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
       final recentDocs = allEmployeeActivities
@@ -1140,7 +1298,9 @@ class ManagerRealtimeService {
   }
 
   // Calculate streak days from activity documents
-  static int _calculateStreakDaysFromActivities(List<EmployeeActivity> activities) {
+  static int _calculateStreakDaysFromActivities(
+    List<EmployeeActivity> activities,
+  ) {
     if (activities.isEmpty) return 0;
 
     final now = DateTime.now();

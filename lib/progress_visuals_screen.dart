@@ -1702,7 +1702,10 @@ class _EmployeeProgressVisualsContentState
     );
   }
 
-  Future<void> _generateProgressSummary(List<Goal> goals, {bool keepGeneratingState = false}) async {
+  Future<void> _generateProgressSummary(
+    List<Goal> goals, {
+    bool keepGeneratingState = false,
+  }) async {
     if (goals.isEmpty) return;
 
     if (!keepGeneratingState) {
@@ -1725,7 +1728,7 @@ class _EmployeeProgressVisualsContentState
         await updatePhase('Collecting progress data...');
       }
       final progressData = _collectProgressData(goals);
-      
+
       if (!keepGeneratingState) {
         await updatePhase('Generating summary...');
       }
@@ -1749,7 +1752,7 @@ class _EmployeeProgressVisualsContentState
       ];
 
       await updatePhase('Finalizing summary...');
-      
+
       final response = await model.generateContent(prompt);
       final summary = response.text?.replaceAll('*', '').trim() ?? '';
 
@@ -1824,12 +1827,15 @@ class _EmployeeProgressVisualsContentState
               try {
                 // Generate summary first (shown in AI Progress Summary section)
                 await updatePhase('Generating progress summary...');
-                await _generateProgressSummary(goals, keepGeneratingState: true);
-                
+                await _generateProgressSummary(
+                  goals,
+                  keepGeneratingState: true,
+                );
+
                 // Then generate insights
                 await updatePhase('Collecting progress data...');
                 final progressData = _collectProgressData(goals);
-                
+
                 await updatePhase('Generating personalized insights...');
                 final model = FirebaseAI.googleAI().generativeModel(
                   model: 'gemini-2.5-flash',
@@ -1853,9 +1859,10 @@ class _EmployeeProgressVisualsContentState
                 ];
 
                 await updatePhase('Finalizing insights...');
-                
+
                 final response = await model.generateContent(prompt);
-                final insights = response.text?.replaceAll('*', '').trim() ?? '';
+                final insights =
+                    response.text?.replaceAll('*', '').trim() ?? '';
 
                 await updatePhase('Complete!');
                 await Future.delayed(const Duration(milliseconds: 500));
@@ -1906,8 +1913,8 @@ class _EmployeeProgressVisualsContentState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AIGenerationIndicator(
-                      currentPhase: currentPhase.isEmpty 
-                          ? 'Analyzing progress data...' 
+                      currentPhase: currentPhase.isEmpty
+                          ? 'Analyzing progress data...'
                           : currentPhase,
                       onPhaseChange: (phase) {
                         setDialogState(() => currentPhase = phase);
@@ -1939,8 +1946,14 @@ class _EmployeeProgressVisualsContentState
     final completedGoals = goals
         .where((g) => g.status == GoalStatus.completed || g.progress >= 100)
         .length;
+    // Only count approved goals as active (pending/rejected goals should not appear)
     final activeGoals = goals
-        .where((g) => g.status != GoalStatus.completed && g.progress < 100)
+        .where(
+          (g) =>
+              g.approvalStatus == GoalApprovalStatus.approved &&
+              g.status != GoalStatus.completed &&
+              g.progress < 100,
+        )
         .length;
     final overdueGoals = goals.where((g) {
       final now = DateTime.now();
@@ -2094,9 +2107,13 @@ $progressDetails
           (goal) => goal.status == GoalStatus.completed || goal.progress >= 100,
         )
         .length;
+    // Only count approved goals as active (pending/rejected goals should not appear)
     final activeGoals = goals
         .where(
-          (goal) => goal.status != GoalStatus.completed && goal.progress < 100,
+          (goal) =>
+              goal.approvalStatus == GoalApprovalStatus.approved &&
+              goal.status != GoalStatus.completed &&
+              goal.progress < 100,
         )
         .length;
     final overallProgress = totalGoals > 0
@@ -2693,11 +2710,14 @@ $progressDetails
   }
 
   Widget _buildGoalsProgress(BuildContext context, List<Goal> goals) {
+    // Only show approved goals as active (pending/rejected goals should not appear)
     final activeGoals =
         goals
             .where(
               (goal) =>
-                  goal.status != GoalStatus.completed && goal.progress < 100,
+                  goal.approvalStatus == GoalApprovalStatus.approved &&
+                  goal.status != GoalStatus.completed &&
+                  goal.progress < 100,
             )
             .toList()
           ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
