@@ -202,6 +202,15 @@ class BadgeService {
       } catch (e) {
         developer.log('Error in post-initialization badge correction: $e');
       }
+
+      await updateUserBadgeSummary(
+        userId,
+        snapshot: await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .get(),
+      );
     } catch (e) {
       developer.log('Error initializing badges: $e');
     }
@@ -280,6 +289,8 @@ class BadgeService {
         totalGoals,
         correctLevel,
       );
+
+      await updateUserBadgeSummary(userId);
 
       developer.log('Completed retroactive badge and level update');
     } catch (e) {
@@ -918,6 +929,8 @@ class BadgeService {
 
       // Check for points milestone badges
       await _checkPointsMilestoneBadges(userId, userProfile);
+
+      await updateUserBadgeSummary(userId);
     } catch (e) {
       developer.log('Error checking badges: $e');
     }
@@ -1621,6 +1634,50 @@ class BadgeService {
     ];
   }
 
+  static Future<void> updateUserBadgeSummary(
+    String userId, {
+    QuerySnapshot<Map<String, dynamic>>? snapshot,
+  }) async {
+    try {
+      final badgeSnapshot = snapshot ??
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('badges')
+              .get();
+
+      final earnedBadgeIds = badgeSnapshot.docs.where((doc) {
+        return _isBadgeEarned(doc.data());
+      }).map((doc) => doc.id).toList();
+
+      await _firestore.collection('users').doc(userId).set(
+        {
+          'badges': earnedBadgeIds,
+          'earnedBadgesCount': earnedBadgeIds.length,
+          'badgeSummary': {
+            'earned': earnedBadgeIds.length,
+            'total': badgeSnapshot.docs.length,
+            'lastSyncedAt': FieldValue.serverTimestamp(),
+          },
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      developer.log('Error syncing badge summary for $userId: $e');
+    }
+  }
+
+  static bool _isBadgeEarned(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    if (data['isEarned'] == true) return true;
+    final progress = data['progress'];
+    final maxProgress = data['maxProgress'];
+    if (progress is num && maxProgress is num && maxProgress > 0) {
+      return progress >= maxProgress;
+    }
+    return false;
+  }
+
   // Get leaderboard data
   static Future<List<Map<String, dynamic>>> getLeaderboard({
     int limit = 10,
@@ -1631,6 +1688,9 @@ class BadgeService {
   }) async {
     try {
       Query query = _firestore.collection('users');
+
+      // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
+      query = query.where('role', isEqualTo: 'employee');
 
       // Add department filter if specified
       if (department != null && department.isNotEmpty) {
@@ -1644,17 +1704,30 @@ class BadgeService {
 
       final snapshot = await query.get();
 
-      // Filter for opted-in users after fetching
-      final filteredDocs = onlyOptedIn
-          ? snapshot.docs.where((doc) {
-              try {
-                final data = doc.data() as Map<String, dynamic>?;
-                return data != null && data['leaderboardOptin'] == true;
-              } catch (e) {
-                return false;
-              }
-            }).toList()
-          : snapshot.docs;
+      // Filter for opted-in users after fetching and ensure no managers slipped through
+      final filteredDocs = snapshot.docs.where((doc) {
+        try {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) return false;
+          
+          // Double-check: ALWAYS exclude managers
+          final role = data['role']?.toString() ?? 'employee';
+          if (role != 'employee') {
+            return false;
+          }
+          
+          // Filter by opt-in status if required
+          if (onlyOptedIn) {
+            final optIn = data['leaderboardOptin'];
+            final legacyOptIn = data['leaderboardParticipation'];
+            return optIn == true || legacyOptIn == true;
+          }
+          
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }).toList();
 
       return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
@@ -1664,11 +1737,28 @@ class BadgeService {
         // Safely extract badge count
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
           }
-        } catch (e) {
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+        } catch (_) {
           // Ignore badge count errors
         }
 

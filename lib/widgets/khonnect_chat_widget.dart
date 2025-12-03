@@ -6,114 +6,99 @@ import 'package:pdh/design_system/app_typography.dart';
 /// Helper function to show the Khonnect chat modal from anywhere in the app
 /// This ensures consistent behavior whenever team chat is accessed
 void showKhonnectChatModal(BuildContext context) {
-  // Ensure we're using the root navigator and have Material context
-  final navigator = Navigator.of(context, rootNavigator: true);
-  
+  // Open the chat modal using the provided context and the root navigator
   showDialog(
-    context: navigator.context,
+    context: context,
     useRootNavigator: true,
     barrierColor: Colors.black.withValues(alpha: 0.7),
     builder: (ctx) {
       return Material(
         color: Colors.transparent,
-        child: Dialog(
-          backgroundColor: Colors.black.withValues(alpha: 0.85),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Colors.white.withValues(alpha: 0.2),
-              width: 1,
-            ),
-          ),
+        child: Center(
           child: LayoutBuilder(
             builder: (context, constraints) {
-            final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(
-              360.0,
-              800.0,
-            );
-            final maxWidth = (MediaQuery.of(ctx).size.width * 0.9).clamp(
-              400.0,
-              600.0,
-            );
-            return SizedBox(
-              width: maxWidth,
-              height: maxHeight,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header matching Rare Goals modal style
-                  Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
+              final maxHeight = (MediaQuery.of(ctx).size.height * 0.8).clamp(
+                360.0,
+                800.0,
+              );
+              final maxWidth = (MediaQuery.of(ctx).size.width * 0.8).clamp(
+                420.0,
+                640.0,
+              );
+
+              return Container(
+                width: maxWidth,
+                height: maxHeight,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Chat with your team',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Share updates, ask questions, and keep everyone aligned.',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Chat container
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(20),
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.3),
+                              color: Colors.white.withValues(alpha: 0.18),
+                              width: 1,
                             ),
                           ),
-                          child: const Icon(
-                            Icons.chat_bubble_outline,
-                            color: AppColors.activeColor,
-                          ),
+                          child: const TeamChatsScreen(),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Khonnect',
-                                style: AppTypography.heading4.copyWith(
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Team Chat',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Divider
-                  Divider(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                  // Chat content
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(16),
-                        bottomRight: Radius.circular(16),
-                      ),
-                      child: Container(
-                        color: Colors.transparent,
-                        child: TeamChatsScreen(),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(
+                          'Close',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
-      ),
-    );
+      );
     },
   );
 }
@@ -123,13 +108,13 @@ void showKhonnectChatModal(BuildContext context) {
 class KhonnectChatWidget extends StatefulWidget {
   /// Whether the widget should start in expanded state
   final bool initiallyExpanded;
-  
+
   /// Whether to show as a floating button (true) or embedded widget (false)
   final bool isFloating;
-  
+
   /// Position of the floating button
   final Alignment floatingPosition;
-  
+
   const KhonnectChatWidget({
     super.key,
     this.initiallyExpanded = false,
@@ -183,10 +168,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
     return FloatingActionButton(
       onPressed: _showChatModal,
       backgroundColor: AppColors.activeColor,
-      child: const Icon(
-        Icons.chat_bubble_outline,
-        color: Colors.white,
-      ),
+      child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
     );
   }
 
@@ -259,10 +241,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.2)),
           // Chat content
           Expanded(
             child: ClipRRect(
@@ -304,9 +283,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
               ),
               child: const Icon(
                 Icons.chat_bubble_outline,
@@ -334,10 +311,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
               ],
             ),
             const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textSecondary,
-            ),
+            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
           ],
         ),
       ),
@@ -346,10 +320,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
 
   Widget _buildExpandedEmbeddedWidget() {
     return Container(
-      constraints: const BoxConstraints(
-        maxHeight: 600,
-        maxWidth: 500,
-      ),
+      constraints: const BoxConstraints(maxHeight: 600, maxWidth: 500),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
@@ -408,10 +379,7 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.2)),
           // Chat content
           Expanded(
             child: ClipRRect(
@@ -430,4 +398,3 @@ class _KhonnectChatWidgetState extends State<KhonnectChatWidget> {
     );
   }
 }
-
