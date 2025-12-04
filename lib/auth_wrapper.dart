@@ -5,6 +5,9 @@ import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/role_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -229,19 +232,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading while checking token
-    if (_isCheckingToken || _tokenAuthInProgress) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF0A1931),
-        body: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
-          ),
-        ),
-      );
-    }
-
-    // Check if user is already authenticated
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -254,90 +244,46 @@ class _AuthWrapperState extends State<AuthWrapper> {
               ),
             ),
           );
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final user = snapshot.data;
 
-        if (user != null) {
-          // User is signed in, navigate to appropriate dashboard based on role
-          return _AuthenticatedWrapper(user: user);
-        } else {
-          // User is signed out, show login screen
+        // If no authenticated user, show the normal login screen
+        if (user == null) {
           return const LoginScreen();
         }
+
+        // User is signed in: determine their role and route them
+        return FutureBuilder<String?>(
+          future: RoleService.instance.getRole(),
+          builder: (context, roleSnapshot) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+            final targetRoute = role == 'manager'
+                ? '/manager_portal'
+                : '/employee_dashboard';
+
+            // Navigate after the current frame to avoid build-time navigation
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, targetRoute);
+            });
+
+            // Temporary placeholder while navigation happens
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          },
+        );
       },
     );
-  }
-}
-
-/// Widget to handle authenticated users and route them to appropriate dashboard
-class _AuthenticatedWrapper extends StatefulWidget {
-  final User user;
-
-  const _AuthenticatedWrapper({required this.user});
-
-  @override
-  State<_AuthenticatedWrapper> createState() => _AuthenticatedWrapperState();
-}
-
-class _AuthenticatedWrapperState extends State<_AuthenticatedWrapper> {
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeAndNavigate();
-  }
-
-  Future<void> _initializeAndNavigate() async {
-    try {
-      // Ensure role is loaded
-      await RoleService.instance.getRole(refresh: true);
-
-      if (!mounted) return;
-
-      final role = await RoleService.instance.getRole();
-
-      if (!mounted) return;
-
-      // Navigate based on role
-      // Handle both old format (employee/manager) and new format (PDH - Employee/PDH - Admin)
-      if (role == 'PDH - Admin' || role == 'manager') {
-        Navigator.pushReplacementNamed(context, '/admin_dashboard');
-      } else if (role == 'PDH - Employee' || role == 'employee') {
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      } else {
-        // Default to employee dashboard
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      }
-    } catch (e) {
-      debugPrint('Error initializing user: $e');
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/employee_dashboard');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0A1931),
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
-          ),
-        ),
-      );
-    }
-
-    // This should not be reached as navigation happens in initState
-    return const LoginScreen();
   }
 }

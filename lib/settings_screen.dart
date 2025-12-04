@@ -13,6 +13,7 @@ import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/main.dart' show appLocaleNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -502,7 +503,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-
   Widget _buildManagerSection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
 
@@ -571,6 +571,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFFC10D00),
               side: const BorderSide(color: Color(0xFFC10D00)),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _resetPassword,
+            icon: const Icon(Icons.lock_reset),
+            label: Text(AppLocalizations.of(context).send_password_reset_email),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.activeColor,
+              side: BorderSide(color: AppColors.activeColor),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
@@ -847,6 +864,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    if (!mounted) return;
+
+    String? emailText = FirebaseAuth.instance.currentUser?.email;
+    emailText = emailText?.trim();
+
+    if (emailText == null || emailText.isEmpty) {
+      await _showCenterNotice(
+        context,
+        'We could not determine your account email. Please sign in again and try resetting your password from the sign-in screen.',
+      );
+      return;
+    }
+
+    _showLoadingDialog(context, message: 'Sending password reset email...');
+
+    try {
+      await SettingsService.resetPassword(emailText);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await _showCenterNotice(
+        context,
+        'If an account exists for $emailText, a password reset email has been sent.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await _showCenterNotice(
+        context,
+        'Error sending password reset email: $e',
+      );
+    }
+  }
+
   Future<void> _exportUserData() async {
     try {
       // Show blocking loading dialog centred on screen
@@ -999,5 +1050,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return data.toString();
     }
   }
-
 }

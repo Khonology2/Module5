@@ -956,15 +956,16 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               ),
               const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested)
-                TextButton(
+                TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),
-                  child: const Text('View Goal'),
+                  icon: const Icon(Icons.visibility_outlined),
+                  label: const Text('View Goal'),
                 )
               else if (alert.type == AlertType.goalMilestoneCompleted ||
-                      alert.type == AlertType.goalCreated ||
-                      alert.type == AlertType.goalCompleted ||
-                      alert.type == AlertType.goalDueSoon ||
-                      alert.type == AlertType.goalOverdue)
+                  alert.type == AlertType.goalCreated ||
+                  alert.type == AlertType.goalCompleted ||
+                  alert.type == AlertType.goalDueSoon ||
+                  alert.type == AlertType.goalOverdue)
                 TextButton.icon(
                   onPressed: () {
                     if (alert.relatedGoalId != null) {
@@ -982,7 +983,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   label: const Text('View Goal'),
                 )
               else if (alert.type == AlertType.badgeEarned ||
-                      alert.type == AlertType.achievementUnlocked)
+                  alert.type == AlertType.achievementUnlocked)
                 TextButton.icon(
                   onPressed: () {
                     Navigator.pushNamed(
@@ -1013,7 +1014,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   onPressed: () {
                     // Try to navigate using common routes based on action text
                     final actionLower = alert.actionText!.toLowerCase();
-                    if (actionLower.contains('badge') || actionLower.contains('achievement')) {
+                    if (actionLower.contains('badge') ||
+                        actionLower.contains('achievement')) {
                       Navigator.pushNamed(
                         context,
                         '/manager_portal',

@@ -9,6 +9,8 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
+import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
+import 'package:shared_preferences/shared_preferences.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -45,19 +47,13 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isSigningIn = false;
-  bool _emailLinkSent = false;
-  bool _isButtonHovered = false;
+  String? _lastRememberedEmail;
 
-  late AnimationController _hoverController;
-  late AnimationController _clickController;
-  late Animation<double> _hoverAnimation;
-  late Animation<double> _clickAnimation;
-
-  // OAuth providers kept for potential future use but hidden from UI
-  // final microsoftProvider = MicrosoftAuthProvider();
-  // final githubProvider = GithubAuthProvider();
+  final microsoftProvider = MicrosoftAuthProvider();
+  final githubProvider = GithubAuthProvider();
 
   // Using FirebaseAuth OAuth providers across platforms
 
@@ -65,35 +61,13 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-
-    // Hover animation controller
-    _hoverController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    // Click animation controller
-    _clickController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-
-    // Hover animation with spring effect
-    _hoverAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _hoverController, curve: Curves.easeOutBack),
-    );
-
-    // Click animation with bounce
-    _clickAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _clickController, curve: Curves.easeInOut),
-    );
+    _loadLastEmail();
   }
 
   @override
   void dispose() {
     _emailController.dispose();
-    _hoverController.dispose();
-    _clickController.dispose();
+    _passwordController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -202,6 +176,42 @@ class _LoginScreenState extends State<LoginScreen>
         });
       }
     }
+  }
+
+  Future<void> _loadLastEmail() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastEmail = prefs.getString('lastLoginEmail');
+      if (lastEmail != null && lastEmail.isNotEmpty && mounted) {
+        _lastRememberedEmail = lastEmail;
+        _emailController.text = lastEmail;
+      }
+    } catch (_) {
+      // Ignore failures; login still works without remembered email
+    }
+  }
+
+  Future<void> _applyRememberedEmail() async {
+    if (_lastRememberedEmail == null || _lastRememberedEmail!.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final lastEmail = prefs.getString('lastLoginEmail');
+        if (lastEmail != null && lastEmail.isNotEmpty) {
+          _lastRememberedEmail = lastEmail;
+        }
+      } catch (_) {
+        // Ignore; we'll just show a message below
+      }
+    }
+
+    if (_lastRememberedEmail == null || _lastRememberedEmail!.isEmpty) {
+      await _showCenterNotice(
+        'We couldn\'t find a saved email for this device yet. Please sign in once so we can remember it.',
+      );
+      return;
+    }
+
+    _emailController.text = _lastRememberedEmail!;
   }
 
   // Helper function to handle post-login navigation
@@ -314,6 +324,88 @@ class _LoginScreenState extends State<LoginScreen>
         context,
         '/employee_dashboard',
       ); // Default to employee dashboard
+    }
+  }
+
+  Future<void> _handleEmailPasswordSignIn() async {
+    if (_isSigningIn) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSigningIn = true;
+    });
+
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+
+      // Store lastLoginAt and record daily login activity
+      final user = cred.user;
+      if (user != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final effectiveEmail = _emailController.text.trim();
+          if (effectiveEmail.isNotEmpty) {
+            await prefs.setString('lastLoginEmail', effectiveEmail);
+          }
+        } catch (_) {}
+
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        // Also record a light-weight daily activity for streaks
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('daily_activities')
+              .doc(
+                '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+              )
+              .set({
+                'date': FieldValue.serverTimestamp(),
+                'activities': FieldValue.arrayUnion(['login']),
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      await _handlePostLoginNavigation(context);
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+        case 'invalid-login-credentials':
+          message = 'Email or password is incorrect. Please try again.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many attempts. Please wait a moment and try again.';
+          break;
+        case 'user-disabled':
+          message = 'This account is disabled. Please contact support.';
+          break;
+        default:
+          message = 'We couldn\'t sign you in right now. Please try again.';
+      }
+      if (!mounted) return;
+      await _showCenterNotice(message);
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSigningIn = false;
+        });
+      }
     }
   }
 
@@ -449,123 +541,660 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                               ),
-                              if (_emailLinkSent) ...[
-                                const SizedBox(height: 20),
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.5,
+                              const SizedBox(height: 20),
+                              // Password input field
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 8.0,
+                                    sigmaY: 8.0,
+                                  ),
+                                  child: TextFormField(
+                                    controller: _passwordController,
+                                    obscureText: true,
+                                    textInputAction: TextInputAction.done,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.black.withOpacity(0.3),
+                                      hintText: 'Password',
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 16,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide(
+                                          color: Colors.white.withOpacity(0.2),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFFC10D00),
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 16,
+                                          ),
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Please enter your password';
+                                      }
+                                      return null;
+                                    },
+                                    onFieldSubmitted: (_) async {
+                                      await _handleEmailPasswordSignIn();
+                                    },
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton(
+                                    onPressed: () async {
+                                      await _applyRememberedEmail();
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white.withOpacity(
+                                        0.8,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Remember me',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        decoration: TextDecoration.underline,
+                                        fontFamily: 'Poppins',
                                       ),
                                     ),
                                   ),
+                                  TextButton(
+                                    onPressed: () async {
+                                      final email = _emailController.text
+                                          .trim();
+                                      if (email.isEmpty) {
+                                        await _showCenterNotice(
+                                          'Please enter your email first so we can send the reset link.',
+                                        );
+                                        return;
+                                      }
+                                      try {
+                                        await SettingsService.resetPassword(
+                                          email,
+                                        );
+                                        await _showCenterNotice(
+                                          'If an account exists for $email, a password reset email has been sent.',
+                                        );
+                                      } catch (e) {
+                                        await _showCenterNotice(
+                                          'Could not send reset email: ${e.toString()}',
+                                        );
+                                      }
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.white.withOpacity(
+                                        0.8,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Forgot password?',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        decoration: TextDecoration.underline,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              // Primary Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  color: const Color(0xFFC10D00),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFFC10D00,
+                                      ).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          await _handleEmailPasswordSignIn();
+                                        },
+                                  child: _isSigningIn
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'SIGN IN',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Poppins',
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              // Divider with "or" text
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    child: Text(
+                                      'or',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                        fontSize: 14,
+                                        fontFamily: 'Poppins',
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: Colors.white.withOpacity(0.2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 30),
+                              // Google Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(
+                                                    GoogleAuthProvider(),
+                                                  );
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(
+                                                    GoogleAuthProvider(),
+                                                  );
+                                            }
+                                            // Store lastLoginAt and record daily login activity
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
+                                                  }, SetOptions(merge: true));
+                                              // Sync onboarding data if displayName is missing
+                                              try {
+                                                await DatabaseService.syncOnboardingData(
+                                                  user.uid,
+                                                );
+                                              } catch (_) {}
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
+                                          } on FirebaseAuthException catch (e) {
+                                            String message =
+                                                e.message ??
+                                                'Google Sign-In failed.';
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
+                                          }
+                                        },
                                   child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: Colors.green,
+                                      Image.asset(
+                                        'assets/Google_Icon.png',
+                                        height: 20.0,
                                       ),
                                       const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          'Sign-in link sent to ${_emailController.text}. Please check your email and click the link to sign in.',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 14,
-                                            fontFamily: 'Poppins',
-                                          ),
+                                      const Text(
+                                        'Continue with Google',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                              ],
-                              const SizedBox(height: 30),
-                              // Primary Sign In button with animations
-                              MouseRegion(
-                                onEnter: (_) => _onButtonHover(true),
-                                onExit: (_) => _onButtonHover(false),
-                                child: AnimatedBuilder(
-                                  animation: Listenable.merge([
-                                    _hoverAnimation,
-                                    _clickAnimation,
-                                  ]),
-                                  builder: (context, child) {
-                                    final scale = _isButtonHovered
-                                        ? _hoverAnimation.value *
-                                              _clickAnimation.value
-                                        : _clickAnimation.value;
-                                    return Transform.scale(
-                                      scale: scale,
-                                      child: Container(
-                                        width: double.infinity,
-                                        height: 56,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            28,
-                                          ),
-                                          color: const Color(0xFFC10D00),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: const Color(0xFFC10D00)
-                                                  .withValues(
-                                                    alpha: _isButtonHovered
-                                                        ? 0.5
-                                                        : 0.3,
-                                                  ),
-                                              blurRadius: _isButtonHovered
-                                                  ? 12
-                                                  : 8,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: TextButton(
-                                          onPressed:
-                                              (_isSigningIn || _emailLinkSent)
-                                              ? null
-                                              : _onButtonClick,
-                                          style: TextButton.styleFrom(
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(28),
-                                            ),
-                                          ),
-                                          child: _isSigningIn
-                                              ? const SizedBox(
-                                                  height: 20,
-                                                  width: 20,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation<
-                                                          Color
-                                                        >(Colors.white),
-                                                  ),
-                                                )
-                                              : Text(
-                                                  _emailLinkSent
-                                                      ? 'LINK SENT'
-                                                      : 'SEND SIGN-IN LINK',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.w700,
-                                                    fontFamily: 'Poppins',
-                                                    letterSpacing: 0.5,
-                                                  ),
-                                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Microsoft Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            setState(() {
+                                              _isSigningIn = true;
+                                            });
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(
+                                                    microsoftProvider,
+                                                  );
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(
+                                                    microsoftProvider,
+                                                  );
+                                            }
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
+                                                  }, SetOptions(merge: true));
+                                              // Sync onboarding data if displayName is missing
+                                              try {
+                                                await DatabaseService.syncOnboardingData(
+                                                  user.uid,
+                                                );
+                                              } catch (_) {}
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
+                                          } on FirebaseAuthException catch (e) {
+                                            setState(() {
+                                              _isSigningIn = false;
+                                            });
+                                            String message =
+                                                e.message ??
+                                                'Microsoft Sign-In failed.';
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            setState(() {
+                                              _isSigningIn = false;
+                                            });
+                                            if (!mounted) return;
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
+                                          }
+                                        },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/mslogo.png',
+                                        height: 20.0,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with Microsoft',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
                                         ),
                                       ),
-                                    );
-                                  },
+                                    ],
+                                  ),
                                 ),
                               ),
-                              // OAuth buttons and register link are hidden but code is preserved for future use
-                              // All authentication methods (Google, Microsoft, GitHub) and registration are hidden
+                              const SizedBox(height: 16),
+                              // GitHub Sign In button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  color: Colors.transparent,
+                                ),
+                                child: TextButton(
+                                  onPressed: _isSigningIn
+                                      ? null
+                                      : () async {
+                                          try {
+                                            UserCredential cred;
+                                            if (kIsWeb) {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithPopup(
+                                                    githubProvider,
+                                                  );
+                                            } else {
+                                              cred = await FirebaseAuth.instance
+                                                  .signInWithProvider(
+                                                    githubProvider,
+                                                  );
+                                            }
+                                            final user = cred.user;
+                                            if (user != null) {
+                                              try {
+                                                final prefs =
+                                                    await SharedPreferences.getInstance();
+                                                final email = user.email;
+                                                if (email != null &&
+                                                    email.isNotEmpty) {
+                                                  await prefs.setString(
+                                                    'lastLoginEmail',
+                                                    email,
+                                                  );
+                                                }
+                                              } catch (_) {}
+                                              await FirebaseFirestore.instance
+                                                  .collection('users')
+                                                  .doc(user.uid)
+                                                  .set({
+                                                    'lastLoginAt':
+                                                        FieldValue.serverTimestamp(),
+                                                    if (user.email != null)
+                                                      'email': user.email,
+                                                    if (user.displayName !=
+                                                        null)
+                                                      'displayName':
+                                                          user.displayName,
+                                                  }, SetOptions(merge: true));
+                                              try {
+                                                await FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(user.uid)
+                                                    .collection(
+                                                      'daily_activities',
+                                                    )
+                                                    .doc(
+                                                      '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+                                                    )
+                                                    .set({
+                                                      'date':
+                                                          FieldValue.serverTimestamp(),
+                                                      'activities':
+                                                          FieldValue.arrayUnion(
+                                                            ['login'],
+                                                          ),
+                                                      'createdAt':
+                                                          FieldValue.serverTimestamp(),
+                                                    }, SetOptions(merge: true));
+                                              } catch (_) {}
+                                            }
+                                            if (!mounted) return;
+                                            await _handlePostLoginNavigation(
+                                              context,
+                                            );
+                                          } on FirebaseAuthException catch (e) {
+                                            String message =
+                                                e.message ??
+                                                'GitHub Sign-In failed.';
+                                            if (e.code ==
+                                                'popup-closed-by-user') {
+                                              message =
+                                                  'Popup closed before completing sign-in.';
+                                            } else if (e.code ==
+                                                'network-request-failed') {
+                                              message =
+                                                  'Network error. Check internet and authorized domains.';
+                                            } else if (e.code ==
+                                                'unauthorized-domain') {
+                                              message =
+                                                  'Unauthorized domain. Add your host to Firebase Auth domains.';
+                                            }
+                                            if (!mounted) return;
+                                            await _showCenterNotice(message);
+                                          } catch (e) {
+                                            if (!mounted) return;
+                                            await _showCenterNotice(
+                                              'An unexpected error occurred: ${e.toString()}',
+                                            );
+                                          }
+                                        },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Image.asset(
+                                        'assets/github_icon_2.png',
+                                        height: 20.0,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Continue with GitHub',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                          fontFamily: 'Poppins',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                              // Register link
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    "Don't have an account? ",
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 14,
+                                      fontFamily: 'Poppins',
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, '/register');
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      'SIGN UP',
+                                      style: TextStyle(
+                                        color: Color(0xFFC10D00),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Poppins',
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                               const SizedBox(height: 20),
                             ],
                           ),

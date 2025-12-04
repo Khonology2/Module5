@@ -25,6 +25,7 @@ import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/employee_profile_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -986,10 +987,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
   Widget _buildQuickStats() {
     // Calculate real stats from user data
+    // Only count approved goals as active (pending/rejected goals should not appear)
     final activeGoals = userGoals
         .where(
           (goal) =>
-              (goal.status != GoalStatus.completed) && (goal.progress < 100),
+              goal.approvalStatus == GoalApprovalStatus.approved &&
+              (goal.status != GoalStatus.completed) &&
+              (goal.progress < 100),
         )
         .length;
     final completedGoals = userGoals
@@ -1546,6 +1550,46 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             AppComponents.progressBar(
               value: progress,
               label: '${goal.progress}% Complete',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    String userName = 'User';
+    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+      userName = user.displayName!.split(' ').first;
+    } else if (user?.email != null && user!.email!.isNotEmpty) {
+      userName = user.email!.split('@').first;
+    }
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const EmployeeProfileScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              userName,
+              style: AppTypography.bodySmall.copyWith(color: Colors.white),
             ),
           ],
         ),

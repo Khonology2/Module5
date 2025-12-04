@@ -552,6 +552,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
             ),
             const SizedBox(height: 24),
             Text(
+              'Profile',
+              style: AppTypography.heading2.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Text(
               'These fields allow you to set up your identity, preferences, and development context.',
               style: const TextStyle(color: Colors.white70, fontSize: 16),
               textAlign: TextAlign.center,

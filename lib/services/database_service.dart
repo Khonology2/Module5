@@ -242,9 +242,10 @@ class DatabaseService {
         .doc(uid)
         .get();
     var data = doc.data() ?? {};
-    
+
     // If displayName is missing/empty, try to sync from onboarding
-    final displayName = data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
+    final displayName =
+        data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
     if (displayName.isEmpty) {
       await syncOnboardingData(uid);
       // Re-fetch user data after sync
@@ -254,7 +255,7 @@ class DatabaseService {
           .get();
       data = updatedDoc.data() ?? data;
     }
-    
+
     final profile = UserProfile(
       uid: uid,
       email: data['email'] ?? '',
@@ -329,6 +330,7 @@ class DatabaseService {
         approved: true,
       );
       // Also send the employee a 'New Goal Created' alert upon approval
+      // This reminds the employee to start working on their newly approved goal
       try {
         final goal = Goal.fromMap(goalData!, id: goalId);
         await AlertService.createGoalAlert(
@@ -336,7 +338,10 @@ class DatabaseService {
           goal: goal,
           type: AlertType.goalCreated,
         );
-      } catch (_) {}
+      } catch (e) {
+        developer.log('Error creating goalCreated alert after approval: $e');
+        // Continue even if alert creation fails - approval was successful
+      }
     } catch (_) {}
   }
 
@@ -1264,7 +1269,7 @@ class DatabaseService {
     // Check onboarding collection for user data if displayName is missing
     String? resolvedDisplayName = displayName;
     String? resolvedEmail = email;
-    
+
     if ((resolvedDisplayName == null || resolvedDisplayName.isEmpty) ||
         (resolvedEmail == null || resolvedEmail.isEmpty)) {
       try {
@@ -1272,22 +1277,24 @@ class DatabaseService {
             .collection('onboarding')
             .doc(uid)
             .get();
-        
+
         if (onboardingDoc.exists) {
           final onboardingData = onboardingDoc.data();
           // Try multiple possible field names for name in onboarding
-          resolvedDisplayName = resolvedDisplayName?.isNotEmpty == true 
-              ? resolvedDisplayName 
-              : onboardingData?['displayName'] ?? 
-                onboardingData?['fullName'] ?? 
-                onboardingData?['name'] ?? 
-                onboardingData?['firstName'] ?? 
-                (onboardingData?['firstName'] != null && onboardingData?['lastName'] != null
-                    ? '${onboardingData?['firstName']} ${onboardingData?['lastName']}'.trim()
-                    : null);
-          
-          resolvedEmail = resolvedEmail?.isNotEmpty == true 
-              ? resolvedEmail 
+          resolvedDisplayName = resolvedDisplayName?.isNotEmpty == true
+              ? resolvedDisplayName
+              : onboardingData?['displayName'] ??
+                    onboardingData?['fullName'] ??
+                    onboardingData?['name'] ??
+                    onboardingData?['firstName'] ??
+                    (onboardingData?['firstName'] != null &&
+                            onboardingData?['lastName'] != null
+                        ? '${onboardingData?['firstName']} ${onboardingData?['lastName']}'
+                              .trim()
+                        : null);
+
+          resolvedEmail = resolvedEmail?.isNotEmpty == true
+              ? resolvedEmail
               : onboardingData?['email'] ?? email;
         }
       } catch (e) {
@@ -1299,10 +1306,9 @@ class DatabaseService {
     final docSnapshot = await userDocRef.get();
     if (!docSnapshot.exists) {
       final userData = {
-        'displayName':
-            resolvedDisplayName?.isNotEmpty == true
-                ? resolvedDisplayName
-                : '', // Use displayName from onboarding or provided, or an empty string
+        'displayName': resolvedDisplayName?.isNotEmpty == true
+            ? resolvedDisplayName
+            : '', // Use displayName from onboarding or provided, or an empty string
         'email': resolvedEmail ?? '',
         'createdAt': FieldValue.serverTimestamp(),
         'role': role, // default role, only set on creation
@@ -1348,10 +1354,10 @@ class DatabaseService {
       final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
           ? resolvedDisplayName
           : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
-      
+
       await userDocRef.update({
-        'displayName': finalDisplayName.isNotEmpty 
-            ? finalDisplayName 
+        'displayName': finalDisplayName.isNotEmpty
+            ? finalDisplayName
             : (docSnapshot.data()?['displayName'] ?? ''),
         'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
         // Other fields will be updated by a dedicated updateUserProfile method.
@@ -1365,17 +1371,19 @@ class DatabaseService {
   /// This helps resolve "Anonymous" user issues
   static Future<void> syncOnboardingData(String uid) async {
     try {
-      final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      final userDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
       final userDoc = await userDocRef.get();
-      
+
       if (!userDoc.exists) {
         return; // User document doesn't exist yet
       }
-      
+
       final userData = userDoc.data() ?? {};
       final currentDisplayName = userData['displayName']?.toString() ?? '';
       final currentEmail = userData['email']?.toString() ?? '';
-      
+
       // If displayName is empty or missing, check onboarding
       if (currentDisplayName.isEmpty) {
         try {
@@ -1383,32 +1391,40 @@ class DatabaseService {
               .collection('onboarding')
               .doc(uid)
               .get();
-          
+
           if (onboardingDoc.exists) {
             final onboardingData = onboardingDoc.data() ?? {};
             // Try multiple possible field names for name in onboarding
-            final onboardingName = onboardingData['displayName'] ?? 
-                onboardingData['fullName'] ?? 
-                onboardingData['name'] ?? 
-                onboardingData['firstName'] ?? 
-                (onboardingData['firstName'] != null && onboardingData['lastName'] != null
-                    ? '${onboardingData['firstName']} ${onboardingData['lastName']}'.trim()
+            final onboardingName =
+                onboardingData['displayName'] ??
+                onboardingData['fullName'] ??
+                onboardingData['name'] ??
+                onboardingData['firstName'] ??
+                (onboardingData['firstName'] != null &&
+                        onboardingData['lastName'] != null
+                    ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
+                          .trim()
                     : null);
-            
+
             final onboardingEmail = onboardingData['email']?.toString();
-            
+
             // Update user document if we found name or email from onboarding
             final updates = <String, dynamic>{};
-            if (onboardingName != null && onboardingName.toString().isNotEmpty) {
+            if (onboardingName != null &&
+                onboardingName.toString().isNotEmpty) {
               updates['displayName'] = onboardingName.toString();
             }
-            if (onboardingEmail != null && onboardingEmail.isNotEmpty && currentEmail.isEmpty) {
+            if (onboardingEmail != null &&
+                onboardingEmail.isNotEmpty &&
+                currentEmail.isEmpty) {
               updates['email'] = onboardingEmail;
             }
-            
+
             if (updates.isNotEmpty) {
               await userDocRef.update(updates);
-              developer.log('Synced onboarding data for user $uid: ${updates.keys.join(", ")}');
+              developer.log(
+                'Synced onboarding data for user $uid: ${updates.keys.join(", ")}',
+              );
             }
           }
         } catch (e) {
@@ -1443,192 +1459,5 @@ class DatabaseService {
       'badges': badges.docs.map((d) => d.data()).toList(),
       'alerts': alerts.docs.map((d) => d.data()).toList(),
     };
-  }
-
-  /// Get onboarding data from onboarding collection
-  /// Queries by user_id first, then by email if user_id not found
-  /// Returns a map with fullName, designation, department, and phoneNumber fields
-  static Future<Map<String, String?>> getOnboardingData({
-    String? userId,
-    String? email,
-  }) async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      Map<String, String?> result = {
-        'fullName': null,
-        'designation': null,
-        'department': null,
-        'phoneNumber': null,
-      };
-
-      // Try to get by user_id first (most reliable)
-      if (userId != null && userId.isNotEmpty) {
-        // Try document ID first
-        final docById = await firestore
-            .collection('onboarding')
-            .doc(userId)
-            .get();
-
-        if (docById.exists) {
-          final data = docById.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data?['fullName'] as String?;
-          result['designation'] = data?['designation'] as String?;
-          result['department'] = data?['department'] as String?;
-          result['phoneNumber'] = data?['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data?['name'] as String? ?? '';
-            final surname = data?['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Always return result with designation and department from onboarding
-          // This ensures profile screens get the correct values
-          return result;
-        }
-
-        // Try querying by user_id field
-        final queryByUserId = await firestore
-            .collection('onboarding')
-            .where('user_id', isEqualTo: userId)
-            .limit(1)
-            .get();
-
-        if (queryByUserId.docs.isNotEmpty) {
-          final data = queryByUserId.docs.first.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data['fullName'] as String?;
-          result['designation'] = data['designation'] as String?;
-          result['department'] = data['department'] as String?;
-          result['phoneNumber'] = data['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data['name'] as String? ?? '';
-            final surname = data['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Always return result with designation and department from onboarding
-          // This ensures profile screens get the correct values
-          return result;
-        }
-      }
-
-      // Fallback: try by email if provided
-      if (email != null && email.isNotEmpty) {
-        final queryByEmail = await firestore
-            .collection('onboarding')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-
-        if (queryByEmail.docs.isNotEmpty) {
-          final data = queryByEmail.docs.first.data();
-          // Always retrieve designation, department, and phoneNumber from onboarding
-          result['fullName'] = data['fullName'] as String?;
-          result['designation'] = data['designation'] as String?;
-          result['department'] = data['department'] as String?;
-          result['phoneNumber'] = data['phoneNumber'] as String?;
-
-          // If fullName is not available, try name + surname
-          if (result['fullName'] == null || result['fullName']!.isEmpty) {
-            final name = data['name'] as String? ?? '';
-            final surname = data['surname'] as String? ?? '';
-            if (name.isNotEmpty || surname.isNotEmpty) {
-              result['fullName'] = '${name.trim()} ${surname.trim()}'.trim();
-            }
-          }
-
-          // Return result with designation and department from onboarding
-          return result;
-        }
-      }
-
-      return result;
-    } catch (e) {
-      developer.log('Error getting onboarding data: $e');
-      return {'fullName': null, 'designation': null, 'department': null, 'phoneNumber': null};
-    }
-  }
-
-  /// Update onboarding collection with phone number
-  static Future<void> updateOnboardingPhoneNumber({
-    required String userId,
-    String? email,
-    required String phoneNumber,
-  }) async {
-    try {
-      final firestore = FirebaseFirestore.instance;
-      
-      // Try to update by document ID first
-      final docRef = firestore.collection('onboarding').doc(userId);
-      final doc = await docRef.get();
-      
-      if (doc.exists) {
-        await docRef.update({'phoneNumber': phoneNumber});
-        return;
-      }
-      
-      // Try to find by user_id field
-      if (userId.isNotEmpty) {
-        final queryByUserId = await firestore
-            .collection('onboarding')
-            .where('user_id', isEqualTo: userId)
-            .limit(1)
-            .get();
-        
-        if (queryByUserId.docs.isNotEmpty) {
-          await queryByUserId.docs.first.reference.update({'phoneNumber': phoneNumber});
-          return;
-        }
-      }
-      
-      // Fallback: try by email if provided
-      if (email != null && email.isNotEmpty) {
-        final queryByEmail = await firestore
-            .collection('onboarding')
-            .where('email', isEqualTo: email)
-            .limit(1)
-            .get();
-        
-        if (queryByEmail.docs.isNotEmpty) {
-          await queryByEmail.docs.first.reference.update({'phoneNumber': phoneNumber});
-          return;
-        }
-      }
-      
-      // If no document found, create one with phone number
-      if (userId.isNotEmpty) {
-        await docRef.set({
-          'user_id': userId,
-          if (email != null) 'email': email,
-          'phoneNumber': phoneNumber,
-        }, SetOptions(merge: true));
-      }
-    } catch (e) {
-      developer.log('Error updating onboarding phone number: $e');
-      // Don't throw - phone number update is not critical
-    }
-  }
-
-  /// Get user name from onboarding collection
-  /// Queries by user_id first, then by email if user_id not found
-  /// Returns fullName field if available, otherwise falls back to name + surname
-  static Future<String?> getUserNameFromOnboarding({
-    String? userId,
-    String? email,
-  }) async {
-    final onboardingData = await getOnboardingData(
-      userId: userId,
-      email: email,
-    );
-    return onboardingData['fullName'];
   }
 }

@@ -1377,10 +1377,21 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           builder: (context, setDialogState) {
             Future<void> pickDueDate() async {
               final now = DateTime.now();
+              // Restrict milestone due date to be after the goal's start date (createdAt)
+              // or after today if goal was created today
+              final goalStartDate = currentGoal.createdAt;
+              final minDate = goalStartDate.isBefore(now)
+                  ? now
+                  : DateTime(
+                      goalStartDate.year,
+                      goalStartDate.month,
+                      goalStartDate.day,
+                    ).add(const Duration(days: 1));
+
               final selected = await showDatePicker(
                 context: context,
-                initialDate: dueDate ?? now,
-                firstDate: DateTime(now.year - 1),
+                initialDate: dueDate ?? (minDate.isBefore(now) ? now : minDate),
+                firstDate: minDate,
                 lastDate: DateTime(now.year + 5),
               );
               if (selected != null) {

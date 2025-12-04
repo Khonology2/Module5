@@ -645,8 +645,6 @@ Guidelines:
         setState(() {
           _isGeneratingDevelopmentPlan = false;
         });
-      } else {
-        _isGeneratingDevelopmentPlan = false;
       }
     }
   }

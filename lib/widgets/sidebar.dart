@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -110,78 +111,105 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
         // Allow toggling on medium/large screens; always collapsed on small screens
         final effectiveCollapsed = isSmall ? true : collapsed;
 
-        return Container(
-          width: isSmall
-              ? double.infinity
-              : (effectiveCollapsed ? 72 : 280), // Increased from 240 to 280
-          color: backgroundColor,
-          child: Column(
-            children: [
-              _buildHeader(context, effectiveCollapsed),
-              const SizedBox(height: AppSpacing.xs),
-              Expanded(
-                child: ListView(
-                  controller: _scrollController,
-                  padding: AppSpacing.sidebarContentPadding,
-                  children: widget.items.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final it = entry.value;
-                    final navTile = _NavTile(
-                      icon: it.icon,
-                      iconWidget: it.iconWidget,
-                      assetWhite: it.assetWhite,
-                      assetRed: it.assetRed,
-                      label: it.label,
-                      route: it.route,
-                      isActive: widget.currentRouteName == it.route,
-                      collapsed: effectiveCollapsed,
-                      onTap: () => widget.onNavigate(it.route),
-                      tutorialKey:
-                          widget.sidebarTutorialKeys != null &&
-                              index < widget.sidebarTutorialKeys!.length
-                          ? widget.sidebarTutorialKeys![index]
-                          : null,
-                      showTutorial:
-                          widget.tutorialStepIndex != null &&
-                          widget.tutorialStepIndex == index,
-                      onTutorialNext: widget.onTutorialNext,
-                      onTutorialSkip: widget.onTutorialSkip,
-                      isLastTutorialStep:
-                          widget.tutorialStepIndex != null &&
-                          widget.tutorialStepIndex == widget.items.length - 1,
-                    );
-                    return navTile;
-                  }).toList(),
+        return ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              width: isSmall
+                  ? double.infinity
+                  : (effectiveCollapsed
+                        ? 72
+                        : 280), // Increased from 240 to 280
+              decoration: BoxDecoration(
+                color: backgroundColor.withValues(alpha: 0.95),
+                border: Border(
+                  right: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    width: 1,
+                  ),
                 ),
               ),
-              _NavTile(
-                icon: Icons.exit_to_app,
-                label: AppLocalizations.of(context).employee_drawer_exit,
-                route: '__logout__',
-                isActive: false,
-                collapsed: effectiveCollapsed,
-                onTap: widget.onLogout,
-              ),
-              _CollapseToggle(
-                collapsed: effectiveCollapsed,
-                tutorialKey:
-                    widget.sidebarTutorialKeys != null &&
+              child: Column(
+                children: [
+                  _buildHeader(context, effectiveCollapsed),
+                  const SizedBox(height: AppSpacing.xs),
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: AppSpacing.sidebarContentPadding,
+                      children: widget.items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final it = entry.value;
+                    // Check if this is the My Profile route and profile is incomplete
+                    final bool showProfileIndicator =
+                        (it.route == '/my_profile' ||
+                            it.route == '/manager_profile') &&
+                        (_isProfileIncomplete == true);
+
+                        final navTile = _NavTile(
+                          icon: it.icon,
+                          iconWidget: it.iconWidget,
+                          assetWhite: it.assetWhite,
+                          assetRed: it.assetRed,
+                          label: it.label,
+                          route: it.route,
+                          isActive: widget.currentRouteName == it.route,
+                          collapsed: effectiveCollapsed,
+                          onTap: () => widget.onNavigate(it.route),
+                      showProfileIndicator: showProfileIndicator,
+                          tutorialKey:
+                              widget.sidebarTutorialKeys != null &&
+                                  index < widget.sidebarTutorialKeys!.length
+                              ? widget.sidebarTutorialKeys![index]
+                              : null,
+                          showTutorial:
+                              widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex == index,
+                          onTutorialNext: widget.onTutorialNext,
+                          onTutorialSkip: widget.onTutorialSkip,
+                          isLastTutorialStep:
+                              widget.tutorialStepIndex != null &&
+                              widget.tutorialStepIndex ==
+                                  widget.items.length - 1,
+                        );
+                        return navTile;
+                      }).toList(),
+                    ),
+                  ),
+                  _NavTile(
+                    icon: Icons.exit_to_app,
+                    label: AppLocalizations.of(context).employee_drawer_exit,
+                    route: '__logout__',
+                    isActive: false,
+                    collapsed: effectiveCollapsed,
+                    onTap: widget.onLogout,
+                  ),
+                  _CollapseToggle(
+                    collapsed: effectiveCollapsed,
+                    tutorialKey:
+                   
+                        widget.sidebarTutorialKeys != null &&
+                            widget.tutorialStepIndex != null &&
+                            widget.tutorialStepIndex == widget.items.length &&
+                            widget.tutorialStepIndex! <
+                           
+                                widget.sidebarTutorialKeys!.length
+                        ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
+                        : null,
+                    showTutorial:
+                   
                         widget.tutorialStepIndex != null &&
-                        widget.tutorialStepIndex == widget.items.length &&
-                        widget.tutorialStepIndex! <
-                            widget.sidebarTutorialKeys!.length
-                    ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
-                    : null,
-                showTutorial:
-                    widget.tutorialStepIndex != null &&
-                    widget.tutorialStepIndex == widget.items.length,
-                onTutorialNext: widget.onTutorialNext,
-                onTutorialSkip: widget.onTutorialSkip,
-                isLastTutorialStep:
-                    widget.tutorialStepIndex != null &&
-                    widget.tutorialStepIndex == widget.items.length,
+                        widget.tutorialStepIndex == widget.items.length,
+                    onTutorialNext: widget.onTutorialNext,
+                    onTutorialSkip: widget.onTutorialSkip,
+                    isLastTutorialStep:
+                   
+                        widget.tutorialStepIndex != null &&
+                        widget.tutorialStepIndex == widget.items.length,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -609,6 +637,15 @@ class _NavTileState extends State<_NavTile> {
                                       ),
                                     ),
                                 ],
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: isSelected
+                                    ? AppTypography.navigationActive
+                                    : AppTypography.navigation,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                softWrap: false,
                               ),
                             ),
                           ],
