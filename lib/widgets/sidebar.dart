@@ -155,11 +155,11 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       children: widget.items.asMap().entries.map((entry) {
                         final index = entry.key;
                         final it = entry.value;
-                    // Check if this is the My Profile route and profile is incomplete
-                    final bool showProfileIndicator =
-                        (it.route == '/my_profile' ||
-                            it.route == '/manager_profile') &&
-                        _isProfileIncomplete;
+                        // Check if this is the My Profile route and profile is incomplete
+                        final bool showProfileIndicator =
+                            (it.route == '/my_profile' ||
+                                it.route == '/manager_profile') &&
+                            _isProfileIncomplete;
 
                         final navTile = _NavTile(
                           icon: it.icon,
@@ -171,7 +171,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           isActive: widget.currentRouteName == it.route,
                           collapsed: effectiveCollapsed,
                           onTap: () => widget.onNavigate(it.route),
-                      showProfileIndicator: showProfileIndicator,
+                          showProfileIndicator: showProfileIndicator,
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
                                   index < widget.sidebarTutorialKeys!.length
@@ -202,23 +202,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   _CollapseToggle(
                     collapsed: effectiveCollapsed,
                     tutorialKey:
-                   
                         widget.sidebarTutorialKeys != null &&
                             widget.tutorialStepIndex != null &&
                             widget.tutorialStepIndex == widget.items.length &&
                             widget.tutorialStepIndex! <
-                           
                                 widget.sidebarTutorialKeys!.length
                         ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                         : null,
                     showTutorial:
-                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                     onTutorialNext: widget.onTutorialNext,
                     onTutorialSkip: widget.onTutorialSkip,
                     isLastTutorialStep:
-                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                   ),
@@ -382,38 +378,43 @@ class _CollapseToggle extends StatelessWidget {
               // Action buttons row - compact
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Skip button
-                  TextButton(
-                    onPressed: onTutorialSkip ?? onTutorialNext!,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: TextButton(
+                      onPressed: onTutorialSkip ?? onTutorialNext!,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: const Text('Skip', style: TextStyle(fontSize: 12)),
                     ),
-                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
-                  ElevatedButton(
-                    onPressed: onTutorialNext!,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.activeColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: onTutorialNext!,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      isLastTutorialStep ? 'Finish' : 'Next',
-                      style: const TextStyle(fontSize: 12),
+                      child: Text(
+                        isLastTutorialStep ? 'Finish' : 'Next',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],
@@ -649,7 +650,7 @@ class _NavTileState extends State<_NavTile> {
                           children: [
                             _buildIcon(isSelected),
                             const SizedBox(width: AppSpacing.xs),
-                            Expanded(
+                            Flexible(
                               child: Text(
                                 label,
                                 style: isSelected
@@ -754,38 +755,44 @@ class _NavTileState extends State<_NavTile> {
               // Action buttons row - compact
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Skip button
-                  TextButton(
-                    onPressed: widget.onTutorialSkip ?? widget.onTutorialNext!,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: TextButton(
+                      onPressed:
+                          widget.onTutorialSkip ?? widget.onTutorialNext!,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: const Text('Skip', style: TextStyle(fontSize: 12)),
                     ),
-                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
-                  ElevatedButton(
-                    onPressed: widget.onTutorialNext!,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.activeColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: widget.onTutorialNext!,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      widget.isLastTutorialStep ? 'Finish' : 'Next',
-                      style: const TextStyle(fontSize: 12),
+                      child: Text(
+                        widget.isLastTutorialStep ? 'Finish' : 'Next',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],
