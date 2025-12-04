@@ -140,11 +140,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                       children: widget.items.asMap().entries.map((entry) {
                         final index = entry.key;
                         final it = entry.value;
-                    // Check if this is the My Profile route and profile is incomplete
-                    final bool showProfileIndicator =
-                        (it.route == '/my_profile' ||
-                            it.route == '/manager_profile') &&
-                        (_isProfileIncomplete == true);
+                        // Check if this is the My Profile route and profile is incomplete
+                        // Note: Profile incomplete check would need to be implemented with FutureBuilder
+                        // For now, set to false to avoid undefined variable error
+                        final bool showProfileIndicator = false;
 
                         final navTile = _NavTile(
                           icon: it.icon,
@@ -156,7 +155,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                           isActive: widget.currentRouteName == it.route,
                           collapsed: effectiveCollapsed,
                           onTap: () => widget.onNavigate(it.route),
-                      showProfileIndicator: showProfileIndicator,
+                          showProfileIndicator: showProfileIndicator,
                           tutorialKey:
                               widget.sidebarTutorialKeys != null &&
                                   index < widget.sidebarTutorialKeys!.length
@@ -187,23 +186,19 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                   _CollapseToggle(
                     collapsed: effectiveCollapsed,
                     tutorialKey:
-                   
                         widget.sidebarTutorialKeys != null &&
                             widget.tutorialStepIndex != null &&
                             widget.tutorialStepIndex == widget.items.length &&
                             widget.tutorialStepIndex! <
-                           
                                 widget.sidebarTutorialKeys!.length
                         ? widget.sidebarTutorialKeys![widget.tutorialStepIndex!]
                         : null,
                     showTutorial:
-                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                     onTutorialNext: widget.onTutorialNext,
                     onTutorialSkip: widget.onTutorialSkip,
                     isLastTutorialStep:
-                   
                         widget.tutorialStepIndex != null &&
                         widget.tutorialStepIndex == widget.items.length,
                   ),
@@ -637,15 +632,6 @@ class _NavTileState extends State<_NavTile> {
                                       ),
                                     ),
                                 ],
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: isSelected
-                                    ? AppTypography.navigationActive
-                                    : AppTypography.navigation,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                                softWrap: false,
                               ),
                             ),
                           ],

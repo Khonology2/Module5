@@ -8,7 +8,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
-import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -70,112 +69,6 @@ class _LoginScreenState extends State<LoginScreen>
     _passwordController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  void _onButtonHover(bool isHovered) {
-    setState(() {
-      _isButtonHovered = isHovered;
-    });
-    if (isHovered) {
-      _hoverController.forward();
-    } else {
-      _hoverController.reverse();
-    }
-  }
-
-  Future<void> _onButtonClick() async {
-    // Haptic feedback
-    HapticFeedback.lightImpact();
-
-    // Click animation
-    await _clickController.forward();
-    await _clickController.reverse();
-
-    // Continue with button action
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isSigningIn = true;
-      });
-      try {
-        // Send sign-in link to email
-        final email = _emailController.text;
-        final actionCodeSettings = ActionCodeSettings(
-          url: 'https://pdh-fe6eb.firebaseapp.com/?email=$email',
-          handleCodeInApp: true,
-        );
-
-        await FirebaseAuth.instance.sendSignInLinkToEmail(
-          email: email,
-          actionCodeSettings: actionCodeSettings,
-        );
-
-        setState(() {
-          _emailLinkSent = true;
-          _isSigningIn = false;
-        });
-
-        // Check if user clicked the link (for web)
-        if (kIsWeb) {
-          // Check if we're coming from an email link
-          final uri = Uri.base;
-          if (FirebaseAuth.instance.isSignInWithEmailLink(uri.toString())) {
-            // User clicked the link, sign them in
-            try {
-              final cred = await FirebaseAuth.instance.signInWithEmailLink(
-                email: email,
-                emailLink: uri.toString(),
-              );
-
-              final user = cred.user;
-              if (user != null) {
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .set({
-                      'lastLoginAt': FieldValue.serverTimestamp(),
-                    }, SetOptions(merge: true));
-
-                if (!mounted) return;
-                await _handlePostLoginNavigation(context);
-              }
-            } catch (e) {
-              if (!mounted) return;
-              await _showCenterNotice(
-                'Error signing in with email link: ${e.toString()}',
-              );
-            }
-          }
-        }
-      } on FirebaseAuthException catch (e) {
-        String message;
-        switch (e.code) {
-          case 'invalid-email':
-            message = 'Please enter a valid email address.';
-            break;
-          case 'user-disabled':
-            message = 'This account is disabled. Please contact support.';
-            break;
-          case 'too-many-requests':
-            message = 'Too many requests. Please wait a moment and try again.';
-            break;
-          default:
-            message = 'We couldn\'t send the sign-in link. Please try again.';
-        }
-        if (!mounted) return;
-        await _showCenterNotice(message);
-        setState(() {
-          _isSigningIn = false;
-        });
-      } catch (e) {
-        if (!mounted) return;
-        await _showCenterNotice(
-          'An unexpected error occurred: ${e.toString()}',
-        );
-        setState(() {
-          _isSigningIn = false;
-        });
-      }
-    }
   }
 
   Future<void> _loadLastEmail() async {
@@ -487,7 +380,6 @@ class _LoginScreenState extends State<LoginScreen>
                                   child: TextFormField(
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
-                                    enabled: !_emailLinkSent,
                                     decoration: InputDecoration(
                                       filled: true,
                                       fillColor: Colors.black.withValues(

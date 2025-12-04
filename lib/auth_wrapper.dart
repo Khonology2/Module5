@@ -5,9 +5,6 @@ import 'package:pdh/services/token_auth_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/role_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -17,9 +14,6 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _isCheckingToken = true;
-  bool _tokenAuthInProgress = false;
-
   @override
   void initState() {
     super.initState();
@@ -34,18 +28,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
       if (token == null || token.isEmpty) {
         // No token found, proceed with normal flow
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _tokenAuthInProgress = false;
-          });
-        }
         return;
       }
-
-      setState(() {
-        _tokenAuthInProgress = true;
-      });
 
       // Step B: Validate token using the backend API
       final validationResponse = await BackendAuthService.instance
@@ -53,12 +37,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
       if (validationResponse == null) {
         debugPrint('Token validation failed - backend returned null');
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _tokenAuthInProgress = false;
-          });
-        }
         return;
       }
 
@@ -69,12 +47,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
       if (firebaseTokenRaw == null || firebaseTokenRaw.isEmpty) {
         debugPrint('Backend validation failed - no firebase_token in response');
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _tokenAuthInProgress = false;
-          });
-        }
         return;
       }
 
@@ -98,12 +70,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint(
           'AuthWrapper: Invalid Firebase token format - expected 3 parts, got ${tokenParts.length}',
         );
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _tokenAuthInProgress = false;
-          });
-        }
         return;
       }
 
@@ -128,12 +94,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
       if (pdhRole == null) {
         debugPrint('No PDH role found in backend response');
-        if (mounted) {
-          setState(() {
-            _isCheckingToken = false;
-            _tokenAuthInProgress = false;
-          });
-        }
         return;
       }
 
@@ -168,20 +128,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       // If we reach here, authentication failed
-      if (mounted) {
-        setState(() {
-          _isCheckingToken = false;
-          _tokenAuthInProgress = false;
-        });
-      }
     } catch (e) {
       debugPrint('Error checking token: $e');
-      if (mounted) {
-        setState(() {
-          _isCheckingToken = false;
-          _tokenAuthInProgress = false;
-        });
-      }
     }
   }
 
@@ -243,9 +191,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
               ),
             ),
-          );
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
           );
         }
 

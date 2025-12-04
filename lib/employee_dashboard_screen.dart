@@ -24,8 +24,6 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
-import 'package:pdh/l10n/generated/app_localizations.dart';
-import 'package:pdh/employee_profile_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -641,6 +639,16 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   final effectiveProfile = profileSnapshot.data ?? userProfile;
                   final effectiveGoals = goalsSnapshot.data ?? userGoals;
 
+                  // Log errors but don't block the dashboard from showing
+                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                    final error = profileSnapshot.error ?? goalsSnapshot.error;
+                    developer.log(
+                      'Dashboard stream error (showing dashboard anyway): $error',
+                      name: 'EmployeeDashboardScreen',
+                      error: error,
+                    );
+                  }
+
                   // If we have no profile data at all, show loading spinner
                   if (effectiveProfile == null) {
                     return const Center(
@@ -648,97 +656,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(
                           AppColors.activeColor,
                         ),
-                      ),
-                    );
-                  }
-
-                  // Handle errors
-                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                    final error = profileSnapshot.error ?? goalsSnapshot.error;
-                    final errorMessage = error.toString();
-
-                    // Check if it's a Firestore index error
-                    if (errorMessage.contains('failed-precondition') ||
-                        errorMessage.contains('index')) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 64,
-                              color: AppColors.warningColor,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Setting up your dashboard...',
-                              style: AppTypography.heading4,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'This is your first time using the app. Let\'s get you started!',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/my_goal_workspace',
-                                );
-                              },
-                              icon: const Icon(Icons.add),
-                              label: Text(
-                                AppLocalizations.of(
-                                  context,
-                                ).employee_create_first_goal,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.activeColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: AppColors.dangerColor,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading dashboard',
-                            style: AppTypography.heading4,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Please try again in a moment',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              setState(
-                                () {},
-                              ); // Trigger rebuild to restart streams
-                            },
-                            child: const Text('Retry'),
-                          ),
-                        ],
                       ),
                     );
                   }
@@ -1550,46 +1467,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             AppComponents.progressBar(
               value: progress,
               label: '${goal.progress}% Complete',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _profileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const EmployeeProfileScreen(),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
             ),
           ],
         ),
