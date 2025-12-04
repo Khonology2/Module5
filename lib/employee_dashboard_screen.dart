@@ -1131,31 +1131,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: 48, // Set a consistent size for the image
-                      height: 48,
-                      child: Image.asset(
-                        'Approved_Tick/approved_red_badge_white.png', // Updated to use the new asset
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No recent activity',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Start by creating your first goal!',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'No recent activity',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             )
@@ -1324,42 +1304,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: 78, // Set a consistent size for the image
-                      height: 78,
-                      child: Image.asset(
-                        'Business_Growth_Development/Growth_Development_Red.png', // Replaced flag icon with custom image
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No active goals',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Create your first goal to get started!',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/my_goal_workspace');
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Goal'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'No active goals',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             )
