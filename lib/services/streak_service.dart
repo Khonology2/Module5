@@ -8,6 +8,7 @@ class StreakService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final Map<String, List<StreamSubscription>> _subsByUser = {};
   static final Map<String, Timer> _midnightTimerByUser = {};
+  static final Map<String, bool> _cancelledByUser = {};
 
   // Record daily activity (goal progress, completion, etc.)
   static Future<void> recordDailyActivity(
@@ -78,6 +79,11 @@ class StreakService {
   }
 
   static Future<void> _updateStreak(String userId) async {
+    if (userId.isEmpty) return;
+
+    // Check if tracking was cancelled for this user
+    if (_cancelledByUser[userId] == true) return;
+
     try {
       // Get user's daily activities, sorted by date
       final activitiesSnapshot = await _firestore
@@ -89,6 +95,9 @@ class StreakService {
           .get();
 
       if (activitiesSnapshot.docs.isEmpty) return;
+
+      // Check again after async operation
+      if (_cancelledByUser[userId] == true) return;
 
       int currentStreak = 0;
       DateTime? lastDate;
@@ -135,19 +144,36 @@ class StreakService {
         }
       }
 
+      // Check again before Firestore write
+      if (_cancelledByUser[userId] == true) return;
+
       // Update user's streak in profile
       final userRef = _firestore.collection('users').doc(userId);
       final userDoc = await userRef.get();
+
+      if (!userDoc.exists) return;
+
+      // Final check before update
+      if (_cancelledByUser[userId] == true) return;
+
       final previousStreak = (userDoc.data()?['currentStreak'] ?? 0) as int;
 
-      await userRef.update({
-        'currentStreak': currentStreak,
-        'longestStreak': FieldValue.increment(
-          currentStreak > (userDoc.data()?['longestStreak'] ?? 0)
-              ? currentStreak - (userDoc.data()?['longestStreak'] ?? 0)
-              : 0,
-        ),
-      });
+      try {
+        await userRef.update({
+          'currentStreak': currentStreak,
+          'longestStreak': FieldValue.increment(
+            currentStreak > (userDoc.data()?['longestStreak'] ?? 0)
+                ? currentStreak - (userDoc.data()?['longestStreak'] ?? 0)
+                : 0,
+          ),
+        });
+      } catch (e) {
+        // If update fails (e.g., document was deleted or stream cancelled), log and return
+        if (!(_cancelledByUser[userId] == true)) {
+          developer.log('Error updating streak in Firestore: $e');
+        }
+        return;
+      }
 
       // Check for streak milestones
       if (currentStreak > previousStreak) {
@@ -163,6 +189,9 @@ class StreakService {
     if (userId.isEmpty) return;
     if (_subsByUser.containsKey(userId)) return;
 
+    // Clear any cancellation flag
+    _cancelledByUser[userId] = false;
+
     // Listen to most recent daily activity to recompute streak
     final activitiesSub = _firestore
         .collection('users')
@@ -171,15 +200,38 @@ class StreakService {
         .orderBy('date', descending: true)
         .limit(1)
         .snapshots()
-        .listen((_) => _updateStreak(userId), onError: (_) {});
+        .listen(
+          (_) {
+            if (!(_cancelledByUser[userId] ?? false)) {
+              _updateStreak(userId).catchError((e) {
+                developer.log('Error updating streak from stream: $e');
+              });
+            }
+          },
+          onError: (e) {
+            if (!(_cancelledByUser[userId] ?? false)) {
+              developer.log('Error in activities stream: $e');
+            }
+          },
+          cancelOnError: false,
+        );
 
     // Also listen to user doc changes that might affect streak display
     final userDocSub = _firestore
         .collection('users')
         .doc(userId)
         .snapshots()
-        .listen((_) {}, onError: (_) {});
+        .listen(
+          (_) {},
+          onError: (e) {
+            if (!(_cancelledByUser[userId] ?? false)) {
+              developer.log('Error in user doc stream: $e');
+            }
+          },
+          cancelOnError: false,
+        );
 
+    // Store subscriptions
     _subsByUser[userId] = [activitiesSub, userDocSub];
 
     // Schedule a timer at next midnight to recompute streak across day boundary
@@ -206,16 +258,23 @@ class StreakService {
 
   /// Stop real-time streak tracking for a user
   static void stopRealtimeTracking(String userId) {
+    // Mark as cancelled first to prevent new operations
+    _cancelledByUser[userId] = true;
+
     final subs = _subsByUser.remove(userId);
     if (subs != null) {
       for (final s in subs) {
         try {
+          // Cancel subscription gracefully
           s.cancel();
-        } catch (_) {}
+        } catch (e) {
+          developer.log('Error cancelling streak subscription: $e');
+        }
       }
     }
     _midnightTimerByUser[userId]?.cancel();
     _midnightTimerByUser.remove(userId);
+    _cancelledByUser.remove(userId);
   }
 
   static Future<void> _checkStreakMilestones(String userId, int streak) async {

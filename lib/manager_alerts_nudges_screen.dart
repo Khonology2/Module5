@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element
+// ignore_for_file: unused_element, unused_field
 
 import 'dart:math' as math;
 
@@ -37,13 +37,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // true = Personal, false = Team
   // null=All, 'alert' | 'nudge' | 'approval_request'
   // SMART rubric state per goalId
-  // ignore: unused_field
+ 
   final _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
-  // ignore: unused_field
+  
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
-  bool _showNudgeTrend = true;
+  final bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _teamInsights;
 

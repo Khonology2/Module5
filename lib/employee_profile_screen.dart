@@ -114,12 +114,19 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     }
   }
 
-  Future<void> _loadUserProfile() async {
+  Future<void> _loadUserProfile({int retryCount = 0}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return; // User not logged in
 
     try {
+      // Add a small delay to avoid race conditions with other Firestore operations
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+
       final userProfile = await DatabaseService.getUserProfile(user.uid);
+      if (!mounted) return;
+
       setState(() {
         _fullNameController.text = userProfile.displayName;
         _selectedJobTitle = _jobTitleOptions.contains(userProfile.jobTitle)
@@ -159,8 +166,31 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+
+      // Retry up to 2 times for Firestore internal errors
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        // Retry with exponential backoff
+        await Future.delayed(Duration(milliseconds: 1000 * (retryCount + 1)));
+        if (mounted) {
+          return _loadUserProfile(retryCount: retryCount + 1);
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load profile: ${e.toString()}')),
+        SnackBar(
+          content: Text('Failed to load profile: ${e.toString()}'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: () {
+              if (mounted) {
+                _loadUserProfile(retryCount: 0);
+              }
+            },
+          ),
+        ),
       );
     }
   }
