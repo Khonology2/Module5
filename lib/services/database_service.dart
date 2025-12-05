@@ -1381,20 +1381,39 @@ class DatabaseService {
 
       await userDocRef.set(userData);
     } else {
-      // Only update fields that might change, excluding 'role'
+      // Only update fields that might change
       // Also check if displayName is currently empty and update from onboarding if needed
       final currentDisplayName = docSnapshot.data()?['displayName'] ?? '';
       final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
           ? resolvedDisplayName
           : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
-
-      await userDocRef.update({
+      
+      // Get current role, if any
+      final currentRole = docSnapshot.data()?['role'] as String?;
+      
+      // Prepare update map
+      final updateData = <String, dynamic>{
         'displayName': finalDisplayName.isNotEmpty
             ? finalDisplayName
             : (docSnapshot.data()?['displayName'] ?? ''),
         'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
-        // Other fields will be updated by a dedicated updateUserProfile method.
-      });
+      };
+      
+      // Update role if:
+      // 1. Role is not currently set, OR
+      // 2. User is explicitly setting a non-default role during registration
+      if (currentRole == null || currentRole.isEmpty || currentRole == 'employee') {
+        // Allow role update if not set or if explicitly provided during registration
+        if (role.isNotEmpty && role != 'employee') {
+          updateData['role'] = role;
+        } else if (currentRole == null || currentRole.isEmpty) {
+          // Set default role if none exists
+          updateData['role'] = role;
+        }
+      }
+      // If role is already set to 'manager', don't override it
+
+      await userDocRef.update(updateData);
     }
 
     await initializeSubcollections(userDocRef);

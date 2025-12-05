@@ -1470,51 +1470,66 @@ class _EmployeeActivityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: const Color(0x80000000),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           '${employee.profile.displayName} - Activity',
-          style: const TextStyle(color: Colors.white),
+          style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<List<EmployeeActivity>>(
-        stream: ManagerRealtimeService.getEmployeeActivitiesStream(
-          employeeId: employee.profile.uid,
-          limit: 50,
-        ),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-            );
-          }
-
-          final activities = snapshot.data!;
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildActivitySummary(),
-                const SizedBox(height: 20),
-                const Text(
-                  'Recent Activity',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: activities.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No recent activity',
-                            style: TextStyle(color: Colors.white70),
-                          ),
+              ),
+            ),
+          ),
+          StreamBuilder<List<EmployeeActivity>>(
+            stream: ManagerRealtimeService.getEmployeeActivitiesStream(
+              employeeId: employee.profile.uid,
+              limit: 50,
+            ),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+                );
+              }
+
+              final activities = snapshot.data!;
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 80), // Space for AppBar
+                    _buildActivitySummary(),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Recent Activity',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: activities.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No recent activity',
+                                style: TextStyle(color: Colors.white70),
+                              ),
                         )
                       : ListView.builder(
                           itemCount: activities.length,
@@ -1522,11 +1537,13 @@ class _EmployeeActivityScreen extends StatelessWidget {
                             return _buildActivityItem(activities[index]);
                           },
                         ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -37,12 +37,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // true = Personal, false = Team
   // null=All, 'alert' | 'nudge' | 'approval_request'
   // SMART rubric state per goalId
- 
+
   final _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
-  
+
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
-  
+
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
@@ -51,7 +51,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
     _redirectIfManager();
   }
 
@@ -61,9 +61,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Safety: if hot reload preserved an older controller with wrong length, recreate it
-    if (_tabController.length != 4) {
+    if (_tabController.length != 2) {
+      final oldIndex = _tabController.index;
       _tabController.dispose();
-      _tabController = TabController(length: 4, vsync: this);
+      _tabController = TabController(
+        length: 2,
+        vsync: this,
+        initialIndex: oldIndex < 2 ? oldIndex : 0,
+      );
     }
   }
 
@@ -469,24 +474,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                         fit: BoxFit.contain,
                       ),
                     ),
-                    Tab(
-                      text: 'Send Nudges',
-                      icon: Image.asset(
-                        'assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    Tab(
-                      text: 'Analytics',
-                      icon: Image.asset(
-                        'assets/Project Management/Project_Red Badge_White.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
                   ],
                 );
 
@@ -530,7 +517,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 children: [
                   _buildApprovalsTab(employees),
                   _buildTeamAlertsTab(employees),
-                  _buildSendNudgesTab(employees),
                 ],
               ),
             ),

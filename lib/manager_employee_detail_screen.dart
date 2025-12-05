@@ -53,56 +53,77 @@ class _ManagerEmployeeDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: AppColors.backgroundColor,
-        title: Text(widget.employee.profile.displayName),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _header(),
-            const SizedBox(height: 12),
-            // Add Stretch Objective Button
-            ElevatedButton.icon(
-              onPressed: () => _addStretchObjective(),
-              icon: const Icon(Icons.add_circle_outline, size: 18),
-              label: const Text('Add Stretch Objective'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange.withValues(alpha: 0.8),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: StreamBuilder<List<Goal>>(
-                stream: _goalsStream(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.activeColor,
-                      ),
-                    );
-                  }
-                  final goals = snapshot.data!;
-                  if (goals.isEmpty) {
-                    return Center(
-                      child: Text('No goals yet', style: AppTypography.muted),
-                    );
-                  }
-                  return ListView.builder(
-                    itemCount: goals.length,
-                    itemBuilder: (context, i) => _goalTile(goals[i]),
-                  );
-                },
-              ),
-            ),
-          ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          widget.employee.profile.displayName,
+          style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 80), // Space for AppBar
+                _header(),
+                const SizedBox(height: 12),
+                // Add Stretch Objective Button
+                ElevatedButton.icon(
+                  onPressed: () => _addStretchObjective(),
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text('Add Stretch Objective'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.withValues(alpha: 0.8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: StreamBuilder<List<Goal>>(
+                    stream: _goalsStream(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.activeColor,
+                          ),
+                        );
+                      }
+                      final goals = snapshot.data!;
+                      if (goals.isEmpty) {
+                        return Center(
+                          child: Text('No goals yet', style: AppTypography.muted),
+                        );
+                      }
+                      return ListView.builder(
+                        itemCount: goals.length,
+                        itemBuilder: (context, i) => _goalTile(goals[i]),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -111,7 +132,7 @@ class _ManagerEmployeeDetailScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderColor),
       ),
@@ -187,7 +208,7 @@ class _ManagerEmployeeDetailScreenState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: const Color(0x80000000),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isUrgent
