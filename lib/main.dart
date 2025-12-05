@@ -153,7 +153,21 @@ class _MyAppState extends State<MyApp> {
       // If no explicit app locale is stored yet, prefer the device locale
       // when it is supported; otherwise fall back to English (South Africa).
       final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
-      final supported = AppLocalizations.supportedLocales;
+      // Supported locales based on ARB files in lib/l10n/
+      const supported = [
+        Locale('en', 'ZA'),
+        Locale('en'),
+        Locale('af'),
+        Locale('zu'),
+        Locale('st'),
+        Locale('nr'),
+        Locale('nso'),
+        Locale('ss'),
+        Locale('tn'),
+        Locale('ts'),
+        Locale('ve'),
+        Locale('xh'),
+      ];
       resolvedLocale = supported.firstWhere(
         (l) =>
             l.languageCode == deviceLocale.languageCode &&

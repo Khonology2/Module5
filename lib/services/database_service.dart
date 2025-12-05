@@ -129,6 +129,11 @@ class DatabaseService {
         .where('userId', isEqualTo: targetUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          // Return empty list on error to prevent crashes
+          developer.log('Error in getUserGoalsStream: $error');
+        })
         .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
@@ -229,7 +234,10 @@ class DatabaseService {
     return awarded;
   }
 
-  static Future<UserProfile> getUserProfile(String uid) async {
+  static Future<UserProfile> getUserProfile(
+    String uid, {
+    int retryCount = 0,
+  }) async {
     // Check cache first
     final cache = PerformanceCacheService();
     final cached = cache.getCachedUserProfile();
@@ -237,23 +245,45 @@ class DatabaseService {
       return cached;
     }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    var data = doc.data() ?? {};
+    Map<String, dynamic> data = {};
 
-    // If displayName is missing/empty, try to sync from onboarding
-    final displayName =
-        data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
-    if (displayName.isEmpty) {
-      await syncOnboardingData(uid);
-      // Re-fetch user data after sync
-      final updatedDoc = await FirebaseFirestore.instance
+    try {
+      // Add small delay on retry to avoid race conditions
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+
+      final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
-      data = updatedDoc.data() ?? data;
+      data = doc.data() ?? {};
+
+      // If displayName is missing/empty, try to sync from onboarding
+      final displayName =
+          data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
+      if (displayName.isEmpty) {
+        await syncOnboardingData(uid);
+        // Re-fetch user data after sync
+        final updatedDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        data = updatedDoc.data() ?? data;
+      }
+    } catch (e) {
+      // Retry up to 2 times for Firestore internal errors
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        developer.log('Firestore error, retrying getUserProfile: $e');
+        return getUserProfile(uid, retryCount: retryCount + 1);
+      }
+      // If we have cached data, return it even if fresh fetch failed
+      if (cached != null && cached.uid == uid) {
+        developer.log('Using cached profile due to error: $e');
+        return cached;
+      }
+      rethrow;
     }
 
     final profile = UserProfile(

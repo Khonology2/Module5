@@ -668,7 +668,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('audit_entries')
-            .snapshots(),
+            .snapshots()
+            .handleError((error) {
+              // Silently handle errors to prevent unmount errors
+              developer.log('Error in audit_entries stream: $error');
+            }),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             developer.log(
