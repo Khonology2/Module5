@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -204,33 +205,76 @@ class SettingsService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Cached stream to prevent recreation on every build
+  static Stream<UserSettings?>? _cachedSettingsStream;
+  static String? _cachedUserId;
+
+  // Clear cached stream (call on sign out or user change)
+  // This prevents multiple Firestore listeners on the same document
+  static void clearCache() {
+    _cachedSettingsStream = null;
+    _cachedUserId = null;
+  }
+
   // Get user settings stream
   static Stream<UserSettings?> getUserSettingsStream() {
     final user = _auth.currentUser;
-    if (user == null) return Stream.value(null);
+    if (user == null) {
+      clearCache();
+      return Stream.value(null);
+    }
 
-    return _firestore
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((snapshot) {
-          if (!snapshot.exists) {
-            // Initialize default settings for new users
-            final defaultSettings = getDefaultSettings(user);
-            // Save to Firestore asynchronously
-            _firestore
-                .collection('users')
-                .doc(user.uid)
-                .set(defaultSettings.toFirestore());
-            return defaultSettings;
-          }
-          return UserSettings.fromFirestore(snapshot);
-        })
-        .handleError((error) {
-          developer.log('Error in user settings stream: $error');
-          // Return default settings if there's an error
-          return getDefaultSettings(user);
-        });
+    // If user changed, clear old stream first to prevent multiple listeners
+    if (_cachedSettingsStream != null && _cachedUserId != user.uid) {
+      clearCache();
+    }
+
+    // Return cached stream if user hasn't changed
+    if (_cachedSettingsStream != null && _cachedUserId == user.uid) {
+      return _cachedSettingsStream!;
+    }
+
+    // Create new broadcast stream for this user
+    _cachedUserId = user.uid;
+    try {
+      _cachedSettingsStream = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .asyncMap((snapshot) async {
+            if (!snapshot.exists) {
+              // Initialize default settings for new users
+              final defaultSettings = getDefaultSettings(user);
+              // Save to Firestore asynchronously (don't await to avoid blocking)
+              _firestore
+                  .collection('users')
+                  .doc(user.uid)
+                  .set(defaultSettings.toFirestore(), SetOptions(merge: true))
+                  .catchError((e) {
+                    developer.log('Error initializing user settings: $e');
+                  });
+              return defaultSettings;
+            }
+            try {
+              return UserSettings.fromFirestore(snapshot);
+            } catch (e) {
+              developer.log('Error parsing user settings: $e');
+              return getDefaultSettings(user);
+            }
+          })
+          .handleError((error) {
+            developer.log('Error in user settings stream: $error');
+            // Return default settings if there's an error
+            return getDefaultSettings(user);
+          })
+          .asBroadcastStream();
+    } catch (e) {
+      developer.log('Error creating settings stream: $e');
+      clearCache();
+      return Stream.value(getDefaultSettings(user));
+    }
+
+    return _cachedSettingsStream!;
   }
 
   // Get user settings once

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -104,7 +105,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 stream: FirebaseFirestore.instance
                     .collection('goals')
                     .doc(goalId)
-                    .snapshots(),
+                    .snapshots()
+                    .handleError((error) {
+                      // Silently handle errors to prevent unmount errors
+                      developer.log('Error in goal stream: $error');
+                    }),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && snap.data!.exists) {

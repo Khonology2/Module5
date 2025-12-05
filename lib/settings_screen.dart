@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -24,12 +25,38 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   UserSettings? _currentSettings;
+  bool _hasInitialLoadAttempted = false;
+  DateTime? _loadStartTime;
 
   @override
   void initState() {
     super.initState();
     // Ensure role is loaded
     RoleService.instance.ensureRoleLoaded();
+    // Try to load settings immediately as fallback
+    _loadSettingsFallback();
+    _loadStartTime = DateTime.now();
+  }
+
+  Future<void> _loadSettingsFallback() async {
+    if (!_hasInitialLoadAttempted) {
+      _hasInitialLoadAttempted = true;
+      try {
+        final settings = await SettingsService.getUserSettings();
+        if (mounted && settings != null) {
+          setState(() {
+            _currentSettings = settings;
+          });
+        }
+      } catch (e) {
+        developer.log('Error loading settings fallback: $e');
+      }
+    }
+  }
+
+  bool get _isLoadingTooLong {
+    if (_loadStartTime == null) return false;
+    return DateTime.now().difference(_loadStartTime!).inSeconds > 10;
   }
 
   @override
@@ -51,6 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: StreamBuilder<UserSettings?>(
+            key: const ValueKey('settings_stream'),
             stream: SettingsService.getUserSettingsStream(),
             builder: (context, settingsSnapshot) {
               // Prefer last known settings to avoid full-screen flicker while waiting
@@ -61,10 +89,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final streamed = settingsSnapshot.data;
               final settings = streamed ?? _currentSettings;
               if (streamed != null && _currentSettings != streamed && mounted) {
-                _currentSettings = streamed;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _currentSettings = streamed;
+                    });
+                  }
+                });
               }
 
-              if (settings == null) {
+              // Show loading only if we truly don't have any data yet
+              if (settings == null &&
+                  settingsSnapshot.connectionState == ConnectionState.waiting) {
+                // If loading too long, show error instead of infinite spinner
+                if (_isLoadingTooLong) {
+                  return _buildErrorState(
+                    'Settings are taking too long to load. Please check your connection and try again.',
+                  );
+                }
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.activeColor,
+                  ),
+                );
+              }
+
+              // If still null after waiting, try to load default settings or show error
+              final effectiveSettings = settings ?? _currentSettings;
+              if (effectiveSettings == null) {
+                // If connection is done but still null, show error
+                if (settingsSnapshot.connectionState == ConnectionState.done) {
+                  // Try one more time to load settings
+                  if (!_hasInitialLoadAttempted) {
+                    _loadSettingsFallback();
+                  }
+                  return _buildErrorState(
+                    'Unable to load settings. Please try again.',
+                  );
+                }
+                // Still waiting, show spinner (but with timeout check)
+                if (_isLoadingTooLong) {
+                  return _buildErrorState(
+                    'Settings are taking too long to load. Please check your connection and try again.',
+                  );
+                }
                 return const Center(
                   child: CircularProgressIndicator(
                     color: AppColors.activeColor,
@@ -73,24 +141,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
 
               return StreamBuilder<String?>(
+                key: const ValueKey('role_stream'),
                 stream: RoleService.instance.roleStream(),
                 builder: (context, roleSnapshot) {
-                  final role = roleSnapshot.data;
+                  final role =
+                      roleSnapshot.data ?? RoleService.instance.cachedRole;
                   final isManager = role == 'manager';
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (!isManager) ...[
-                        _buildPrivacySection(settings),
+                        _buildPrivacySection(effectiveSettings),
                         const SizedBox(height: 24),
                       ],
-                      _buildNotificationSection(settings),
+                      _buildNotificationSection(effectiveSettings),
                       const SizedBox(height: 24),
-                      _buildAppSection(settings),
+                      _buildAppSection(effectiveSettings),
                       if (isManager) ...[
                         const SizedBox(height: 24),
-                        _buildManagerSection(settings),
+                        _buildManagerSection(effectiveSettings),
                       ],
                       const SizedBox(height: 24),
                       _buildAccountSection(),
@@ -675,9 +745,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? value
                   : (values.isNotEmpty ? values.first : null);
               return DropdownButtonFormField<String>(
+                key: ValueKey('language_dropdown_$safeValue'),
                 initialValue: safeValue,
                 items: items,
-                onChanged: onChanged,
+                onChanged: (newValue) {
+                  // Unfocus before changing to prevent focus errors
+                  FocusScope.of(context).unfocus();
+                  Future.microtask(() => onChanged(newValue));
+                },
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.black.withValues(alpha: 0.4),
