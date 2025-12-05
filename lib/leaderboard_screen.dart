@@ -510,7 +510,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           final isManager = role == 'manager';
 
           return StreamBuilder<QuerySnapshot>(
-            stream: _buildQuery(userRole: role).snapshots(),
+            stream: _buildQuery(userRole: role).snapshots().handleError((
+              error,
+            ) {
+              // Silently handle errors to prevent unmount errors
+              developer.log('Error in leaderboard stream: $error');
+            }),
             builder:
                 (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
                   if (leaderboardSnapshot.hasError) {

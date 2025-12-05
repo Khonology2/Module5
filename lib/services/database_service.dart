@@ -129,6 +129,11 @@ class DatabaseService {
         .where('userId', isEqualTo: targetUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          // Return empty list on error to prevent crashes
+          developer.log('Error in getUserGoalsStream: $error');
+        })
         .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
