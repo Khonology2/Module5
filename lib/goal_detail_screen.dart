@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -41,17 +42,27 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         .collection('goals')
         .doc(widget.goal.id)
         .snapshots()
-        .listen((doc) {
-          if (!mounted) return;
-          try {
-            final updated = Goal.fromFirestore(doc);
-            setState(() {
-              currentGoal = updated;
-              final data = doc.data();
-              _isSeasonGoal = (data?['isSeasonGoal'] == true);
-            });
-          } catch (_) {}
-        });
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          developer.log('Error in goal detail stream: $error');
+        })
+        .listen(
+          (doc) {
+            if (!mounted) return;
+            try {
+              final updated = Goal.fromFirestore(doc);
+              setState(() {
+                currentGoal = updated;
+                final data = doc.data();
+                _isSeasonGoal = (data?['isSeasonGoal'] == true);
+              });
+            } catch (_) {}
+          },
+          onError: (error) {
+            // Additional error handling for listen
+            developer.log('Error in goal detail listener: $error');
+          },
+        );
   }
 
   Future<void> _submitForApproval() async {

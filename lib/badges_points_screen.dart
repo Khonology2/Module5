@@ -656,13 +656,15 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         if (!isManager && tutorialService.isTutorialActive) {
           tutorialService.setCurrentContext(context);
         }
-        final tutorialParams = !isManager ? tutorialService.getTutorialParams() : {
-          'tutorialStepIndex': null,
-          'sidebarTutorialKeys': null,
-          'onTutorialNext': null,
-          'onTutorialSkip': null,
-        };
-        
+        final tutorialParams = !isManager
+            ? tutorialService.getTutorialParams()
+            : {
+                'tutorialStepIndex': null,
+                'sidebarTutorialKeys': null,
+                'onTutorialNext': null,
+                'onTutorialSkip': null,
+              };
+
         return AppScaffold(
           title: 'Badges & Points',
           showAppBar: false,
@@ -674,7 +676,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               ? '/manager_badges_points'
               : '/badges_points',
           tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
-          sidebarTutorialKeys: tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          sidebarTutorialKeys:
+              tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
           onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
@@ -996,7 +999,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
 
     return StreamBuilder<List<badge_model.Badge>>(
-      stream: BadgeService.getUserBadgesStream(user.uid),
+      stream: BadgeService.getUserBadgesStream(user.uid).handleError((error) {
+        // Silently handle errors to prevent unmount errors
+        developer.log('Error in getUserBadgesStream: $error');
+      }),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -1405,8 +1411,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                       Expanded(
                         child: ListView.separated(
                           itemCount: badges.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 8),
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final sorted = [...badges]
                               ..sort((a, b) {
@@ -1435,10 +1440,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withValues(alpha: 0.4),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.4,
+                                      ),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.3),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                     ),
                                     child: Icon(
@@ -2424,4 +2433,3 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 }
-
