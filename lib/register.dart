@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
@@ -453,23 +454,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 } catch (_) {
                                   // Ignore errors here; inability to read blocklist should not break registration
                                 }
+                                // Clear RoleService cache before setting up new user
+                                RoleService.instance.clearCache();
+                                
+                                // Small delay to let Firestore settle after user creation
+                                await Future.delayed(const Duration(milliseconds: 300));
+                                
                                 // Store additional user data in Firestore
                                 // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
-                                await DatabaseService.initializeUserData(
-                                  userCredential.user!.uid,
-                                  _fullNameController.text,
-                                  _emailController.text,
-                                            role:
-                                                _selectedRole!, // Use the selected role
-                                );
+                                try {
+                                  await DatabaseService.initializeUserData(
+                                    userCredential.user!.uid,
+                                    _fullNameController.text,
+                                    _emailController.text,
+                                    role: _selectedRole!, // Use the selected role
+                                  );
+                                } catch (e) {
+                                  debugPrint('Error initializing user data: $e');
+                                  // Continue even if this fails - user is created
+                                }
 
                                 // Initialize default badges and run initial check
-                                await BadgeService.initializeUserBadges(
-                                  userCredential.user!.uid,
-                                );
-                                await BadgeService.checkAndAwardBadges(
-                                  userCredential.user!.uid,
-                                );
+                                try {
+                                  await BadgeService.initializeUserBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                  // Small delay between badge operations
+                                  await Future.delayed(const Duration(milliseconds: 200));
+                                  await BadgeService.checkAndAwardBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                } catch (e) {
+                                  debugPrint('Error initializing badges: $e');
+                                  // Continue even if badges fail - registration should succeed
+                                }
 
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
@@ -517,19 +535,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           });
                                 await _showCenterNotice(message);
                               } catch (e) {
+                                // Catch all other errors including Firestore errors
+                                debugPrint('Registration error: $e');
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                          Navigator.of(
-                                            context,
-                                            rootNavigator: true,
-                                          ).maybePop();
-                                          setState(() {
-                                            _isRegistering = false;
-                                          });
-                                          await _showCenterNotice(
-                                            'An unexpected error occurred: ${e.toString()}',
-                                          );
+                                Navigator.of(
+                                  context,
+                                  rootNavigator: true,
+                                ).maybePop();
+                                setState(() {
+                                  _isRegistering = false;
+                                });
+                                
+                                // Check if it's a Firestore internal error
+                                final errorString = e.toString();
+                                if (errorString.contains('FIRESTORE') && 
+                                    errorString.contains('INTERNAL ASSERTION FAILED')) {
+                                  // User is likely created, try to continue
+                                  await _showCenterNotice(
+                                    'Registration completed, but there was a temporary issue. Please try signing in.',
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/sign_in',
+                                    );
+                                  }
+                                } else {
+                                  await _showCenterNotice(
+                                    'An error occurred during registration. Please try again.',
+                                  );
+                                }
                               }
                             },
                                 child: _isRegistering

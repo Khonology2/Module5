@@ -246,12 +246,6 @@ class _ManagerProgressVisualsContentState
                 ),
               ),
               _buildViewTypeFilter(),
-              const SizedBox(width: AppSpacing.md),
-              if (currentViewType == ProgressViewType.team) ...[
-                _buildFilterDropdown(),
-                const SizedBox(width: AppSpacing.md),
-                _buildDepartmentDropdown(),
-              ],
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -1396,87 +1390,6 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildFilterDropdown() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DropdownButton<TimeFilter>(
-          value: currentTimeFilter,
-          underline: const SizedBox(),
-          isExpanded: false,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          onChanged: (TimeFilter? filter) {
-            if (filter != null) {
-              setState(() {
-                currentTimeFilter = filter;
-              });
-            }
-          },
-          items: TimeFilter.values.map((filter) {
-            return DropdownMenuItem<TimeFilter>(
-              value: filter,
-              child: Text(filter.name.toUpperCase()),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDepartmentDropdown() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DropdownButton<String?>(
-          value: selectedDepartment,
-          underline: const SizedBox(),
-          isExpanded: false,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          hint: Text(
-            'All Departments',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          onChanged: (String? department) {
-            setState(() {
-              selectedDepartment = department;
-            });
-          },
-          items: [
-            DropdownMenuItem<String?>(
-              value: null,
-              child: Text('All Departments'),
-            ),
-            DropdownMenuItem<String?>(
-              value: widget.userProfile.department,
-              child: Text(
-                widget.userProfile.department.isEmpty
-                    ? 'Department'
-                    : widget.userProfile.department,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildTeamMetricsCards(TeamMetrics metrics) {
     return Column(

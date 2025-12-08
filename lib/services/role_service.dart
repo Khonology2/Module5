@@ -10,60 +10,94 @@ class RoleService {
 
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
+  String? _currentUserId; // Track which user the stream is for
 
   String? get cachedRole => _cachedRole;
 
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final snap = await ref.get();
-    String? role = snap.data()?['role'] as String?;
-    if (role == null || role.isEmpty) {
-      try {
-        await ref.set({'role': 'employee'}, SetOptions(merge: true));
-        role = 'employee';
-      } catch (_) {}
+    if (user == null) {
+      _cachedRole = null;
+      return null;
     }
-    _cachedRole = role ?? 'employee';
-    return _cachedRole;
+    
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final snap = await ref.get();
+      String? role = snap.data()?['role'] as String?;
+      if (role == null || role.isEmpty) {
+        try {
+          await ref.set({'role': 'employee'}, SetOptions(merge: true));
+          role = 'employee';
+        } catch (e) {
+          developer.log('Error setting default role: $e');
+        }
+      }
+      _cachedRole = role ?? 'employee';
+      return _cachedRole;
+    } catch (e) {
+      developer.log('Error getting role: $e');
+      // Return cached role if available, otherwise default to employee
+      return _cachedRole ?? 'employee';
+    }
   }
 
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      clearCache();
+      _clearStream();
       return const Stream.empty();
     }
 
     // If user changed, clear old stream first to prevent multiple listeners
-    // Note: We can't check user.uid here without storing it, but clearCache is called on signOut
-    // For now, rely on clearCache being called when user changes via auth state
+    if (_currentUserId != null && _currentUserId != user.uid) {
+      _clearStream();
+    }
 
     // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
-    _roleBroadcast ??= FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
-          final role = doc.data()?['role'] as String?;
-          _cachedRole = role;
-          return role;
-        })
-        .distinct()
-        .handleError((error) {
-          developer.log('Error in role stream: $error');
-        })
-        .asBroadcastStream();
+    if (_roleBroadcast == null) {
+      _currentUserId = user.uid;
+      try {
+        _roleBroadcast = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .snapshots()
+            .map((doc) {
+              try {
+                final role = doc.data()?['role'] as String?;
+                _cachedRole = role;
+                return role;
+              } catch (e) {
+                developer.log('Error processing role snapshot: $e');
+                return _cachedRole;
+              }
+            })
+            .distinct()
+            .handleError((error) {
+              developer.log('Error in role stream: $error');
+              // Don't propagate error, just return cached role
+            })
+            .asBroadcastStream();
+      } catch (e) {
+        developer.log('Error creating role stream: $e');
+        // Return a stream with cached role
+        return Stream.value(_cachedRole);
+      }
+    }
 
     return _roleBroadcast!;
+  }
+
+  void _clearStream() {
+    _roleBroadcast = null;
+    _currentUserId = null;
   }
 
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
-    _roleBroadcast = null;
+    _clearStream();
   }
 
   // Method to ensure role is loaded and cached

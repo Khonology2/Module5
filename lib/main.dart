@@ -80,7 +80,16 @@ void main() async {
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {
-    debugPrint('FlutterError: ${details.exceptionAsString()}');
+    final error = details.exceptionAsString();
+    debugPrint('FlutterError: $error');
+    
+    // Catch Firestore internal assertion errors and prevent them from crashing
+    if (error.contains('FIRESTORE') && error.contains('INTERNAL ASSERTION FAILED')) {
+      debugPrint('Caught Firestore internal assertion error - suppressing crash');
+      // Don't show error dialog for Firestore internal errors
+      return;
+    }
+    
     if (details.stack != null) {
       debugPrint(details.stack.toString());
     }
@@ -88,6 +97,10 @@ void main() async {
       FlutterError.presentError(details);
     }
   };
+  
+  // Note: For unhandled async errors, FlutterError.onError should catch most cases
+  // PlatformDispatcher.onError is available in Flutter 3.7+ but we'll rely on
+  // FlutterError.onError for broader compatibility
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
       color: Colors.white,

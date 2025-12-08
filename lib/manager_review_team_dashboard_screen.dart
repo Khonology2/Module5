@@ -17,7 +17,7 @@ class ManagerReviewTeamDashboardScreen extends StatefulWidget {
 
 class _ManagerReviewTeamDashboardScreenState
     extends State<ManagerReviewTeamDashboardScreen> {
-  TimeFilter _selectedTimeFilter = TimeFilter.month;
+  final TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
@@ -187,64 +187,9 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Expanded(child: SizedBox.shrink()),
-        const SizedBox(width: 12),
-        _buildTimeFilterDropdown(),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 
-  Widget _buildTimeFilterDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<TimeFilter>(
-          value: _selectedTimeFilter,
-          dropdownColor: Colors.black.withValues(alpha: 0.8),
-          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-          onChanged: (TimeFilter? newValue) {
-            if (newValue != null) {
-              setState(() {
-                _selectedTimeFilter = newValue;
-              });
-            }
-          },
-          items: TimeFilter.values.map<DropdownMenuItem<TimeFilter>>((
-            TimeFilter value,
-          ) {
-            return DropdownMenuItem<TimeFilter>(
-              value: value,
-              child: Text(_getTimeFilterLabel(value)),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  String _getTimeFilterLabel(TimeFilter filter) {
-    switch (filter) {
-      case TimeFilter.today:
-        return 'Today';
-      case TimeFilter.week:
-        return 'This Week';
-      case TimeFilter.month:
-        return 'This Month';
-      case TimeFilter.quarter:
-        return 'This Quarter';
-      case TimeFilter.year:
-        return 'This Year';
-    }
-  }
 
   Widget _buildAIManagerInsights(List<TeamInsight> insights) {
     return Container(
