@@ -43,6 +43,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
 
+  // Track alerts marked as read locally for optimistic updates
+  final Set<String> _locallyMarkedAsRead = <String>{};
+
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
   final bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
@@ -530,14 +533,33 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
     final allAlerts = employees.expand((emp) => emp.recentAlerts).toList();
-    final unreadAlerts = allAlerts.where((a) => !a.isRead).length;
+
+    // Clean up locally marked alerts that are now actually read in the stream
+    _locallyMarkedAsRead.removeWhere((alertId) {
+      final alertIndex = allAlerts.indexWhere((a) => a.id == alertId);
+      if (alertIndex == -1) {
+        // Alert no longer exists in stream, remove from local set
+        return true;
+      }
+      // Remove if alert is now read in stream
+      return allAlerts[alertIndex].isRead;
+    });
+
+    final unreadAlerts = allAlerts
+        .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+        .length;
     final totalAlerts = allAlerts.length;
     final urgentAlerts = employees.fold<int>(
       0,
       (acc, emp) =>
           acc +
           emp.recentAlerts
-              .where((a) => a.priority == AlertPriority.urgent && !a.isRead)
+              .where(
+                (a) =>
+                    a.priority == AlertPriority.urgent &&
+                    !a.isRead &&
+                    !_locallyMarkedAsRead.contains(a.id),
+              )
               .length,
     );
     final overdueGoals = employees.fold<int>(
@@ -547,8 +569,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
     return Row(
       children: [
-        Flexible(
-          flex: 1,
+        Expanded(
           child: _buildStatCard(
             'Unread Alerts',
             unreadAlerts.toString(),
@@ -558,8 +579,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
-          flex: 1,
+        Expanded(
           child: _buildStatCard(
             'Urgent',
             urgentAlerts.toString(),
@@ -570,8 +590,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
-          flex: 1,
+        Expanded(
           child: _buildStatCard(
             'Overdue Goals',
             overdueGoals.toString(),
@@ -582,8 +601,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           ),
         ),
         const SizedBox(width: 8),
-        Flexible(
-          flex: 1,
+        Expanded(
           child: _buildStatCard(
             'Team Members',
             employees.length.toString(),
@@ -612,6 +630,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (imageAsset != null)
             Image.asset(imageAsset, width: 24, height: 24, fit: BoxFit.contain)
@@ -659,7 +678,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final realAlerts = allAlerts
         .where((a) => !a.id.startsWith('synthetic_'))
         .toList();
-    final unreadCount = realAlerts.where((a) => !a.isRead).length;
+    final unreadCount = realAlerts
+        .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+        .length;
 
     // Always show button when there are employees (even if no alerts yet)
     if (employees.isEmpty) {
@@ -667,7 +688,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
@@ -676,34 +697,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Mark All Alerts as Read',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                realAlerts.isEmpty
-                    ? 'No alerts to mark as read'
-                    : unreadCount > 0
-                    ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
-                    : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
+          Text(
+            'Mark All as Read',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           ElevatedButton.icon(
             onPressed: (realAlerts.isNotEmpty && unreadCount > 0)
                 ? () => _markAllAlertsAsRead(realAlerts)
                 : null,
-            icon: const Icon(Icons.done_all, size: 18),
+            icon: const Icon(Icons.done_all, size: 16),
             label: Text(
               realAlerts.isEmpty
                   ? 'No Alerts'
@@ -716,7 +721,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   ? AppColors.activeColor
                   : AppColors.textSecondary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),
         ],
@@ -771,11 +776,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
 
     final filteredAlerts = allAlerts.where((a) {
-      return a.type == AlertType.goalOverdue ||
+      // Filter by type
+      final matchesType =
+          a.type == AlertType.goalOverdue ||
           a.type == AlertType.inactivity ||
           a.type == AlertType.seasonJoined ||
           a.type == AlertType.seasonCompleted ||
           a.type == AlertType.seasonProgressUpdate;
+      // Only show unread alerts (excluding locally marked as read)
+      final isUnread = !a.isRead && !_locallyMarkedAsRead.contains(a.id);
+      return matchesType && isUnread;
     }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     final Map<String, Alert> dedup = {};
@@ -2145,7 +2155,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       final realAlerts = alerts
           .where((a) => !a.id.startsWith('synthetic_'))
           .toList();
-      final unreadAlerts = realAlerts.where((a) => !a.isRead).toList();
+      final unreadAlerts = realAlerts
+          .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+          .toList();
 
       if (unreadAlerts.isEmpty) {
         if (mounted) {
@@ -2154,11 +2166,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         return;
       }
 
+      // Optimistically update UI immediately
+      if (mounted) {
+        setState(() {
+          _locallyMarkedAsRead.addAll(unreadAlerts.map((a) => a.id));
+        });
+      }
+
+      // Mark as read in Firestore
       for (final alert in unreadAlerts) {
         try {
           await AlertService.markAsRead(alert.id);
         } catch (e) {
-          // Silently skip alerts that can't be marked as read (might not exist in Firestore)
+          // If marking fails, remove from optimistic update
+          if (mounted) {
+            setState(() {
+              _locallyMarkedAsRead.remove(alert.id);
+            });
+          }
         }
       }
 
@@ -2169,7 +2194,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         );
       }
     } catch (e) {
+      // On error, clear optimistic updates
       if (mounted) {
+        setState(() {
+          _locallyMarkedAsRead.clear();
+        });
         await _showCenterNotice(context, 'Error marking alerts as read: $e');
       }
     }
