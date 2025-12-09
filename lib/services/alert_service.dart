@@ -114,9 +114,12 @@ class AlertService {
           .get();
 
       if (mgrs.docs.isEmpty) {
-        developer.log('No managers found to notify for goal approval');
+        developer.log('WARNING: No managers found to notify for goal approval');
+        developer.log('Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle');
         return;
       }
+
+      developer.log('Found ${mgrs.docs.length} manager(s) to notify for goal approval');
 
       for (final mgr in mgrs.docs) {
         final alert = Alert(
@@ -136,7 +139,7 @@ class AlertService {
         await _createAlert(alert);
       }
       developer.log(
-        'Created approval request alerts for ${mgrs.docs.length} manager(s)',
+        'Successfully created approval request alerts for ${mgrs.docs.length} manager(s)',
       );
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
@@ -644,10 +647,11 @@ class AlertService {
           .map((alerts) {
             List<Alert> items = List<Alert>.from(alerts);
 
-            // In personal mode, exclude team-only types and approval requests
+            // In personal mode, exclude team-only types but allow approval requests
+            // Approval requests are important for managers even in personal mode
             items = items.where((a) {
               if (teamOnly.contains(a.type)) return false;
-              if (a.type == AlertType.goalApprovalRequested) return false;
+              // Allow approval requests in personal mode - they're manager-facing
               return true;
             }).toList();
 
@@ -662,7 +666,8 @@ class AlertService {
                   case 'nudge':
                     return a.type == AlertType.managerNudge;
                   case 'approval_request':
-                    return false; // No approval requests in personal mode
+                    // Allow approval requests in personal mode too
+                    return a.type == AlertType.goalApprovalRequested;
                   default:
                     return true;
                 }

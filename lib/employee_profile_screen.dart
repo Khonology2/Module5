@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/performance_cache_service.dart';
 import 'package:image_picker/image_picker.dart'; // Import image_picker
 import 'package:pdh/services/cloudinary_service.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
@@ -317,30 +318,40 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
 
     try {
+      // Convert empty string to null for profilePhotoUrl
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
+          ? null 
+          : _profilePhotoUrl;
+
       // ignore: avoid_print
       print('Saving profile...');
-      await DatabaseService.updateUserProfile(
-        existingUserProfile.copyWith(
-          displayName: _fullNameController.text.trim(),
-          email: _workEmailController.text.trim(),
-          jobTitle: _selectedJobTitle ?? '',
-          department: _selectedDepartment ?? '',
-          profilePhotoUrl: _profilePhotoUrl, // Pass the profile photo URL
-          skills: _skills.toList(),
-          developmentAreas: _developmentAreas.toList(),
-          careerAspirations: _careerAspirationsController.text.trim(),
-          currentProjects: _currentProjectsController.text.trim(),
-          learningStyle: _learningStyle ?? '',
-          preferredDevActivities: _preferredDevActivities.toList(),
-          shortGoals: _shortGoalsController.text.trim(),
-          longGoals: _longGoalsController.text.trim(),
-          notificationFrequency: _notificationFrequency ?? 'daily',
-          goalVisibility: _goalVisibility ?? 'private',
-          leaderboardOptin: _leaderboardOptin == 'yes',
-          badgeName: _badgeNameController.text.trim(),
-          celebrationConsent: _celebrationConsent ?? 'private',
-        ),
+      final updatedProfile = existingUserProfile.copyWith(
+        displayName: _fullNameController.text.trim(),
+        email: _workEmailController.text.trim(),
+        jobTitle: _selectedJobTitle ?? '',
+        department: _selectedDepartment ?? '',
+        profilePhotoUrl: profilePhotoUrlValue,
+        skills: _skills.toList(),
+        developmentAreas: _developmentAreas.toList(),
+        careerAspirations: _careerAspirationsController.text.trim(),
+        currentProjects: _currentProjectsController.text.trim(),
+        learningStyle: _learningStyle ?? '',
+        preferredDevActivities: _preferredDevActivities.toList(),
+        shortGoals: _shortGoalsController.text.trim(),
+        longGoals: _longGoalsController.text.trim(),
+        notificationFrequency: _notificationFrequency ?? 'daily',
+        goalVisibility: _goalVisibility ?? 'private',
+        leaderboardOptin: _leaderboardOptin == 'yes',
+        badgeName: _badgeNameController.text.trim(),
+        celebrationConsent: _celebrationConsent ?? 'private',
       );
+
+      await DatabaseService.updateUserProfile(updatedProfile);
+      
+      // Clear the profile cache to ensure fresh data on next fetch
+      final cache = PerformanceCacheService();
+      cache.clearAll();
+      
       await _loadUserProfile();
       if (showDialog) {
         _showProfileSavedDialog(
@@ -560,18 +571,43 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     required Function(String) onTagAdded,
     required Function(String) onTagRemoved,
   }) {
-    return _buildInputField(
-      controller: controller,
-      hintText: hintText,
-      keyboardType: TextInputType.text,
-      textInputAction: TextInputAction.done,
-      onSubmitted: (value) {
-        final tag = value.trim();
-        if (tag.isEmpty) return;
-        if (!tagsList.contains(tag)) {
-          onTagAdded(tag);
-        }
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Display existing tags as chips
+        if (tagsList.isNotEmpty) ...[
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            children: tagsList.map((tag) {
+              return Chip(
+                label: Text(
+                  tag,
+                  style: const TextStyle(color: Color(0xFFC10D00)),
+                ),
+                backgroundColor: const Color(0xFF1F2840),
+                deleteIconColor: Colors.white70,
+                onDeleted: () => onTagRemoved(tag),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        // Input field for adding new tags
+        _buildInputField(
+          controller: controller,
+          hintText: hintText,
+          keyboardType: TextInputType.text,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) {
+            final tag = value.trim();
+            if (tag.isEmpty) return;
+            if (!tagsList.contains(tag)) {
+              onTagAdded(tag);
+            }
+          },
+        ),
+      ],
     );
   }
 
