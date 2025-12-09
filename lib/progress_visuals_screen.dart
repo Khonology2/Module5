@@ -288,27 +288,54 @@ class _ManagerProgressVisualsContentState
         return Column(
           children: [
             _buildTeamMetricsCards(metrics),
-            const SizedBox(height: AppSpacing.xxl),
-            Text(
-              'Team Member Progress',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+            const SizedBox(height: AppSpacing.xl),
+            // Removed "Team Member Progress" section - this functionality is better served
+            // by the Manager Review Team Dashboard which has full actions and detailed views
+            // The team metrics cards above provide sufficient high-level overview here
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.activeColor, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Team Management',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'For detailed team member progress, approvals, and actions, use the Team Dashboard.',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, '/manager_review_team_dashboard');
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.activeColor,
+                    ),
+                    child: const Text('Go to Team Dashboard'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            if (employees.isEmpty)
-              _buildNoEmployeesState()
-            else
-              Column(
-                children: employees
-                    .map(
-                      (employee) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _buildEmployeeCard(employee),
-                      ),
-                    )
-                    .toList(),
-              ),
           ],
         );
       },
@@ -2592,40 +2619,14 @@ class _EmployeeProgressVisualsContentState
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
 
+    // Use Goal.fromFirestore to properly parse all fields including approvalStatus
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-          final goals = snapshot.docs.map((doc) {
-            final data = doc.data();
-            return Goal(
-              id: doc.id,
-              userId: data['userId'] ?? user.uid,
-              title: data['title'] ?? '',
-              description: data['description'] ?? '',
-              category: GoalCategory.values.firstWhere(
-                (e) => e.name == (data['category'] ?? 'personal'),
-                orElse: () => GoalCategory.personal,
-              ),
-              priority: GoalPriority.values.firstWhere(
-                (e) => e.name == (data['priority'] ?? 'medium'),
-                orElse: () => GoalPriority.medium,
-              ),
-              status: GoalStatus.values.firstWhere(
-                (e) => e.name == (data['status'] ?? 'notStarted'),
-                orElse: () => GoalStatus.notStarted,
-              ),
-              progress: (data['progress'] ?? 0) as int,
-              createdAt:
-                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-              targetDate:
-                  (data['targetDate'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
-              points: (data['points'] ?? 0) as int,
-            );
-          }).toList();
-
+          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          // Sort goals by createdAt descending (newest first)
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
         });

@@ -357,6 +357,18 @@ class _ManagerReviewTeamDashboardScreenState
       );
     }
 
+    // Sort employees by activity (most active first) and then by points (most points first)
+    final sortedEmployees = List<EmployeeData>.from(employees);
+    sortedEmployees.sort((a, b) {
+      // Primary sort: by last activity (most recent first)
+      final activityComparison = b.lastActivity.compareTo(a.lastActivity);
+      if (activityComparison != 0) {
+        return activityComparison;
+      }
+      // Secondary sort: by total points (most points first)
+      return b.totalPoints.compareTo(a.totalPoints);
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -369,7 +381,7 @@ class _ManagerReviewTeamDashboardScreenState
           ),
         ),
         const SizedBox(height: 10),
-        ...employees.map(
+        ...sortedEmployees.map(
           (employee) => Column(
             children: [
               _buildEmployeeCard(employee),
@@ -383,245 +395,401 @@ class _ManagerReviewTeamDashboardScreenState
 
   Widget _buildEmployeeCard(EmployeeData employee) {
     Color statusColor;
-    String statusText;
     IconData statusIcon;
+    String statusText;
 
     switch (employee.status) {
       case EmployeeStatus.onTrack:
-        statusColor = Colors.green;
-        statusText = 'On Track';
+        statusColor = AppColors.successColor;
         statusIcon = Icons.check_circle;
+        statusText = 'On Track';
         break;
       case EmployeeStatus.atRisk:
-        statusColor = Colors.orange;
-        statusText = 'At Risk';
+        statusColor = AppColors.warningColor;
         statusIcon = Icons.warning;
+        statusText = 'At Risk';
         break;
       case EmployeeStatus.overdue:
-        statusColor = Colors.red;
+        statusColor = AppColors.dangerColor;
+        statusIcon = Icons.error_outline;
         statusText = 'Overdue';
-        statusIcon = Icons.error;
         break;
       case EmployeeStatus.inactive:
-        statusColor = Colors.grey;
+        statusColor = AppColors.textSecondary;
+        statusIcon = Icons.pause_circle_outline;
         statusText = 'Inactive';
-        statusIcon = Icons.pause_circle;
         break;
     }
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ManagerEmployeeDetailScreen(employee: employee),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: employee.status == EmployeeStatus.overdue
-                ? Colors.red.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.2),
-            width: employee.status == EmployeeStatus.overdue ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: const Color(0xFFC10D00),
-                  child: Text(
-                    employee.profile.displayName.isNotEmpty
-                        ? employee.profile.displayName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+    // Determine active status
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    bool isActiveToday = employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+
+    Color activeStatusColor;
+    IconData activeStatusIcon;
+    String activeStatusText;
+
+    if (isActiveToday) {
+      activeStatusColor = AppColors.successColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active Today';
+    } else if (isActiveThisWeek) {
+      activeStatusColor = AppColors.warningColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active This Week';
+    } else {
+      activeStatusColor = AppColors.textSecondary;
+      activeStatusIcon = Icons.circle_outlined;
+      activeStatusText = 'Inactive';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: statusColor.withValues(alpha: 0.1),
+                child: Text(
+                  employee.profile.displayName.isNotEmpty
+                      ? employee.profile.displayName[0].toUpperCase()
+                      : '?',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        employee.profile.displayName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      employee.profile.displayName,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      employee.profile.jobTitle.isNotEmpty
+                          ? employee.profile.jobTitle
+                          : employee.profile.department,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: activeStatusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: activeStatusColor.withValues(alpha: 0.3),
                       ),
-                      Text(
-                        employee.profile.jobTitle.isNotEmpty
-                            ? employee.profile.jobTitle
-                            : 'Team Member',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          activeStatusIcon,
+                          color: activeStatusColor,
+                          size: 12,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, color: statusColor, size: 12),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: TextStyle(color: statusColor, fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile('Goals', '${employee.goals.length}'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Completed',
-                    '${employee.completedGoalsCount}',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Progress',
-                    '${employee.avgProgress.toStringAsFixed(0)}%',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Points', '${employee.totalPoints}'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile(
-                    'Activities',
-                    '${employee.weeklyActivityCount}',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Engagement',
-                    '${employee.engagementScore.toStringAsFixed(0)}%',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Motivation',
-                    employee.motivationLevel,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Streak', '${employee.streakDays}d'),
-                ),
-              ],
-            ),
-            // Management Actions
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showSendNudgeDialog(employee: employee),
-                    icon: const Icon(Icons.send, size: 16),
-                    label: const Text('Send Nudge'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                        const SizedBox(width: 3),
+                        Text(
+                          activeStatusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: activeStatusColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.track_changes,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Approved_Tick/Approved_White.png'),
+                  ),
+                  label: 'Active Goals',
+                  value: employee.goals
+                      .where((g) => g.status != GoalStatus.completed)
+                      .length
+                      .toString(),
+                  color: AppColors.activeColor,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _scheduleOneOnOne(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.check_circle_outline,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Process_Flows_Automation/points2.png'),
+                  ),
+                  label: 'Completed',
+                  value: employee.completedGoalsCount.toString(),
+                  color: AppColors.successColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.access_time,
+                  iconWidget: const ImageIcon(
+                    AssetImage(
+                      'assets/Time_Allocation_Approval/Approval_Whie.png',
                     ),
-                    child: const Text('1:1'),
+                  ),
+                  label: 'Progress',
+                  value: '${employee.avgProgress.toStringAsFixed(1)}%',
+                  color: employee.avgProgress >= 70
+                      ? AppColors.successColor
+                      : employee.avgProgress >= 40
+                      ? AppColors.warningColor
+                      : AppColors.dangerColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Show last activity information
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.schedule, color: AppColors.textSecondary, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'Last active: ${_formatLastActivity(employee.lastActivity)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${employee.weeklyActivityCount} activities this week',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          if (employee.goals.isNotEmpty) ...[
+            Text(
+              'Goals',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _giveRecognition(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: const Text('Kudos'),
+            ...employee.goals
+                .take(3)
+                .map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: _buildGoalRow(goal),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _viewActivities(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: const Text('Activity'),
+            if (employee.goals.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${employee.goals.length - 3} more goals',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ],
+              ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'No goals yet',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            // Upcoming Deadlines Section
-            if (_getUpcomingDeadlines(employee).isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _buildUpcomingDeadlinesSection(employee),
-            ],
-            // Completed Goals Review Section
-            if (employee.completedGoalsCount > 0) ...[
-              const SizedBox(height: 12),
-              _buildCompletedGoalsReviewSection(employee),
-            ],
           ],
-        ),
+
+          const SizedBox(height: 16),
+
+          // Management Actions
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showSendNudgeDialog(employee: employee),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text('Send Nudge'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _scheduleOneOnOne(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('1:1'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _giveRecognition(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('Kudos'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _viewActivities(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('Activity'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ManagerEmployeeDetailScreen(employee: employee),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                    side: BorderSide(color: AppColors.activeColor),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('View Details'),
+                ),
+              ),
+            ],
+          ),
+          // Upcoming Deadlines Section
+          if (_getUpcomingDeadlines(employee).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildUpcomingDeadlinesSection(employee),
+          ],
+          // Completed Goals Review Section
+          if (employee.completedGoalsCount > 0) ...[
+            const SizedBox(height: 12),
+            _buildCompletedGoalsReviewSection(employee),
+          ],
+        ],
       ),
     );
   }
@@ -982,6 +1150,142 @@ class _ManagerReviewTeamDashboardScreenState
         ],
       ),
     );
+  }
+
+  Widget _buildEmployeeMetricChip({
+    required IconData icon,
+    Widget? iconWidget,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          iconWidget ?? Icon(icon, color: color, size: 16),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalRow(Goal goal) {
+    Color priorityColor = _getPriorityColor(goal.priority);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.textSecondary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: priorityColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: LinearProgressIndicator(
+                  value: goal.progress / 100.0,
+                  backgroundColor: AppColors.borderColor,
+                  valueColor: AlwaysStoppedAnimation<Color>(priorityColor),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${goal.progress}%',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getPriorityColor(GoalPriority priority) {
+    switch (priority) {
+      case GoalPriority.high:
+        return AppColors.dangerColor;
+      case GoalPriority.medium:
+        return AppColors.warningColor;
+      case GoalPriority.low:
+        return AppColors.successColor;
+    }
+  }
+
+  String _formatLastActivity(DateTime? lastActivity) {
+    if (lastActivity == null) return 'Never';
+
+    try {
+      final now = DateTime.now();
+
+      // Check if the date is valid (not in the future or too far in the past)
+      if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
+        return 'Unknown';
+      }
+
+      final difference = now.difference(lastActivity);
+
+      if (difference.inDays > 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      // Handle any unexpected errors when formatting the date
+      return 'Unknown';
+    }
   }
 
   Widget _buildLoadingState() {
