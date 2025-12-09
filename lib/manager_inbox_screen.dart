@@ -25,7 +25,7 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
-  bool _personal = true; // true: personal inbox, false: team inbox
+  bool _personal = false; // true: personal inbox, false: team inbox (default to Team to show approval requests)
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';

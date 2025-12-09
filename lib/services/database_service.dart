@@ -508,8 +508,11 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
+        developer.log('Successfully created approval request for goal: ${doc.id}');
       } catch (e) {
         developer.log('Error requesting goal approval: $e');
+        // Log more details for debugging
+        developer.log('Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}');
         // Don't rethrow - this is async and shouldn't block goal creation
       }
     });
