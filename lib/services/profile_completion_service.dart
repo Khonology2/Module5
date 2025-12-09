@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/performance_cache_service.dart';
 
 /// Service to check and manage profile completion status
 /// Ensures users complete essential profile fields before adding goals
@@ -17,8 +18,14 @@ class ProfileCompletionService {
 
   /// Check if a user's profile is complete
   /// Returns true if all required fields are filled
-  static Future<bool> isProfileComplete(String userId) async {
+  /// [bypassCache] - if true, clears cache before checking to get fresh data
+  static Future<bool> isProfileComplete(String userId, {bool bypassCache = false}) async {
     try {
+      if (bypassCache) {
+        // Clear cache to ensure we get fresh data
+        final cache = PerformanceCacheService();
+        cache.clearAll();
+      }
       final profile = await DatabaseService.getUserProfile(userId);
       return _checkProfileCompleteness(profile);
     } catch (e) {
@@ -105,10 +112,11 @@ class ProfileCompletionService {
   }
 
   /// Check profile completion for current user (convenience method)
-  static Future<bool> isCurrentUserProfileComplete() async {
+  /// [bypassCache] - if true, clears cache before checking to get fresh data
+  static Future<bool> isCurrentUserProfileComplete({bool bypassCache = false}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
-    return await isProfileComplete(user.uid);
+    return await isProfileComplete(user.uid, bypassCache: bypassCache);
   }
 }
 

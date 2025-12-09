@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 // import 'dart:io'; // Removed: use XFile.readAsBytes() for web compatibility
 
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/design_system/app_components.dart'; // Import AppComponents
 import 'package:pdh/design_system/app_typography.dart';
 
@@ -856,6 +857,11 @@ Guidelines:
         user.uid,
       );
 
+      // Convert empty string to null for profilePhotoUrl
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
+          ? null 
+          : _profilePhotoUrl;
+
       final updatedProfile = existingUserProfile.copyWith(
         displayName: _fullNameController.text.trim(),
         jobTitle: _selectedJobTitle ?? '',
@@ -874,10 +880,17 @@ Guidelines:
         leaderboardOptin: existingUserProfile.leaderboardOptin,
         badgeName: existingUserProfile.badgeName,
         celebrationConsent: existingUserProfile.celebrationConsent,
-        profilePhotoUrl: _profilePhotoUrl,
+        profilePhotoUrl: profilePhotoUrlValue,
       );
 
       await DatabaseService.updateUserProfile(updatedProfile);
+      
+      // Clear the profile cache to ensure fresh data on next fetch
+      // This ensures the sidebar will see the updated profile when it checks completion
+      final cache = PerformanceCacheService();
+      cache.clearAll();
+      
+      if (!mounted) return;
       if (showDialog) {
         _showAlertDialog(
           successTitle ?? 'Profile Saved',
@@ -885,6 +898,7 @@ Guidelines:
         );
       }
     } catch (e) {
+      if (!mounted) return;
       _showAlertDialog('Error', 'Failed to save profile: ${e.toString()}');
     }
   }
@@ -1432,8 +1446,7 @@ Guidelines:
         ),
       ),
       child: DropdownButtonFormField<String>(
-        initialValue:
-            _selectedLearningStyle, // Changed from value to initialValue
+        value: _selectedLearningStyle, // Use value instead of initialValue for controlled state
         style: const TextStyle(color: Colors.white),
         decoration: const InputDecoration(
           hintText: 'Select Learning Style',

@@ -1541,7 +1541,18 @@ class DatabaseService {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(userProfile.uid);
-    await userDocRef.update(userProfile.toFirestore());
+    
+    // Get all profile fields as a map - toFirestore() includes all fields
+    final data = userProfile.toFirestore();
+    
+    // Use set with merge: true to ensure all fields are saved
+    // This is more robust and handles cases where some fields might not exist yet
+    await userDocRef.set(data, SetOptions(merge: true));
+    
+    // Update cache immediately after successful save to reflect changes
+    // This ensures the UI shows the latest data immediately
+    final cache = PerformanceCacheService();
+    cache.cacheUserProfile(userProfile);
   }
 
   static Future<Map<String, dynamic>> getDashboardData(String uid) async {
