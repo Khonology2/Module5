@@ -1439,6 +1439,55 @@ class DatabaseService {
     }
   }
 
+  /// Gets user name from onboarding collection
+  /// Tries multiple field names: displayName, fullName, name, firstName, or firstName + lastName
+  static Future<String?> getUserNameFromOnboarding({
+    required String userId,
+    String? email,
+  }) async {
+    try {
+      // First try by userId
+      var onboardingDoc = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .doc(userId)
+          .get();
+
+      // If not found by userId and email is provided, try to find by email
+      if (!onboardingDoc.exists && email != null && email.isNotEmpty) {
+        final onboardingQuery = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (onboardingQuery.docs.isNotEmpty) {
+          onboardingDoc = onboardingQuery.docs.first;
+        }
+      }
+
+      if (onboardingDoc.exists) {
+        final onboardingData = onboardingDoc.data() ?? {};
+        // Try multiple possible field names for name in onboarding
+        final name = onboardingData['displayName'] ??
+            onboardingData['fullName'] ??
+            onboardingData['name'] ??
+            onboardingData['firstName'] ??
+            (onboardingData['firstName'] != null &&
+                    onboardingData['lastName'] != null
+                ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
+                    .trim()
+                : null);
+
+        if (name != null && name.toString().isNotEmpty) {
+          return name.toString();
+        }
+      }
+    } catch (e) {
+      developer.log('Error getting user name from onboarding: $e');
+    }
+    return null;
+  }
+
   static Future<void> updateUserProfile(UserProfile userProfile) async {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
