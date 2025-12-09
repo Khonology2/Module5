@@ -17,14 +17,13 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/upcoming_goals_list_screen.dart';
+import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
-import 'package:pdh/l10n/generated/app_localizations.dart';
-import 'package:pdh/employee_profile_screen.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -61,11 +60,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    // Load streak data after a short delay to ensure other data loads first
-    Future.delayed(const Duration(milliseconds: 500), () {
-      _loadStreakData();
-    });
+    _loadAllData();
 
     // Start real-time badge tracking and streak tracking for this user
     final user = FirebaseAuth.instance.currentUser;
@@ -403,19 +398,32 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     }
   }
 
-  Future<void> _loadStreakData() async {
+  Future<void> _loadAllData() async {
     try {
+      if (!mounted) return;
+      setState(() {
+        isLoading = true;
+        error = null;
+      });
+
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final streak = await StreakService.getCurrentStreak(user.uid);
-        final activityToday = await StreakService.hasActivityToday(user.uid);
+        // Load all data in parallel for faster performance
+        final results = await Future.wait([
+          DatabaseService.getUserProfile(user.uid),
+          DatabaseService.getUserGoals(user.uid),
+          StreakService.getCurrentStreak(user.uid),
+          StreakService.hasActivityToday(user.uid),
+        ]);
 
-        if (mounted) {
-          setState(() {
-            currentStreak = streak;
-            hasActivityToday = activityToday;
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          userProfile = results[0] as UserProfile;
+          userGoals = results[1] as List<Goal>;
+          currentStreak = results[2] as int;
+          hasActivityToday = results[3] as bool;
+          isLoading = false;
+        });
       }
     } catch (e) {
       developer.log(
@@ -440,35 +448,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       StreakService.stopRealtimeTracking(user.uid);
     }
     super.dispose();
-  }
-
-  Future<void> _loadUserData() async {
-    try {
-      if (!mounted) return;
-      setState(() {
-        isLoading = true;
-        error = null;
-      });
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final goals = await DatabaseService.getUserGoals(user.uid);
-
-        if (!mounted) return;
-        setState(() {
-          userProfile = profile;
-          userGoals = goals;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        error = e.toString();
-        isLoading = false;
-      });
-    }
   }
 
   Stream<UserProfile?> _getUserProfileStream() {
@@ -663,105 +642,28 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                 stream: _getUserGoalsStream(),
                 builder: (context, goalsSnapshot) {
                   // Use any available data while streams connect to avoid showing a spinner
+                  // Always prefer stream data, but fall back to cached data if streams fail
+                  // This prevents flashing of error messages when streams temporarily fail
                   final effectiveProfile = profileSnapshot.data ?? userProfile;
                   final effectiveGoals = goalsSnapshot.data ?? userGoals;
+
+                  // Log errors but don't block the dashboard from showing
+                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
+                    final error = profileSnapshot.error ?? goalsSnapshot.error;
+                    developer.log(
+                      'Dashboard stream error (showing dashboard anyway): $error',
+                      name: 'EmployeeDashboardScreen',
+                      error: error,
+                    );
+                  }
+
+                  // If we have no profile data at all, show loading spinner
                   if (effectiveProfile == null) {
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
                           AppColors.activeColor,
                         ),
-                      ),
-                    );
-                  }
-
-                  // Handle errors
-                  if (profileSnapshot.hasError || goalsSnapshot.hasError) {
-                    final error = profileSnapshot.error ?? goalsSnapshot.error;
-                    final errorMessage = error.toString();
-
-                    // Check if it's a Firestore index error
-                    if (errorMessage.contains('failed-precondition') ||
-                        errorMessage.contains('index')) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 64,
-                              color: AppColors.warningColor,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Setting up your dashboard...',
-                              style: AppTypography.heading4,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'This is your first time using the app. Let\'s get you started!',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/my_goal_workspace',
-                                );
-                              },
-                              icon: const Icon(Icons.add),
-                              label: Text(
-                                AppLocalizations.of(
-                                  context,
-                                ).employee_create_first_goal,
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.activeColor,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(28),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: AppColors.dangerColor,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Error loading dashboard',
-                            style: AppTypography.heading4,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Please try again in a moment',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () {
-                              setState(
-                                () {},
-                              ); // Trigger rebuild to restart streams
-                            },
-                            child: const Text('Retry'),
-                          ),
-                        ],
                       ),
                     );
                   }
@@ -809,16 +711,38 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     String userName = 'User';
 
-    // Use userProfile data if available, otherwise fallback to Firebase Auth
-    if (userProfile?.displayName != null &&
-        userProfile!.displayName.isNotEmpty) {
-      userName = userProfile!.displayName.split(' ').first;
-    } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
+    // Try to get name from onboarding collection first, then fallback to other sources
+    if (user != null) {
+      return FutureBuilder<String?>(
+        future: DatabaseService.getUserNameFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        ),
+        builder: (context, snapshot) {
+          // Determine userName with priority: onboarding fullName > userProfile > Firebase Auth > email
+          if (snapshot.hasData &&
+              snapshot.data != null &&
+              snapshot.data!.isNotEmpty) {
+            // Use full name from onboarding
+            userName = snapshot.data!;
+          } else if (userProfile?.displayName != null &&
+              userProfile!.displayName.isNotEmpty) {
+            userName = userProfile!.displayName;
+          } else if (user.displayName != null && user.displayName!.isNotEmpty) {
+            userName = user.displayName!;
+          } else if (user.email != null && user.email!.isNotEmpty) {
+            userName = user.email!.split('@').first;
+          }
+
+          return _buildWelcomeCardContent(userName);
+        },
+      );
     }
 
+    return _buildWelcomeCardContent(userName);
+  }
+
+  Widget _buildWelcomeCardContent(String userName) {
     final greeting = _getTimeBasedGreeting();
     final currentHour = DateTime.now().hour;
     String motivationalMessage;
@@ -1215,31 +1139,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: 48, // Set a consistent size for the image
-                      height: 48,
-                      child: Image.asset(
-                        'Approved_Tick/approved_red_badge_white.png', // Updated to use the new asset
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No recent activity',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Start by creating your first goal!',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'No recent activity',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             )
@@ -1408,42 +1312,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: 78, // Set a consistent size for the image
-                      height: 78,
-                      child: Image.asset(
-                        'Business_Growth_Development/Growth_Development_Red.png', // Replaced flag icon with custom image
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No active goals',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Create your first goal to get started!',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/my_goal_workspace');
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add Goal'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.activeColor,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'No active goals',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             )
@@ -1558,46 +1431,6 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     );
   }
 
-  Widget _profileButton(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    String userName = 'User';
-    if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      userName = user.displayName!.split(' ').first;
-    } else if (user?.email != null && user!.email!.isNotEmpty) {
-      userName = user.email!.split('@').first;
-    }
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const EmployeeProfileScreen(),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.person, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              userName,
-              style: AppTypography.bodySmall.copyWith(color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Color _getPriorityColor(GoalPriority priority) {
     switch (priority) {
       case GoalPriority.high:
@@ -1607,5 +1440,60 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
       case GoalPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  Widget _profileButton(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    return FutureBuilder<String?>(
+      future: user != null
+          ? DatabaseService.getUserNameFromOnboarding(
+              userId: user.uid,
+              email: user.email,
+            )
+          : Future.value(null),
+      builder: (context, nameSnapshot) {
+        String userName = 'User';
+        if (nameSnapshot.hasData &&
+            nameSnapshot.data != null &&
+            nameSnapshot.data!.isNotEmpty) {
+          userName = nameSnapshot.data!;
+        } else if (user?.displayName != null && user!.displayName!.isNotEmpty) {
+          userName = user.displayName!;
+        } else if (user?.email != null && user!.email!.isNotEmpty) {
+          userName = user.email!.split('@').first;
+        }
+
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EmployeeProfileScreen(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A3652),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.person, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  userName,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
