@@ -52,10 +52,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
     _checkProfileCompletion();
   }
 
-  Future<void> _checkProfileCompletion() async {
+  Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
     try {
       final isComplete =
-          await ProfileCompletionService.isCurrentUserProfileComplete();
+          await ProfileCompletionService.isCurrentUserProfileComplete(bypassCache: bypassCache);
       if (mounted) {
         setState(() {
           _isProfileIncomplete = !isComplete;
@@ -91,9 +91,16 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
       });
     }
     // Refresh profile completion check when widget updates (e.g., after profile save)
+    // Check both employee and manager profile routes
+    // Use bypassCache=true to get fresh data after profile save
     if (widget.currentRouteName == '/my_profile' ||
-        oldWidget.currentRouteName == '/my_profile') {
-      _checkProfileCompletion();
+        oldWidget.currentRouteName == '/my_profile' ||
+        widget.currentRouteName == '/manager_profile' ||
+        oldWidget.currentRouteName == '/manager_profile') {
+      // Bypass cache when coming from profile page to ensure we get fresh data
+      final bypassCache = oldWidget.currentRouteName == '/manager_profile' ||
+          oldWidget.currentRouteName == '/my_profile';
+      _checkProfileCompletion(bypassCache: bypassCache);
     }
   }
 
