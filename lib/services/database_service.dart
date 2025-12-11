@@ -1402,19 +1402,24 @@ class DatabaseService {
         'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
       };
       
-      // Update role if:
-      // 1. Role is not currently set, OR
-      // 2. User is explicitly setting a non-default role during registration
-      if (currentRole == null || currentRole.isEmpty || currentRole == 'employee') {
-        // Allow role update if not set or if explicitly provided during registration
-        if (role.isNotEmpty && role != 'employee') {
-          updateData['role'] = role;
-        } else if (currentRole == null || currentRole.isEmpty) {
-          // Set default role if none exists
-          updateData['role'] = role;
-        }
+      // Update role ONLY if:
+      // 1. Role is not currently set (null or empty), OR
+      // 2. Current role is 'employee' AND new role is 'manager' (upgrade)
+      // NEVER overwrite a 'manager' role with 'employee'
+      if (currentRole == null || currentRole.isEmpty) {
+        // Role is not set - set it to the provided role (or default to employee)
+        updateData['role'] = role;
+      } else if (currentRole == 'employee' && role == 'manager') {
+        // Allow upgrade from employee to manager
+        updateData['role'] = role;
+      } else if (currentRole == 'manager') {
+        // NEVER overwrite manager role - preserve it
+        // Don't add role to updateData
+      } else if (currentRole == 'employee' && role == 'employee') {
+        // Already employee, no need to update
+        // Don't add role to updateData
       }
-      // If role is already set to 'manager', don't override it
+      // If role is already set to 'manager', it's preserved above
 
       await userDocRef.update(updateData);
     }

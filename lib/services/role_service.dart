@@ -25,21 +25,66 @@ class RoleService {
     try {
       final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
       final snap = await ref.get();
-      String? role = snap.data()?['role'] as String?;
+      
+      if (!snap.exists) {
+        // Document doesn't exist - return null, don't create it
+        // This allows registration to set the role properly
+        _cachedRole = null;
+        return null;
+      }
+      
+      // Document exists - get the role
+      final roleData = snap.data();
+      String? role = roleData?['role'] as String?;
+      
+      // Only set default role if role is truly missing (null or empty string)
+      // NEVER overwrite an existing role, even if it's empty string
+      // Empty string might indicate a role is being set elsewhere
       if (role == null || role.isEmpty) {
+        // Double-check: read the document again to make sure we have the latest data
+        // This prevents race conditions where role might have been set between reads
+        final retrySnap = await ref.get();
+        final retryRole = retrySnap.data()?['role'] as String?;
+        
+        if (retryRole != null && retryRole.isNotEmpty) {
+          // Role was set between reads, use it
+          _cachedRole = retryRole;
+          return _cachedRole;
+        }
+        
+        // Role is still missing - only then set default
+        // But first, check if this is a brand new user (created in last 10 seconds)
+        // If so, don't set default - let registration complete
+        final createdAt = roleData?['createdAt'] as Timestamp?;
+        if (createdAt != null) {
+          final now = Timestamp.now();
+          final secondsSinceCreation = now.seconds - createdAt.seconds;
+          if (secondsSinceCreation < 10) {
+            // User was just created, don't set default role yet
+            _cachedRole = null;
+            return null;
+          }
+        }
+        
+        // Role is missing and user is not brand new - set default
         try {
-          await ref.set({'role': 'employee'}, SetOptions(merge: true));
+          await ref.update({'role': 'employee'});
           role = 'employee';
         } catch (e) {
           developer.log('Error setting default role: $e');
+          // If update fails, return null rather than assuming employee
+          _cachedRole = null;
+          return null;
         }
       }
-      _cachedRole = role ?? 'employee';
+      
+      _cachedRole = role;
       return _cachedRole;
     } catch (e) {
       developer.log('Error getting role: $e');
-      // Return cached role if available, otherwise default to employee
-      return _cachedRole ?? 'employee';
+      // Return cached role if available, otherwise return null
+      // Let the calling code decide what to do with null role
+      return _cachedRole;
     }
   }
 
