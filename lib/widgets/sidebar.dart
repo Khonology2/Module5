@@ -74,12 +74,17 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _previousTutorialStep = null; // Clear the tutorial step reference
     super.dispose();
   }
 
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Only proceed if the widget is still in the tree
+    if (!mounted) return;
+    
     // Scroll to tutorial item when step changes
     if (widget.tutorialStepIndex != null &&
         widget.tutorialStepIndex != _previousTutorialStep &&
@@ -87,7 +92,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
         widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length) {
       _previousTutorialStep = widget.tutorialStepIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToTutorialItem(widget.tutorialStepIndex!);
+        if (mounted) {  // Check mounted before proceeding
+          _scrollToTutorialItem(widget.tutorialStepIndex!);
+        }
       });
     }
     // Refresh profile completion check when widget updates (e.g., after profile save)
@@ -105,20 +112,31 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   }
 
   void _scrollToTutorialItem(int stepIndex) {
-    if (widget.sidebarTutorialKeys == null ||
+    // Add mounted check to prevent accessing keys after dispose
+    if (!mounted || 
+        widget.sidebarTutorialKeys == null ||
         stepIndex >= widget.sidebarTutorialKeys!.length) {
       return;
     }
 
     final key = widget.sidebarTutorialKeys![stepIndex];
     final context = key.currentContext;
-    if (context != null && _scrollController.hasClients) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.5,
-      );
+    
+    // Add additional null and mounted checks
+    if (context != null && 
+        _scrollController.hasClients && 
+        mounted) {  // Check mounted again after async gap
+      try {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
+        );
+      } catch (e) {
+        // Silently fail if we can't scroll to the item
+        debugPrint('Failed to scroll to tutorial item: $e');
+      }
     }
   }
 

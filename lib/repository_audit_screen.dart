@@ -17,6 +17,8 @@ import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
+import 'package:pdh/services/goal_deletion_service.dart';
+import 'package:pdh/models/goal_deletion_request.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
 
@@ -147,6 +149,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
                       const SizedBox(height: 16),
+                      if (isManager) ...[
+                        const SizedBox(height: 16),
+                        _buildDeletionRequestsSection(),
+                        const SizedBox(height: 16),
+                      ],
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
@@ -1571,6 +1578,100 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDeletionRequestsSection() {
+    return StreamBuilder<List<GoalDeletionRequest>>(
+      stream: GoalDeletionService.getManagerPendingRequestsStream(),
+      builder: (context, snapshot) {
+        final requests = snapshot.data ?? [];
+        if (requests.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Goal Deletion Requests',
+              style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: requests.length,
+              separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final r = requests[index];
+                return ListTile(
+                  leading: const Icon(Icons.delete_forever, color: Colors.orange),
+                  title: Text(r.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: Text(r.reason, style: TextStyle(color: AppColors.textMuted)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.check, color: Colors.green),
+                        tooltip: 'Approve',
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1F2840),
+                              title: const Text('Approve deletion?', style: TextStyle(color: Colors.white)),
+                              content: const Text('This will permanently delete the goal.', style: TextStyle(color: Colors.white70)),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Approve')),
+                              ],
+                            ),
+                          );
+                          if (ok == true) {
+                            try {
+                              await GoalDeletionService.approveRequest(r);
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        tooltip: 'Reject',
+                        onPressed: () async {
+                          final reasonCtrl = TextEditingController();
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1F2840),
+                              title: const Text('Reject deletion', style: TextStyle(color: Colors.white)),
+                              content: TextField(
+                                controller: reasonCtrl,
+                                decoration: const InputDecoration(hintText: 'Reason', hintStyle: TextStyle(color: Colors.white38)),
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Reject')),
+                              ],
+                            ),
+                          );
+                          if (ok == true) {
+                            await GoalDeletionService.rejectRequest(r, reasonCtrl.text.trim());
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 

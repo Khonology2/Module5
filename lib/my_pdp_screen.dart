@@ -93,7 +93,9 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
   );
 }
 
-class _MyPdpScreenState extends State<MyPdpScreen> {
+class _MyPdpScreenState extends State<MyPdpScreen>
+    with SingleTickerProviderStateMixin {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
@@ -149,6 +151,119 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           ? 'You can only update progress once your manager has approved this goal.'
           : 'We could not update your progress right now. Please try again, and contact your manager if this keeps happening.';
       await _showCenterNotice(context, message);
+    }
+  }
+
+  Future<void> _handleDeleteGoal(Goal goal) async {
+    final userId = _auth.currentUser?.uid ?? '';
+    if (userId.isEmpty) {
+      await _showCenterNotice(context, 'User not authenticated');
+      return;
+    }
+
+    if (goal.approvalStatus != GoalApprovalStatus.approved) {
+      // Direct delete flow
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text('Delete Goal', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'Are you sure you want to delete this goal? This cannot be undone.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      try {
+        _showLoadingDialog(context, message: 'Deleting goal...');
+        await DatabaseService.deleteGoal(goalId: goal.id, requesterId: userId);
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Goal deleted');
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Failed to delete: $e');
+        }
+      }
+    } else {
+      // Request deletion flow
+      final reasonController = TextEditingController();
+      final submitted = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text('Request Goal Deletion', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Provide a reason for deleting this approved goal. Your manager will need to approve this request.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Reason',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      );
+      if (submitted != true) return;
+      final reason = reasonController.text.trim();
+      if (reason.isEmpty) {
+        await _showCenterNotice(context, 'Please provide a reason');
+        return;
+      }
+      try {
+        _showLoadingDialog(context, message: 'Submitting request...');
+        await DatabaseService.requestGoalDeletion(
+          goalId: goal.id,
+          reason: reason,
+          requesterId: userId,
+        );
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(
+            context,
+            'Deletion request submitted for manager approval',
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Failed to submit request: $e');
+        }
+      }
     }
   }
 
@@ -1232,6 +1347,15 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                       ),
                                     )
                                   : null,
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () => _handleDeleteGoal(goal),
+                              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                              label: const Text('Delete'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                              ),
                             ),
                             Builder(
                               builder: (context) {

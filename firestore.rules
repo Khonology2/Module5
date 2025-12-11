@@ -470,6 +470,22 @@ service cloud.firestore {
       );
     }
 
+    // Goal Deletion Requests - employees create, managers/admins update
+    match /goal_deletion_requests/{requestId} {
+      allow create: if isEmployee() && request.resource.data.userId == userId();
+      allow read, update: if isManager() || isAdmin();
+    }
+
+    // Deleted Goals archive - logged before deletion; readable by owner/manager
+    match /deleted_goals/{goalId} {
+      allow create: if isSignedIn() && (
+        userId() == request.resource.data.goalData.userId || isManager() || isAdmin()
+      );
+      allow read: if isSignedIn() && (
+        userId() == resource.data.goalData.userId || isManager() || isAdmin()
+      );
+    }
+
     // Deleted accounts blocklist - allow reads for signed-in users only
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();

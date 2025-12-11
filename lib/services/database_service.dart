@@ -558,6 +558,32 @@ class DatabaseService {
     });
   }
 
+  static Future<void> requestGoalDeletion({
+    required String goalId,
+    required String reason,
+    required String requesterId,
+  }) async {
+    final fs = FirebaseFirestore.instance;
+    final goalRef = fs.collection('goals').doc(goalId);
+    final goalSnap = await goalRef.get();
+    if (!goalSnap.exists) {
+      throw Exception('Goal not found');
+    }
+    final data = goalSnap.data() as Map<String, dynamic>;
+    final ownerId = (data['userId'] ?? '') as String;
+    if (requesterId != ownerId) {
+      throw Exception('Only the goal owner can request deletion');
+    }
+    await fs.collection('goal_deletion_requests').add({
+      'goalId': goalId,
+      'userId': ownerId,
+      'reason': reason,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'goalTitle': data['title'] ?? '',
+    });
+  }
+
   static Future<void> deleteGoal({
     required String goalId,
     required String requesterId,
@@ -582,6 +608,15 @@ class DatabaseService {
     }
 
     final batch = fs.batch();
+    // Log deletion for audit before deleting
+    final deletionLogRef = fs.collection('deleted_goals').doc(goalId);
+    batch.set(deletionLogRef, {
+      'goalId': goalId,
+      'deletedAt': FieldValue.serverTimestamp(),
+      'deletedBy': requesterId,
+      'goalData': data,
+    });
+
     batch.delete(goalRef);
 
     try {
