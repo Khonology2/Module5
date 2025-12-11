@@ -19,6 +19,8 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:pdh/services/goal_deletion_service.dart';
 import 'package:pdh/models/goal_deletion_request.dart';
+import 'package:pdh/models/deleted_goal_log.dart';
+import 'package:pdh/services/deleted_goal_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
 
@@ -157,6 +159,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildDeletedGoalsSection(isManager: isManager),
                     ],
                   );
                 },
@@ -669,6 +673,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       'verified': 0,
       'pending': 0,
       'rejected': 0,
+      'deleted': 0,
     };
 
     if (isManager) {
@@ -707,7 +712,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return _buildStatsContainer(stats, isManager: true);
+          return StreamBuilder<List<DeletedGoalLog>>( 
+            stream: DeletedGoalService.getManagerDeletedGoalsStream(),
+            builder: (context, delSnap) {
+              final delCount = delSnap.data?.length ?? 0;
+              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
+              return _buildStatsContainer(updated, isManager: true);
+            },
+          );
         },
       );
     } else {
@@ -733,7 +745,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return _buildStatsContainer(stats, isManager: false);
+          return StreamBuilder<List<DeletedGoalLog>>( 
+            stream: DeletedGoalService.getEmployeeDeletedGoalsStream(),
+            builder: (context, delSnap) {
+              final delCount = delSnap.data?.length ?? 0;
+              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
+              return _buildStatsContainer(updated, isManager: false);
+            },
+          );
         },
       );
     }
@@ -790,6 +809,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 'Rejected',
                 stats['rejected'] ?? 0,
                 AppColors.dangerColor,
+              ),
+              _buildStatusChip(
+                'Deleted',
+                stats['deleted'] ?? 0,
+                Colors.grey,
               ),
             ],
           ),
@@ -1666,6 +1690,42 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       ),
                     ],
                   ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDeletedGoalsSection({required bool isManager}) {
+    final stream = isManager
+        ? DeletedGoalService.getManagerDeletedGoalsStream()
+        : DeletedGoalService.getEmployeeDeletedGoalsStream();
+    return StreamBuilder<List<DeletedGoalLog>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final logs = snapshot.data ?? [];
+        if (logs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Deleted Goals', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: logs.length,
+              separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final l = logs[index];
+                final d = l.deletedAt;
+                final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+                return ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
                 );
               },
             ),
