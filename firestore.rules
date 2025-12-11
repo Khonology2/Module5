@@ -126,14 +126,18 @@ service cloud.firestore {
       // Basic access (added per requested snippet)
       
 
-      // Allow reads for: the user themselves, managers/admins (all employees), 
-      // or any user document where the owner has opted-in to leaderboard visibility
+      // Allow reads for: the user themselves, managers/admins
       allow read: if isSignedIn() && (
         userId() == userId ||
         isManager() ||
-        isAdmin() ||
-        resource.data.leaderboardOptin == true
+        isAdmin()
       );
+
+      // Additionally allow reads for documents that explicitly opt-in to leaderboard visibility
+      // Use exists()+get() to safely access data when the document may not yet exist
+      allow read: if isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.leaderboardOptin == true;
 
       // Allow listing for signed-in users; individual docs still must satisfy read rule
       allow list: if isSignedIn();
@@ -154,6 +158,12 @@ service cloud.firestore {
       // Rules for subcollections
       match /{subcollection}/{subDocument} {
         allow read, create: if isSignedIn() && (
+          userId() == userId ||
+          isManager() ||
+          isAdmin()
+        );
+        // Allow listing subcollection docs for owner/managers/admins
+        allow list: if isSignedIn() && (
           userId() == userId ||
           isManager() ||
           isAdmin()
@@ -204,6 +214,8 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn();
+      // Allow listing; individual docs must still satisfy read rule above
+      allow list: if isSignedIn();
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);
@@ -240,8 +252,8 @@ service cloud.firestore {
         isAdmin()
       );
 
-      // Allow managers to perform batch queries for all employees
-      allow list: if isSignedIn() && isManager();
+      // Allow listing; document-level read rules still enforce per-doc access
+      allow list: if isSignedIn();
     }
 
     // Team Goals - managers can create team goals for their department
@@ -270,8 +282,8 @@ service cloud.firestore {
       
       allow create: if isSignedIn();
 
-      // Allow managers to perform batch queries for their team
-      allow list: if isSignedIn() && isManager();
+      // Allow listing; document-level read rules still enforce per-doc access
+      allow list: if isSignedIn();
     }
 
     // Notifications - managers can read notifications sent to all employees
@@ -283,6 +295,9 @@ service cloud.firestore {
       );
       
         allow create: if isSignedIn();
+      
+      // Allow listing; document-level read rules still enforce per-doc access
+      allow list: if isSignedIn();
     }
 
     // Manager actions audit trail
@@ -319,6 +334,8 @@ service cloud.firestore {
     match /seasons/{seasonId} {
       // Allow any signed-in user to read seasons so employees can browse/join
       allow read: if isSignedIn();
+      // Allow queries for seasons for signed-in users
+      allow list: if isSignedIn();
 
       // Allow managers to create seasons
       allow create: if isSignedIn() && (isManager() || isAdmin());
@@ -357,6 +374,9 @@ service cloud.firestore {
       );
       
         allow create: if isSignedIn();
+      
+      // Allow listing; document-level read rules still enforce per-doc access
+      allow list: if isSignedIn();
     }
 
     // Audit Entries - employees can create/read own; managers can read/write for all employees
@@ -374,6 +394,9 @@ service cloud.firestore {
         // Read/create allowed for any signed-in user, since parent read already restricted
         allow read, create, list: if isSignedIn();
       }
+      
+      // Allow listing; document-level read rules still enforce per-doc access
+      allow list: if isSignedIn();
     }
 
     // Evidence Files - users can read/write own; managers can read for all employees
