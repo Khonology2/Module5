@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
@@ -76,20 +77,30 @@ void main() async {
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
+    // Mitigate Firestore Web internal assertion bugs by disabling persistence
+    // Must be set before any Firestore usage
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+      );
+    } catch (_) {}
   }
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {
     final error = details.exceptionAsString();
     debugPrint('FlutterError: $error');
-    
+
     // Catch Firestore internal assertion errors and prevent them from crashing
-    if (error.contains('FIRESTORE') && error.contains('INTERNAL ASSERTION FAILED')) {
-      debugPrint('Caught Firestore internal assertion error - suppressing crash');
+    if (error.contains('FIRESTORE') &&
+        error.contains('INTERNAL ASSERTION FAILED')) {
+      debugPrint(
+        'Caught Firestore internal assertion error - suppressing crash',
+      );
       // Don't show error dialog for Firestore internal errors
       return;
     }
-    
+
     if (details.stack != null) {
       debugPrint(details.stack.toString());
     }
@@ -97,7 +108,7 @@ void main() async {
       FlutterError.presentError(details);
     }
   };
-  
+
   // Note: For unhandled async errors, FlutterError.onError should catch most cases
   // PlatformDispatcher.onError is available in Flutter 3.7+ but we'll rely on
   // FlutterError.onError for broader compatibility
