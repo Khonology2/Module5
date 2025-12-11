@@ -262,6 +262,10 @@ service cloud.firestore {
 
     // Alerts - managers can create alerts for employees
     match /alerts/{alertId} {
+      // Allow owners/managers/admins to delete related alerts
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
@@ -444,6 +448,13 @@ service cloud.firestore {
             ((!('reactions' in resource.data)) && ('reactions' in request.resource.data) && request.resource.data.keys().size() == resource.data.keys().size() + 1)
           )
         )
+      );
+    }
+
+    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
+    match /goal_daily_progress/{progressId} {
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
       );
     }
 
