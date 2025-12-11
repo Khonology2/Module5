@@ -21,22 +21,22 @@ class RoleService {
       _cachedRole = null;
       return null;
     }
-    
+
     try {
       final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
       final snap = await ref.get();
-      
+
       if (!snap.exists) {
         // Document doesn't exist - return null, don't create it
         // This allows registration to set the role properly
         _cachedRole = null;
         return null;
       }
-      
+
       // Document exists - get the role
       final roleData = snap.data();
       String? role = roleData?['role'] as String?;
-      
+
       // Only set default role if role is truly missing (null or empty string)
       // NEVER overwrite an existing role, even if it's empty string
       // Empty string might indicate a role is being set elsewhere
@@ -45,13 +45,13 @@ class RoleService {
         // This prevents race conditions where role might have been set between reads
         final retrySnap = await ref.get();
         final retryRole = retrySnap.data()?['role'] as String?;
-        
+
         if (retryRole != null && retryRole.isNotEmpty) {
           // Role was set between reads, use it
           _cachedRole = retryRole;
           return _cachedRole;
         }
-        
+
         // Role is still missing - only then set default
         // But first, check if this is a brand new user (created in last 10 seconds)
         // If so, don't set default - let registration complete
@@ -65,19 +65,13 @@ class RoleService {
             return null;
           }
         }
-        
-        // Role is missing and user is not brand new - set default
-        try {
-          await ref.update({'role': 'employee'});
-          role = 'employee';
-        } catch (e) {
-          developer.log('Error setting default role: $e');
-          // If update fails, return null rather than assuming employee
-          _cachedRole = null;
-          return null;
-        }
+
+        // Role is missing and user is not brand new - do NOT set a default here
+        // Avoid accidental downgrades; let registration/admin flows set the role
+        _cachedRole = null;
+        return null;
       }
-      
+
       _cachedRole = role;
       return _cachedRole;
     } catch (e) {

@@ -126,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
             .collection('users')
             .doc(user.uid)
             .get();
-        
+
         if (userDoc.exists) {
           // Document exists - check if role is actually in the document
           final docRole = userDoc.data()?['role'] as String?;
@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                 .doc(user.uid)
                 .get();
             final retryRole = retryDoc.data()?['role'] as String?;
-            
+
             if (retryRole != null && retryRole.isNotEmpty) {
               currentRole = retryRole;
               await RoleService.instance.getRole(refresh: true);
@@ -152,31 +152,25 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
               // Still no role after retry - check if user was just created
               final createdAt = retryDoc.data()?['createdAt'] as Timestamp?;
               final now = Timestamp.now();
-              final secondsSinceCreation = createdAt != null 
-                  ? now.seconds - createdAt.seconds 
+              final secondsSinceCreation = createdAt != null
+                  ? now.seconds - createdAt.seconds
                   : 999;
-              
+
               if (secondsSinceCreation < 10) {
                 // User was just created, wait a bit more for registration to complete
                 await Future.delayed(const Duration(milliseconds: 2000));
-                final finalRetry = await RoleService.instance.getRole(refresh: true);
+                final finalRetry = await RoleService.instance.getRole(
+                  refresh: true,
+                );
                 if (finalRetry != null && finalRetry.isNotEmpty) {
                   currentRole = finalRetry;
                 } else {
-                  // Still no role - this is an error case, but default to employee for now
-                  await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-                    {'role': 'employee'},
-                  );
-                  currentRole = 'employee';
-                  await RoleService.instance.getRole(refresh: true);
+                  // Still no role - do not set a default here; navigate with fallback later
+                  currentRole = null;
                 }
               } else {
-                // User exists but has no role - assign default 'employee' role
-                await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-                  {'role': 'employee'},
-                );
-                currentRole = 'employee';
-                await RoleService.instance.getRole(refresh: true);
+                // User exists but has no role - do not assign a default here
+                currentRole = null;
               }
             }
           }
@@ -184,12 +178,14 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           // Document doesn't exist - might be registration in progress, wait and retry
           await Future.delayed(const Duration(milliseconds: 1000));
           currentRole = await RoleService.instance.getRole(refresh: true);
-          
+
           // If still null after retry, this is a new user without registration data
           // Don't create the document here - let registration handle it
           // For now, default to employee but log a warning
           if (currentRole == null) {
-            debugPrint('Warning: User ${user.uid} has no user document. This may indicate incomplete registration.');
+            debugPrint(
+              'Warning: User ${user.uid} has no user document. This may indicate incomplete registration.',
+            );
             // Don't create document here - it should be created during registration
             // Just route to employee dashboard as fallback
             currentRole = 'employee';
