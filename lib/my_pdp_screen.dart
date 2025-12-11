@@ -1192,6 +1192,12 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                 ),
                               ),
                             ),
+                            IconButton(
+                              tooltip: 'Delete goal',
+                              onPressed: () => _handleDeleteGoal(goal),
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              splashRadius: 18,
+                            ),
                             Text(
                               '${goal.progress}%',
                               style: const TextStyle(color: Colors.white70),
@@ -1347,15 +1353,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       ),
                                     )
                                   : null,
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _handleDeleteGoal(goal),
-                              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                              label: const Text('Delete'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.red,
-                                side: const BorderSide(color: Colors.red),
-                              ),
                             ),
                             Builder(
                               builder: (context) {
