@@ -185,7 +185,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               final step = EmployeeSidebarTutorialConfig
                   .steps[tutorialService.currentTutorialStep];
               if (step.route == currentRoute ||
-                  (step.route == '__collapse_toggle__' &&
+                  (step.route == '_collapse_toggle_' &&
                       tutorialService.currentTutorialStep ==
                           SidebarConfig.employeeItems.length)) {
                 // This screen matches the current tutorial step, show popup
@@ -566,18 +566,18 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   // Parse JSON response
                   String jsonText = responseText.trim();
                   // Remove markdown code blocks if present
-                  if (jsonText.contains('```json')) {
+                  if (jsonText.contains('json')) {
                     jsonText = jsonText
-                        .split('```json')[1]
-                        .split('```')[0]
+                        .split('json')[1]
+                        .split('')[0]
                         .trim();
-                  } else if (jsonText.contains('```')) {
-                    jsonText = jsonText.split('```')[1].split('```')[0].trim();
+                  } else if (jsonText.contains('')) {
+                    jsonText = jsonText.split('')[1].split('')[0].trim();
                   }
 
                   // Extract JSON object
                   final jsonMatch = RegExp(
-                    r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+                    r'\{[^{}](?:\{[^{}]\}[^{}])\}',
                   ).firstMatch(jsonText);
 
                   if (jsonMatch != null) {
@@ -1132,15 +1132,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       // Parse JSON response
       String jsonText = responseText.trim();
       // Remove markdown code blocks if present
-      if (jsonText.contains('```json')) {
-        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
-      } else if (jsonText.contains('```')) {
-        jsonText = jsonText.split('```')[1].split('```')[0].trim();
+      if (jsonText.contains('json')) {
+        jsonText = jsonText.split('json')[1].split('')[0].trim();
+      } else if (jsonText.contains('')) {
+        jsonText = jsonText.split('')[1].split('')[0].trim();
       }
 
       // Extract JSON object using regex
       final jsonMatch = RegExp(
-        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+        r'\{[^{}](?:\{[^{}]\}[^{}])\}',
       ).firstMatch(jsonText);
       if (jsonMatch == null) {
         throw Exception('Could not find JSON object in AI response');
