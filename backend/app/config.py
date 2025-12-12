@@ -18,21 +18,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=False,
-        # Explicitly map environment variables to field names
+        extra='ignore',  # Ignore extra fields in .env
         env_ignore_empty=True,
     )
     
     # Firebase service account JSON (can be a JSON string or path to JSON file)
-    # Environment variable: FIREBASE_SERVICE_ACCOUNT_JSON
-    firebase_service_account_json: str
+    firebase_service_account_json: str = Field(..., alias='FIREBASE_SERVICE_ACCOUNT_JSON')
     
-    # JWT secret for validating tokens from Khonobuzz
-    # Environment variable: JWT_SECRET
-    jwt_secret: str
+    # JWT secret for validating tokens
+    jwt_secret: str = Field(..., alias='JWT_SECRET_KEY')
+    
+    # Encryption key for data protection
+    encryption_key: str = Field(..., alias='ENCRYPTION_KEY')
     
     # Optional backend URL
-    # Environment variable: BACKEND_URL
-    backend_url: Optional[str] = None
+    backend_url: Optional[str] = Field(None, alias='BACKEND_URL')
     
     @model_validator(mode='before')
     @classmethod
@@ -43,11 +43,10 @@ class Settings(BaseSettings):
         
         # Read from environment variables and map to field names
         # Always read directly from os.getenv() to ensure we get the values
-        # Support both JWT_SECRET and JWT_SECRET_KEY for compatibility
         env_mapping = {
             'FIREBASE_SERVICE_ACCOUNT_JSON': 'firebase_service_account_json',
-            'JWT_SECRET': 'jwt_secret',
-            'JWT_SECRET_KEY': 'jwt_secret',  # Alternative name used in Render
+            'JWT_SECRET_KEY': 'jwt_secret',
+            'ENCRYPTION_KEY': 'encryption_key',
             'BACKEND_URL': 'backend_url',
         }
         

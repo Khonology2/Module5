@@ -124,8 +124,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       // Basic access (added per requested snippet)
-      allow read: if true;
-      allow write: if isSignedIn();
+      
 
       // Allow reads for: the user themselves, managers/admins (all employees), 
       // or any user document where the owner has opted-in to leaderboard visibility
@@ -143,12 +142,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && userId() == userId;
 
       // Allow owner to update their own profile as long as they are not changing role.
-      // Permit initial role set only if roleSetAt is not set yet.
+      // Permit initial role set only if role field does not exist yet.
       allow update: if isSignedIn() && userId() == userId && (
-        // Either role is not changing (not present in the request or same value)
-        !('role' in request.resource.data) || request.resource.data.role == resource.data.role ||
-        // Or first-time role selection allowed when roleSetAt isn't set yet
-        (!('roleSetAt' in resource.data) && ('role' in request.resource.data))
+        !('role' in request.resource.data) ||
+        (!('role' in resource.data) && ('role' in request.resource.data))
       );
 
       // Admins can write anything (including changing roles).
@@ -265,6 +262,10 @@ service cloud.firestore {
 
     // Alerts - managers can create alerts for employees
     match /alerts/{alertId} {
+      // Allow owners/managers/admins to delete related alerts
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
@@ -447,6 +448,29 @@ service cloud.firestore {
             ((!('reactions' in resource.data)) && ('reactions' in request.resource.data) && request.resource.data.keys().size() == resource.data.keys().size() + 1)
           )
         )
+      );
+    }
+
+    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
+    match /goal_daily_progress/{progressId} {
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
+    }
+
+    // Goal Deletion Requests - employees create, managers/admins update
+    match /goal_deletion_requests/{requestId} {
+      allow create: if isEmployee() && request.resource.data.userId == userId();
+      allow read, update: if isManager() || isAdmin();
+    }
+
+    // Deleted Goals archive - logged before deletion; readable by owner/manager
+    match /deleted_goals/{goalId} {
+      allow create: if isSignedIn() && (
+        userId() == request.resource.data.goalData.userId || isManager() || isAdmin()
+      );
+      allow read: if isSignedIn() && (
+        userId() == resource.data.goalData.userId || isManager() || isAdmin()
       );
     }
 

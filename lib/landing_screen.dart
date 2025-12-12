@@ -423,8 +423,100 @@ class _PersonalDevelopmentHubScreenState
                       ),
                     ),
                   ),
-                  // Button - Hidden as per request
-                  const SizedBox.shrink(),
+                  const SizedBox(height: 48),
+                  // Employee and Manager Buttons
+                  SizedBox(
+                    width: 280,
+                    child: Column(
+                      children: [
+                        // Employee Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isCheckingToken || _isProcessingButton
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _isProcessingButton = true;
+                                    });
+                                    _navigateToDashboard('PDH - Employee');
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC10D00),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 4,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: _isProcessingButton
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Employee Login',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Manager Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isCheckingToken || _isProcessingButton
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _isProcessingButton = true;
+                                    });
+                                    _navigateToDashboard('PDH - Admin');
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: const Color(0xFFC10D00),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: const BorderSide(
+                                  color: Color(0xFFC10D00),
+                                  width: 2,
+                                ),
+                              ),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: _isProcessingButton
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Color(0xFFC10D00),
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Manager Login',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   // Show subtle loading indicator when checking token
                   if (_isCheckingToken) ...[
                     const SizedBox(height: 32),
