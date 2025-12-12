@@ -96,6 +96,69 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
 }
 
 class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadGoals();
+    _ensureDepartmentIsSet();
+  }
+
+  @override
+  void dispose() {
+    _goalsSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _loadGoals() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'User not authenticated';
+        });
+        return;
+      }
+
+      // Cancel any existing subscription
+      _goalsSubscription?.cancel();
+      
+      _goalsSubscription = DatabaseService.getUserGoalsStream(user.uid).listen(
+        (goals) {
+          if (mounted) {
+            setState(() {
+              _cachedGoals = goals;
+              _isLoading = false;
+            });
+          }
+        },
+        onError: (error) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Failed to load goals: ${error.toString()}';
+            });
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error loading goals: ${e.toString()}';
+        });
+      }
+    }
+  }
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
