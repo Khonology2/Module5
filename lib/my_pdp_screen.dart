@@ -93,11 +93,17 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
   );
 }
 
-class _MyPdpScreenState extends State<MyPdpScreen> {
+class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
+  
+  // Cache for goals to prevent unnecessary rebuilds
+  List<Goal> _cachedGoals = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  StreamSubscription<List<Goal>>? _goalsSubscription;
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -901,46 +907,53 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   }
 
   Widget _buildGoalsForExcellence(String excellence) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, authSnap) {
-        if (authSnap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: CircularProgressIndicator(),
-          );
-        }
-        final user = authSnap.data;
-        if (user == null) {
-          return const Text(
-            'Please sign in',
-            style: TextStyle(color: Colors.white),
-          );
-        }
-        return StreamBuilder<List<Goal>>(
-          stream: DatabaseService.getUserGoalsStream(user.uid),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: CircularProgressIndicator(),
-              );
-            }
-            final goals = (snapshot.data ?? [])
-                .where((g) => _mapGoalToExcellence(g) == excellence)
-                .toList();
-            if (goals.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Text(
-                  'No goals yet',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              );
-            }
+    // Use cached data if available
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            Text(
+              'Error loading goals',
+              style: const TextStyle(color: Colors.red),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _loadGoals,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final goals = _cachedGoals
+        .where((g) => _mapGoalToExcellence(g) == excellence)
+        .toList();
+
+    if (goals.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(8.0),
+        child: Text(
+          'No goals yet',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
 
             return Column(
               children: goals.map((goal) {
+                // Ensure we have a valid goal
+                if (goal.id == null) {
+                  return const SizedBox.shrink(); // Skip invalid goals
+                }
                 return Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.4),
@@ -1251,9 +1264,5 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                 );
               }).toList(),
             );
-          },
-        );
-      },
-    );
   }
 }
