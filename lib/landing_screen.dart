@@ -5,6 +5,7 @@ import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/widgets/floating_circles_particle_animation.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -359,6 +360,8 @@ class _PersonalDevelopmentHubScreenState
     super.dispose();
   }
 
+  final GlobalKey<FloatingCirclesParticleAnimationState> _animationKey = GlobalKey();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -366,168 +369,90 @@ class _PersonalDevelopmentHubScreenState
         children: [
           // Background image
           Positioned.fill(
-            child: ColorFiltered(
-              colorFilter: ColorFilter.mode(
-                Colors.black.withValues(alpha: 0.4),
-                BlendMode.darken,
-              ),
-              child: Image.asset(
-                'assets/khono_bg.png',
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.low,
-                cacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
+            child: Container(
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: const AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withOpacity(0.4),
+                    BlendMode.darken,
+                  ),
+                ),
               ),
             ),
           ),
+          
+          // Particle Animation
+          FloatingCirclesParticleAnimation(
+            key: _animationKey,
+            circleColor: const Color(0xFFC10D00).withOpacity(0.7),
+            numberOfParticles: 20,
+            maxParticleSize: 6.0,
+          ),
+          
           // Content overlay
           Positioned.fill(
             child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo - Centered
-                  Center(
-                    child: Image.asset(
-                      'assets/khono.png',
-                      height: 160,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Tagline - Centered
-                  const Center(
-                    child: Text(
-                      'Your Growth Journey, Simplified',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFC10D00),
-                        fontFamily: 'Poppins',
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Logo - Centered
+                    Center(
+                      child: GestureDetector(
+                        onTap: () {
+                          _animationKey.currentState?.triggerParticleExplosion();
+                        },
+                        child: Image.asset(
+                          'assets/khono.png',
+                          height: 160,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Inspirational message - Centered
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    const SizedBox(height: 24),
+                    // Tagline - Centered
+                    const Center(
                       child: Text(
-                        inspirationalLines[_currentLineIndex],
+                        'Your Growth Journey, Simplified',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 20,
-                          color: Colors.white.withAlpha(204),
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFC10D00),
+                          fontFamily: 'Poppins',
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 48),
-                  // Employee and Manager Buttons
-                  SizedBox(
-                    width: 280,
-                    child: Column(
-                      children: [
-                        // Employee Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _isCheckingToken || _isProcessingButton
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _isProcessingButton = true;
-                                    });
-                                    _navigateToDashboard('PDH - Employee');
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFC10D00),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 4,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: _isProcessingButton
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Employee Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                    const SizedBox(height: 12),
+                    // Inspirational message - Centered
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        child: Text(
+                          inspirationalLines[_currentLineIndex],
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: Colors.white.withAlpha(204),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        // Manager Button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _isCheckingToken || _isProcessingButton
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _isProcessingButton = true;
-                                    });
-                                    _navigateToDashboard('PDH - Admin');
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFFC10D00),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                side: const BorderSide(
-                                  color: Color(0xFFC10D00),
-                                  width: 2,
-                                ),
-                              ),
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            child: _isProcessingButton
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Color(0xFFC10D00),
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Manager Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Show subtle loading indicator when checking token
-                  if (_isCheckingToken) ...[
-                    const SizedBox(height: 32),
-                    const CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Color(0xFFC10D00),
                       ),
-                      strokeWidth: 2,
                     ),
+                    const SizedBox(height: 48),
+                    // Show subtle loading indicator when checking token
+                    if (_isCheckingToken) ...[
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFFC10D00),
+                        ),
+                        strokeWidth: 2,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
