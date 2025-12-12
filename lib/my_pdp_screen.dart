@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -926,7 +928,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 8),
             ElevatedButton(
-              onPressed: _loadGoals,
+              onPressed: () => _loadGoals(),
               child: const Text('Retry'),
             ),
           ],
