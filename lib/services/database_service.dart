@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/season.dart';
@@ -508,11 +509,15 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
-        developer.log('Successfully created approval request for goal: ${doc.id}');
+        developer.log(
+          'Successfully created approval request for goal: ${doc.id}',
+        );
       } catch (e) {
         developer.log('Error requesting goal approval: $e');
         // Log more details for debugging
-        developer.log('Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}');
+        developer.log(
+          'Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}',
+        );
         // Don't rethrow - this is async and shouldn't block goal creation
       }
     });
@@ -951,6 +956,11 @@ class DatabaseService {
         final data = snap.data() as Map<String, dynamic>;
         final currentStatus = (data['status'] ?? 'notStarted').toString();
         userId = data['userId'] as String?;
+        if (currentStatus == GoalStatus.paused.name ||
+            currentStatus == GoalStatus.completed.name ||
+            currentStatus == GoalStatus.burnout.name) {
+          throw Exception('progress_update.blocked: status=$currentStatus');
+        }
         final dynamic progressRaw = data['progress'];
         final int previousProgress = progressRaw is int
             ? progressRaw
@@ -1003,6 +1013,7 @@ class DatabaseService {
       });
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
+      rethrow;
     }
 
     // Record daily activity for streak tracking when making progress
@@ -1445,10 +1456,10 @@ class DatabaseService {
       final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
           ? resolvedDisplayName
           : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
-      
+
       // Get current role, if any
       final currentRole = docSnapshot.data()?['role'] as String?;
-      
+
       // Prepare update map
       final updateData = <String, dynamic>{
         'displayName': finalDisplayName.isNotEmpty
@@ -1456,7 +1467,7 @@ class DatabaseService {
             : (docSnapshot.data()?['displayName'] ?? ''),
         'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
       };
-      
+
       // Update role ONLY if:
       // 1. Role is not currently set (null or empty), OR
       // 2. Current role is 'employee' AND new role is 'manager' (upgrade)
@@ -1580,14 +1591,15 @@ class DatabaseService {
       if (onboardingDoc.exists) {
         final onboardingData = onboardingDoc.data() ?? {};
         // Try multiple possible field names for name in onboarding
-        final name = onboardingData['displayName'] ??
+        final name =
+            onboardingData['displayName'] ??
             onboardingData['fullName'] ??
             onboardingData['name'] ??
             onboardingData['firstName'] ??
             (onboardingData['firstName'] != null &&
                     onboardingData['lastName'] != null
                 ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
-                    .trim()
+                      .trim()
                 : null);
 
         if (name != null && name.toString().isNotEmpty) {
@@ -1604,14 +1616,45 @@ class DatabaseService {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(userProfile.uid);
-    
+
     // Get all profile fields as a map - toFirestore() includes all fields
-    final data = userProfile.toFirestore();
-    
+    // We need to avoid updating the 'role' field for existing documents to satisfy security rules
+    final existing = await userDocRef.get();
+    final data = Map<String, dynamic>.from(userProfile.toFirestore());
+    if (existing.exists) {
+      // Only admins are allowed to modify roles per Firestore rules; omit role on normal updates
+      data.remove('role');
+    }
+
+    // Debug log to help diagnose permission issues in the field
+    try {
+      final authUid = FirebaseAuth.instance.currentUser?.uid;
+      final projectId = Firebase.app().options.projectId;
+      developer.log(
+        'updateUserProfile: authUid=${authUid ?? 'null'}, targetUid=${userProfile.uid}, exists=${existing.exists}, keys=${data.keys.join(',')}, project=${projectId ?? 'unknown'}',
+      );
+      if (authUid != null && authUid != userProfile.uid) {
+        developer.log(
+          'updateUserProfile: WARNING authUid != targetUid; this will be denied by rules',
+        );
+      }
+    } catch (_) {}
+
     // Use set with merge: true to ensure all fields are saved
     // This is more robust and handles cases where some fields might not exist yet
-    await userDocRef.set(data, SetOptions(merge: true));
-    
+    try {
+      await userDocRef.set(data, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      developer.log(
+        'updateUserProfile: FirebaseException code=${e.code}, message=${e.message ?? ''}, path=${userDocRef.path}',
+        error: e,
+      );
+      rethrow;
+    } catch (e) {
+      developer.log('updateUserProfile: Unexpected error $e');
+      rethrow;
+    }
+
     // Update cache immediately after successful save to reflect changes
     // This ensures the UI shows the latest data immediately
     final cache = PerformanceCacheService();

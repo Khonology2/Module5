@@ -202,8 +202,9 @@ class UserSettings {
 }
 
 class SettingsService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Lazily access Firebase instances to ensure main() config (e.g., web persistence) is applied first
+  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  static FirebaseAuth get _auth => FirebaseAuth.instance;
 
   // Cached stream to prevent recreation on every build
   static Stream<UserSettings?>? _cachedSettingsStream;
