@@ -151,9 +151,10 @@ class FloatingCirclesParticleAnimationState
       animation: _controller,
       builder: (context, child) {
         _updateParticles();
-        return CustomPaint(
-          painter: ParticlePainter(particles: _particles),
-          size: Size.infinite,
+        return SizedBox.expand(
+          child: CustomPaint(
+            painter: ParticlePainter(particles: _particles),
+          ),
         );
       },
     );

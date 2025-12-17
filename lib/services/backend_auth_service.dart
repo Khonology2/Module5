@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -10,14 +10,22 @@ import 'dart:convert';
 class BackendAuthService {
   BackendAuthService._internal();
   static final BackendAuthService instance = BackendAuthService._internal();
+  static const Duration _httpTimeout = Duration(seconds: 60);
 
   /// Backend API base URL for token authentication
   /// Hardcoded to use the production backend URL: https://pdh-backend.onrender.com
   static String get _backendBaseUrl {
-    // Hardcoded production backend URL
-    const String backendUrl = 'https://pdh-backend.onrender.com';
-    debugPrint('Using hardcoded backend URL: $backendUrl');
-    return backendUrl;
+    const String prodUrl = 'https://pdh-backend.onrender.com';
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host == 'localhost' || host == '127.0.0.1') {
+        const String devUrl = 'http://127.0.0.1:8000';
+        debugPrint('Using local backend URL: $devUrl');
+        return devUrl;
+      }
+    }
+    debugPrint('Using production backend URL: $prodUrl');
+    return prodUrl;
   }
 
   /// Get Firebase custom token from backend using the JWT token
@@ -40,7 +48,7 @@ class BackendAuthService {
             body: jsonEncode({'token': jwtToken}),
           )
           .timeout(
-            const Duration(seconds: 10),
+            _httpTimeout,
             onTimeout: () {
               throw Exception('Request timeout');
             },
@@ -114,7 +122,7 @@ class BackendAuthService {
             body: jsonEncode({'token': token}),
           )
           .timeout(
-            const Duration(seconds: 10),
+            _httpTimeout,
             onTimeout: () {
               throw Exception('Request timeout');
             },
@@ -172,7 +180,7 @@ class BackendAuthService {
             }),
           )
           .timeout(
-            const Duration(seconds: 10),
+            _httpTimeout,
             onTimeout: () {
               throw Exception('Request timeout');
             },
