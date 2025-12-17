@@ -29,6 +29,20 @@ class GoalDeletionService {
     });
   }
 
+  // Stream whether current user has pending deletion request for a goal
+  static Stream<bool> hasPendingRequestStream(String goalId) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(false);
+    return _firestore
+        .collection('goal_deletion_requests')
+        .where('goalId', isEqualTo: goalId)
+        .where('userId', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .snapshots()
+        .map((s) => s.docs.isNotEmpty);
+  }
+
   // Approve and perform deletion
   static Future<void> approveRequest(GoalDeletionRequest req) async {
     try {

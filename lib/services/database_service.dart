@@ -574,6 +574,7 @@ class DatabaseService {
     if (requesterId != ownerId) {
       throw Exception('Only the goal owner can request deletion');
     }
+    // Create deletion request document
     await fs.collection('goal_deletion_requests').add({
       'goalId': goalId,
       'userId': ownerId,
@@ -582,6 +583,25 @@ class DatabaseService {
       'createdAt': FieldValue.serverTimestamp(),
       'goalTitle': data['title'] ?? '',
     });
+
+    // Create alert for manager inbox
+    try {
+      final ownerDoc = await fs.collection('users').doc(ownerId).get();
+      final managerId = ownerDoc.data()?['managerId'];
+      if (managerId != null && managerId is String && managerId.isNotEmpty) {
+        await fs.collection('alerts').add({
+          'userId': managerId,
+          'relatedGoalId': goalId,
+          'type': 'goalDeletionRequest',
+          'title': 'Deletion approval needed',
+          'message': '${ownerDoc.data()?['name'] ?? 'Employee'} requests deletion of "${data['title'] ?? ''}"',
+          'createdAt': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      }
+    } catch (e) {
+      developer.log('Failed to send deletion request alert: $e');
+    }
   }
 
   static Future<void> deleteGoal({

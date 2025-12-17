@@ -284,6 +284,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           value: 'rejected',
                           child: Text('Rejected'),
                         ),
+                        DropdownMenuItem(
+                          value: 'deleted',
+                          child: Text('Deleted'),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -348,6 +352,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       DropdownMenuItem(
                         value: 'rejected',
                         child: Text('Rejected'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'deleted',
+                          child: Text('Deleted'),
                       ),
                     ],
                     onChanged: (value) {
@@ -853,6 +861,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildAuditEntriesList({required bool isManager}) {
+    if (_statusFilter == 'deleted') {
+      final stream = isManager
+          ? DeletedGoalService.getManagerDeletedGoalsStream()
+          : DeletedGoalService.getEmployeeDeletedGoalsStream();
+      return StreamBuilder<List<DeletedGoalLog>>(
+        stream: stream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final logs = snapshot.data ?? [];
+          if (logs.isEmpty) {
+            return _buildEmptyState(isManager: isManager);
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: logs.length,
+            separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+            itemBuilder: (context, index) {
+              final l = logs[index];
+              final d = l.deletedAt;
+              final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+              return ListTile(
+                leading: const Icon(Icons.delete, color: Colors.grey),
+                title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+                subtitle: Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
+              );
+            },
+          );
+        },
+      );
+    }
+
     return StreamBuilder<List<AuditEntry>>(
       stream: isManager
           ? AuditService.getManagerAuditEntriesStream(

@@ -13,7 +13,7 @@ class DeletedGoalService {
     if (uid == null) return Stream.value([]);
     return _firestore
         .collection('deleted_goals')
-        .where('deletedBy', isEqualTo: uid)
+        .where('goalData.userId', isEqualTo: uid)
         .orderBy('deletedAt', descending: true)
         .snapshots()
         .map((s) => s.docs.map((d) => DeletedGoalLog.fromFirestore(d)).toList())
