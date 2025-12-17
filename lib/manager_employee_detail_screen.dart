@@ -20,7 +20,6 @@ class ManagerEmployeeDetailScreen extends StatefulWidget {
 
 class _ManagerEmployeeDetailScreenState
     extends State<ManagerEmployeeDetailScreen> {
-
   Stream<List<Goal>> _goalsStream() {
     // Merge top-level and nested user goals
     final topLevel = FirebaseFirestore.instance
@@ -92,7 +91,10 @@ class _ManagerEmployeeDetailScreenState
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.orange.withValues(alpha: 0.8),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -110,7 +112,10 @@ class _ManagerEmployeeDetailScreenState
                       final goals = snapshot.data!;
                       if (goals.isEmpty) {
                         return Center(
-                          child: Text('No goals yet', style: AppTypography.muted),
+                          child: Text(
+                            'No goals yet',
+                            style: AppTypography.muted,
+                          ),
                         );
                       }
                       return ListView.builder(
@@ -241,10 +246,11 @@ class _ManagerEmployeeDetailScreenState
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: (isOverdue
-                                  ? AppColors.dangerColor
-                                  : AppColors.warningColor)
-                              .withValues(alpha: 0.1),
+                          color:
+                              (isOverdue
+                                      ? AppColors.dangerColor
+                                      : AppColors.warningColor)
+                                  .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -262,10 +268,10 @@ class _ManagerEmployeeDetailScreenState
                               isOverdue
                                   ? 'Overdue ${deltaDays.abs()} day${deltaDays.abs() == 1 ? '' : 's'}'
                                   : deltaDays == 0
-                                      ? 'Due today'
-                                      : deltaDays == 1
-                                          ? 'Due tomorrow'
-                                          : 'Due in $deltaDays days',
+                                  ? 'Due today'
+                                  : deltaDays == 1
+                                  ? 'Due tomorrow'
+                                  : 'Due in $deltaDays days',
                               style: AppTypography.bodySmall.copyWith(
                                 color: isOverdue
                                     ? AppColors.dangerColor
@@ -308,8 +314,8 @@ class _ManagerEmployeeDetailScreenState
               g.progress >= 70
                   ? AppColors.successColor
                   : g.progress >= 40
-                      ? AppColors.warningColor
-                      : AppColors.activeColor,
+                  ? AppColors.warningColor
+                  : AppColors.activeColor,
             ),
             minHeight: 6,
           ),
@@ -368,6 +374,13 @@ class _ManagerEmployeeDetailScreenState
                   onPressed: () => _pauseGoal(g),
                   color: AppColors.warningColor,
                 ),
+              ] else if (g.status == GoalStatus.paused) ...[
+                _buildGoalActionButton(
+                  label: 'Resume',
+                  icon: Icons.play_arrow,
+                  onPressed: () => _resumeGoal(g),
+                  color: AppColors.successColor,
+                ),
               ],
               if (g.status != GoalStatus.completed &&
                   g.status != GoalStatus.burnout) ...[
@@ -394,10 +407,7 @@ class _ManagerEmployeeDetailScreenState
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 14),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 11),
-      ),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
         side: BorderSide(color: color.withValues(alpha: 0.5)),
@@ -430,8 +440,8 @@ class _ManagerEmployeeDetailScreenState
     final presetMessage = isOverdue
         ? 'Hi! I noticed your goal "${goal.title}" is overdue. How can I help you get back on track?'
         : deltaDays <= 2
-            ? 'Hi! I noticed your goal "${goal.title}" is due soon. How is your progress?'
-            : 'Hi! How is your progress on "${goal.title}"?';
+        ? 'Hi! I noticed your goal "${goal.title}" is due soon. How is your progress?'
+        : 'Hi! How is your progress on "${goal.title}"?';
 
     _showSendNudgeDialog(goal: goal, presetMessage: presetMessage);
   }
@@ -474,6 +484,39 @@ class _ManagerEmployeeDetailScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error sending nudge: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resumeGoal(Goal goal) async {
+    try {
+      await FirebaseFirestore.instance.collection('goals').doc(goal.id).update({
+        'status': GoalStatus.inProgress.name,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      await AlertService.createMotivationalAlert(
+        userId: widget.employee.profile.uid,
+        message: 'Your goal has been resumed. Let\'s get back on track!',
+        goalId: goal.id,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Goal resumed'),
+            backgroundColor: AppColors.successColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resume goal: $e'),
             backgroundColor: AppColors.dangerColor,
           ),
         );
@@ -701,9 +744,7 @@ class _ManagerEmployeeDetailScreenState
         backgroundColor: AppColors.cardBackground,
         title: Text(
           'Add Stretch Objective for ${widget.employee.profile.displayName}',
-          style: AppTypography.heading4.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -957,9 +998,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
         widget.employee != null
             ? 'Send Nudge to ${widget.employee!.profile.displayName}'
             : 'Send Nudge',
-        style: AppTypography.heading4.copyWith(
-          color: AppColors.textPrimary,
-        ),
+        style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -1001,7 +1040,10 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                   style: AppTypography.bodyMedium.copyWith(
                     color: AppColors.textPrimary,
                   ),
-                  icon: Icon(Icons.arrow_drop_down, color: AppColors.textPrimary),
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: AppColors.textPrimary,
+                  ),
                   onChanged: (goal) => setState(() => _selectedGoal = goal),
                   items: widget.employee!.goals.map((goal) {
                     return DropdownMenuItem<Goal>(

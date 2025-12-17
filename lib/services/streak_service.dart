@@ -5,7 +5,8 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
 
 class StreakService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // Lazily access Firestore to ensure web settings are applied first
+  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   static final Map<String, List<StreamSubscription>> _subsByUser = {};
   static final Map<String, Timer> _midnightTimerByUser = {};
   static final Map<String, bool> _cancelledByUser = {};

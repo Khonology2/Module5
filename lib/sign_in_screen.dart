@@ -309,9 +309,14 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           }
         } catch (_) {}
 
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+                'lastLoginAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {}
 
         // Also record a light-weight daily activity for streaks
         try {

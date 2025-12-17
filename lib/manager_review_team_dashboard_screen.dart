@@ -190,7 +190,6 @@ class _ManagerReviewTeamDashboardScreenState
     return const SizedBox.shrink();
   }
 
-
   Widget _buildAIManagerInsights(List<TeamInsight> insights) {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -765,7 +764,8 @@ class _ManagerReviewTeamDashboardScreenState
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ManagerEmployeeDetailScreen(employee: employee),
+                        builder: (_) =>
+                            ManagerEmployeeDetailScreen(employee: employee),
                       ),
                     );
                   },
@@ -797,17 +797,17 @@ class _ManagerReviewTeamDashboardScreenState
   List<Goal> _getUpcomingDeadlines(EmployeeData employee) {
     final now = DateTime.now();
     final next14Days = now.add(const Duration(days: 14));
-    
+
     return employee.goals.where((goal) {
       if (goal.status == GoalStatus.completed) return false;
-      return goal.targetDate.isAfter(now) && goal.targetDate.isBefore(next14Days);
-    }).toList()
-      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+      return goal.targetDate.isAfter(now) &&
+          goal.targetDate.isBefore(next14Days);
+    }).toList()..sort((a, b) => a.targetDate.compareTo(b.targetDate));
   }
 
   Widget _buildUpcomingDeadlinesSection(EmployeeData employee) {
     final upcomingGoals = _getUpcomingDeadlines(employee);
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -851,7 +851,7 @@ class _ManagerReviewTeamDashboardScreenState
                     ),
                   ),
                   Text(
-                    daysUntil == 0 
+                    daysUntil == 0
                         ? 'Due today'
                         : '$daysUntil day${daysUntil == 1 ? '' : 's'}',
                     style: TextStyle(
@@ -885,7 +885,7 @@ class _ManagerReviewTeamDashboardScreenState
     final completedGoals = employee.goals
         .where((g) => g.status == GoalStatus.completed)
         .toList();
-    
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -916,7 +916,10 @@ class _ManagerReviewTeamDashboardScreenState
               TextButton(
                 onPressed: () => _reviewCompletedGoals(employee),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -940,7 +943,7 @@ class _ManagerReviewTeamDashboardScreenState
     final completedGoals = employee.goals
         .where((g) => g.status == GoalStatus.completed)
         .toList();
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1023,7 +1026,10 @@ class _ManagerReviewTeamDashboardScreenState
                   label: const Text('Check Notes'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                   ),
                 ),
               ),
@@ -1034,7 +1040,10 @@ class _ManagerReviewTeamDashboardScreenState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                 ),
               ),
             ],
@@ -1082,17 +1091,22 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                 ),
                 const SizedBox(height: 4),
-                ...goal.evidence.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '• $e',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    )),
+                ...goal.evidence.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $e',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ),
               ] else
                 const Text(
                   'No additional notes or evidence available.',
-                  style: TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
             ],
           ),
@@ -1117,10 +1131,7 @@ class _ManagerReviewTeamDashboardScreenState
         'Goal "${goal.title}" acknowledged for ${employee.profile.displayName}',
       );
     } catch (e) {
-      await _showCenterNotice(
-        context,
-        'Error acknowledging goal: $e',
-      );
+      await _showCenterNotice(context, 'Error acknowledging goal: $e');
     }
   }
 
@@ -1375,7 +1386,6 @@ class _ManagerReviewTeamDashboardScreenState
         message: message,
       );
       if (mounted) {
-        Navigator.pop(context); // Close dialog
         await _showCenterNotice(context, 'Nudge sent successfully!');
       }
     } catch (e) {
@@ -1779,13 +1789,13 @@ class _EmployeeActivityScreen extends StatelessWidget {
                                 'No recent activity',
                                 style: TextStyle(color: Colors.white70),
                               ),
-                        )
-                      : ListView.builder(
-                          itemCount: activities.length,
-                          itemBuilder: (context, index) {
-                            return _buildActivityItem(activities[index]);
-                          },
-                        ),
+                            )
+                          : ListView.builder(
+                              itemCount: activities.length,
+                              itemBuilder: (context, index) {
+                                return _buildActivityItem(activities[index]);
+                              },
+                            ),
                     ),
                   ],
                 ),
@@ -1987,7 +1997,9 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: DropdownButton<Goal>(
                   value: _selectedGoal,
@@ -2058,11 +2070,15 @@ class _NudgeDialogState extends State<_NudgeDialog> {
                 hintStyle: const TextStyle(color: Colors.white54),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -2076,10 +2092,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancel',
-            style: TextStyle(color: Colors.white70),
-          ),
+          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
         ),
         ElevatedButton(
           onPressed: _sendNudge,
@@ -2101,10 +2114,7 @@ class _NudgeDialogState extends State<_NudgeDialog> {
         });
       },
       icon: Icon(icon, size: 14),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 11),
-      ),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
       style: OutlinedButton.styleFrom(
         foregroundColor: const Color(0xFFC10D00),
         side: BorderSide(color: const Color(0xFFC10D00).withValues(alpha: 0.5)),
