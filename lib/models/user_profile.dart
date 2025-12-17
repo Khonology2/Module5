@@ -61,10 +61,12 @@ class UserProfile {
   // Factory constructor to create a UserProfile from a Firestore DocumentSnapshot
   factory UserProfile.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
+    final dn = (data?['displayName']?.toString() ?? '').trim();
+    final fn = (data?['fullName']?.toString() ?? '').trim();
     return UserProfile(
       uid: doc.id,
       email: data?['email'] ?? '',
-      displayName: data?['displayName'] ?? '',
+      displayName: dn.isNotEmpty ? dn : fn,
       totalPoints: (data?['totalPoints'] ?? 0) as int,
       level: (data?['level'] ?? 1) as int,
       badges: List<String>.from(data?['badges'] ?? const []),
@@ -87,7 +89,8 @@ class UserProfile {
       longGoals: data?['longGoals'] ?? '',
       notificationFrequency: data?['notificationFrequency'] ?? 'daily',
       goalVisibility: data?['goalVisibility'] ?? 'private',
-      leaderboardOptin: data?['leaderboardOptin'] ??
+      leaderboardOptin:
+          data?['leaderboardOptin'] ??
           data?['leaderboardParticipation'] ??
           false,
       badgeName: data?['badgeName'] ?? '',
@@ -125,7 +128,9 @@ class UserProfile {
       'leaderboardParticipation': leaderboardOptin,
       'badgeName': badgeName,
       'celebrationConsent': celebrationConsent,
-      'lastLoginAt': lastLoginAt != null ? Timestamp.fromDate(lastLoginAt!) : null,
+      'lastLoginAt': lastLoginAt != null
+          ? Timestamp.fromDate(lastLoginAt!)
+          : null,
     };
   }
 
