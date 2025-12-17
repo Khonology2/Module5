@@ -936,6 +936,11 @@ class DatabaseService {
         final data = snap.data() as Map<String, dynamic>;
         final currentStatus = (data['status'] ?? 'notStarted').toString();
         userId = data['userId'] as String?;
+        if (currentStatus == GoalStatus.paused.name ||
+            currentStatus == GoalStatus.completed.name ||
+            currentStatus == GoalStatus.burnout.name) {
+          throw Exception('progress_update.blocked: status=$currentStatus');
+        }
         final dynamic progressRaw = data['progress'];
         final int previousProgress = progressRaw is int
             ? progressRaw
@@ -988,6 +993,7 @@ class DatabaseService {
       });
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
+      rethrow;
     }
 
     // Record daily activity for streak tracking when making progress

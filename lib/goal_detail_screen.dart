@@ -376,6 +376,25 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Future<void> _updateProgress(int newProgress) async {
     if (isLoading) return;
 
+    // Block updates on paused/burnout/completed goals at UI level for clarity
+    if (currentGoal.status == GoalStatus.paused ||
+        currentGoal.status == GoalStatus.burnout ||
+        currentGoal.status == GoalStatus.completed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              currentGoal.status == GoalStatus.paused
+                  ? 'This goal is paused. Ask your manager to resume it before updating progress.'
+                  : 'Cannot update progress on this goal.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       isLoading = true;
     });
