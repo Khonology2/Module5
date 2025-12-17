@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math' show Random;
 
@@ -12,14 +11,14 @@ class FloatingCirclesParticleAnimation extends StatefulWidget {
   final double maxDistance;
 
   const FloatingCirclesParticleAnimation({
-    Key? key,
+    super.key,
     this.circleColor = Colors.white,
     this.numberOfParticles = 20,
     this.maxParticleSize = 8.0,
     this.minParticleSize = 2.0,
     this.animationDuration = const Duration(seconds: 4),
     this.maxDistance = 100.0,
-  }) : super(key: key);
+  });
 
   @override
   FloatingCirclesParticleAnimationState createState() =>
@@ -88,7 +87,7 @@ class FloatingCirclesParticleAnimationState
         position: _originalPositions[i],
         velocity: _getRandomVelocity(),
         radius: _particleSizes[i],
-        color: widget.circleColor.withOpacity(_opacities[i]),
+        color: widget.circleColor.withValues(alpha: _opacities[i]),
       );
     }
 
@@ -180,8 +179,8 @@ class FloatingCirclesParticleAnimationState
           _particles[i].position.dy + dy * 0.1,
         ),
         radius: _particleSizes[i] * (0.8 + 0.4 * math.sin(progress * 2 * math.pi)),
-        color: widget.circleColor.withOpacity(
-          _opacities[i] * (0.7 + 0.3 * math.sin(progress * 2 * math.pi + i)),
+        color: widget.circleColor.withValues(
+          alpha: _opacities[i] * (0.7 + 0.3 * math.sin(progress * 2 * math.pi + i)),
         ),
       );
       

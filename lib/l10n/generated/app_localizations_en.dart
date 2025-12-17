@@ -631,7 +631,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nav_my_profile => 'My Profile';
 
   @override
-  String get nav_my_pdp => 'MyPdp';
+  String get nav_my_pdp => 'My PDP';
 
   @override
   String get nav_progress_visuals => 'Progress Visuals';
@@ -1418,7 +1418,7 @@ class AppLocalizationsEnZa extends AppLocalizationsEn {
   String get nav_my_profile => 'My Profile';
 
   @override
-  String get nav_my_pdp => 'MyPdp';
+  String get nav_my_pdp => 'My PDP';
 
   @override
   String get nav_progress_visuals => 'Progress Visuals';

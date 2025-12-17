@@ -1016,7 +1016,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
             return Column(
               children: goals.map((goal) {
                 // Ensure we have a valid goal
-                if (goal.id == null) {
+                if (goal.id.isEmpty) {
                   return const SizedBox.shrink(); // Skip invalid goals
                 }
                 return Container(

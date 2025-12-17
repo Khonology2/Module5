@@ -7,11 +7,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-
-from app.config import get_settings, validate_settings
-from app.firebase_client import initialize_firebase
-from app.routes import auth
-from app.models import ErrorResponse
+import os
+import sys
+import importlib
+try:
+    from app.config import get_settings, validate_settings
+    from app.firebase_client import initialize_firebase
+    from app.routes import auth
+    from app.models import ErrorResponse
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    if 'app' in sys.modules:
+        del sys.modules['app']
+    importlib.invalidate_caches()
+    from app.config import get_settings, validate_settings
+    from app.firebase_client import initialize_firebase
+    from app.routes import auth
+    from app.models import ErrorResponse
 
 # Configure logging
 logging.basicConfig(

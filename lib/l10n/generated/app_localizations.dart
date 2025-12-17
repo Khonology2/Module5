@@ -1248,7 +1248,7 @@ abstract class AppLocalizations {
   /// No description provided for @nav_my_pdp.
   ///
   /// In en_ZA, this message translates to:
-  /// **'MyPdp'**
+  /// **'My PDP'**
   String get nav_my_pdp;
 
   /// No description provided for @nav_progress_visuals.

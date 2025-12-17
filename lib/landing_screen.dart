@@ -375,7 +375,7 @@ class _PersonalDevelopmentHubScreenState
                   image: const AssetImage('assets/khono_bg.png'),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.4),
+                    Colors.black.withValues(alpha: 0.4),
                     BlendMode.darken,
                   ),
                 ),
@@ -386,7 +386,7 @@ class _PersonalDevelopmentHubScreenState
           // Particle Animation
           FloatingCirclesParticleAnimation(
             key: _animationKey,
-            circleColor: const Color(0xFFC10D00).withOpacity(0.7),
+            circleColor: const Color(0xFFC10D00).withValues(alpha: 0.7),
             numberOfParticles: 20,
             maxParticleSize: 6.0,
           ),
