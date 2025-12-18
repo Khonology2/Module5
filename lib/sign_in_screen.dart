@@ -44,10 +44,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
   bool _isSigningIn = false;
+  bool _obscurePassword = true;
   String? _lastRememberedEmail;
 
   final microsoftProvider = MicrosoftAuthProvider();
@@ -507,7 +508,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                   ),
                                   child: TextFormField(
                                     controller: _passwordController,
-                                    obscureText: true,
+                                    obscureText: _obscurePassword,
                                     textInputAction: TextInputAction.done,
                                     decoration: InputDecoration(
                                       filled: true,
@@ -537,6 +538,19 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
                                             horizontal: 20,
                                             vertical: 16,
                                           ),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          color: Colors.white.withOpacity(0.7),
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscurePassword = !_obscurePassword;
+                                          });
+                                        },
+                                      ),
                                     ),
                                     style: const TextStyle(
                                       color: Colors.white,

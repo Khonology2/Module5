@@ -4,11 +4,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() { return request.auth != null; }
     function userId() { return request.auth.uid; }
-    function isAdmin() { 
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/users/$(userId())) &&
-             get(/databases/$(database)/documents/users/$(userId())).data.role == 'admin';
-    }
+    function isAdmin() { return request.auth.token.admin == true; }
     function isManager() {
       return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(userId())) &&
@@ -129,8 +125,7 @@ service cloud.firestore {
       // Permit initial role set only if role doesn't exist yet.
       allow update: if isSignedIn() && userId() == userId && (
         !('role' in request.resource.data) ||
-        (!('role' in resource.data) && ('role' in request.resource.data)) ||
-        (resource.data.role == request.resource.data.role)
+        (!('role' in resource.data) && ('role' in request.resource.data))
       );
 
       // Admins can write anything (including changing roles).
@@ -169,19 +164,13 @@ service cloud.firestore {
       allow update: if isSignedIn() && isApprovalOrReviewUpdate();
       allow update: if isSignedIn() && isAdmin();
 
-      // Allow deletion with multiple fallback checks for robustness
       allow delete: if isSignedIn() && (
-        // Check if user is the goal owner (multiple ways)
         userId() == resource.data.userId ||
-        userId() == resource.data.user_id ||
-        userId() == get(/databases/$(database)/documents/goals/$(goalId)).data.userId ||
-        userId() == get(/databases/$(database)/documents/goals/$(goalId)).data.user_id ||
-        // Allow managers and admins
         isManager() ||
         isAdmin()
       );
       allow read: if isSignedIn() && (
-        (userId() == resource.data.userId && resource.data.deletionStatus != 'pending') ||
+        userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
@@ -229,6 +218,10 @@ service cloud.firestore {
     }
 
     match /alerts/{alertId} {
+      // Allow owners/managers/admins to delete related alerts
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
@@ -386,6 +379,17 @@ service cloud.firestore {
       );
     }
 
+<<<<<<< HEAD
+    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
+    match /goal_daily_progress/{progressId} {
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId || isManager() || isAdmin()
+      );
+    }
+
+    // Goal Deletion Requests - employees create, managers/admins update
+=======
+>>>>>>> 96f1d73929b58a22809306c0299f20d36309e127
     match /goal_deletion_requests/{requestId} {
       allow create: if isEmployee() && request.resource.data.userId == userId();
       allow read, update: if isManager() || isAdmin();
