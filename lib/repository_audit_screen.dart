@@ -1667,7 +1667,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: requests.length,
-              separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
               itemBuilder: (context, index) {
                 final r = requests[index];
                 return ListTile(
@@ -1697,9 +1697,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                             try {
                               await GoalDeletionService.approveRequest(r);
                             } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
                             }
                           }
                         },
@@ -1759,7 +1761,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: logs.length,
-              separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
               itemBuilder: (context, index) {
                 final l = logs[index];
                 final d = l.deletedAt;

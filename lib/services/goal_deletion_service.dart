@@ -62,7 +62,7 @@ class GoalDeletionService {
       // Perform actual deletion (will log internally)
       await DatabaseService.deleteGoal(
         goalId: req.goalId,
-        requesterId: user.uid,
+        requesterId: req.userId, // Use the original goal owner's ID
       );
     } catch (e) {
       developer.log('Error approving deletion request: $e');
@@ -74,15 +74,27 @@ class GoalDeletionService {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
-      await _firestore
-          .collection('goal_deletion_requests')
-          .doc(req.id)
-          .update({
+      
+      final batch = _firestore.batch();
+      
+      // Update the deletion request
+      final reqRef = _firestore.collection('goal_deletion_requests').doc(req.id);
+      batch.update(reqRef, {
         'status': 'rejected',
         'resolvedAt': FieldValue.serverTimestamp(),
         'resolvedBy': user.uid,
         'rejectReason': reason,
       });
+      
+      // Restore goal accessibility by removing deletion status
+      final goalRef = _firestore.collection('goals').doc(req.goalId);
+      batch.update(goalRef, {
+        'deletionStatus': FieldValue.delete(),
+        'deletionRequestedAt': FieldValue.delete(),
+        'deletionReason': FieldValue.delete(),
+      });
+      
+      await batch.commit();
     } catch (e) {
       developer.log('Error rejecting deletion request: $e');
       rethrow;

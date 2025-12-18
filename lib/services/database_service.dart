@@ -579,6 +579,10 @@ class DatabaseService {
     if (requesterId != ownerId) {
       throw Exception('Only the goal owner can request deletion');
     }
+    
+    // Get owner document for employee information
+    final ownerDoc = await fs.collection('users').doc(ownerId).get();
+    
     // Create deletion request document
     await fs.collection('goal_deletion_requests').add({
       'goalId': goalId,
@@ -587,11 +591,20 @@ class DatabaseService {
       'status': 'pending',
       'createdAt': FieldValue.serverTimestamp(),
       'goalTitle': data['title'] ?? '',
+      'employeeName': ownerDoc.data()?['displayName'] ?? ownerDoc.data()?['name'] ?? 'Employee',
+      'employeeEmail': ownerDoc.data()?['email'] ?? '',
+      'department': ownerDoc.data()?['department'] ?? '',
+    });
+
+    // Mark the goal as pending deletion to make it inaccessible
+    await goalRef.update({
+      'deletionStatus': 'pending',
+      'deletionRequestedAt': FieldValue.serverTimestamp(),
+      'deletionReason': reason,
     });
 
     // Create alert for manager inbox
     try {
-      final ownerDoc = await fs.collection('users').doc(ownerId).get();
       final managerId = ownerDoc.data()?['managerId'];
       if (managerId != null && managerId is String && managerId.isNotEmpty) {
         await fs.collection('alerts').add({
@@ -599,7 +612,8 @@ class DatabaseService {
           'relatedGoalId': goalId,
           'type': 'goalDeletionRequest',
           'title': 'Deletion approval needed',
-          'message': '${ownerDoc.data()?['name'] ?? 'Employee'} requests deletion of "${data['title'] ?? ''}"',
+          'message':
+              '${ownerDoc.data()?['name'] ?? 'Employee'} requests deletion of "${data['title'] ?? ''}"',
           'createdAt': FieldValue.serverTimestamp(),
           'read': false,
         });
@@ -628,7 +642,7 @@ class DatabaseService {
       role = (userDoc.data()?['role'] ?? 'employee') as String;
     } catch (_) {}
 
-    if (requesterId != ownerId && role != 'manager') {
+    if (requesterId != ownerId && role != 'manager' && role != 'admin') {
       throw Exception('Not authorized to delete this goal');
     }
 
@@ -1612,32 +1626,56 @@ class DatabaseService {
     return null;
   }
 
+  /// Helper function to prepare user document data for writing
+  /// Removes 'role' field if document exists (to satisfy security rules)
+  /// This ensures all write operations (set, update) comply with Firestore rules
+  static Future<Map<String, dynamic>> _prepareUserDataForWrite(
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    final existing = await userDocRef.get();
+
+    // Create a copy to avoid modifying the original
+    final preparedData = Map<String, dynamic>.from(data);
+
+    // Remove 'role' field if document exists (users can't change their own role)
+    // Only admins can modify roles, and they should use a separate admin function
+    if (existing.exists) {
+      preparedData.remove('role');
+    }
+
+    return preparedData;
+  }
+
   static Future<void> updateUserProfile(UserProfile userProfile) async {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(userProfile.uid);
 
-    // Get all profile fields as a map - toFirestore() includes all fields
-    // We need to avoid updating the 'role' field for existing documents to satisfy security rules
-    final existing = await userDocRef.get();
-    final data = Map<String, dynamic>.from(userProfile.toFirestore());
-    if (existing.exists) {
-      // Only admins are allowed to modify roles per Firestore rules; omit role on normal updates
-      data.remove('role');
+    // Verify user is authenticated and matches the profile UID
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid == null) {
+      throw Exception('User not authenticated');
+    }
+    if (authUid != userProfile.uid) {
+      throw Exception(
+        'Cannot update profile: authenticated user (${authUid}) does not match profile UID (${userProfile.uid})',
+      );
     }
 
-    // Debug log to help diagnose permission issues in the field
+    // Prepare data for write (removes role if document exists)
+    final data = await _prepareUserDataForWrite(
+      userProfile.uid,
+      userProfile.toFirestore(),
+    );
+
+    // Debug log to help diagnose permission issues
     try {
-      final authUid = FirebaseAuth.instance.currentUser?.uid;
       final projectId = Firebase.app().options.projectId;
       developer.log(
-        'updateUserProfile: authUid=${authUid ?? 'null'}, targetUid=${userProfile.uid}, exists=${existing.exists}, keys=${data.keys.join(',')}, project=${projectId ?? 'unknown'}',
+        'updateUserProfile: authUid=$authUid, targetUid=${userProfile.uid}, keys=${data.keys.join(',')}, project=$projectId',
       );
-      if (authUid != null && authUid != userProfile.uid) {
-        developer.log(
-          'updateUserProfile: WARNING authUid != targetUid; this will be denied by rules',
-        );
-      }
     } catch (_) {}
 
     // Use set with merge: true to ensure all fields are saved
