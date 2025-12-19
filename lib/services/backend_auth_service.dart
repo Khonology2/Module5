@@ -11,11 +11,12 @@ import 'package:pdh/config/env_config.dart';
 class BackendAuthService {
   BackendAuthService._internal();
   static final BackendAuthService instance = BackendAuthService._internal();
-  static const Duration _httpTimeout = Duration(seconds: 60);
+  static const Duration _httpTimeout = Duration(seconds: 90);
   static const List<Duration> _retryDelays = [
-    Duration(seconds: 1),
     Duration(seconds: 2),
     Duration(seconds: 4),
+    Duration(seconds: 8),
+    Duration(seconds: 16),
   ];
 
   /// Backend API base URL for token authentication

@@ -70,8 +70,8 @@ class FloatingCirclesParticleAnimationState
   void _resetParticles() {
     if (!mounted) return;
     
-    final size = context.size;
-    if (size == null || size.isEmpty) return;
+    final size = MediaQuery.sizeOf(context);
+    if (size.isEmpty) return;
 
     for (int i = 0; i < widget.numberOfParticles; i++) {
       _originalPositions[i] = Offset(
@@ -116,8 +116,8 @@ class FloatingCirclesParticleAnimationState
   void triggerParticleExplosion() {
     if (!mounted) return;
     
-    final size = context.size;
-    if (size == null || size.isEmpty) return;
+    final size = MediaQuery.sizeOf(context);
+    if (size.isEmpty) return;
 
     setState(() {
       _isExploding = true;
@@ -163,8 +163,8 @@ class FloatingCirclesParticleAnimationState
   void _updateParticles() {
     if (!mounted) return;
     
-    final size = context.size;
-    if (size == null || size.isEmpty) return;
+    final size = MediaQuery.sizeOf(context);
+    if (size.isEmpty) return;
 
     for (int i = 0; i < widget.numberOfParticles; i++) {
       final progress = _controller.value;
