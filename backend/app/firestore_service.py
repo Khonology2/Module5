@@ -2,6 +2,7 @@
 Firestore service for querying onboarding and users collections
 """
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from google.cloud.firestore import Client, DocumentSnapshot
 from google.cloud.exceptions import NotFound
@@ -9,6 +10,9 @@ from google.cloud.exceptions import NotFound
 from app.firebase_client import get_firestore
 
 logger = logging.getLogger(__name__)
+
+_CACHE_TTL_SECONDS = 180
+_roles_cache: dict = {}
 
 
 class FirestoreServiceError(Exception):
@@ -233,10 +237,17 @@ def validate_user_and_get_roles(
     Raises:
         FirestoreServiceError: If user not found or validation fails
     """
-    # Try to get onboarding data by user_id first (most reliable)
+    cache_key = f"{user_id}|{email or ''}"
+    now = time.time()
+    if cache_key in _roles_cache:
+        entry = _roles_cache[cache_key]
+        if now - entry["ts"] < _CACHE_TTL_SECONDS:
+            logger.info(f"Serving Firestore validation from cache for user_id: {user_id}")
+            return entry["data"]
+        else:
+            _roles_cache.pop(cache_key, None)
     onboarding_data = get_onboarding_by_user_id(user_id)
     
-    # If not found by user_id and email is provided, try by email
     if not onboarding_data and email:
         onboarding_data = get_onboarding_by_email(email)
     
@@ -247,26 +258,19 @@ def validate_user_and_get_roles(
         error_msg += ")"
         raise FirestoreServiceError(error_msg)
     
-    # Validate user status
     if not validate_user_status(onboarding_data):
         raise FirestoreServiceError(
             f"User status is not Active (user_id: {user_id})"
         )
     
-    # Extract module access role
     module_access_role = extract_module_access_role(onboarding_data)
     if not module_access_role:
         raise FirestoreServiceError(
             f"No moduleAccessRole found in onboarding document (user_id: {user_id})"
         )
     
-    # Get roles list
     roles = get_user_roles_from_onboarding(onboarding_data)
     
-    # Resolve email: priority order:
-    # 1. Email from JWT token (if provided)
-    # 2. Email from onboarding document
-    # 3. Email from users collection
     resolved_email = email
     if not resolved_email:
         resolved_email = onboarding_data.get('email')
@@ -277,16 +281,18 @@ def validate_user_and_get_roles(
             resolved_email = user_data['email']
             logger.info(f"Resolved email from users collection: {resolved_email}")
     
-    # If still no email, use empty string (email is optional for some use cases)
     if not resolved_email:
         logger.warning(f"Email not found in JWT, onboarding, or users collection for user_id: {user_id}")
         resolved_email = ""
     
-    return {
+    result = {
         'user_id': user_id,
         'email': resolved_email,
         'roles': roles,
         'module_access_role': module_access_role,
         'status': onboarding_data.get('status', 'Active'),
     }
+    _roles_cache[cache_key] = {"data": result, "ts": now}
+    logger.info(f"Cached Firestore validation result for user_id: {user_id} with TTL { _CACHE_TTL_SECONDS }s")
+    return result
 

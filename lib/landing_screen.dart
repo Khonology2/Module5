@@ -47,6 +47,7 @@ class _PersonalDevelopmentHubScreenState
   late Timer _timer;
   bool _isCheckingToken = false;
   bool _isProcessingButton = false;
+  bool _isSlowNetwork = false;
 
   @override
   void initState() {
@@ -108,6 +109,15 @@ class _PersonalDevelopmentHubScreenState
     try {
       setState(() {
         _isCheckingToken = true;
+        _isSlowNetwork = false;
+      });
+      Future.delayed(const Duration(seconds: 5), () {
+        if (!mounted) return;
+        if (_isCheckingToken) {
+          setState(() {
+            _isSlowNetwork = true;
+          });
+        }
       });
 
       debugPrint('Landing screen: Starting token check...');
@@ -121,6 +131,7 @@ class _PersonalDevelopmentHubScreenState
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
+            _isSlowNetwork = false;
           });
         }
         return;
@@ -147,6 +158,7 @@ class _PersonalDevelopmentHubScreenState
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
+            _isSlowNetwork = false;
           });
         }
         return;
@@ -163,6 +175,7 @@ class _PersonalDevelopmentHubScreenState
           setState(() {
             _isCheckingToken = false;
             _isProcessingButton = false;
+            _isSlowNetwork = false;
           });
         }
         return;
@@ -275,6 +288,7 @@ class _PersonalDevelopmentHubScreenState
             setState(() {
               _isCheckingToken = false;
               _isProcessingButton = false;
+              _isSlowNetwork = false;
             });
             _navigateToDashboard(pdhRole);
             return;
@@ -289,6 +303,7 @@ class _PersonalDevelopmentHubScreenState
         setState(() {
           _isCheckingToken = false;
           _isProcessingButton = false;
+          _isSlowNetwork = false;
         });
       }
     } catch (e) {
@@ -297,6 +312,7 @@ class _PersonalDevelopmentHubScreenState
         setState(() {
           _isCheckingToken = false;
           _isProcessingButton = false;
+          _isSlowNetwork = false;
         });
       }
     }
@@ -453,6 +469,16 @@ class _PersonalDevelopmentHubScreenState
                           Color(0xFFC10D00),
                         ),
                         strokeWidth: 2,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _isSlowNetwork
+                            ? 'Validating token... backend may be waking up'
+                            : 'Validating token...',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
                       ),
                     ],
                   ],
