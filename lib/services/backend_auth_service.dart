@@ -45,13 +45,22 @@ class BackendAuthService {
     http.Response? lastResponse;
     for (var i = 0; i <= _retryDelays.length; i++) {
       try {
+        final attemptWatch = Stopwatch()..start();
+        debugPrint('HTTP POST attempt ${i + 1}/${_retryDelays.length + 1} to $url');
         final res = await http
             .post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
             .timeout(_httpTimeout, onTimeout: () {
           throw TimeoutException('Request timeout');
         });
+        attemptWatch.stop();
+        debugPrint('HTTP POST attempt ${i + 1} completed with status ${res.statusCode} in ${attemptWatch.elapsedMilliseconds} ms');
         return res;
       } catch (e) {
+        if (e is TimeoutException) {
+          debugPrint('HTTP POST timeout on attempt ${i + 1} to $url');
+        } else {
+          debugPrint('HTTP POST error on attempt ${i + 1} to $url: $e');
+        }
         if (e is TimeoutException) {
           await warmUpBackend();
         }
@@ -73,6 +82,8 @@ class BackendAuthService {
     final baseUrl = _backendBaseUrl;
 
     try {
+      final stopwatch = Stopwatch()..start();
+      debugPrint('Custom token request started');
       // Call the /validate-token endpoint
       final endpointUrl = '$baseUrl/validate-token';
       debugPrint('Calling backend endpoint: $endpointUrl');
@@ -87,9 +98,13 @@ class BackendAuthService {
           debugPrint(
             'Backend API returned 200 but firebase_token is missing or empty',
           );
+          stopwatch.stop();
+          debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
           return null;
         }
         debugPrint('Successfully received Firebase custom token from backend');
+        stopwatch.stop();
+        debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
         return firebaseToken;
       } else {
         // Parse error response if available
@@ -105,8 +120,13 @@ class BackendAuthService {
             'Backend API error: ${response.statusCode} - ${response.body}',
           );
         }
+        stopwatch.stop();
+        debugPrint('Custom token request completed in ${stopwatch.elapsedMilliseconds} ms');
         return null;
       }
+    } on TimeoutException catch (e) {
+      debugPrint('Network timeout during custom token request: $e');
+      return null;
     } catch (e) {
       debugPrint('Error getting custom token from backend: $e');
       return null;
@@ -137,6 +157,8 @@ class BackendAuthService {
     final baseUrl = _backendBaseUrl;
 
     try {
+      final stopwatch = Stopwatch()..start();
+      debugPrint('Token validation started');
       final endpointUrl = '$baseUrl/validate-token';
       debugPrint('Calling backend validation endpoint: $endpointUrl');
 
@@ -145,6 +167,8 @@ class BackendAuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('Token validated successfully by backend');
+        stopwatch.stop();
+        debugPrint('Token validation completed in ${stopwatch.elapsedMilliseconds} ms');
         return data;
       } else {
         // Parse error response if available
@@ -160,8 +184,13 @@ class BackendAuthService {
             'Backend validation error: ${response.statusCode} - ${response.body}',
           );
         }
+        stopwatch.stop();
+        debugPrint('Token validation completed in ${stopwatch.elapsedMilliseconds} ms');
         return null;
       }
+    } on TimeoutException catch (e) {
+      debugPrint('Network timeout during token validation: $e');
+      return null;
     } catch (e) {
       debugPrint('Error validating token with backend: $e');
       return null;

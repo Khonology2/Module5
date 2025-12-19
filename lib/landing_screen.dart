@@ -135,6 +135,8 @@ class _PersonalDevelopmentHubScreenState
         });
       }
 
+      BackendAuthService.instance.warmUpBackend();
+
       // Step B: Validate token using the backend API
       final validationResponse = await BackendAuthService.instance
           .validateTokenWithBackend(token);
@@ -250,7 +252,7 @@ class _PersonalDevelopmentHubScreenState
             internalRole = 'manager'; // Admin uses manager role internally
           }
 
-          await FirebaseFirestore.instance.collection('users').doc(userId).set({
+          FirebaseFirestore.instance.collection('users').doc(userId).set({
             'email': email,
             'role': internalRole,
             'pdhRole': pdhRole,
@@ -258,10 +260,10 @@ class _PersonalDevelopmentHubScreenState
             'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
-          await RoleService.instance.getRole(refresh: true);
+          RoleService.instance.getRole(refresh: true);
 
           // Call backend callback to notify authentication is complete
-          await BackendAuthService.instance.callAuthCallback(
+          BackendAuthService.instance.callAuthCallback(
             userId: userId,
             email: email,
             role: pdhRole,

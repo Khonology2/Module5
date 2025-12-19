@@ -2,6 +2,7 @@
 Authentication routes for token validation and Firebase custom token generation
 """
 import logging
+import time
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
@@ -78,30 +79,32 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
         HTTPException: With appropriate status code and error message
     """
     try:
-        # Step 1: Validate JWT token
+        start_total = time.perf_counter()
         logger.info("Validating JWT token")
+        t = time.perf_counter()
         decoded_token = validate_jwt_token(request.token)
+        logger.info(f"JWT validation completed in {int((time.perf_counter() - t) * 1000)} ms")
         
-        # Step 2: Extract user information from token
         user_info = extract_user_info(decoded_token)
         user_id = user_info['user_id']
         email = user_info['email']
         
         logger.info(f"Token validated for user_id: {user_id}, email: {email or 'not provided (will resolve from Firestore)'}")
         
-        # Step 3: Validate user against Firestore and get roles
-        # Note: email is optional - validate_user_and_get_roles will resolve it from Firestore if missing
         logger.info(f"Querying Firestore for user_id: {user_id}")
+        t = time.perf_counter()
         user_data = validate_user_and_get_roles(user_id, email)
+        logger.info(f"Firestore query completed in {int((time.perf_counter() - t) * 1000)} ms")
         
-        # Step 4: Generate Firebase custom token
         logger.info(f"Generating Firebase custom token for user_id: {user_id}")
+        t = time.perf_counter()
         auth_client = get_auth()
         
         # Firebase custom tokens use the user_id (UID) as the identifier
         # The UID should match the user_id from the JWT token
         # create_custom_token returns a string (JWT token)
         custom_token = auth_client.create_custom_token(user_id)
+        logger.info(f"Firebase custom token generation completed in {int((time.perf_counter() - t) * 1000)} ms")
         
         logger.info(f"Firebase custom token generated successfully for user_id: {user_id}")
         
@@ -122,6 +125,7 @@ async def validate_token(request: TokenValidationRequest) -> TokenValidationResp
             raise ValueError("Invalid Firebase custom token format")
         
         logger.info(f"Firebase token validated - length: {len(firebase_token)}, parts: {len(token_parts)}")
+        logger.info(f"Token validation completed in {int((time.perf_counter() - start_total) * 1000)} ms")
         
         return TokenValidationResponse(
             firebase_token=firebase_token,
