@@ -48,21 +48,28 @@ def validate_jwt_token(token: str) -> Dict[str, Any]:
     # Attempt to decrypt using ENCRYPTION_KEY before JWT validation.
     try:
         settings = get_settings()
-        if settings.encryption_key:
+        enc_key = (settings.encryption_key or "").strip()
+        looks_encrypted = token.startswith("gAAAA")
+        if not enc_key and looks_encrypted:
+            raise JWTValidationError(
+                "Encrypted token detected but ENCRYPTION_KEY is not configured"
+            )
+        if enc_key:
             try:
-                f = Fernet(settings.encryption_key.encode("utf-8"))
+                f = Fernet(enc_key.encode("utf-8"))
                 decrypted_bytes = f.decrypt(token.encode("utf-8"))
                 decrypted_token = decrypted_bytes.decode("utf-8").strip()
-                # Only replace if decrypted content is non-empty
                 if decrypted_token:
                     logger.info("Encrypted token detected and decrypted successfully")
                     token = decrypted_token
-            except (FernetInvalidToken, ValueError, TypeError):
-                # Not a valid Fernet token or wrong key; proceed assuming raw JWT
+            except (FernetInvalidToken, ValueError, TypeError) as e:
+                logger.warning(f"Fernet decryption failed: {e}. Proceeding as raw JWT")
+                # Proceed assuming raw JWT
                 pass
-    except Exception:
-        # If settings cannot be loaded for any reason, proceed with raw token validation
-        pass
+    except JWTValidationError:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to load settings for decryption: {e}. Proceeding as raw JWT")
     
     # Validate token structure (JWT has 3 parts: header.payload.signature)
     parts = token.split('.')

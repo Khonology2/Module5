@@ -384,11 +384,13 @@ class _PersonalDevelopmentHubScreenState
           ),
           
           // Particle Animation
-          FloatingCirclesParticleAnimation(
-            key: _animationKey,
-            circleColor: const Color(0xFFC10D00).withValues(alpha: 0.7),
-            numberOfParticles: 20,
-            maxParticleSize: 6.0,
+          Positioned.fill(
+            child: FloatingCirclesParticleAnimation(
+              key: _animationKey,
+              circleColor: const Color(0xFFC10D00).withValues(alpha: 0.7),
+              numberOfParticles: 20,
+              maxParticleSize: 6.0,
+            ),
           ),
           
           // Content overlay
