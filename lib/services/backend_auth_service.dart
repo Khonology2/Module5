@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:pdh/config/env_config.dart';
+import 'dart:async';
 
 /// Service to handle backend API calls for token authentication
 /// This service calls a backend endpoint to create Firebase custom tokens
@@ -47,10 +48,13 @@ class BackendAuthService {
         final res = await http
             .post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(body))
             .timeout(_httpTimeout, onTimeout: () {
-          throw Exception('Request timeout');
+          throw TimeoutException('Request timeout');
         });
         return res;
       } catch (e) {
+        if (e is TimeoutException) {
+          await warmUpBackend();
+        }
         if (i == _retryDelays.length) {
           rethrow;
         }
