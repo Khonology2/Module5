@@ -1,12 +1,12 @@
 """
 Firebase Admin SDK initialization and configuration
 """
-import json
 import logging
-from typing import Optional
+from typing import Optional, List
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 from firebase_admin.exceptions import FirebaseError
+from google.oauth2.service_account import Credentials
 
 from app.config import get_settings, parse_firebase_service_account
 
@@ -102,4 +102,12 @@ def get_firestore() -> firestore.Client:
     """
     app = get_firebase_app()
     return firestore.client(app)
+
+
+def get_google_credentials(scopes: Optional[List[str]] = None) -> Credentials:
+    settings = get_settings()
+    info = parse_firebase_service_account(settings.firebase_service_account_json)
+    if not scopes:
+        scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    return Credentials.from_service_account_info(info, scopes=scopes)
 
