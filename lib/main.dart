@@ -49,6 +49,7 @@ import 'package:pdh/team_management_screen.dart'; // Import the new TeamManageme
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/services/cache_service.dart'; // Import CacheService
+import 'package:pdh/services/backend_auth_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 
@@ -85,6 +86,7 @@ void main() async {
   }
   // Start periodic cache cleanup for optimal performance
   CacheService.startPeriodicCleanup();
+  BackendAuthService.instance.warmUpBackend();
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {

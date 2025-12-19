@@ -16,6 +16,8 @@ class EnvConfig {
   // This will be injected during build from JWT_SECRET_KEY environment variable
   static const String? jwtSecretKey = null;
   
+  static const String? backendUrl = null;
+  
   // Check if encryption is configured
   static bool get isEncryptionConfigured => encryptionKey != null && encryptionKey!.isNotEmpty;
   
