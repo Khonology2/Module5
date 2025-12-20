@@ -42,3 +42,6 @@ Thumbs.db
 # Logs
 *.log
 
+# Firebase credentials
+pdh-fe6eb-firebase-adminsdk-fbsvc-2700680531.json
+

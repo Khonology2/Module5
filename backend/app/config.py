@@ -143,21 +143,23 @@ def parse_firebase_service_account(service_account_str: str) -> Dict[str, Any]:
     Raises:
         ValueError: If JSON is invalid or file doesn't exist
     """
-    # Try to parse as JSON string first
+    s = (service_account_str or "").strip()
+    if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+        s = s[1:-1].strip()
     try:
-        return json.loads(service_account_str)
+        return json.loads(s)
     except json.JSONDecodeError:
         pass
-    
-    # If not valid JSON, try as file path
-    if os.path.exists(service_account_str):
+    path_candidate = os.path.expandvars(os.path.expanduser(s))
+    if not os.path.isabs(path_candidate):
+        cwd = os.getcwd()
+        path_candidate = os.path.normpath(os.path.join(cwd, path_candidate))
+    if os.path.exists(path_candidate):
         try:
-            with open(service_account_str, 'r') as f:
+            with open(path_candidate, 'r') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             raise ValueError(f"Failed to read Firebase service account file: {e}")
-    
-    # If neither worked, raise error
     raise ValueError(
         "FIREBASE_SERVICE_ACCOUNT_JSON must be either a valid JSON string "
         "or a path to a JSON file"
