@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -106,7 +107,11 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
                     .collection('team_goals')
                     .where('status', isEqualTo: 'active')
                     .orderBy('createdAt', descending: true)
-                    .snapshots(),
+                    .snapshots()
+                    .handleError((error) {
+                      // Silently handle errors to prevent unmount errors
+                      developer.log('Error in team_goals stream: $error');
+                    }),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

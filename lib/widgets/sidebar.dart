@@ -8,8 +8,8 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/app_breakpoints.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
-import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/services/profile_completion_service.dart';
 
 class ResponsiveSidebar extends StatefulWidget {
   const ResponsiveSidebar({
@@ -40,6 +40,7 @@ class ResponsiveSidebar extends StatefulWidget {
 class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   final ScrollController _scrollController = ScrollController();
   int? _previousTutorialStep;
+  bool _isProfileIncomplete = false;
 
   // Use design system colors
   static const Color backgroundColor = AppColors.backgroundColor;
@@ -48,17 +49,42 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   void initState() {
     super.initState();
     _previousTutorialStep = widget.tutorialStepIndex;
+    _checkProfileCompletion();
+  }
+
+  Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
+    try {
+      final isComplete =
+          await ProfileCompletionService.isCurrentUserProfileComplete(bypassCache: bypassCache);
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = !isComplete;
+        });
+      }
+    } catch (e) {
+      // Silently fail - don't show indicator if check fails
+      if (mounted) {
+        setState(() {
+          _isProfileIncomplete = false;
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _previousTutorialStep = null; // Clear the tutorial step reference
     super.dispose();
   }
 
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // Only proceed if the widget is still in the tree
+    if (!mounted) return;
+    
     // Scroll to tutorial item when step changes
     if (widget.tutorialStepIndex != null &&
         widget.tutorialStepIndex != _previousTutorialStep &&
@@ -66,38 +92,52 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
         widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length) {
       _previousTutorialStep = widget.tutorialStepIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToTutorialItem(widget.tutorialStepIndex!);
+        if (mounted) {  // Check mounted before proceeding
+          _scrollToTutorialItem(widget.tutorialStepIndex!);
+        }
       });
+    }
+    // Refresh profile completion check when widget updates (e.g., after profile save)
+    // Check both employee and manager profile routes
+    // Use bypassCache=true to get fresh data after profile save
+    if (widget.currentRouteName == '/my_profile' ||
+        oldWidget.currentRouteName == '/my_profile' ||
+        widget.currentRouteName == '/manager_profile' ||
+        oldWidget.currentRouteName == '/manager_profile') {
+      // Bypass cache when coming from profile page to ensure we get fresh data
+      final bypassCache = oldWidget.currentRouteName == '/manager_profile' ||
+          oldWidget.currentRouteName == '/my_profile';
+      _checkProfileCompletion(bypassCache: bypassCache);
     }
   }
 
   void _scrollToTutorialItem(int stepIndex) {
-    if (widget.sidebarTutorialKeys == null ||
+    // Add mounted check to prevent accessing keys after dispose
+    if (!mounted || 
+        widget.sidebarTutorialKeys == null ||
         stepIndex >= widget.sidebarTutorialKeys!.length) {
       return;
     }
 
     final key = widget.sidebarTutorialKeys![stepIndex];
     final context = key.currentContext;
-    if (context != null && _scrollController.hasClients) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        alignment: 0.5,
-      );
-    }
-  }
-
-  // ignore: unused_element
-  bool _isEmployeeSidebar() {
-    // Check if the sidebar items match the employee items configuration
-    return widget.items.length == SidebarConfig.employeeItems.length &&
-        widget.items.every(
-          (item) => SidebarConfig.employeeItems.any(
-            (employeeItem) => employeeItem.route == item.route,
-          ),
+    
+    // Add additional null and mounted checks
+    if (context != null && 
+        _scrollController.hasClients && 
+        mounted) {  // Check mounted again after async gap
+      try {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5,
         );
+      } catch (e) {
+        // Silently fail if we can't scroll to the item
+        debugPrint('Failed to scroll to tutorial item: $e');
+      }
+    }
   }
 
   @override
@@ -141,9 +181,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
                         final index = entry.key;
                         final it = entry.value;
                         // Check if this is the My Profile route and profile is incomplete
-                        // Note: Profile incomplete check would need to be implemented with FutureBuilder
-                        // For now, set to false to avoid undefined variable error
-                        final bool showProfileIndicator = false;
+                        final bool showProfileIndicator =
+                            (it.route == '/my_profile' ||
+                                it.route == '/manager_profile') &&
+                            _isProfileIncomplete;
 
                         final navTile = _NavTile(
                           icon: it.icon,
@@ -362,38 +403,43 @@ class _CollapseToggle extends StatelessWidget {
               // Action buttons row - compact
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Skip button
-                  TextButton(
-                    onPressed: onTutorialSkip ?? onTutorialNext!,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: TextButton(
+                      onPressed: onTutorialSkip ?? onTutorialNext!,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: const Text('Skip', style: TextStyle(fontSize: 12)),
                     ),
-                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
-                  ElevatedButton(
-                    onPressed: onTutorialNext!,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.activeColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: onTutorialNext!,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      isLastTutorialStep ? 'Finish' : 'Next',
-                      style: const TextStyle(fontSize: 12),
+                      child: Text(
+                        isLastTutorialStep ? 'Finish' : 'Next',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],
@@ -588,7 +634,29 @@ class _NavTileState extends State<_NavTile> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: isCollapsed
-                  ? Center(child: _buildIcon(isSelected))
+                  ? Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _buildIcon(isSelected),
+                        if (widget.showProfileIndicator)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: AppColors.activeColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.backgroundColor,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // If there isn't enough width to safely render icon + label,
@@ -607,33 +675,25 @@ class _NavTileState extends State<_NavTile> {
                           children: [
                             _buildIcon(isSelected),
                             const SizedBox(width: AppSpacing.xs),
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      label,
-                                      style: isSelected
-                                          ? AppTypography.navigationActive
-                                          : AppTypography.navigation,
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 1,
-                                      softWrap: false,
-                                    ),
-                                  ),
-                                  if (widget.showProfileIndicator &&
-                                      !widget.collapsed)
-                                    Padding(
-                                      padding: const EdgeInsets.only(left: 4),
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        size: 16,
-                                        color: AppColors.dangerColor,
-                                      ),
-                                    ),
-                                ],
+                            Flexible(
+                              child: Text(
+                                label,
+                                style: isSelected
+                                    ? AppTypography.navigationActive
+                                    : AppTypography.navigation,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                softWrap: false,
                               ),
                             ),
+                            if (widget.showProfileIndicator) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.error,
+                                size: 16,
+                                color: AppColors.activeColor,
+                              ),
+                            ],
                           ],
                         );
                       },
@@ -720,38 +780,44 @@ class _NavTileState extends State<_NavTile> {
               // Action buttons row - compact
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Skip button
-                  TextButton(
-                    onPressed: widget.onTutorialSkip ?? widget.onTutorialNext!,
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: TextButton(
+                      onPressed:
+                          widget.onTutorialSkip ?? widget.onTutorialNext!,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      child: const Text('Skip', style: TextStyle(fontSize: 12)),
                     ),
-                    child: const Text('Skip', style: TextStyle(fontSize: 12)),
                   ),
                   const SizedBox(width: 4),
                   // Next button
-                  ElevatedButton(
-                    onPressed: widget.onTutorialNext!,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.activeColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: widget.onTutorialNext!,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      widget.isLastTutorialStep ? 'Finish' : 'Next',
-                      style: const TextStyle(fontSize: 12),
+                      child: Text(
+                        widget.isLastTutorialStep ? 'Finish' : 'Next',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],

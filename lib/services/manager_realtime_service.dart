@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -748,6 +749,9 @@ class ManagerRealtimeService {
     TimeFilter timeFilter = TimeFilter.month,
   }) {
     return Stream<List<EmployeeData>>.multi((controller) async {
+      StreamSubscription<QuerySnapshot>? usersSub;
+      bool isCancelled = false;
+
       try {
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser == null) {
@@ -774,11 +778,15 @@ class ManagerRealtimeService {
         }
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
+          if (isCancelled) return;
+
           // Fetch onboarding users with employee persona and convert to UserProfile
           final onboardingProfiles =
               await ManagerRealtimeService._fetchOnboardingEmployees(
                 department,
               );
+
+          if (isCancelled) return;
 
           // Get regular employee IDs
           final regularEmployeeIds = usersSnapshot.docs
@@ -797,7 +805,7 @@ class ManagerRealtimeService {
           ];
 
           if (allEmployeeIds.isEmpty) {
-            controller.add([]);
+            if (!isCancelled) controller.add([]);
             return;
           }
 
@@ -874,6 +882,9 @@ class ManagerRealtimeService {
             fetchInBatches('activities'),
             fetchInBatches('alerts'),
           ]);
+
+          if (isCancelled) return;
+
           final goalsDocs = results[0];
           final activitiesDocs = results[1];
           final alertsDocs = results[2];
@@ -949,11 +960,15 @@ class ManagerRealtimeService {
             return b.totalPoints.compareTo(a.totalPoints);
           });
 
-          controller.add(employeeDataList);
+          if (!isCancelled) {
+            controller.add(employeeDataList);
+          }
         }
 
-        final usersSub = usersQuery.snapshots().listen(
+        usersSub = usersQuery.snapshots().listen(
           (snapshot) async {
+            if (isCancelled) return;
+
             // Emit a lightweight team list immediately to transition UI out of 'waiting'
             try {
               final now = DateTime.now();
@@ -979,28 +994,41 @@ class ManagerRealtimeService {
                 );
               }).toList();
               // Only emit if we actually have docs; otherwise let full rebuild handle empty
-              if (minimal.isNotEmpty) controller.add(minimal);
+              if (minimal.isNotEmpty && !isCancelled) {
+                controller.add(minimal);
+              }
             } catch (e) {
               // Ignore minimal emit failures; continue with full rebuild
             }
 
             // Perform full enrichment and emit the computed team data
-            await rebuildAndEmit(snapshot);
+            if (!isCancelled) {
+              await rebuildAndEmit(snapshot);
+            }
           },
           onError: (error) {
-            developer.log('Error in team data stream: $error');
-            controller.addError(error);
+            if (!isCancelled) {
+              developer.log('Error in team data stream: $error');
+              controller.addError(error);
+            }
           },
         );
 
         controller.onCancel = () {
-          usersSub.cancel();
+          isCancelled = true;
+          try {
+            usersSub?.cancel();
+          } catch (e) {
+            developer.log('Error cancelling stream subscription: $e');
+          }
         };
       } catch (e) {
-        developer.log('Error setting up team data stream: $e');
-        controller.addError(e);
+        if (!isCancelled) {
+          developer.log('Error setting up team data stream: $e');
+          controller.addError(e);
+        }
       }
-    });
+    }).asBroadcastStream();
   }
 
   // Get real-time team metrics

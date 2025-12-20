@@ -95,80 +95,16 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
   );
 }
 
-class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _loadGoals();
-    _ensureDepartmentIsSet();
-  }
-
-  @override
-  void dispose() {
-    _goalsSubscription?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  Future<void> _loadGoals() async {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'User not authenticated';
-        });
-        return;
-      }
-
-      // Cancel any existing subscription
-      _goalsSubscription?.cancel();
-      
-      _goalsSubscription = DatabaseService.getUserGoalsStream(user.uid).listen(
-        (goals) {
-          if (mounted) {
-            setState(() {
-              _cachedGoals = goals;
-              _isLoading = false;
-            });
-          }
-        },
-        onError: (error) {
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _errorMessage = 'Failed to load goals: ${error.toString()}';
-            });
-          }
-        },
-      );
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Error loading goals: ${e.toString()}';
-        });
-      }
-    }
-  }
+class _MyPdpScreenState extends State<MyPdpScreen>
+    with SingleTickerProviderStateMixin {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
   
   // Cache for goals to prevent unnecessary rebuilds
-  List<Goal> _cachedGoals = [];
-  bool _isLoading = true;
-  String? _errorMessage;
-  StreamSubscription<List<Goal>>? _goalsSubscription;
+  // Removed unused fields to keep state minimal and avoid analyzer warnings
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
@@ -213,7 +149,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
     try {
       final next = (goal.progress + 10).clamp(0, 100);
       await DatabaseService.updateGoalProgress(goal.id, next);
-      if (mounted) setState(() {});
+      // Don't call setState - StreamBuilder will automatically update
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().contains('Goal is not approved yet')
@@ -223,11 +159,124 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _handleDeleteGoal(Goal goal) async {
+    final userId = _auth.currentUser?.uid ?? '';
+    if (userId.isEmpty) {
+      await _showCenterNotice(context, 'User not authenticated');
+      return;
+    }
+
+    if (goal.approvalStatus != GoalApprovalStatus.approved) {
+      // Direct delete flow
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text('Delete Goal', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'Are you sure you want to delete this goal? This cannot be undone.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      try {
+        _showLoadingDialog(context, message: 'Deleting goal...');
+        await DatabaseService.deleteGoal(goalId: goal.id, requesterId: userId);
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Goal deleted');
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Failed to delete: $e');
+        }
+      }
+    } else {
+      // Request deletion flow
+      final reasonController = TextEditingController();
+      final submitted = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text('Request Goal Deletion', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Provide a reason for deleting this approved goal. Your manager will need to approve this request.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: 'Reason',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: OutlineInputBorder(),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      );
+      if (submitted != true) return;
+      final reason = reasonController.text.trim();
+      if (reason.isEmpty) {
+        await _showCenterNotice(context, 'Please provide a reason');
+        return;
+      }
+      try {
+        _showLoadingDialog(context, message: 'Submitting request...');
+        await DatabaseService.requestGoalDeletion(
+          goalId: goal.id,
+          reason: reason,
+          requesterId: userId,
+        );
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(
+            context,
+            'Deletion request submitted for manager approval',
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          await _showCenterNotice(context, 'Failed to submit request: $e');
+        }
+      }
+    }
+  }
+
   Future<void> _markModuleComplete(Goal goal) async {
     try {
       final next = (goal.progress + 25).clamp(0, 100);
       await DatabaseService.updateGoalProgress(goal.id, next);
-      if (mounted) setState(() {});
+      // Don't call setState - StreamBuilder will automatically update
     } catch (e) {
       if (!mounted) return;
       final message = e.toString().contains('Goal is not approved yet')
@@ -319,7 +368,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
                                     context,
                                     rootNavigator: true,
                                   ).pop();
-                                  setState(() {});
+                                  // Don't call setState - StreamBuilder will automatically update
                                   // Show success message
                                   await _showCenterNotice(
                                     context,
@@ -387,6 +436,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
         );
       }
       if (mounted) {
+        // Don't call setState - StreamBuilder will automatically update
         await _showCenterNotice(context, 'Evidence added');
       }
     }
@@ -504,11 +554,19 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
               ),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 try {
-                  web.window.open(evidence, '_blank');
+                  final user = FirebaseAuth.instance.currentUser;
+                  final token = await user?.getIdToken();
+                  final uri = Uri.parse(evidence);
+                  final qp = Map<String, String>.from(uri.queryParameters);
+                  if (token != null && token.isNotEmpty) {
+                    qp['token'] = token;
+                  }
+                  final urlWithToken =
+                      uri.replace(queryParameters: qp).toString();
+                  web.window.open(urlWithToken, '_blank');
                 } catch (_) {
-                  // On non-web platforms, just close the dialog
                   Navigator.of(ctx).pop();
                 }
               },
@@ -752,10 +810,15 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
   }
 
   // Ensure user's department is set; otherwise block submission and prompt to update profile
-  Future<bool> _ensureDepartmentIsSet() async {
+  Future<bool> _ensureDepartmentIsSet({int retryCount = 0}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
+
+      // Add retry logic for Firestore internal assertion failures
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
 
       final userDoc = await DatabaseService.getUserProfile(user.uid);
       final department = userDoc.department.trim();
@@ -811,7 +874,20 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
       }
       return true;
     } catch (e) {
-      // If we cannot validate, be safe and block submission
+      // Retry up to 2 times for Firestore internal assertion failures
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        // Retry with exponential backoff
+        return _ensureDepartmentIsSet(retryCount: retryCount + 1);
+      }
+
+      // If we cannot validate after retries, show error and block submission
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Failed to load profile: $e\n\nPlease try again or contact support if this persists.',
+        );
+      }
       return false;
     }
   }
@@ -972,46 +1048,135 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildGoalsForExcellence(String excellence) {
-    // Use cached data if available
-    if (_isLoading) {
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: CircularProgressIndicator(),
-      );
-    }
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, authSnap) {
+        if (authSnap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(),
+          );
+        }
+        final user = authSnap.data;
+        if (user == null) {
+          return const Text(
+            'Please sign in',
+            style: TextStyle(color: Colors.white),
+          );
+        }
+        return StreamBuilder<List<Goal>>(
+          stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
+            error,
+          ) {
+            // Silently handle errors to prevent unmount errors
+            // The error will be caught by hasError check below
+            return;
+          }),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              );
+            }
 
-    if (_errorMessage != null) {
-      return Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            Text(
-              'Error loading goals',
-              style: const TextStyle(color: Colors.red),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => _loadGoals(),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
+            // Handle errors gracefully
+            if (snapshot.hasError) {
+              final error = snapshot.error;
+              final errorString = error.toString();
 
-    final goals = _cachedGoals
-        .where((g) => _mapGoalToExcellence(g) == excellence)
-        .toList();
+              // Check if it's a Firestore internal assertion failure
+              if (errorString.contains('INTERNAL ASSERTION FAILED')) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.orange,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Temporary loading issue',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Please refresh the page or try again in a moment.',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Trigger a rebuild by calling setState
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                );
+              }
 
-    if (goals.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(8.0),
-        child: Text(
-          'No goals yet',
-          style: TextStyle(color: Colors.white70),
-        ),
-      );
-    }
+              // For other errors, show a generic error message
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Error loading goals',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please try refreshing the page.',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final goals = (snapshot.data ?? [])
+                .where((g) => _mapGoalToExcellence(g) == excellence)
+                .toList();
+            if (goals.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Text(
+                  'No goals yet',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              );
+            }
 
             return Column(
               children: goals.map((goal) {
@@ -1200,6 +1365,15 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
                                     )
                                   : null,
                             ),
+                            OutlinedButton.icon(
+                              onPressed: () => _handleDeleteGoal(goal),
+                              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                              label: const Text('Delete'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                              ),
+                            ),
                             Builder(
                               builder: (context) {
                                 bool isHovered = false;
@@ -1257,8 +1431,11 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
                               },
                             ),
                             StreamBuilder<List<AuditEntry>>(
-                              stream:
-                                  AuditService.getEmployeeAuditEntriesStream(),
+                              stream: AuditService.getEmployeeAuditEntriesStream()
+                                  .handleError((error) {
+                                    // Silently handle errors to prevent unmount errors
+                                    return;
+                                  }),
                               builder: (context, auditSnapshot) {
                                 final hasAuditEntry =
                                     auditSnapshot.hasData &&
@@ -1329,5 +1506,9 @@ class _MyPdpScreenState extends State<MyPdpScreen> with WidgetsBindingObserver {
                 );
               }).toList(),
             );
+          },
+        );
+      },
+    );
   }
 }

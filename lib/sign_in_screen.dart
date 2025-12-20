@@ -5,7 +5,7 @@ import 'dart:ui'; // Import for ImageFilter
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'package:pdh/services/role_service.dart'; // Add RoleService import
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore (includes Timestamp)
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
@@ -121,14 +121,77 @@ class _LoginScreenState extends State<LoginScreen>
       final user = FirebaseAuth.instance.currentUser;
 
       if (user != null && currentRole == null) {
-        // User is authenticated but has no role yet, assign default 'employee' role
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-          {'role': 'employee'},
-          SetOptions(merge: true), // Merge with existing data
-        );
-        currentRole = 'employee'; // Update currentRole to employee
-        // Refresh the cached role in RoleService
-        await RoleService.instance.getRole(refresh: true);
+        // Check if user document exists and get role directly from Firestore
+        // This helps catch cases where role might not be cached yet
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          // Document exists - check if role is actually in the document
+          final docRole = userDoc.data()?['role'] as String?;
+          if (docRole != null && docRole.isNotEmpty) {
+            // Role exists in document, use it
+            currentRole = docRole;
+            // Update cache
+            await RoleService.instance.getRole(refresh: true);
+          } else {
+            // Document exists but role is missing - this is unusual for existing users
+            // Wait a moment in case registration is still in progress, then retry
+            await Future.delayed(const Duration(milliseconds: 1000));
+            final retryDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get();
+            final retryRole = retryDoc.data()?['role'] as String?;
+
+            if (retryRole != null && retryRole.isNotEmpty) {
+              currentRole = retryRole;
+              await RoleService.instance.getRole(refresh: true);
+            } else {
+              // Still no role after retry - check if user was just created
+              final createdAt = retryDoc.data()?['createdAt'] as Timestamp?;
+              final now = Timestamp.now();
+              final secondsSinceCreation = createdAt != null
+                  ? now.seconds - createdAt.seconds
+                  : 999;
+
+              if (secondsSinceCreation < 10) {
+                // User was just created, wait a bit more for registration to complete
+                await Future.delayed(const Duration(milliseconds: 2000));
+                final finalRetry = await RoleService.instance.getRole(
+                  refresh: true,
+                );
+                if (finalRetry != null && finalRetry.isNotEmpty) {
+                  currentRole = finalRetry;
+                } else {
+                  // Still no role - do not set a default here; navigate with fallback later
+                  currentRole = null;
+                }
+              } else {
+                // User exists but has no role - do not assign a default here
+                currentRole = null;
+              }
+            }
+          }
+        } else {
+          // Document doesn't exist - might be registration in progress, wait and retry
+          await Future.delayed(const Duration(milliseconds: 1000));
+          currentRole = await RoleService.instance.getRole(refresh: true);
+
+          // If still null after retry, this is a new user without registration data
+          // Don't create the document here - let registration handle it
+          // For now, default to employee but log a warning
+          if (currentRole == null) {
+            debugPrint(
+              'Warning: User ${user.uid} has no user document. This may indicate incomplete registration.',
+            );
+            // Don't create document here - it should be created during registration
+            // Just route to employee dashboard as fallback
+            currentRole = 'employee';
+          }
+        }
       }
 
       if (!context.mounted) return;
@@ -247,9 +310,14 @@ class _LoginScreenState extends State<LoginScreen>
           }
         } catch (_) {}
 
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+                'lastLoginAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        } catch (_) {}
 
         // Also record a light-weight daily activity for streaks
         try {

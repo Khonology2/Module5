@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
@@ -32,41 +33,12 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
   Color _passwordStrengthColor = Colors.grey;
   String _passwordHint = '';
   bool _isRegistering = false;
-  bool _isButtonHovered = false;
-
   late Timer _hintTimer;
-  late AnimationController _hoverController;
-  late AnimationController _clickController;
-  late Animation<double> _hoverAnimation;
-  late Animation<double> _clickAnimation;
 
   @override
   void initState() {
     super.initState();
-    // Timer retained to keep structure minimal though hints are static now
     _hintTimer = Timer(const Duration(milliseconds: 1), () {});
-
-    // Hover animation controller
-    _hoverController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    // Click animation controller
-    _clickController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-
-    // Hover animation with spring effect
-    _hoverAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _hoverController, curve: Curves.easeOutBack),
-    );
-
-    // Click animation with bounce
-    _clickAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _clickController, curve: Curves.easeInOut),
-    );
   }
 
   @override
@@ -74,8 +46,6 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
     try {
       _hintTimer.cancel();
     } catch (_) {}
-    _hoverController.dispose();
-    _clickController.dispose();
     // Clean up the controllers when the widget is disposed.
     _fullNameController.dispose();
     _usernameController.dispose();
@@ -85,146 +55,6 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
     super.dispose();
   }
 
-  void _onButtonHover(bool isHovered) {
-    setState(() {
-      _isButtonHovered = isHovered;
-    });
-    if (isHovered) {
-      _hoverController.forward();
-    } else {
-      _hoverController.reverse();
-    }
-  }
-
-  Future<void> _onSignUpClick() async {
-    // Haptic feedback
-    HapticFeedback.lightImpact();
-
-    // Click animation
-    await _clickController.forward();
-    await _clickController.reverse();
-
-    // Continue with registration logic
-    if (_fullNameController.text.isEmpty) {
-      await _showCenterNotice('Please enter your full name.');
-      return;
-    }
-    if (_usernameController.text.isEmpty) {
-      await _showCenterNotice('Please enter a username.');
-      return;
-    }
-    if (_emailController.text.isEmpty) {
-      await _showCenterNotice('Please enter your email.');
-      return;
-    }
-    if (!RegExp(
-      r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
-    ).hasMatch(_emailController.text)) {
-      await _showCenterNotice('Please enter a valid email address.');
-      return;
-    }
-    if (_passwordController.text.length < 8) {
-      await _showCenterNotice('Password must be at least 8 characters long.');
-      return;
-    }
-    if (_passwordController.text != _confirmPasswordController.text) {
-      await _showCenterNotice('Passwords do not match.');
-      return;
-    }
-    if (_selectedRole == null) {
-      await _showCenterNotice('Please select a role.');
-      return;
-    }
-
-    setState(() {
-      _isRegistering = true;
-    });
-    _showLoadingDialog();
-    try {
-      UserCredential userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-      // Post-auth blocklist check; if blocked, delete the just-created user and stop
-      try {
-        final emailLower = _emailController.text.trim().toLowerCase();
-        final blocked = await FirebaseFirestore.instance
-            .collection('deleted_accounts')
-            .where('emailLower', isEqualTo: emailLower)
-            .limit(1)
-            .get();
-        if (blocked.docs.isNotEmpty) {
-          try {
-            await userCredential.user?.delete();
-          } catch (_) {}
-          try {
-            await FirebaseAuth.instance.signOut();
-          } catch (_) {}
-          if (!mounted) return;
-          await _showCenterNotice(
-            'This email was permanently deleted and cannot be used to register.',
-          );
-          return;
-        }
-      } catch (_) {
-        // Ignore errors here; inability to read blocklist should not break registration
-      }
-      // Store additional user data in Firestore
-      // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
-      await DatabaseService.initializeUserData(
-        userCredential.user!.uid,
-        _fullNameController.text,
-        _emailController.text,
-        role: _selectedRole!, // Use the selected role
-      );
-
-      // Initialize default badges and run initial check
-      await BadgeService.initializeUserBadges(userCredential.user!.uid);
-      await BadgeService.checkAndAwardBadges(userCredential.user!.uid);
-
-      if (!mounted) {
-        return; // Guard against context use after async gap
-      }
-      Navigator.of(context, rootNavigator: true).maybePop();
-      setState(() {
-        _isRegistering = false;
-      });
-      await _showCenterNotice('Registration Successful!');
-      if (!mounted) {
-        return; // Guard against context use after async gap
-      }
-      Navigator.pushReplacementNamed(context, '/sign_in');
-    } on FirebaseAuthException catch (e) {
-      String message;
-      if (e.code == 'weak-password') {
-        message = 'The password provided is too weak.';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'The account already exists for that email.';
-      } else {
-        message = e.message ?? 'An unknown error occurred.';
-      }
-      if (!mounted) {
-        return; // Guard against context use after async gap
-      }
-      Navigator.of(context, rootNavigator: true).maybePop();
-      setState(() {
-        _isRegistering = false;
-      });
-      await _showCenterNotice(message);
-    } catch (e) {
-      if (!mounted) {
-        return; // Guard against context use after async gap
-      }
-      Navigator.of(context, rootNavigator: true).maybePop();
-      setState(() {
-        _isRegistering = false;
-      });
-      await _showCenterNotice(
-        'An unexpected error occurred: ${e.toString()}',
-      );
-    }
-  }
 
   void _updatePasswordStrength(String password) {
     setState(() {
@@ -508,76 +338,258 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
                             const SizedBox(height: 20),
                             _buildRoleDropdown(),
                             const SizedBox(height: 30),
-                            // SIGN UP button with animations
-                            MouseRegion(
-                              onEnter: (_) => _onButtonHover(true),
-                              onExit: (_) => _onButtonHover(false),
-                              child: AnimatedBuilder(
-                                animation: Listenable.merge([
-                                  _hoverAnimation,
-                                  _clickAnimation,
-                                ]),
-                                builder: (context, child) {
-                                  final scale = _isButtonHovered
-                                      ? _hoverAnimation.value *
-                                          _clickAnimation.value
-                                      : _clickAnimation.value;
-                                  return Transform.scale(
-                                    scale: scale,
-                                    child: Container(
-                                      width: double.infinity,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(28),
-                                        color: const Color(0xFFC10D00),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFFC10D00)
-                                                .withValues(
-                                              alpha: _isButtonHovered ? 0.5 : 0.3,
-                                            ),
-                                            blurRadius:
-                                                _isButtonHovered ? 12 : 8,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
-                                      ),
-                                      child: TextButton(
-                                        onPressed:
-                                            _isRegistering ? null : _onSignUpClick,
-                                        style: TextButton.styleFrom(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(28),
-                                          ),
-                                        ),
-                                        child: _isRegistering
-                                            ? const SizedBox(
-                                                height: 22,
-                                                width: 22,
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                          Color>(
-                                                    Colors.white,
-                                                  ),
-                                                ),
-                                              )
-                                            : const Text(
-                                                'SIGN UP',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontFamily: 'Poppins',
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
+                            Container(
+                              width: double.infinity,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(28),
+                                color: const Color(0xFFC10D00),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFFC10D00,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: TextButton(
+                                onPressed: _isRegistering
+                                    ? null
+                                    : () async {
+                              if (_fullNameController.text.isEmpty) {
+                                          await _showCenterNotice(
+                                            'Please enter your full name.',
+                                          );
+                                return;
+                              }
+                              if (_usernameController.text.isEmpty) {
+                                          await _showCenterNotice(
+                                            'Please enter a username.',
+                                          );
+                                return;
+                              }
+                              if (_emailController.text.isEmpty) {
+                                          await _showCenterNotice(
+                                            'Please enter your email.',
+                                          );
+                                return;
+                              }
+                              if (!RegExp(
+                                r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                              ).hasMatch(_emailController.text)) {
+                                          await _showCenterNotice(
+                                            'Please enter a valid email address.',
+                                          );
+                                return;
+                              }
+                                        if (_passwordController.text.length <
+                                            8) {
+                                          await _showCenterNotice(
+                                            'Password must be at least 8 characters long.',
+                                          );
+                                return;
+                              }
+                              if (_passwordController.text !=
+                                  _confirmPasswordController.text) {
+                                          await _showCenterNotice(
+                                            'Passwords do not match.',
+                                          );
+                                return;
+                              }
+                              if (_selectedRole == null) {
+                                          await _showCenterNotice(
+                                            'Please select a role.',
+                                          );
+                                return;
+                              }
+
+                                        setState(() {
+                                          _isRegistering = true;
+                                        });
+                              _showLoadingDialog();
+                              try {
+                                          UserCredential
+                                          userCredential = await FirebaseAuth
+                                              .instance
+                                        .createUserWithEmailAndPassword(
+                                          email: _emailController.text,
+                                                password:
+                                                    _passwordController.text,
+                                        );
+                                // Post-auth blocklist check; if blocked, delete the just-created user and stop
+                                try {
+                                            final emailLower = _emailController
+                                                .text
+                                                .trim()
+                                                .toLowerCase();
+                                            final blocked =
+                                                await FirebaseFirestore.instance
+                                                    .collection(
+                                                      'deleted_accounts',
+                                                    )
+                                                    .where(
+                                                      'emailLower',
+                                                      isEqualTo: emailLower,
+                                                    )
+                                      .limit(1)
+                                      .get();
+                                  if (blocked.docs.isNotEmpty) {
+                                              try {
+                                                await userCredential.user
+                                                    ?.delete();
+                                              } catch (_) {}
+                                              try {
+                                                await FirebaseAuth.instance
+                                                    .signOut();
+                                              } catch (_) {}
+                                    if (!context.mounted) return;
+                                              await _showCenterNotice(
+                                                'This email was permanently deleted and cannot be used to register.',
+                                              );
+                                    return;
+                                  }
+                                } catch (_) {
+                                  // Ignore errors here; inability to read blocklist should not break registration
+                                }
+                                // Clear RoleService cache before setting up new user
+                                RoleService.instance.clearCache();
+                                
+                                // Small delay to let Firestore settle after user creation
+                                await Future.delayed(const Duration(milliseconds: 300));
+                                
+                                // Store additional user data in Firestore
+                                // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
+                                try {
+                                  await DatabaseService.initializeUserData(
+                                    userCredential.user!.uid,
+                                    _fullNameController.text,
+                                    _emailController.text,
+                                    role: _selectedRole!, // Use the selected role
                                   );
-                                },
+                                } catch (e) {
+                                  debugPrint('Error initializing user data: $e');
+                                  // Continue even if this fails - user is created
+                                }
+
+                                // Initialize default badges and run initial check
+                                try {
+                                  await BadgeService.initializeUserBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                  // Small delay between badge operations
+                                  await Future.delayed(const Duration(milliseconds: 200));
+                                  await BadgeService.checkAndAwardBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                } catch (e) {
+                                  debugPrint('Error initializing badges: $e');
+                                  // Continue even if badges fail - registration should succeed
+                                }
+
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).maybePop();
+                                          setState(() {
+                                            _isRegistering = false;
+                                          });
+                                          await _showCenterNotice(
+                                            'Registration Successful!',
+                                          );
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
+                                Navigator.pushReplacementNamed(
+                                  context,
+                                  '/sign_in',
+                                );
+                              } on FirebaseAuthException catch (e) {
+                                String message;
+                                if (e.code == 'weak-password') {
+                                  message =
+                                      'The password provided is too weak.';
+                                          } else if (e.code ==
+                                              'email-already-in-use') {
+                                  message =
+                                      'The account already exists for that email.';
+                                } else {
+                                  message =
+                                                e.message ??
+                                                'An unknown error occurred.';
+                                }
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).maybePop();
+                                          setState(() {
+                                            _isRegistering = false;
+                                          });
+                                await _showCenterNotice(message);
+                              } catch (e) {
+                                // Catch all other errors including Firestore errors
+                                debugPrint('Registration error: $e');
+                                if (!context.mounted) {
+                                  return; // Guard against context use after async gap
+                                }
+                                Navigator.of(
+                                  context,
+                                  rootNavigator: true,
+                                ).maybePop();
+                                setState(() {
+                                  _isRegistering = false;
+                                });
+                                
+                                // Check if it's a Firestore internal error
+                                final errorString = e.toString();
+                                if (errorString.contains('FIRESTORE') && 
+                                    errorString.contains('INTERNAL ASSERTION FAILED')) {
+                                  // User is likely created, try to continue
+                                  await _showCenterNotice(
+                                    'Registration completed, but there was a temporary issue. Please try signing in.',
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/sign_in',
+                                    );
+                                  }
+                                } else {
+                                  await _showCenterNotice(
+                                    'An error occurred during registration. Please try again.',
+                                  );
+                                }
+                              }
+                            },
+                                child: _isRegistering
+                                    ? const SizedBox(
+                                        height: 22,
+                                        width: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'SIGN UP',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Poppins',
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 20),

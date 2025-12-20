@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -11,50 +12,133 @@ class RoleService {
 
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
+  String? _currentUserId; // Track which user the stream is for
 
   String? get cachedRole => _cachedRole;
 
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return null;
-    final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final snap = await ref.get();
-    String? role = snap.data()?['role'] as String?;
-    if (role == null || role.isEmpty) {
-      try {
-        await ref.set({'role': 'employee'}, SetOptions(merge: true));
-        role = 'employee';
-      } catch (_) {}
+    if (user == null) {
+      _cachedRole = null;
+      return null;
     }
-    _cachedRole = role ?? 'employee';
-    return _cachedRole;
+
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final snap = await ref.get();
+
+      if (!snap.exists) {
+        // Document doesn't exist - return null, don't create it
+        // This allows registration to set the role properly
+        _cachedRole = null;
+        return null;
+      }
+
+      // Document exists - get the role
+      final roleData = snap.data();
+      String? role = roleData?['role'] as String?;
+
+      // Only set default role if role is truly missing (null or empty string)
+      // NEVER overwrite an existing role, even if it's empty string
+      // Empty string might indicate a role is being set elsewhere
+      if (role == null || role.isEmpty) {
+        // Double-check: read the document again to make sure we have the latest data
+        // This prevents race conditions where role might have been set between reads
+        final retrySnap = await ref.get();
+        final retryRole = retrySnap.data()?['role'] as String?;
+
+        if (retryRole != null && retryRole.isNotEmpty) {
+          // Role was set between reads, use it
+          _cachedRole = retryRole;
+          return _cachedRole;
+        }
+
+        // Role is still missing - only then set default
+        // But first, check if this is a brand new user (created in last 10 seconds)
+        // If so, don't set default - let registration complete
+        final createdAt = roleData?['createdAt'] as Timestamp?;
+        if (createdAt != null) {
+          final now = Timestamp.now();
+          final secondsSinceCreation = now.seconds - createdAt.seconds;
+          if (secondsSinceCreation < 10) {
+            // User was just created, don't set default role yet
+            _cachedRole = null;
+            return null;
+          }
+        }
+
+        // Role is missing and user is not brand new - do NOT set a default here
+        // Avoid accidental downgrades; let registration/admin flows set the role
+        _cachedRole = null;
+        return null;
+      }
+
+      _cachedRole = role;
+      return _cachedRole;
+    } catch (e) {
+      developer.log('Error getting role: $e');
+      // Return cached role if available, otherwise return null
+      // Let the calling code decide what to do with null role
+      return _cachedRole;
+    }
   }
 
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Stream.empty();
+    if (user == null) {
+      _clearStream();
+      return const Stream.empty();
+    }
+
+    // If user changed, clear old stream first to prevent multiple listeners
+    if (_currentUserId != null && _currentUserId != user.uid) {
+      _clearStream();
+    }
 
     // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
-    _roleBroadcast ??= FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
-          final role = doc.data()?['role'] as String?;
-          _cachedRole = role;
-          return role;
-        })
-        .distinct()
-        .asBroadcastStream();
+    if (_roleBroadcast == null) {
+      _currentUserId = user.uid;
+      try {
+        _roleBroadcast = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .snapshots()
+            .map((doc) {
+              try {
+                final role = doc.data()?['role'] as String?;
+                _cachedRole = role;
+                return role;
+              } catch (e) {
+                developer.log('Error processing role snapshot: $e');
+                return _cachedRole;
+              }
+            })
+            .distinct()
+            .handleError((error) {
+              developer.log('Error in role stream: $error');
+              // Don't propagate error, just return cached role
+            })
+            .asBroadcastStream();
+      } catch (e) {
+        developer.log('Error creating role stream: $e');
+        // Return a stream with cached role
+        return Stream.value(_cachedRole);
+      }
+    }
 
     return _roleBroadcast!;
+  }
+
+  void _clearStream() {
+    _roleBroadcast = null;
+    _currentUserId = null;
   }
 
   // Method to clear cache (useful for sign out)
   void clearCache() {
     _cachedRole = null;
-    _roleBroadcast = null;
+    _clearStream();
   }
 
   // Method to ensure role is loaded and cached

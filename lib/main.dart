@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 //import 'package:flutter/services.dart'; // Import for SystemChrome
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/firebase_options.dart';
 import 'package:pdh/my_pdp_screen.dart';
 import 'package:pdh/progress_visuals_screen.dart';
@@ -83,6 +84,13 @@ void main() async {
     } catch (_) {
       // Non-web or older SDKs will ignore
     }
+    // Mitigate Firestore Web internal assertion bugs by disabling persistence
+    // Must be set before any Firestore usage
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: false,
+      );
+    } catch (_) {}
   }
   // Start periodic cache cleanup for optimal performance
   CacheService.startPeriodicCleanup();
@@ -90,7 +98,19 @@ void main() async {
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {
-    debugPrint('FlutterError: ${details.exceptionAsString()}');
+    final error = details.exceptionAsString();
+    debugPrint('FlutterError: $error');
+
+    // Catch Firestore internal assertion errors and prevent them from crashing
+    if (error.contains('FIRESTORE') &&
+        error.contains('INTERNAL ASSERTION FAILED')) {
+      debugPrint(
+        'Caught Firestore internal assertion error - suppressing crash',
+      );
+      // Don't show error dialog for Firestore internal errors
+      return;
+    }
+
     if (details.stack != null) {
       debugPrint(details.stack.toString());
     }
@@ -98,6 +118,10 @@ void main() async {
       FlutterError.presentError(details);
     }
   };
+
+  // Note: For unhandled async errors, FlutterError.onError should catch most cases
+  // PlatformDispatcher.onError is available in Flutter 3.7+ but we'll rely on
+  // FlutterError.onError for broader compatibility
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
       color: Colors.white,
@@ -163,7 +187,21 @@ class _MyAppState extends State<MyApp> {
       // If no explicit app locale is stored yet, prefer the device locale
       // when it is supported; otherwise fall back to English (South Africa).
       final deviceLocale = WidgetsBinding.instance.platformDispatcher.locale;
-      final supported = AppLocalizations.supportedLocales;
+      // Supported locales based on ARB files in lib/l10n/
+      const supported = [
+        Locale('en', 'ZA'),
+        Locale('en'),
+        Locale('af'),
+        Locale('zu'),
+        Locale('st'),
+        Locale('nr'),
+        Locale('nso'),
+        Locale('ss'),
+        Locale('tn'),
+        Locale('ts'),
+        Locale('ve'),
+        Locale('xh'),
+      ];
       resolvedLocale = supported.firstWhere(
         (l) =>
             l.languageCode == deviceLocale.languageCode &&

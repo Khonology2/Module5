@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element
+// ignore_for_file: unused_element, unused_field
 
 import 'dart:math' as math;
 
@@ -37,22 +37,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   // true = Personal, false = Team
   // null=All, 'alert' | 'nudge' | 'approval_request'
   // SMART rubric state per goalId
-  // ignore: unused_field
+
   final _approvalsStatusFilter = 'all'; // 'all' | 'approved' | 'rejected'
-  // ignore: unused_field
+
   final Set<String> _expandedApprovals = <String>{};
   AlertPriority? _selectedPriority;
-  // ignore: unused_field
+
+  // Track alerts marked as read locally for optimistic updates
+  final Set<String> _locallyMarkedAsRead = <String>{};
+
   Future<NudgeAnalyticsSummary>? _analyticsFuture;
-  // ignore: unused_field, prefer_final_fields
-  bool _showNudgeTrend = true;
+  final bool _showNudgeTrend = true;
   bool _isLoadingInsights = false;
   Map<String, dynamic>? _teamInsights;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this, initialIndex: 0);
     _redirectIfManager();
   }
 
@@ -104,9 +106,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Safety: if hot reload preserved an older controller with wrong length, recreate it
-    if (_tabController.length != 4) {
+    if (_tabController.length != 2) {
+      final oldIndex = _tabController.index;
       _tabController.dispose();
-      _tabController = TabController(length: 4, vsync: this);
+      _tabController = TabController(
+        length: 2,
+        vsync: this,
+        initialIndex: oldIndex < 2 ? oldIndex : 0,
+      );
     }
   }
 
@@ -427,6 +434,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         }
       },
       content: StreamBuilder<List<EmployeeData>>(
+        key: const ValueKey('team_data_stream'),
         stream: ManagerRealtimeService.getTeamDataStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
@@ -441,7 +449,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      color: AppColors.dangerColor,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading team data',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final employees = snapshot.data ?? [];
@@ -477,24 +514,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                       text: 'Team Alerts',
                       icon: Image.asset(
                         'assets/red_bell.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    Tab(
-                      text: 'Send Nudges',
-                      icon: Image.asset(
-                        'assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png',
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    Tab(
-                      text: 'Analytics',
-                      icon: Image.asset(
-                        'assets/Project Management/Project_Red Badge_White.png',
                         width: 32,
                         height: 32,
                         fit: BoxFit.contain,
@@ -543,7 +562,6 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 children: [
                   _buildApprovalsTab(employees),
                   _buildTeamAlertsTab(employees),
-                  _buildSendNudgesTab(employees),
                 ],
               ),
             ),
@@ -557,14 +575,33 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
 
   Widget _buildStatsRow(List<EmployeeData> employees) {
     final allAlerts = employees.expand((emp) => emp.recentAlerts).toList();
-    final unreadAlerts = allAlerts.where((a) => !a.isRead).length;
+
+    // Clean up locally marked alerts that are now actually read in the stream
+    _locallyMarkedAsRead.removeWhere((alertId) {
+      final alertIndex = allAlerts.indexWhere((a) => a.id == alertId);
+      if (alertIndex == -1) {
+        // Alert no longer exists in stream, remove from local set
+        return true;
+      }
+      // Remove if alert is now read in stream
+      return allAlerts[alertIndex].isRead;
+    });
+
+    final unreadAlerts = allAlerts
+        .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+        .length;
     final totalAlerts = allAlerts.length;
     final urgentAlerts = employees.fold<int>(
       0,
       (acc, emp) =>
           acc +
           emp.recentAlerts
-              .where((a) => a.priority == AlertPriority.urgent && !a.isRead)
+              .where(
+                (a) =>
+                    a.priority == AlertPriority.urgent &&
+                    !a.isRead &&
+                    !_locallyMarkedAsRead.contains(a.id),
+              )
               .length,
     );
     final overdueGoals = employees.fold<int>(
@@ -583,7 +620,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             subtitle: totalAlerts > 0 ? 'of $totalAlerts total' : null,
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: 8),
         Expanded(
           child: _buildStatCard(
             'Urgent',
@@ -594,7 +631,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 'assets/Information_Detail/Information_Red_Badge_White.png',
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: 8),
         Expanded(
           child: _buildStatCard(
             'Overdue Goals',
@@ -605,7 +642,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
+        const SizedBox(width: 8),
         Expanded(
           child: _buildStatCard(
             'Team Members',
@@ -635,6 +672,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (imageAsset != null)
             Image.asset(imageAsset, width: 24, height: 24, fit: BoxFit.contain)
@@ -682,7 +720,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final realAlerts = allAlerts
         .where((a) => !a.id.startsWith('synthetic_'))
         .toList();
-    final unreadCount = realAlerts.where((a) => !a.isRead).length;
+    final unreadCount = realAlerts
+        .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+        .length;
 
     // Always show button when there are employees (even if no alerts yet)
     if (employees.isEmpty) {
@@ -690,7 +730,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
@@ -699,34 +739,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Mark All Alerts as Read',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                realAlerts.isEmpty
-                    ? 'No alerts to mark as read'
-                    : unreadCount > 0
-                    ? 'Mark all $unreadCount unread alert${unreadCount == 1 ? '' : 's'} as read across all tabs'
-                    : 'All ${realAlerts.length} alert${realAlerts.length == 1 ? '' : 's'} are already read',
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
+          Text(
+            'Mark All as Read',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           ElevatedButton.icon(
             onPressed: (realAlerts.isNotEmpty && unreadCount > 0)
                 ? () => _markAllAlertsAsRead(realAlerts)
                 : null,
-            icon: const Icon(Icons.done_all, size: 18),
+            icon: const Icon(Icons.done_all, size: 16),
             label: Text(
               realAlerts.isEmpty
                   ? 'No Alerts'
@@ -739,7 +763,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   ? AppColors.activeColor
                   : AppColors.textSecondary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
           ),
         ],
@@ -794,11 +818,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     }
 
     final filteredAlerts = allAlerts.where((a) {
-      return a.type == AlertType.goalOverdue ||
+      // Filter by type
+      final matchesType =
+          a.type == AlertType.goalOverdue ||
           a.type == AlertType.inactivity ||
           a.type == AlertType.seasonJoined ||
           a.type == AlertType.seasonCompleted ||
           a.type == AlertType.seasonProgressUpdate;
+      // Only show unread alerts (excluding locally marked as read)
+      final isUnread = !a.isRead && !_locallyMarkedAsRead.contains(a.id);
+      return matchesType && isUnread;
     }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     final Map<String, Alert> dedup = {};
@@ -991,7 +1020,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   Widget _buildFilterRow() {
     return Row(
       children: [
-        Expanded(
+        Flexible(
+          flex: 3,
           child: TextField(
             onChanged: (value) => setState(() => _searchQuery = value),
             decoration: InputDecoration(
@@ -1019,40 +1049,45 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             ),
           ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: DropdownButton<AlertPriority?>(
-            value: _selectedPriority,
-            underline: const SizedBox(),
-            hint: Text(
-              'Priority',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
-              ),
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
-            ),
-            onChanged: (priority) =>
-                setState(() => _selectedPriority = priority),
-            items: [
-              const DropdownMenuItem(
-                value: null,
-                child: Text('All Priorities'),
-              ),
-              ...AlertPriority.values.map(
-                (p) => DropdownMenuItem(
-                  value: p,
-                  child: Text(p.name.toUpperCase()),
+            child: DropdownButton<AlertPriority?>(
+              value: _selectedPriority,
+              underline: const SizedBox(),
+              isExpanded: true,
+              hint: Text(
+                'Priority',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+              onChanged: (priority) =>
+                  setState(() => _selectedPriority = priority),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('All Priorities'),
+                ),
+                ...AlertPriority.values.map(
+                  (p) => DropdownMenuItem(
+                    value: p,
+                    child: Text(p.name.toUpperCase()),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -2261,7 +2296,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       final realAlerts = alerts
           .where((a) => !a.id.startsWith('synthetic_'))
           .toList();
-      final unreadAlerts = realAlerts.where((a) => !a.isRead).toList();
+      final unreadAlerts = realAlerts
+          .where((a) => !a.isRead && !_locallyMarkedAsRead.contains(a.id))
+          .toList();
 
       if (unreadAlerts.isEmpty) {
         if (mounted) {
@@ -2270,11 +2307,24 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         return;
       }
 
+      // Optimistically update UI immediately
+      if (mounted) {
+        setState(() {
+          _locallyMarkedAsRead.addAll(unreadAlerts.map((a) => a.id));
+        });
+      }
+
+      // Mark as read in Firestore
       for (final alert in unreadAlerts) {
         try {
           await AlertService.markAsRead(alert.id);
         } catch (e) {
-          // Silently skip alerts that can't be marked as read (might not exist in Firestore)
+          // If marking fails, remove from optimistic update
+          if (mounted) {
+            setState(() {
+              _locallyMarkedAsRead.remove(alert.id);
+            });
+          }
         }
       }
 
@@ -2285,7 +2335,11 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         );
       }
     } catch (e) {
+      // On error, clear optimistic updates
       if (mounted) {
+        setState(() {
+          _locallyMarkedAsRead.clear();
+        });
         await _showCenterNotice(context, 'Error marking alerts as read: $e');
       }
     }

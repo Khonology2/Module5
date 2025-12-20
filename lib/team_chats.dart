@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart';
@@ -820,9 +821,11 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                           StreamBuilder<String?>(
                             stream: RoleService.instance.roleStream(),
                             builder: (context, roleSnapshot) {
-                              final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+                              final role =
+                                  roleSnapshot.data ??
+                                  RoleService.instance.cachedRole;
                               final isManager = role == 'manager';
-                              
+
                               return IconButton(
                                 icon: const Icon(
                                   Icons.arrow_back,
@@ -909,6 +912,10 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                           .collection('team.chat')
                           .orderBy('clientAt', descending: true)
                           .snapshots()
+                          .handleError((error) {
+                            // Silently handle errors to prevent unmount errors
+                            developer.log('Error in team chat stream: $error');
+                          })
                           .map(
                             (snapshot) => snapshot.docs.map((doc) {
                               final data = doc.data();

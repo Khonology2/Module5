@@ -114,9 +114,12 @@ class AlertService {
           .get();
 
       if (mgrs.docs.isEmpty) {
-        developer.log('No managers found to notify for goal approval');
+        developer.log('WARNING: No managers found to notify for goal approval');
+        developer.log('Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle');
         return;
       }
+
+      developer.log('Found ${mgrs.docs.length} manager(s) to notify for goal approval');
 
       for (final mgr in mgrs.docs) {
         final alert = Alert(
@@ -136,7 +139,7 @@ class AlertService {
         await _createAlert(alert);
       }
       developer.log(
-        'Created approval request alerts for ${mgrs.docs.length} manager(s)',
+        'Successfully created approval request alerts for ${mgrs.docs.length} manager(s)',
       );
     } catch (e) {
       developer.log('Error creating approval request alerts: $e');
@@ -543,6 +546,10 @@ class AlertService {
         .where('userId', isEqualTo: userId)
         .where('isDismissed', isEqualTo: false)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          developer.log('Error in getUserAlertsStream: $error');
+        })
         .map((snapshot) {
           try {
             final alerts = snapshot.docs
@@ -632,153 +639,165 @@ class AlertService {
     if (personal) {
       // Personal mode: Only manager's own alerts
       final baseStream = getUserAlertsStream(managerId);
-      return baseStream.map((alerts) {
-        List<Alert> items = List<Alert>.from(alerts);
+      return baseStream
+          .handleError((error) {
+            // Silently handle errors to prevent unmount errors
+            developer.log('Error in getManagerInboxStream (personal): $error');
+          })
+          .map((alerts) {
+            List<Alert> items = List<Alert>.from(alerts);
 
-        // In personal mode, exclude team-only types and approval requests
-        items = items.where((a) {
-          if (teamOnly.contains(a.type)) return false;
-          if (a.type == AlertType.goalApprovalRequested) return false;
-          return true;
-        }).toList();
+            // In personal mode, exclude team-only types but allow approval requests
+            // Approval requests are important for managers even in personal mode
+            items = items.where((a) {
+              if (teamOnly.contains(a.type)) return false;
+              // Allow approval requests in personal mode - they're manager-facing
+              return true;
+            }).toList();
 
-        // Apply type filter if specified
-        if (typeFilter != null) {
-          items = items.where((a) {
-            switch (typeFilter) {
-              case 'alert':
-                return a.type != AlertType.managerNudge &&
-                    a.type != AlertType.goalApprovalRequested &&
-                    !teamOnly.contains(a.type);
-              case 'nudge':
-                return a.type == AlertType.managerNudge;
-              case 'approval_request':
-                return false; // No approval requests in personal mode
-              default:
-                return true;
+            // Apply type filter if specified
+            if (typeFilter != null) {
+              items = items.where((a) {
+                switch (typeFilter) {
+                  case 'alert':
+                    return a.type != AlertType.managerNudge &&
+                        a.type != AlertType.goalApprovalRequested &&
+                        !teamOnly.contains(a.type);
+                  case 'nudge':
+                    return a.type == AlertType.managerNudge;
+                  case 'approval_request':
+                    // Allow approval requests in personal mode too
+                    return a.type == AlertType.goalApprovalRequested;
+                  default:
+                    return true;
+                }
+              }).toList();
             }
-          }).toList();
-        }
 
-        // Sort and limit
-        items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        if (limit < items.length) {
-          items = items.take(limit).toList();
-        }
-        return items;
-      });
+            // Sort and limit
+            items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            if (limit < items.length) {
+              items = items.take(limit).toList();
+            }
+            return items;
+          });
     } else {
       // Team mode: Get manager's alerts and team employee alerts
       final managerAlertsStream = getUserAlertsStream(managerId);
 
       // Get manager's department to query team employee alerts
-      return managerAlertsStream.asyncMap((managerAlerts) async {
-        try {
-          // Get manager's department
-          final managerDoc = await _firestore
-              .collection('users')
-              .doc(managerId)
-              .get();
-          final managerDept = managerDoc.data()?['department'] as String?;
-
-          List<Alert> allItems = List<Alert>.from(managerAlerts);
-
-          // If filtering for alerts or all, get team employee alerts
-          if (typeFilter == null ||
-              typeFilter == 'alert' ||
-              typeFilter == 'all') {
-            if (managerDept != null && managerDept.isNotEmpty) {
-              // Get all employees in manager's department
-              final employeesSnapshot = await _firestore
+      return managerAlertsStream
+          .handleError((error) {
+            // Silently handle errors to prevent unmount errors
+            developer.log('Error in getManagerInboxStream (team): $error');
+          })
+          .asyncMap((managerAlerts) async {
+            try {
+              // Get manager's department
+              final managerDoc = await _firestore
                   .collection('users')
-                  .where('department', isEqualTo: managerDept)
-                  .where('role', isEqualTo: 'employee')
+                  .doc(managerId)
                   .get();
+              final managerDept = managerDoc.data()?['department'] as String?;
 
-              final employeeIds = employeesSnapshot.docs
-                  .map((doc) => doc.id)
-                  .toList();
+              List<Alert> allItems = List<Alert>.from(managerAlerts);
 
-              if (employeeIds.isNotEmpty) {
-                // Query alerts for all employees in the department
-                // Note: Firestore 'in' queries are limited to 10 items, so we need to batch
-                final List<Alert> employeeAlerts = [];
-                for (int i = 0; i < employeeIds.length; i += 10) {
-                  final batch = employeeIds.skip(i).take(10).toList();
-                  final alertsSnapshot = await _firestore
-                      .collection('alerts')
-                      .where('userId', whereIn: batch)
-                      .where('isDismissed', isEqualTo: false)
+              // If filtering for alerts or all, get team employee alerts
+              if (typeFilter == null ||
+                  typeFilter == 'alert' ||
+                  typeFilter == 'all') {
+                if (managerDept != null && managerDept.isNotEmpty) {
+                  // Get all employees in manager's department
+                  final employeesSnapshot = await _firestore
+                      .collection('users')
+                      .where('department', isEqualTo: managerDept)
+                      .where('role', isEqualTo: 'employee')
                       .get();
 
-                  for (final doc in alertsSnapshot.docs) {
-                    try {
-                      final alert = Alert.fromFirestore(doc);
-                      // Filter out expired alerts
-                      if (alert.expiresAt != null &&
-                          alert.expiresAt!.isBefore(DateTime.now())) {
-                        continue;
+                  final employeeIds = employeesSnapshot.docs
+                      .map((doc) => doc.id)
+                      .toList();
+
+                  if (employeeIds.isNotEmpty) {
+                    // Query alerts for all employees in the department
+                    // Note: Firestore 'in' queries are limited to 10 items, so we need to batch
+                    final List<Alert> employeeAlerts = [];
+                    for (int i = 0; i < employeeIds.length; i += 10) {
+                      final batch = employeeIds.skip(i).take(10).toList();
+                      final alertsSnapshot = await _firestore
+                          .collection('alerts')
+                          .where('userId', whereIn: batch)
+                          .where('isDismissed', isEqualTo: false)
+                          .get();
+
+                      for (final doc in alertsSnapshot.docs) {
+                        try {
+                          final alert = Alert.fromFirestore(doc);
+                          // Filter out expired alerts
+                          if (alert.expiresAt != null &&
+                              alert.expiresAt!.isBefore(DateTime.now())) {
+                            continue;
+                          }
+                          // Only include employee goal-related alerts
+                          if (employeeGoalAlerts.contains(alert.type)) {
+                            employeeAlerts.add(alert);
+                          }
+                        } catch (e) {
+                          developer.log('Error parsing alert: $e');
+                        }
                       }
-                      // Only include employee goal-related alerts
-                      if (employeeGoalAlerts.contains(alert.type)) {
-                        employeeAlerts.add(alert);
-                      }
-                    } catch (e) {
-                      developer.log('Error parsing alert: $e');
                     }
+                    allItems.addAll(employeeAlerts);
                   }
                 }
-                allItems.addAll(employeeAlerts);
               }
-            }
-          }
 
-          // Apply type filter
-          if (typeFilter != null) {
-            allItems = allItems.where((a) {
-              switch (typeFilter) {
-                case 'alert':
-                  // Show only employee goal alerts (not manager's own alerts)
-                  return employeeGoalAlerts.contains(a.type) &&
-                      a.userId != managerId;
-                case 'nudge':
-                  return a.type == AlertType.managerNudge;
-                case 'approval_request':
-                  // Only show approval requests (these have manager's userId)
-                  return a.type == AlertType.goalApprovalRequested;
-                case 'all':
-                  // Show all team-related alerts: approvals, employee goal alerts, and team-only types
+              // Apply type filter
+              if (typeFilter != null) {
+                allItems = allItems.where((a) {
+                  switch (typeFilter) {
+                    case 'alert':
+                      // Show only employee goal alerts (not manager's own alerts)
+                      return employeeGoalAlerts.contains(a.type) &&
+                          a.userId != managerId;
+                    case 'nudge':
+                      return a.type == AlertType.managerNudge;
+                    case 'approval_request':
+                      // Only show approval requests (these have manager's userId)
+                      return a.type == AlertType.goalApprovalRequested;
+                    case 'all':
+                      // Show all team-related alerts: approvals, employee goal alerts, and team-only types
+                      return a.type == AlertType.goalApprovalRequested ||
+                          employeeGoalAlerts.contains(a.type) ||
+                          teamOnly.contains(a.type);
+                    default:
+                      return true;
+                  }
+                }).toList();
+              } else {
+                // No type filter: show all team-related alerts
+                allItems = allItems.where((a) {
                   return a.type == AlertType.goalApprovalRequested ||
                       employeeGoalAlerts.contains(a.type) ||
                       teamOnly.contains(a.type);
-                default:
-                  return true;
+                }).toList();
               }
-            }).toList();
-          } else {
-            // No type filter: show all team-related alerts
-            allItems = allItems.where((a) {
-              return a.type == AlertType.goalApprovalRequested ||
-                  employeeGoalAlerts.contains(a.type) ||
-                  teamOnly.contains(a.type);
-            }).toList();
-          }
 
-          // Sort by creation date (newest first)
-          allItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              // Sort by creation date (newest first)
+              allItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-          // Apply limit
-          if (limit < allItems.length) {
-            allItems = allItems.take(limit).toList();
-          }
+              // Apply limit
+              if (limit < allItems.length) {
+                allItems = allItems.take(limit).toList();
+              }
 
-          return allItems;
-        } catch (e) {
-          developer.log('Error in getManagerInboxStream: $e');
-          // Fallback to just manager's alerts
-          return managerAlerts;
-        }
-      });
+              return allItems;
+            } catch (e) {
+              developer.log('Error in getManagerInboxStream: $e');
+              // Fallback to just manager's alerts
+              return managerAlerts;
+            }
+          });
     }
   }
 

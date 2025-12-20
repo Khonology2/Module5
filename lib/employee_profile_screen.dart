@@ -6,6 +6,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/performance_cache_service.dart';
 import 'package:image_picker/image_picker.dart'; // Import image_picker
 import 'package:pdh/services/cloudinary_service.dart';
 // import 'package:firebase_storage/firebase_storage.dart'; // Disabled - using Cloudinary
@@ -114,18 +115,23 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     }
   }
 
-  Future<void> _loadUserProfile() async {
+  Future<void> _loadUserProfile({int retryCount = 0}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return; // User not logged in
 
     try {
-      // First, get onboarding data for fullName and designation
+      // Add a small delay to avoid race conditions with other Firestore operations
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+
+      final userProfile = await DatabaseService.getUserProfile(user.uid);
       final onboardingData = await DatabaseService.getOnboardingData(
         userId: user.uid,
         email: user.email,
       );
+      if (!mounted) return;
 
-      final userProfile = await DatabaseService.getUserProfile(user.uid);
       setState(() {
         // Use fullName from onboarding, fallback to displayName
         _fullNameController.text =
@@ -172,8 +178,31 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+
+      // Retry up to 2 times for Firestore internal errors
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        // Retry with exponential backoff
+        await Future.delayed(Duration(milliseconds: 1000 * (retryCount + 1)));
+        if (mounted) {
+          return _loadUserProfile(retryCount: retryCount + 1);
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load profile: ${e.toString()}')),
+        SnackBar(
+          content: Text('Failed to load profile: ${e.toString()}'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: () {
+              if (mounted) {
+                _loadUserProfile(retryCount: 0);
+              }
+            },
+          ),
+        ),
       );
     }
   }
@@ -307,41 +336,40 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     final existingUserProfile = await DatabaseService.getUserProfile(user.uid);
 
     try {
+      // Convert empty string to null for profilePhotoUrl
+      final profilePhotoUrlValue = (_profilePhotoUrl?.isEmpty ?? true) 
+          ? null 
+          : _profilePhotoUrl;
+
       // ignore: avoid_print
       print('Saving profile...');
-      final phoneNumber = _phoneNumberController.text.trim();
-
-      await DatabaseService.updateUserProfile(
-        existingUserProfile.copyWith(
-          displayName: _fullNameController.text.trim(),
-          email: _workEmailController.text.trim(),
-          jobTitle: _selectedJobTitle ?? '',
-          department: _selectedDepartment ?? '',
-          phoneNumber: phoneNumber,
-          profilePhotoUrl: _profilePhotoUrl, // Pass the profile photo URL
-          skills: _skills.toList(),
-          developmentAreas: _developmentAreas.toList(),
-          careerAspirations: _careerAspirationsController.text.trim(),
-          currentProjects: _currentProjectsController.text.trim(),
-          learningStyle: _learningStyle ?? '',
-          preferredDevActivities: _preferredDevActivities.toList(),
-          shortGoals: _shortGoalsController.text.trim(),
-          longGoals: _longGoalsController.text.trim(),
-          notificationFrequency: _notificationFrequency ?? 'daily',
-          goalVisibility: _goalVisibility ?? 'private',
-          leaderboardOptin: _leaderboardOptin == 'yes',
-          badgeName: _badgeNameController.text.trim(),
-          celebrationConsent: _celebrationConsent ?? 'private',
-        ),
+      final updatedProfile = existingUserProfile.copyWith(
+        displayName: _fullNameController.text.trim(),
+        email: _workEmailController.text.trim(),
+        jobTitle: _selectedJobTitle ?? '',
+        department: _selectedDepartment ?? '',
+        profilePhotoUrl: profilePhotoUrlValue,
+        skills: _skills.toList(),
+        developmentAreas: _developmentAreas.toList(),
+        careerAspirations: _careerAspirationsController.text.trim(),
+        currentProjects: _currentProjectsController.text.trim(),
+        learningStyle: _learningStyle ?? '',
+        preferredDevActivities: _preferredDevActivities.toList(),
+        shortGoals: _shortGoalsController.text.trim(),
+        longGoals: _longGoalsController.text.trim(),
+        notificationFrequency: _notificationFrequency ?? 'daily',
+        goalVisibility: _goalVisibility ?? 'private',
+        leaderboardOptin: _leaderboardOptin == 'yes',
+        badgeName: _badgeNameController.text.trim(),
+        celebrationConsent: _celebrationConsent ?? 'private',
       );
 
-      // Also save phone number to onboarding collection
-      await DatabaseService.updateOnboardingPhoneNumber(
-        userId: user.uid,
-        email: user.email,
-        phoneNumber: phoneNumber,
-      );
-
+      await DatabaseService.updateUserProfile(updatedProfile);
+      
+      // Clear the profile cache to ensure fresh data on next fetch
+      final cache = PerformanceCacheService();
+      cache.clearAll();
+      
       await _loadUserProfile();
       if (showDialog) {
         _showProfileSavedDialog(
@@ -454,6 +482,26 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Display existing tags as chips
+        if (tagsList.isNotEmpty) ...[
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            children: tagsList.map((tag) {
+              return Chip(
+                label: Text(
+                  tag,
+                  style: const TextStyle(color: Color(0xFFC10D00)),
+                ),
+                backgroundColor: const Color(0xFF1F2840),
+                deleteIconColor: Colors.white70,
+                onDeleted: () => onTagRemoved(tag),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        // Input field for adding new tags
         _buildInputField(
           controller: controller,
           hintText: hintText,
@@ -466,56 +514,6 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               onTagAdded(tag);
             }
           },
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            vertical: 8,
-            horizontal: 12,
-          ), // py-2 px-3
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.white24),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.black.withOpacity(0.4),
-          ),
-          constraints: const BoxConstraints(minHeight: 44), // min-h-[44px]
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: tagsList.map((tag) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ), // px-2 py-1
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(9999), // rounded-full
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      tag,
-                      style: const TextStyle(
-                        color: Color(0xFFC10D00),
-                        fontSize: 12,
-                      ), // text-red-600 text-xs
-                    ),
-                    const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: () => onTagRemoved(tag),
-                      child: const Icon(
-                        Icons.close,
-                        color: Color(0xFFC10D00), // text-red-400
-                        size: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
         ),
       ],
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -24,7 +25,7 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
-  bool _personal = true; // true: personal inbox, false: team inbox
+  bool _personal = false; // true: personal inbox, false: team inbox (default to Team to show approval requests)
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';
@@ -104,7 +105,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 stream: FirebaseFirestore.instance
                     .collection('goals')
                     .doc(goalId)
-                    .snapshots(),
+                    .snapshots()
+                    .handleError((error) {
+                      // Silently handle errors to prevent unmount errors
+                      developer.log('Error in goal stream: $error');
+                    }),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && snap.data!.exists) {

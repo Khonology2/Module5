@@ -5,6 +5,7 @@ import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/models/goal.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -16,7 +17,7 @@ class ManagerReviewTeamDashboardScreen extends StatefulWidget {
 
 class _ManagerReviewTeamDashboardScreenState
     extends State<ManagerReviewTeamDashboardScreen> {
-  TimeFilter _selectedTimeFilter = TimeFilter.month;
+  final TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
@@ -186,63 +187,7 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Expanded(child: SizedBox.shrink()),
-        const SizedBox(width: 12),
-        _buildTimeFilterDropdown(),
-      ],
-    );
-  }
-
-  Widget _buildTimeFilterDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<TimeFilter>(
-          value: _selectedTimeFilter,
-          dropdownColor: Colors.black.withValues(alpha: 0.8),
-          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-          onChanged: (TimeFilter? newValue) {
-            if (newValue != null) {
-              setState(() {
-                _selectedTimeFilter = newValue;
-              });
-            }
-          },
-          items: TimeFilter.values.map<DropdownMenuItem<TimeFilter>>((
-            TimeFilter value,
-          ) {
-            return DropdownMenuItem<TimeFilter>(
-              value: value,
-              child: Text(_getTimeFilterLabel(value)),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  String _getTimeFilterLabel(TimeFilter filter) {
-    switch (filter) {
-      case TimeFilter.today:
-        return 'Today';
-      case TimeFilter.week:
-        return 'This Week';
-      case TimeFilter.month:
-        return 'This Month';
-      case TimeFilter.quarter:
-        return 'This Quarter';
-      case TimeFilter.year:
-        return 'This Year';
-    }
+    return const SizedBox.shrink();
   }
 
   Widget _buildAIManagerInsights(List<TeamInsight> insights) {
@@ -411,6 +356,18 @@ class _ManagerReviewTeamDashboardScreenState
       );
     }
 
+    // Sort employees by activity (most active first) and then by points (most points first)
+    final sortedEmployees = List<EmployeeData>.from(employees);
+    sortedEmployees.sort((a, b) {
+      // Primary sort: by last activity (most recent first)
+      final activityComparison = b.lastActivity.compareTo(a.lastActivity);
+      if (activityComparison != 0) {
+        return activityComparison;
+      }
+      // Secondary sort: by total points (most points first)
+      return b.totalPoints.compareTo(a.totalPoints);
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -423,7 +380,7 @@ class _ManagerReviewTeamDashboardScreenState
           ),
         ),
         const SizedBox(height: 10),
-        ...employees.map(
+        ...sortedEmployees.map(
           (employee) => Column(
             children: [
               _buildEmployeeCard(employee),
@@ -437,264 +394,883 @@ class _ManagerReviewTeamDashboardScreenState
 
   Widget _buildEmployeeCard(EmployeeData employee) {
     Color statusColor;
-    String statusText;
     IconData statusIcon;
+    String statusText;
 
     switch (employee.status) {
       case EmployeeStatus.onTrack:
-        statusColor = Colors.green;
-        statusText = 'On Track';
+        statusColor = AppColors.successColor;
         statusIcon = Icons.check_circle;
+        statusText = 'On Track';
         break;
       case EmployeeStatus.atRisk:
-        statusColor = Colors.orange;
-        statusText = 'At Risk';
+        statusColor = AppColors.warningColor;
         statusIcon = Icons.warning;
+        statusText = 'At Risk';
         break;
       case EmployeeStatus.overdue:
-        statusColor = Colors.red;
+        statusColor = AppColors.dangerColor;
+        statusIcon = Icons.error_outline;
         statusText = 'Overdue';
-        statusIcon = Icons.error;
         break;
       case EmployeeStatus.inactive:
-        statusColor = Colors.grey;
+        statusColor = AppColors.textSecondary;
+        statusIcon = Icons.pause_circle_outline;
         statusText = 'Inactive';
-        statusIcon = Icons.pause_circle;
         break;
     }
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ManagerEmployeeDetailScreen(employee: employee),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: employee.status == EmployeeStatus.overdue
-                ? Colors.red.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.2),
-            width: employee.status == EmployeeStatus.overdue ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: const Color(0xFFC10D00),
-                  child: Text(
-                    employee.profile.displayName.isNotEmpty
-                        ? employee.profile.displayName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+    // Determine active status
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sevenDaysAgo = now.subtract(const Duration(days: 7));
+
+    bool isActiveToday = employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+
+    Color activeStatusColor;
+    IconData activeStatusIcon;
+    String activeStatusText;
+
+    if (isActiveToday) {
+      activeStatusColor = AppColors.successColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active Today';
+    } else if (isActiveThisWeek) {
+      activeStatusColor = AppColors.warningColor;
+      activeStatusIcon = Icons.circle;
+      activeStatusText = 'Active This Week';
+    } else {
+      activeStatusColor = AppColors.textSecondary;
+      activeStatusIcon = Icons.circle_outlined;
+      activeStatusText = 'Inactive';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: statusColor.withValues(alpha: 0.1),
+                child: Text(
+                  employee.profile.displayName.isNotEmpty
+                      ? employee.profile.displayName[0].toUpperCase()
+                      : '?',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        employee.profile.displayName,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      employee.profile.displayName,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      employee.profile.jobTitle.isNotEmpty
+                          ? employee.profile.jobTitle
+                          : employee.profile.department,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(statusIcon, color: statusColor, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          statusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: activeStatusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: activeStatusColor.withValues(alpha: 0.3),
                       ),
-                      Text(
-                        employee.profile.jobTitle.isNotEmpty
-                            ? employee.profile.jobTitle
-                            : 'Team Member',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          activeStatusIcon,
+                          color: activeStatusColor,
+                          size: 12,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(statusIcon, color: statusColor, size: 12),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: TextStyle(color: statusColor, fontSize: 10),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile('Goals', '${employee.goals.length}'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Completed',
-                    '${employee.completedGoalsCount}',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Progress',
-                    '${employee.avgProgress.toStringAsFixed(0)}%',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Points', '${employee.totalPoints}'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile(
-                    'Activities',
-                    '${employee.weeklyActivityCount}',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Engagement',
-                    '${employee.engagementScore.toStringAsFixed(0)}%',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile(
-                    'Motivation',
-                    employee.motivationLevel,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildMetricTile('Streak', '${employee.streakDays}d'),
-                ),
-              ],
-            ),
-            // Always show management actions for all employees
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _sendNudge(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                        const SizedBox(width: 3),
+                        Text(
+                          activeStatusText,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: activeStatusColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Text('Nudge'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.track_changes,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Approved_Tick/Approved_White.png'),
+                  ),
+                  label: 'Active Goals',
+                  value: employee.goals
+                      .where((g) => g.status != GoalStatus.completed)
+                      .length
+                      .toString(),
+                  color: AppColors.activeColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.check_circle_outline,
+                  iconWidget: const ImageIcon(
+                    AssetImage('assets/Process_Flows_Automation/points2.png'),
+                  ),
+                  label: 'Completed',
+                  value: employee.completedGoalsCount.toString(),
+                  color: AppColors.successColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildEmployeeMetricChip(
+                  icon: Icons.access_time,
+                  iconWidget: const ImageIcon(
+                    AssetImage(
+                      'assets/Time_Allocation_Approval/Approval_Whie.png',
+                    ),
+                  ),
+                  label: 'Progress',
+                  value: '${employee.avgProgress.toStringAsFixed(1)}%',
+                  color: employee.avgProgress >= 70
+                      ? AppColors.successColor
+                      : employee.avgProgress >= 40
+                      ? AppColors.warningColor
+                      : AppColors.dangerColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Show last activity information
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.textSecondary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.schedule, color: AppColors.textSecondary, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'Last active: ${_formatLastActivity(employee.lastActivity)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _scheduleOneOnOne(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: const Text('1:1'),
+                const Spacer(),
+                Text(
+                  '${employee.weeklyActivityCount} activities this week',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          if (employee.goals.isNotEmpty) ...[
+            Text(
+              'Goals',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _giveRecognition(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: const Text('Kudos'),
+            ...employee.goals
+                .take(3)
+                .map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: _buildGoalRow(goal),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _viewActivities(employee),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFC10D00),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    child: const Text('Activity'),
+            if (employee.goals.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${employee.goals.length - 3} more goals',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ],
+              ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'No goals yet',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
+
+          const SizedBox(height: 16),
+
+          // Management Actions
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showSendNudgeDialog(employee: employee),
+                  icon: const Icon(Icons.send, size: 16),
+                  label: const Text('Send Nudge'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _scheduleOneOnOne(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('1:1'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _giveRecognition(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('Kudos'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _viewActivities(employee),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('Activity'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ManagerEmployeeDetailScreen(employee: employee),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                    side: BorderSide(color: AppColors.activeColor),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  child: const Text('View Details'),
+                ),
+              ),
+            ],
+          ),
+          // Upcoming Deadlines Section
+          if (_getUpcomingDeadlines(employee).isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildUpcomingDeadlinesSection(employee),
+          ],
+          // Completed Goals Review Section
+          if (employee.completedGoalsCount > 0) ...[
+            const SizedBox(height: 12),
+            _buildCompletedGoalsReviewSection(employee),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildMetricTile(String label, String value) {
+  List<Goal> _getUpcomingDeadlines(EmployeeData employee) {
+    final now = DateTime.now();
+    final next14Days = now.add(const Duration(days: 14));
+
+    return employee.goals.where((goal) {
+      if (goal.status == GoalStatus.completed) return false;
+      return goal.targetDate.isAfter(now) &&
+          goal.targetDate.isBefore(next14Days);
+    }).toList()..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+  }
+
+  Widget _buildUpcomingDeadlinesSection(EmployeeData employee) {
+    final upcomingGoals = _getUpcomingDeadlines(employee);
+
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: Colors.orange.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
+          Row(
+            children: [
+              Icon(Icons.calendar_today, color: Colors.orange, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'Upcoming Deadlines',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
+          const SizedBox(height: 8),
+          ...upcomingGoals.take(3).map((goal) {
+            final daysUntil = goal.targetDate.difference(DateTime.now()).inDays;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      goal.title,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    daysUntil == 0
+                        ? 'Due today'
+                        : '$daysUntil day${daysUntil == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      color: daysUntil <= 3 ? Colors.red : Colors.orange,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (upcomingGoals.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '+${upcomingGoals.length - 3} more',
+                style: const TextStyle(
+                  color: Colors.orange,
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedGoalsReviewSection(EmployeeData employee) {
+    final completedGoals = employee.goals
+        .where((g) => g.status == GoalStatus.completed)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Completed Goals (${completedGoals.length})',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              TextButton(
+                onPressed: () => _reviewCompletedGoals(employee),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Review & Acknowledge',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 10,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  void _reviewCompletedGoals(EmployeeData employee) {
+    final completedGoals = employee.goals
+        .where((g) => g.status == GoalStatus.completed)
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0x80000000),
+        title: Text(
+          'Review Completed Goals - ${employee.profile.displayName}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: completedGoals.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No completed goals to review',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: completedGoals.length,
+                  itemBuilder: (context, index) {
+                    final goal = completedGoals[index];
+                    return _buildCompletedGoalReviewItem(goal, employee);
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedGoalReviewItem(Goal goal, EmployeeData employee) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              Icon(Icons.check_circle, color: Colors.green, size: 20),
+            ],
+          ),
+          if (goal.description.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              goal.description,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => _viewGoalNotes(goal, employee),
+                  icon: const Icon(Icons.note_outlined, size: 16),
+                  label: const Text('Check Notes'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.blue,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _acknowledgeGoal(goal, employee),
+                icon: const Icon(Icons.thumb_up, size: 16),
+                label: const Text('Acknowledge'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _viewGoalNotes(Goal goal, EmployeeData employee) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0x80000000),
+        title: Text(
+          'Goal Notes: ${goal.title}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (goal.description.isNotEmpty) ...[
+                const Text(
+                  'Description:',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  goal.description,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (goal.evidence.isNotEmpty) ...[
+                const Text(
+                  'Evidence:',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...goal.evidence.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $e',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ),
+              ] else
+                const Text(
+                  'No additional notes or evidence available.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white70)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _acknowledgeGoal(Goal goal, EmployeeData employee) async {
+    try {
+      // NOTE: Implement acknowledgement in database service
+      // For now, show a success message
+      Navigator.pop(context); // Close review dialog
+      await _showCenterNotice(
+        context,
+        'Goal "${goal.title}" acknowledged for ${employee.profile.displayName}',
+      );
+    } catch (e) {
+      await _showCenterNotice(context, 'Error acknowledging goal: $e');
+    }
+  }
+
+ 
+
+  Widget _buildEmployeeMetricChip({
+    required IconData icon,
+    Widget? iconWidget,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          iconWidget ?? Icon(icon, color: color, size: 16),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            label,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalRow(Goal goal) {
+    Color priorityColor = _getPriorityColor(goal.priority);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.textSecondary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: priorityColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: LinearProgressIndicator(
+                  value: goal.progress / 100.0,
+                  backgroundColor: AppColors.borderColor,
+                  valueColor: AlwaysStoppedAnimation<Color>(priorityColor),
+                  minHeight: 4,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${goal.progress}%',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getPriorityColor(GoalPriority priority) {
+    switch (priority) {
+      case GoalPriority.high:
+        return AppColors.dangerColor;
+      case GoalPriority.medium:
+        return AppColors.warningColor;
+      case GoalPriority.low:
+        return AppColors.successColor;
+    }
+  }
+
+  String _formatLastActivity(DateTime? lastActivity) {
+    if (lastActivity == null) return 'Never';
+
+    try {
+      final now = DateTime.now();
+
+      // Check if the date is valid (not in the future or too far in the past)
+      if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
+        return 'Unknown';
+      }
+
+      final difference = now.difference(lastActivity);
+
+      if (difference.inDays > 7) {
+        return '${difference.inDays} days ago';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      // Handle any unexpected errors when formatting the date
+      return 'Unknown';
+    }
   }
 
   Widget _buildLoadingState() {
@@ -760,56 +1336,37 @@ class _ManagerReviewTeamDashboardScreenState
     );
   }
 
-  void _sendNudge(EmployeeData employee) {
+  void _showSendNudgeDialog({EmployeeData? employee, String? presetMessage}) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0x80000000),
-        title: Text(
-          'Send Nudge to ${employee.profile.displayName}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Enter your message...',
-                hintStyle: TextStyle(color: Colors.white54),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                // Store message
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              if (!mounted) return;
-              await _showCenterNotice(
-                context,
-                'Nudge sent to ${employee.profile.displayName}',
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC10D00),
-            ),
-            child: const Text('Send'),
-          ),
-        ],
+      builder: (context) => _NudgeDialog(
+        employee: employee,
+        presetMessage: presetMessage,
+        onSendNudge: (employeeId, goalId, message) =>
+            _sendNudgeToEmployee(employeeId, goalId, message),
       ),
     );
+  }
+
+  void _sendNudgeToEmployee(
+    String employeeId,
+    String goalId,
+    String message,
+  ) async {
+    try {
+      await ManagerRealtimeService.sendNudgeToEmployee(
+        employeeId: employeeId,
+        goalId: goalId,
+        message: message,
+      );
+      if (mounted) {
+        await _showCenterNotice(context, 'Nudge sent successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        await _showCenterNotice(context, 'Error sending nudge: $e');
+      }
+    }
   }
 
   void _scheduleOneOnOne(EmployeeData employee) {
@@ -1146,63 +1703,80 @@ class _EmployeeActivityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: const Color(0x80000000),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         title: Text(
           '${employee.profile.displayName} - Activity',
-          style: const TextStyle(color: Colors.white),
+          style: AppTypography.heading2.copyWith(color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: StreamBuilder<List<EmployeeActivity>>(
-        stream: ManagerRealtimeService.getEmployeeActivitiesStream(
-          employeeId: employee.profile.uid,
-          limit: 50,
-        ),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-            );
-          }
-
-          final activities = snapshot.data!;
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildActivitySummary(),
-                const SizedBox(height: 20),
-                const Text(
-                  'Recent Activity',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/khono_bg.png'),
+                  fit: BoxFit.cover,
                 ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: activities.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No recent activity',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: activities.length,
-                          itemBuilder: (context, index) {
-                            return _buildActivityItem(activities[index]);
-                          },
-                        ),
-                ),
-              ],
+              ),
             ),
-          );
-        },
+          ),
+          StreamBuilder<List<EmployeeActivity>>(
+            stream: ManagerRealtimeService.getEmployeeActivitiesStream(
+              employeeId: employee.profile.uid,
+              limit: 50,
+            ),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+                );
+              }
+
+              final activities = snapshot.data!;
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 80), // Space for AppBar
+                    _buildActivitySummary(),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Recent Activity',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: activities.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No recent activity',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: activities.length,
+                              itemBuilder: (context, index) {
+                                return _buildActivityItem(activities[index]);
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1323,5 +1897,245 @@ class _EmployeeActivityScreen extends StatelessWidget {
     } else {
       return 'Just now';
     }
+  }
+}
+
+// Nudge Dialog Widget
+class _NudgeDialog extends StatefulWidget {
+  final EmployeeData? employee;
+  final String? presetMessage;
+  final Function(String employeeId, String goalId, String message) onSendNudge;
+
+  const _NudgeDialog({
+    this.employee,
+    this.presetMessage,
+    required this.onSendNudge,
+  });
+
+  @override
+  State<_NudgeDialog> createState() => _NudgeDialogState();
+}
+
+class _NudgeDialogState extends State<_NudgeDialog> {
+  late TextEditingController _messageController;
+  Goal? _selectedGoal;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController = TextEditingController(
+      text: widget.presetMessage ?? '',
+    );
+    if (widget.employee?.goals.isNotEmpty == true) {
+      _selectedGoal = widget.employee!.goals.first;
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0x80000000),
+      title: Text(
+        widget.employee != null
+            ? 'Send Nudge to ${widget.employee!.profile.displayName}'
+            : 'Send Nudge',
+        style: const TextStyle(color: Colors.white),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.employee != null &&
+                widget.employee!.goals.isNotEmpty) ...[
+              const Text(
+                'Related Goal:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: DropdownButton<Goal>(
+                  value: _selectedGoal,
+                  underline: const SizedBox(),
+                  isExpanded: true,
+                  dropdownColor: Colors.black.withValues(alpha: 0.9),
+                  hint: const Text(
+                    'Select Goal',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                  onChanged: (goal) => setState(() => _selectedGoal = goal),
+                  items: widget.employee!.goals.map((goal) {
+                    return DropdownMenuItem<Goal>(
+                      value: goal,
+                      child: Text(
+                        goal.title,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            const Text(
+              'Quick Presets:',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildPresetButton(
+                  'Check Progress',
+                  Icons.trending_up,
+                  'Hope you\'re doing well! How is your progress on your current goals?',
+                ),
+                _buildPresetButton(
+                  'Need Help?',
+                  Icons.support_agent,
+                  'Is there anything I can help you with regarding your goals or work?',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Message:',
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _messageController,
+              maxLines: 4,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Enter your nudge message or use a preset above...',
+                hintStyle: const TextStyle(color: Colors.white54),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFC10D00)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+        ),
+        ElevatedButton(
+          onPressed: _sendNudge,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFC10D00),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Send'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPresetButton(String label, IconData icon, String message) {
+    return OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _messageController.text = message;
+        });
+      },
+      icon: Icon(icon, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFC10D00),
+        side: BorderSide(color: const Color(0xFFC10D00).withValues(alpha: 0.5)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+
+  void _sendNudge() {
+    if (_messageController.text.trim().isEmpty) {
+      showDialog<void>(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: const Color(0x80000000),
+            content: const Text(
+              'Please enter a message',
+              style: TextStyle(color: Colors.white),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+      return;
+    }
+
+    if (widget.employee == null) {
+      return;
+    }
+
+    final goalId = _selectedGoal?.id ?? 'general';
+    widget.onSendNudge(
+      widget.employee!.profile.uid,
+      goalId,
+      _messageController.text.trim(),
+    );
+    Navigator.pop(context);
   }
 }

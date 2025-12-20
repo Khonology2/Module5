@@ -457,6 +457,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         .collection('users')
         .doc(user.uid)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          developer.log('Error in getUserProfileStream: $error');
+        })
         .map((doc) {
           if (!doc.exists) return null;
           return UserProfile.fromFirestore(doc);
@@ -471,6 +475,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         .where('userId', isEqualTo: user.uid)
         .orderBy('createdAt', descending: true)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          developer.log('Error in getUserGoalsStream: $error');
+        })
         .map((snapshot) {
           final goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))

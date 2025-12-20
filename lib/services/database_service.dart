@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/season.dart';
@@ -129,6 +130,11 @@ class DatabaseService {
         .where('userId', isEqualTo: targetUserId)
         .orderBy('createdAt', descending: true)
         .snapshots()
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          // Return empty list on error to prevent crashes
+          developer.log('Error in getUserGoalsStream: $error');
+        })
         .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
@@ -229,7 +235,10 @@ class DatabaseService {
     return awarded;
   }
 
-  static Future<UserProfile> getUserProfile(String uid) async {
+  static Future<UserProfile> getUserProfile(
+    String uid, {
+    int retryCount = 0,
+  }) async {
     // Check cache first
     final cache = PerformanceCacheService();
     final cached = cache.getCachedUserProfile();
@@ -237,23 +246,45 @@ class DatabaseService {
       return cached;
     }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    var data = doc.data() ?? {};
+    Map<String, dynamic> data = {};
 
-    // If displayName is missing/empty, try to sync from onboarding
-    final displayName =
-        data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
-    if (displayName.isEmpty) {
-      await syncOnboardingData(uid);
-      // Re-fetch user data after sync
-      final updatedDoc = await FirebaseFirestore.instance
+    try {
+      // Add small delay on retry to avoid race conditions
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+
+      final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
-      data = updatedDoc.data() ?? data;
+      data = doc.data() ?? {};
+
+      // If displayName is missing/empty, try to sync from onboarding
+      final displayName =
+          data['displayName']?.toString() ?? data['fullName']?.toString() ?? '';
+      if (displayName.isEmpty) {
+        await syncOnboardingData(uid);
+        // Re-fetch user data after sync
+        final updatedDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        data = updatedDoc.data() ?? data;
+      }
+    } catch (e) {
+      // Retry up to 2 times for Firestore internal errors
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        developer.log('Firestore error, retrying getUserProfile: $e');
+        return getUserProfile(uid, retryCount: retryCount + 1);
+      }
+      // If we have cached data, return it even if fresh fetch failed
+      if (cached != null && cached.uid == uid) {
+        developer.log('Using cached profile due to error: $e');
+        return cached;
+      }
+      rethrow;
     }
 
     final profile = UserProfile(
@@ -479,7 +510,17 @@ class DatabaseService {
           userId: goal.userId,
           goalTitle: goal.title,
         );
-      } catch (_) {}
+        developer.log(
+          'Successfully created approval request for goal: ${doc.id}',
+        );
+      } catch (e) {
+        developer.log('Error requesting goal approval: $e');
+        // Log more details for debugging
+        developer.log(
+          'Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}',
+        );
+        // Don't rethrow - this is async and shouldn't block goal creation
+      }
     });
     // Check badges asynchronously so we don't block UI navigation.
     // ignore: unawaited_futures
@@ -523,6 +564,32 @@ class DatabaseService {
     });
   }
 
+  static Future<void> requestGoalDeletion({
+    required String goalId,
+    required String reason,
+    required String requesterId,
+  }) async {
+    final fs = FirebaseFirestore.instance;
+    final goalRef = fs.collection('goals').doc(goalId);
+    final goalSnap = await goalRef.get();
+    if (!goalSnap.exists) {
+      throw Exception('Goal not found');
+    }
+    final data = goalSnap.data() as Map<String, dynamic>;
+    final ownerId = (data['userId'] ?? '') as String;
+    if (requesterId != ownerId) {
+      throw Exception('Only the goal owner can request deletion');
+    }
+    await fs.collection('goal_deletion_requests').add({
+      'goalId': goalId,
+      'userId': ownerId,
+      'reason': reason,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'goalTitle': data['title'] ?? '',
+    });
+  }
+
   static Future<void> deleteGoal({
     required String goalId,
     required String requesterId,
@@ -547,6 +614,15 @@ class DatabaseService {
     }
 
     final batch = fs.batch();
+    // Log deletion for audit before deleting
+    final deletionLogRef = fs.collection('deleted_goals').doc(goalId);
+    batch.set(deletionLogRef, {
+      'goalId': goalId,
+      'deletedAt': FieldValue.serverTimestamp(),
+      'deletedBy': requesterId,
+      'goalData': data,
+    });
+
     batch.delete(goalRef);
 
     try {
@@ -861,6 +937,11 @@ class DatabaseService {
         final data = snap.data() as Map<String, dynamic>;
         final currentStatus = (data['status'] ?? 'notStarted').toString();
         userId = data['userId'] as String?;
+        if (currentStatus == GoalStatus.paused.name ||
+            currentStatus == GoalStatus.completed.name ||
+            currentStatus == GoalStatus.burnout.name) {
+          throw Exception('progress_update.blocked: status=$currentStatus');
+        }
         final dynamic progressRaw = data['progress'];
         final int previousProgress = progressRaw is int
             ? progressRaw
@@ -913,6 +994,7 @@ class DatabaseService {
       });
     } catch (e) {
       developer.log('updateGoalProgress transaction failed: $e');
+      rethrow;
     }
 
     // Record daily activity for streak tracking when making progress
@@ -1348,20 +1430,44 @@ class DatabaseService {
 
       await userDocRef.set(userData);
     } else {
-      // Only update fields that might change, excluding 'role'
+      // Only update fields that might change
       // Also check if displayName is currently empty and update from onboarding if needed
       final currentDisplayName = docSnapshot.data()?['displayName'] ?? '';
       final finalDisplayName = resolvedDisplayName?.isNotEmpty == true
           ? resolvedDisplayName
           : (currentDisplayName.isNotEmpty ? currentDisplayName : '');
 
-      await userDocRef.update({
+      // Get current role, if any
+      final currentRole = docSnapshot.data()?['role'] as String?;
+
+      // Prepare update map
+      final updateData = <String, dynamic>{
         'displayName': finalDisplayName.isNotEmpty
             ? finalDisplayName
             : (docSnapshot.data()?['displayName'] ?? ''),
         'email': resolvedEmail ?? docSnapshot.data()?['email'] ?? '',
-        // Other fields will be updated by a dedicated updateUserProfile method.
-      });
+      };
+
+      // Update role ONLY if:
+      // 1. Role is not currently set (null or empty), OR
+      // 2. Current role is 'employee' AND new role is 'manager' (upgrade)
+      // NEVER overwrite a 'manager' role with 'employee'
+      if (currentRole == null || currentRole.isEmpty) {
+        // Role is not set - set it to the provided role (or default to employee)
+        updateData['role'] = role;
+      } else if (currentRole == 'employee' && role == 'manager') {
+        // Allow upgrade from employee to manager
+        updateData['role'] = role;
+      } else if (currentRole == 'manager') {
+        // NEVER overwrite manager role - preserve it
+        // Don't add role to updateData
+      } else if (currentRole == 'employee' && role == 'employee') {
+        // Already employee, no need to update
+        // Don't add role to updateData
+      }
+      // If role is already set to 'manager', it's preserved above
+
+      await userDocRef.update(updateData);
     }
 
     await initializeSubcollections(userDocRef);
@@ -1436,11 +1542,103 @@ class DatabaseService {
     }
   }
 
+  /// Gets user name from onboarding collection
+  /// Tries multiple field names: displayName, fullName, name, firstName, or firstName + lastName
+  static Future<String?> getUserNameFromOnboarding({
+    required String userId,
+    String? email,
+  }) async {
+    try {
+      // First try by userId
+      var onboardingDoc = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .doc(userId)
+          .get();
+
+      // If not found by userId and email is provided, try to find by email
+      if (!onboardingDoc.exists && email != null && email.isNotEmpty) {
+        final onboardingQuery = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+
+        if (onboardingQuery.docs.isNotEmpty) {
+          onboardingDoc = onboardingQuery.docs.first;
+        }
+      }
+
+      if (onboardingDoc.exists) {
+        final onboardingData = onboardingDoc.data() ?? {};
+        // Try multiple possible field names for name in onboarding
+        final name =
+            onboardingData['displayName'] ??
+            onboardingData['fullName'] ??
+            onboardingData['name'] ??
+            onboardingData['firstName'] ??
+            (onboardingData['firstName'] != null &&
+                    onboardingData['lastName'] != null
+                ? '${onboardingData['firstName']} ${onboardingData['lastName']}'
+                      .trim()
+                : null);
+
+        if (name != null && name.toString().isNotEmpty) {
+          return name.toString();
+        }
+      }
+    } catch (e) {
+      developer.log('Error getting user name from onboarding: $e');
+    }
+    return null;
+  }
+
   static Future<void> updateUserProfile(UserProfile userProfile) async {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(userProfile.uid);
-    await userDocRef.update(userProfile.toFirestore());
+
+    // Get all profile fields as a map - toFirestore() includes all fields
+    // We need to avoid updating the 'role' field for existing documents to satisfy security rules
+    final existing = await userDocRef.get();
+    final data = Map<String, dynamic>.from(userProfile.toFirestore());
+    if (existing.exists) {
+      // Only admins are allowed to modify roles per Firestore rules; omit role on normal updates
+      data.remove('role');
+    }
+
+    // Debug log to help diagnose permission issues in the field
+    try {
+      final authUid = FirebaseAuth.instance.currentUser?.uid;
+      final projectId = Firebase.app().options.projectId;
+      developer.log(
+        'updateUserProfile: authUid=${authUid ?? 'null'}, targetUid=${userProfile.uid}, exists=${existing.exists}, keys=${data.keys.join(',')}, project=$projectId',
+      );
+      if (authUid != null && authUid != userProfile.uid) {
+        developer.log(
+          'updateUserProfile: WARNING authUid != targetUid; this will be denied by rules',
+        );
+      }
+    } catch (_) {}
+
+    // Use set with merge: true to ensure all fields are saved
+    // This is more robust and handles cases where some fields might not exist yet
+    try {
+      await userDocRef.set(data, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      developer.log(
+        'updateUserProfile: FirebaseException code=${e.code}, message=${e.message ?? ''}, path=${userDocRef.path}',
+        error: e,
+      );
+      rethrow;
+    } catch (e) {
+      developer.log('updateUserProfile: Unexpected error $e');
+      rethrow;
+    }
+
+    // Update cache immediately after successful save to reflect changes
+    // This ensures the UI shows the latest data immediately
+    final cache = PerformanceCacheService();
+    cache.cacheUserProfile(userProfile);
   }
 
   static Future<Map<String, dynamic>> getDashboardData(String uid) async {
@@ -1646,7 +1844,7 @@ class DatabaseService {
   /// Get user name from onboarding collection
   /// Queries by user_id first, then by email if user_id not found
   /// Returns fullName field if available, otherwise falls back to name + surname
-  static Future<String?> getUserNameFromOnboarding({
+  static Future<String?> fetchUserNameFromOnboarding({
     String? userId,
     String? email,
   }) async {

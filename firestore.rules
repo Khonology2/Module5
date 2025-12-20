@@ -1,3 +1,4 @@
+// Firestore Security Rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -19,24 +20,20 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(uid)).data.role : null;
     }
     function sameDepartment(uid) {
-      // Temporarily allow managers to see/update all employees regardless of department
       return true;
     }
     function canManagerSeeEmployee(userId) {
-      // Managers can see all employees regardless of department
       return userRole(userId) == 'employee';
     }
 
     function goalExists(goalId) {
       return exists(/databases/$(database)/documents/goals/$(goalId));
     }
-
     function goalOwner(goalId) {
       return goalExists(goalId)
         ? get(/databases/$(database)/documents/goals/$(goalId)).data.userId
         : null;
     }
-
     function canAccessGoal(goalId) {
       let owner = goalOwner(goalId);
       return owner != null && (
@@ -45,7 +42,6 @@ service cloud.firestore {
         isAdmin()
       );
     }
-
     function canEditGoalMilestones(goalId) {
       let owner = goalOwner(goalId);
       return owner != null && (
@@ -53,20 +49,14 @@ service cloud.firestore {
         isAdmin()
       );
     }
-
-    // Helper function to check if manager can update goal (for deadline extensions, status changes, etc.)
     function canManagerUpdateGoal() {
-      // Explicitly check if user is signed in and has manager role
-      // This is more explicit than isManager() to help with debugging permission issues
       return isSignedIn() && 
              exists(/databases/$(database)/documents/users/$(userId())) &&
              get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
     }
-
     function isValidMilestoneStatus(status) {
       return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
     }
-
     function validateMilestoneCreate(data) {
       return data.keys().hasOnly([
         'title',
@@ -89,7 +79,6 @@ service cloud.firestore {
       data.createdBy == userId() &&
       isValidMilestoneStatus(data.status);
     }
-
     function validateMilestoneUpdate(diff) {
       return diff.changedKeys().hasOnly([
         'title',
@@ -100,21 +89,16 @@ service cloud.firestore {
         'completedAt'
       ]);
     }
-
-    // Permit narrowly scoped approval/review updates even if manager role metadata is missing
     function isApprovalOrReviewUpdate() {
-      // Only allow these keys to change during approval/review
       let allowedKeys = ['approvalStatus', 'approvedByUserId', 'approvedByName', 'approvedAt', 'rejectionReason', 'review'];
       let changedOnlyAllowed = resource.data.diff(request.resource.data).changedKeys().hasOnly(allowedKeys);
       return changedOnlyAllowed && (
-        // Approve/Reject updates must be performed by a non-owner and set approver to self
         (
           ('approvalStatus' in request.resource.data) &&
           ('approvedByUserId' in request.resource.data) &&
           request.resource.data.approvedByUserId == userId() &&
           resource.data.userId != userId()
         ) ||
-        // Review payload (notes/scores) set by a non-owner
         (
           ('review' in request.resource.data) &&
           resource.data.userId != userId()
@@ -123,26 +107,22 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Basic access (added per requested snippet)
-      
-
-      // Allow reads for: the user themselves, managers/admins (all employees), 
-      // or any user document where the owner has opted-in to leaderboard visibility
       allow read: if isSignedIn() && (
         userId() == userId ||
         isManager() ||
-        isAdmin() ||
-        resource.data.leaderboardOptin == true
+        isAdmin()
       );
+      allow read: if isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.leaderboardOptin == true;
 
-      // Allow listing for signed-in users; individual docs still must satisfy read rule
       allow list: if isSignedIn();
 
-      // Create allowed for the user to set their initial role.
+      // Owner can create their own doc (including setting initial role)
       allow create: if isSignedIn() && userId() == userId;
 
-      // Allow owner to update their own profile as long as they are not changing role.
-      // Permit initial role set only if role field does not exist yet.
+      // Owner can update their profile as long as they are NOT changing role.
+      // Permit initial role set only if role doesn't exist yet.
       allow update: if isSignedIn() && userId() == userId && (
         !('role' in request.resource.data) ||
         (!('role' in resource.data) && ('role' in request.resource.data))
@@ -151,22 +131,23 @@ service cloud.firestore {
       // Admins can write anything (including changing roles).
       allow write: if isAdmin();
 
-      // Rules for subcollections
       match /{subcollection}/{subDocument} {
         allow read, create: if isSignedIn() && (
           userId() == userId ||
           isManager() ||
           isAdmin()
         );
+        allow list: if isSignedIn() && (
+          userId() == userId ||
+          isManager() ||
+          isAdmin()
+        );
 
-        // Allow user to update their own daily activity tracking entries
         allow update: if isSignedIn() && request.auth.uid == userId && (subcollection == 'daily_activities' || subcollection == 'badges');
 
-        // Allow managers to create alerts, nudges for all employees
         allow create: if isManager() && userRole(userId) == 'employee' && 
           subcollection == 'alerts';
         
-        // Allow managers to update employee goals, progress for all employees
         allow update: if isManager() && userRole(userId) == 'employee' && 
           (subcollection == 'goals' || subcollection == 'activities');
       }
@@ -177,33 +158,24 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
-    // Goals collection - managers can read/write employee goals
     match /goals/{goalId} {
-      // Allow goal owner to update their own goals
       allow update: if isSignedIn() && userId() == resource.data.userId;
-      
-      // Allow managers to update any goal (for extending deadlines, pausing, marking burnout, rescheduling, etc.)
-      // This rule allows managers to update targetDate, status, and other goal fields
       allow update: if canManagerUpdateGoal();
-      
-      // Allow approval/review updates by non-owners
       allow update: if isSignedIn() && isApprovalOrReviewUpdate();
-      
-      // Allow admins to update any goal
       allow update: if isSignedIn() && isAdmin();
-      // Allow goal owner, managers, and admins to delete goals
+
       allow delete: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
-      // Ensure managers can read goal documents even if department metadata is missing/mismatched
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
       allow create: if isSignedIn();
+      allow list: if isSignedIn();
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);
@@ -221,46 +193,30 @@ service cloud.firestore {
       }
     }
 
-    // Activities tracking for managers
     match /activities/{activityId} {
-      // Reads allowed to owner, managers (all employees), admins
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
-
-      // Create must validate against request.resource since resource doesn't exist yet
-        allow create: if isSignedIn();
-
-      // Updates/deletes validate against existing resource
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
-
-      // Allow managers to perform batch queries for all employees
-      allow list: if isSignedIn() && isManager();
+      allow list: if isSignedIn();
     }
 
-    // Team Goals - managers can create team goals for their department
     match /team_goals/{goalId} {
-      allow read: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
-      allow create: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
+      allow read: if isSignedIn() && (isManager() || isAdmin());
+      allow create: if isSignedIn() && (isManager() || isAdmin());
       allow update: if isSignedIn() && (
         (isManager() && resource.data.managerId == request.auth.uid) ||
         isAdmin()
       );
     }
 
-    // Alerts - managers can create alerts for employees
     match /alerts/{alertId} {
       // Allow owners/managers/admins to delete related alerts
       allow delete: if isSignedIn() && (
@@ -271,33 +227,25 @@ service cloud.firestore {
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
-      
       allow create: if isSignedIn();
-
-      // Allow managers to perform batch queries for their team
-      allow list: if isSignedIn() && isManager();
+      allow list: if isSignedIn();
     }
 
-    // Notifications - managers can read notifications sent to all employees
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
-      
-        allow create: if isSignedIn();
+      allow create: if isSignedIn();
+      allow list: if isSignedIn();
     }
 
-    // Manager actions audit trail
     match /manager_actions/{actionId} {
-      // Managers can read their own action history; admins can read all
       allow read: if isSignedIn() && (
         isAdmin() ||
         (isManager() && resource.data.managerId == userId())
       );
-
-      // Listing must stay scoped to the requesting manager and use a limit
       allow list: if isSignedIn() && (
         isAdmin() ||
         (
@@ -305,8 +253,6 @@ service cloud.firestore {
           request.query.where('managerId', '==', userId())
         )
       );
-
-      // Manager action records are written by managers or admins
       allow create: if isSignedIn() && (
         isAdmin() ||
         (
@@ -314,26 +260,16 @@ service cloud.firestore {
           request.resource.data.managerId == userId()
         )
       );
-
-      // Only admins can modify existing entries
       allow update, delete: if isAdmin();
     }
 
-    // Seasons/Challenges - managers create; employees can read and self-join
     match /seasons/{seasonId} {
-      // Allow any signed-in user to read seasons so employees can browse/join
       allow read: if isSignedIn();
-
-      // Allow managers to create seasons
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && (isManager() || isAdmin());
-
-      // Allow updates:
-      //  - manager (creator) and admins can update/delete anything
-      //  - employee can update only if the new doc includes their own participation
       allow update: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin() ||
-        // employee self-join: their uid must be present in the UPDATED fields
         (
           (
             ('participantIds' in request.resource.data) &&
@@ -345,25 +281,22 @@ service cloud.firestore {
           )
         )
       );
-
       allow delete: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin()
       );
     }
 
-    // Badges - users can read their own badges, managers can read all employee badges
     match /badges/{badgeId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
-      
-        allow create: if isSignedIn();
+      allow create: if isSignedIn();
+      allow list: if isSignedIn();
     }
 
-    // Audit Entries - employees can create/read own; managers can read/write for all employees
     match /audit_entries/{auditId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
@@ -373,14 +306,12 @@ service cloud.firestore {
       allow create: if isEmployee() && request.resource.data.userId == userId();
       allow update, delete: if isManager() || isAdmin();
 
-      // Timeline subcollection (events tied to audit entry)
       match /timeline/{timelineId} {
-        // Read/create allowed for any signed-in user, since parent read already restricted
         allow read, create, list: if isSignedIn();
       }
+      allow list: if isSignedIn();
     }
 
-    // Evidence Files - users can read/write own; managers can read for all employees
     match /evidence_files/{fileId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
@@ -400,7 +331,6 @@ service cloud.firestore {
       );
     }
 
-    // Repositories - users read own; managers can read all employee repositories
     match /repositories/{userId} {
       allow read: if isSignedIn() && (
         userId() == userId ||
@@ -408,8 +338,7 @@ service cloud.firestore {
         isAdmin()
       );
       allow list: if isSignedIn() && (isManager() || isAdmin());
-      
-      // Completed goals subcollection
+
       match /completedGoals/{goalId} {
         allow read: if isSignedIn() && (
           userId() == userId ||
@@ -424,8 +353,7 @@ service cloud.firestore {
         );
       }
     }
-    
-    // Team chat rules
+
     match /team.chat/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
@@ -451,20 +379,11 @@ service cloud.firestore {
       );
     }
 
-    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
-    match /goal_daily_progress/{progressId} {
-      allow delete: if isSignedIn() && (
-        userId() == resource.data.userId || isManager() || isAdmin()
-      );
-    }
-
-    // Goal Deletion Requests - employees create, managers/admins update
     match /goal_deletion_requests/{requestId} {
       allow create: if isEmployee() && request.resource.data.userId == userId();
       allow read, update: if isManager() || isAdmin();
     }
 
-    // Deleted Goals archive - logged before deletion; readable by owner/manager
     match /deleted_goals/{goalId} {
       allow create: if isSignedIn() && (
         userId() == request.resource.data.goalData.userId || isManager() || isAdmin()
@@ -474,12 +393,11 @@ service cloud.firestore {
       );
     }
 
-    // Deleted accounts blocklist - allow reads for signed-in users only
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();
     }
 
-    // Catch-all deny (added per requested snippet)
+    // Catch-all deny
     match /{document=**} {
       allow read, write: if false;
     }

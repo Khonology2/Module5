@@ -1,5 +1,6 @@
 // ignore_for_file: unused_element
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -245,12 +246,6 @@ class _ManagerProgressVisualsContentState
                 ),
               ),
               _buildViewTypeFilter(),
-              const SizedBox(width: AppSpacing.md),
-              if (currentViewType == ProgressViewType.team) ...[
-                _buildFilterDropdown(),
-                const SizedBox(width: AppSpacing.md),
-                _buildDepartmentDropdown(),
-              ],
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
@@ -293,27 +288,54 @@ class _ManagerProgressVisualsContentState
         return Column(
           children: [
             _buildTeamMetricsCards(metrics),
-            const SizedBox(height: AppSpacing.xxl),
-            Text(
-              'Team Member Progress',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+            const SizedBox(height: AppSpacing.xl),
+            // Removed "Team Member Progress" section - this functionality is better served
+            // by the Manager Review Team Dashboard which has full actions and detailed views
+            // The team metrics cards above provide sufficient high-level overview here
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.activeColor, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Team Management',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'For detailed team member progress, approvals, and actions, use the Team Dashboard.',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, '/manager_review_team_dashboard');
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.activeColor,
+                    ),
+                    child: const Text('Go to Team Dashboard'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            if (employees.isEmpty)
-              _buildNoEmployeesState()
-            else
-              Column(
-                children: employees
-                    .map(
-                      (employee) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _buildEmployeeCard(employee),
-                      ),
-                    )
-                    .toList(),
-              ),
           ],
         );
       },
@@ -321,10 +343,10 @@ class _ManagerProgressVisualsContentState
   }
 
   Widget _buildMyProgressView() {
-    return StreamBuilder<List<ManagerActivity>>(
-      stream: _getManagerActivitiesStream(),
-      builder: (context, activitiesSnapshot) {
-        if (activitiesSnapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<List<Goal>>(
+      stream: _getManagerGoalsStream(),
+      builder: (context, goalsSnapshot) {
+        if (goalsSnapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
@@ -332,103 +354,263 @@ class _ManagerProgressVisualsContentState
           );
         }
 
-        if (activitiesSnapshot.hasError) {
-          return _buildErrorState(activitiesSnapshot.error.toString());
+        if (goalsSnapshot.hasError) {
+          return _buildErrorState(goalsSnapshot.error.toString());
         }
 
-        final activities = activitiesSnapshot.data ?? [];
-        final completedActivities = activities
-            .where((a) => a.isCompleted)
-            .toList();
-        final upcomingActivities = activities
-            .where((a) => !a.isCompleted && a.scheduledFor != null)
-            .toList();
-        final pendingActivities = activities
-            .where((a) => !a.isCompleted && a.scheduledFor == null)
-            .toList();
+        final goals = goalsSnapshot.data ?? [];
 
-        // Group by type
-        final nudges = completedActivities
-            .where((a) => a.type == ManagerActivityType.nudge)
-            .length;
-        final approvals = completedActivities
-            .where((a) => a.type == ManagerActivityType.approval)
-            .length;
-        final replans = completedActivities
-            .where((a) => a.type == ManagerActivityType.replan)
-            .length;
-        final meetings = completedActivities
-            .where((a) => a.type == ManagerActivityType.meeting)
-            .length;
+        if (goals.isEmpty) {
+          return _buildNoManagerGoalsState();
+        }
+
+        final metrics = _calculateManagerGoalMetrics(goals);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildManagerProgressMetrics(
-              completedActivities.length,
-              nudges,
-              approvals,
-              replans,
-              meetings,
-            ),
+            _buildManagerGoalMetricsCards(metrics),
             const SizedBox(height: AppSpacing.xl),
-            if (completedActivities.isNotEmpty) ...[
-              Text(
-                'Completed Activities',
-                style: AppTypography.heading3.copyWith(
-                  color: AppColors.textPrimary,
+            Text(
+              'My Goals & Milestones',
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            ...goals
+                .take(10)
+                .map(
+                  (goal) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: _buildGoalRow(goal),
+                  ),
+                ),
+            if (goals.length > 10)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.md),
+                child: Text(
+                  '+${goals.length - 10} more goals',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              ...completedActivities
-                  .take(10)
-                  .map(
-                    (activity) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildManagerActivityCard(activity),
-                    ),
-                  ),
-              const SizedBox(height: AppSpacing.xl),
-            ],
-            if (upcomingActivities.isNotEmpty) ...[
-              Text(
-                'Upcoming Activities',
-                style: AppTypography.heading3.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ...upcomingActivities
-                  .take(5)
-                  .map(
-                    (activity) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildManagerActivityCard(activity),
-                    ),
-                  ),
-              const SizedBox(height: AppSpacing.xl),
-            ],
-            if (pendingActivities.isNotEmpty) ...[
-              Text(
-                'Pending Activities',
-                style: AppTypography.heading3.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ...pendingActivities
-                  .take(5)
-                  .map(
-                    (activity) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _buildManagerActivityCard(activity),
-                    ),
-                  ),
-            ],
-            if (activities.isEmpty) _buildNoManagerActivitiesState(),
+            const SizedBox(height: AppSpacing.xl),
+            _buildManagerMilestoneInsights(goals),
           ],
         );
       },
+    );
+  }
+
+  Stream<List<Goal>> _getManagerGoalsStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value([]);
+
+    // Merge top-level and nested user goals (same pattern as manager_employee_detail_screen)
+    final topLevel = FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+
+    final nested = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('goals')
+        .snapshots()
+        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+
+    return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
+      final seen = <String>{};
+      final merged = <Goal>[];
+      for (final g in [...a, ...b]) {
+        if (!seen.contains(g.id)) {
+          seen.add(g.id);
+          merged.add(g);
+        }
+      }
+      merged.sort((x, y) => y.createdAt.compareTo(x.createdAt));
+      return merged;
+    });
+  }
+
+  Map<String, dynamic> _calculateManagerGoalMetrics(List<Goal> goals) {
+    final totalGoals = goals.length;
+    final completedGoals = goals
+        .where((g) => g.status == GoalStatus.completed || g.progress >= 100)
+        .length;
+    final activeGoals = goals
+        .where(
+          (g) =>
+              g.approvalStatus == GoalApprovalStatus.approved &&
+              g.status != GoalStatus.completed &&
+              g.progress < 100,
+        )
+        .length;
+    final overdueGoals = goals.where((g) {
+      final now = DateTime.now();
+      return g.targetDate.isBefore(now) && g.status != GoalStatus.completed;
+    }).length;
+
+    final avgProgress = goals.isEmpty
+        ? 0.0
+        : goals.map((g) => g.progress).fold(0, (a, b) => a + b) / goals.length;
+
+    final totalPoints = goals.fold<int>(0, (total, g) => total + g.points);
+
+    return {
+      'totalGoals': totalGoals,
+      'completedGoals': completedGoals,
+      'activeGoals': activeGoals,
+      'overdueGoals': overdueGoals,
+      'avgProgress': avgProgress,
+      'totalPoints': totalPoints,
+    };
+  }
+
+  Widget _buildManagerGoalMetricsCards(Map<String, dynamic> metrics) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Total Goals',
+                value: metrics['totalGoals'].toString(),
+                icon: Icons.flag_outlined,
+                color: AppColors.activeColor,
+                subtitle: 'All goals',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Completed',
+                value: metrics['completedGoals'].toString(),
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Finished',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Active Goals',
+                value: metrics['activeGoals'].toString(),
+                icon: Icons.trending_up,
+                color: AppColors.infoColor,
+                subtitle: 'In progress',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Average Progress',
+                value: '${metrics['avgProgress'].toStringAsFixed(1)}%',
+                icon: Icons.analytics_outlined,
+                color: metrics['avgProgress'] >= 70
+                    ? AppColors.successColor
+                    : metrics['avgProgress'] >= 40
+                    ? AppColors.warningColor
+                    : AppColors.dangerColor,
+                subtitle: 'Overall',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Overdue',
+                value: metrics['overdueGoals'].toString(),
+                icon: Icons.warning_outlined,
+                color: AppColors.dangerColor,
+                subtitle: 'Needs attention',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Total Points',
+                value: metrics['totalPoints'].toString(),
+                icon: Icons.stars_outlined,
+                color: AppColors.warningColor,
+                subtitle: 'Earned',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManagerMilestoneInsights(List<Goal> goals) {
+    if (goals.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Milestone Analytics',
+          style: AppTypography.heading3.copyWith(
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        ...goals
+            .take(3)
+            .map(
+              (goal) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: GoalMilestoneAnalyticsCard(goal: goal),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildNoManagerGoalsState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.flag_outlined,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Goals Yet',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start tracking your progress by creating your first goal.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -1235,87 +1417,6 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildFilterDropdown() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DropdownButton<TimeFilter>(
-          value: currentTimeFilter,
-          underline: const SizedBox(),
-          isExpanded: false,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          onChanged: (TimeFilter? filter) {
-            if (filter != null) {
-              setState(() {
-                currentTimeFilter = filter;
-              });
-            }
-          },
-          items: TimeFilter.values.map((filter) {
-            return DropdownMenuItem<TimeFilter>(
-              value: filter,
-              child: Text(filter.name.toUpperCase()),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDepartmentDropdown() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DropdownButton<String?>(
-          value: selectedDepartment,
-          underline: const SizedBox(),
-          isExpanded: false,
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textPrimary,
-          ),
-          hint: Text(
-            'All Departments',
-            style: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          onChanged: (String? department) {
-            setState(() {
-              selectedDepartment = department;
-            });
-          },
-          items: [
-            DropdownMenuItem<String?>(
-              value: null,
-              child: Text('All Departments'),
-            ),
-            DropdownMenuItem<String?>(
-              value: widget.userProfile.department,
-              child: Text(
-                widget.userProfile.department.isEmpty
-                    ? 'Department'
-                    : widget.userProfile.department,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildTeamMetricsCards(TeamMetrics metrics) {
     return Column(
@@ -2518,40 +2619,14 @@ class _EmployeeProgressVisualsContentState
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
 
+    // Use Goal.fromFirestore to properly parse all fields including approvalStatus
     return FirebaseFirestore.instance
         .collection('goals')
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-          final goals = snapshot.docs.map((doc) {
-            final data = doc.data();
-            return Goal(
-              id: doc.id,
-              userId: data['userId'] ?? user.uid,
-              title: data['title'] ?? '',
-              description: data['description'] ?? '',
-              category: GoalCategory.values.firstWhere(
-                (e) => e.name == (data['category'] ?? 'personal'),
-                orElse: () => GoalCategory.personal,
-              ),
-              priority: GoalPriority.values.firstWhere(
-                (e) => e.name == (data['priority'] ?? 'medium'),
-                orElse: () => GoalPriority.medium,
-              ),
-              status: GoalStatus.values.firstWhere(
-                (e) => e.name == (data['status'] ?? 'notStarted'),
-                orElse: () => GoalStatus.notStarted,
-              ),
-              progress: (data['progress'] ?? 0) as int,
-              createdAt:
-                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-              targetDate:
-                  (data['targetDate'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
-              points: (data['points'] ?? 0) as int,
-            );
-          }).toList();
-
+          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          // Sort goals by createdAt descending (newest first)
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
         });
@@ -4792,5 +4867,32 @@ class GoalMilestoneAnalyticsCard extends StatelessWidget {
   static String _weekKey(DateTime date) {
     final start = _startOfWeek(date);
     return '${start.year}-${start.month}-${start.day}';
+  }
+}
+
+extension _Rx on Stream<List<Goal>> {
+  Stream<R> combineLatest<T, R>(
+    Stream<T> other,
+    R Function(List<Goal>, T) combiner,
+  ) {
+    late List<Goal> aCache;
+    late T bCache;
+    bool hasA = false, hasB = false;
+    final controller = StreamController<R>();
+    final subA = listen((a) {
+      hasA = true;
+      aCache = a;
+      if (hasB) controller.add(combiner(aCache, bCache));
+    });
+    final subB = other.listen((b) {
+      hasB = true;
+      bCache = b;
+      if (hasA) controller.add(combiner(aCache, bCache));
+    });
+    controller.onCancel = () {
+      subA.cancel();
+      subB.cancel();
+    };
+    return controller.stream;
   }
 }
