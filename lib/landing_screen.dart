@@ -48,6 +48,7 @@ class _PersonalDevelopmentHubScreenState
   bool _isCheckingToken = false;
   bool _isProcessingButton = false;
   bool _isSlowNetwork = false;
+  bool _isRedirecting = false;
 
   @override
   void initState() {
@@ -132,9 +133,10 @@ class _PersonalDevelopmentHubScreenState
           final role = await RoleService.instance.getRole(refresh: true);
           if (mounted) {
             setState(() {
-              _isCheckingToken = false;
+              _isCheckingToken = true;
               _isProcessingButton = false;
               _isSlowNetwork = false;
+              _isRedirecting = true;
             });
             if (role == 'manager') {
               Navigator.pushReplacementNamed(context, '/manager_dashboard');
@@ -149,6 +151,7 @@ class _PersonalDevelopmentHubScreenState
             _isCheckingToken = false;
             _isProcessingButton = false;
             _isSlowNetwork = false;
+            _isRedirecting = false;
           });
         }
         return;
@@ -303,9 +306,10 @@ class _PersonalDevelopmentHubScreenState
           // Step D: Route user based on roles
           if (mounted) {
             setState(() {
-              _isCheckingToken = false;
+              _isCheckingToken = true;
               _isProcessingButton = false;
               _isSlowNetwork = false;
+              _isRedirecting = true;
             });
             _navigateToDashboard(pdhRole);
             return;
@@ -489,9 +493,11 @@ class _PersonalDevelopmentHubScreenState
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        _isSlowNetwork
-                            ? 'Validating token... backend may be waking up'
-                            : 'Validating token...',
+                        _isRedirecting
+                            ? 'Redirecting to your dashboard...'
+                            : (_isSlowNetwork
+                                ? 'Validating token... backend may be waking up'
+                                : 'Validating token...'),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
