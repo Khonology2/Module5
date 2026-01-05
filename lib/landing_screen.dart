@@ -243,15 +243,22 @@ class _PersonalDevelopmentHubScreenState
       // Extract PDH role from roles list
       String? pdhRole;
       if (roles != null && roles.isNotEmpty) {
+        bool hasEmployeeOrStaff = false;
+        bool hasAdminOrManager = false;
         for (final role in roles) {
           final s = role.toString().toLowerCase();
           if (s.contains('employee') || s.contains('staff')) {
-            pdhRole = 'PDH - Employee';
-            break;
-          } else if (s.contains('admin') || s.contains('manager')) {
-            pdhRole = 'PDH - Admin';
-            break;
+            hasEmployeeOrStaff = true;
           }
+          if (s.contains('admin') || s.contains('manager')) {
+            hasAdminOrManager = true;
+          }
+        }
+        // Prioritize Employee/Staff over Admin/Manager if both are present
+        if (hasEmployeeOrStaff) {
+          pdhRole = 'PDH - Employee';
+        } else if (hasAdminOrManager) {
+          pdhRole = 'PDH - Admin';
         }
       }
 
