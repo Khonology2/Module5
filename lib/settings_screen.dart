@@ -140,9 +140,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               }
 
+              // Use StreamBuilder for role, but with initial data to avoid waiting
               return StreamBuilder<String?>(
                 key: const ValueKey('role_stream'),
                 stream: RoleService.instance.roleStream(),
+                initialData: RoleService.instance.cachedRole,
                 builder: (context, roleSnapshot) {
                   final role =
                       roleSnapshot.data ?? RoleService.instance.cachedRole;
@@ -637,7 +639,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: OutlinedButton.icon(
             onPressed: _exportUserData,
             icon: const Icon(Icons.download),
-            label: Text(AppLocalizations.of(context)  .export_my_data),
+            label: Text(AppLocalizations.of(context).export_my_data),
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFFC10D00),
               side: const BorderSide(color: Color(0xFFC10D00)),
