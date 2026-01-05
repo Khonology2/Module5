@@ -244,15 +244,11 @@ class _PersonalDevelopmentHubScreenState
       String? pdhRole;
       if (roles != null && roles.isNotEmpty) {
         for (final role in roles) {
-          final roleStr = role.toString();
-          if (roleStr.contains('PDH - Employee') ||
-              roleStr.contains('PDH-Employee')) {
+          final s = role.toString().toLowerCase();
+          if (s.contains('employee') || s.contains('staff')) {
             pdhRole = 'PDH - Employee';
             break;
-          } else if (roleStr.contains('PDH - Admin') ||
-              roleStr.contains('PDH-Admin') ||
-              roleStr.contains('PDH - Manager') ||
-              roleStr.contains('PDH-Manager')) {
+          } else if (s.contains('admin') || s.contains('manager')) {
             pdhRole = 'PDH - Admin';
             break;
           }

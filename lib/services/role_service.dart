@@ -192,6 +192,7 @@ String? _normalizeRole(String? role) {
   final r = role.trim();
   if (r.isEmpty) return null;
   final lower = r.toLowerCase();
+  if (lower.contains('staff')) return 'employee';
   if (lower.contains('manager')) return 'manager';
   if (lower.contains('admin')) return 'manager';
   if (lower.contains('employee')) return 'employee';
