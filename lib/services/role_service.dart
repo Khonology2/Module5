@@ -37,7 +37,7 @@ class RoleService {
 
       // Document exists - get the role
       final roleData = snap.data();
-      String? role = roleData?['role'] as String?;
+      String? role = _normalizeRole(roleData?['role'] as String?);
 
       // Only set default role if role is truly missing (null or empty string)
       // NEVER overwrite an existing role, even if it's empty string
@@ -46,7 +46,7 @@ class RoleService {
         // Double-check: read the document again to make sure we have the latest data
         // This prevents race conditions where role might have been set between reads
         final retrySnap = await ref.get();
-        final retryRole = retrySnap.data()?['role'] as String?;
+        final retryRole = _normalizeRole(retrySnap.data()?['role'] as String?);
 
         if (retryRole != null && retryRole.isNotEmpty) {
           // Role was set between reads, use it
@@ -106,7 +106,7 @@ class RoleService {
             .snapshots()
             .map((doc) {
               try {
-                final role = doc.data()?['role'] as String?;
+                final role = _normalizeRole(doc.data()?['role'] as String?);
                 _cachedRole = role;
                 return role;
               } catch (e) {
@@ -153,17 +153,17 @@ class RoleService {
     try {
       // Store role in Firestore using user_id
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'role': role,
+        'role': _normalizeRole(role) ?? role,
         'user_id': userId,
       }, SetOptions(merge: true));
 
       // Cache the role locally
-      _cachedRole = role;
+      _cachedRole = _normalizeRole(role) ?? role;
       debugPrint('RoleService: Role set to $role for user_id: $userId');
     } catch (e) {
       debugPrint('RoleService: Error setting role by user_id: $e');
       // Still cache the role locally even if Firestore update fails
-      _cachedRole = role;
+      _cachedRole = _normalizeRole(role) ?? role;
     }
   }
 
@@ -172,7 +172,7 @@ class RoleService {
     try {
       final ref = FirebaseFirestore.instance.collection('users').doc(userId);
       final snap = await ref.get();
-      String? role = snap.data()?['role'] as String?;
+      String? role = _normalizeRole(snap.data()?['role'] as String?);
       if (role != null && role.isNotEmpty) {
         _cachedRole = role;
         return role;
@@ -186,6 +186,19 @@ class RoleService {
 }
 
 enum RequiredRole { manager, employee, any }
+
+String? _normalizeRole(String? role) {
+  if (role == null) return null;
+  final r = role.trim();
+  if (r.isEmpty) return null;
+  final lower = r.toLowerCase();
+  if (lower.contains('manager')) return 'manager';
+  if (lower.contains('admin')) return 'manager';
+  if (lower.contains('employee')) return 'employee';
+  if (lower == 'mgr') return 'manager';
+  if (lower == 'emp') return 'employee';
+  return r;
+}
 
 class RoleGate extends StatefulWidget {
   final RequiredRole requiredRole;
