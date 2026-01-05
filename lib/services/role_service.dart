@@ -317,7 +317,15 @@ class _RoleGateState extends State<RoleGate> {
           (widget.requiredRole == RequiredRole.manager && role == 'manager') ||
           (widget.requiredRole == RequiredRole.employee && role == 'employee');
       if (ok) return widget.child;
-      return widget.unauthorized ?? _Unauthorized(role: role);
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            role == 'manager' ? '/manager_dashboard' : '/employee_dashboard',
+          );
+        }
+      });
+      return const SizedBox.shrink();
     }
 
     // Firebase Auth - use stream
@@ -336,7 +344,15 @@ class _RoleGateState extends State<RoleGate> {
             (widget.requiredRole == RequiredRole.employee &&
                 role == 'employee');
         if (ok) return widget.child;
-        return widget.unauthorized ?? _Unauthorized(role: role);
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            Navigator.pushReplacementNamed(
+              context,
+              role == 'manager' ? '/manager_dashboard' : '/employee_dashboard',
+            );
+          }
+        });
+        return const SizedBox.shrink();
       },
     );
   }
