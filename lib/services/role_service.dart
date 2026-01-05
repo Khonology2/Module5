@@ -324,7 +324,7 @@ class _RoleGateState extends State<RoleGate> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
-        final role = snapshot.data ?? RoleService.instance.cachedRole;
+        final role = _normalizeRole(snapshot.data ?? RoleService.instance.cachedRole);
         if (widget.requiredRole == RequiredRole.any) return widget.child;
         if (snapshot.hasError || role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;

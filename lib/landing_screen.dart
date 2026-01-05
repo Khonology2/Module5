@@ -289,7 +289,7 @@ class _PersonalDevelopmentHubScreenState
             'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
 
-          RoleService.instance.getRole(refresh: true);
+          await RoleService.instance.setRoleByUserId(userId, internalRole);
 
           // Call backend callback to notify authentication is complete
           BackendAuthService.instance.callAuthCallback(
