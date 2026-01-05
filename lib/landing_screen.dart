@@ -127,6 +127,23 @@ class _PersonalDevelopmentHubScreenState
 
       if (token == null || token.isEmpty) {
         debugPrint('Landing screen: No token found in URL');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final role = await RoleService.instance.getRole(refresh: true);
+          if (mounted) {
+            setState(() {
+              _isCheckingToken = false;
+              _isProcessingButton = false;
+              _isSlowNetwork = false;
+            });
+            if (role == 'manager') {
+              Navigator.pushReplacementNamed(context, '/manager_dashboard');
+            } else {
+              Navigator.pushReplacementNamed(context, '/employee_dashboard');
+            }
+          }
+          return;
+        }
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -342,11 +359,11 @@ class _PersonalDevelopmentHubScreenState
               (e) => debugPrint('Landing screen: Navigation error: $e'),
             );
       } else if (pdhRole == 'PDH - Admin') {
-        debugPrint('Landing screen: Navigating to admin dashboard...');
-        Navigator.pushReplacementNamed(context, '/admin_dashboard')
+        debugPrint('Landing screen: Navigating to manager dashboard...');
+        Navigator.pushReplacementNamed(context, '/manager_dashboard')
             .then(
               (_) => debugPrint(
-                'Landing screen: Navigation to admin dashboard completed',
+                'Landing screen: Navigation to manager dashboard completed',
               ),
             )
             .catchError(
