@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +11,8 @@ class RoleService {
 
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
+  StreamController<String?>? _roleController;
+  StreamSubscription<DocumentSnapshot>? _roleSubscription;
   String? _currentUserId; // Track which user the stream is for
 
   String? get cachedRole => _cachedRole;
@@ -98,26 +101,50 @@ class RoleService {
     if (_roleBroadcast == null) {
       _currentUserId = user.uid;
       try {
-        _roleBroadcast = FirebaseFirestore.instance
+        // Cancel any existing subscription and close controller first
+        _roleSubscription?.cancel();
+        _roleController?.close();
+
+        // Create a new stream controller for better control
+        _roleController = StreamController<String?>.broadcast();
+
+        // Emit cached role immediately so StreamBuilders don't wait
+        // This ensures UI shows data right away if role is already loaded
+        if (_cachedRole != null && !_roleController!.isClosed) {
+          _roleController!.add(_cachedRole);
+        }
+
+        // Create the Firestore subscription
+        _roleSubscription = FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .snapshots()
-            .map((doc) {
-              try {
-                final role = doc.data()?['role'] as String?;
-                _cachedRole = role;
-                return role;
-              } catch (e) {
-                developer.log('Error processing role snapshot: $e');
-                return _cachedRole;
-              }
-            })
-            .distinct()
-            .handleError((error) {
-              developer.log('Error in role stream: $error');
-              // Don't propagate error, just return cached role
-            })
-            .asBroadcastStream();
+            .listen(
+              (doc) {
+                try {
+                  final role = doc.data()?['role'] as String?;
+                  _cachedRole = role;
+                  if (_roleController != null && !_roleController!.isClosed) {
+                    _roleController!.add(role);
+                  }
+                } catch (e) {
+                  developer.log('Error processing role snapshot: $e');
+                  if (_roleController != null && !_roleController!.isClosed) {
+                    _roleController!.add(_cachedRole);
+                  }
+                }
+              },
+              onError: (error) {
+                developer.log('Error in role stream: $error');
+                // Don't propagate error, just return cached role
+                if (_roleController != null && !_roleController!.isClosed) {
+                  _roleController!.add(_cachedRole);
+                }
+              },
+              cancelOnError: false, // Keep stream alive even on errors
+            );
+
+        _roleBroadcast = _roleController!.stream.distinct();
       } catch (e) {
         developer.log('Error creating role stream: $e');
         // Return a stream with cached role
@@ -129,6 +156,12 @@ class RoleService {
   }
 
   void _clearStream() {
+    // Cancel the Firestore subscription properly
+    _roleSubscription?.cancel();
+    _roleSubscription = null;
+    // Close and clear the stream controller
+    _roleController?.close();
+    _roleController = null;
     _roleBroadcast = null;
     _currentUserId = null;
   }
@@ -220,31 +253,34 @@ class _RoleGateState extends State<RoleGate> {
       builder: (context, snapshot) {
         final role = snapshot.data ?? RoleService.instance.cachedRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
-        
+
         // If stream is still waiting and role is null, show loading for managers
         // This handles the case where role hasn't loaded yet after login
-        if (snapshot.connectionState == ConnectionState.waiting && role == null) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            role == null) {
           if (widget.requiredRole == RequiredRole.manager) {
-            return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
+            return Center(
+              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+            );
           }
           // For employees, allow access while loading
           if (widget.requiredRole == RequiredRole.employee) {
             return widget.child;
           }
         }
-        
+
         if (snapshot.hasError) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
-        
+
         // If role is null after stream has emitted, user truly has no role
         if (role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           // For managers with no role, show unauthorized
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
-        
+
         final ok =
             (widget.requiredRole == RequiredRole.manager &&
                 role == 'manager') ||
