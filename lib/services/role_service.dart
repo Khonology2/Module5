@@ -142,7 +142,12 @@ class RoleService {
   // Method to ensure role is loaded and cached
   Future<void> ensureRoleLoaded() async {
     if (_cachedRole == null) {
-      await getRole();
+      await getRole(refresh: true);
+      // If still null after first attempt, wait a bit and retry (for timing issues)
+      if (_cachedRole == null) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        await getRole(refresh: true);
+      }
     }
   }
 }
@@ -215,10 +220,31 @@ class _RoleGateState extends State<RoleGate> {
       builder: (context, snapshot) {
         final role = snapshot.data ?? RoleService.instance.cachedRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
-        if (snapshot.hasError || role == null) {
+        
+        // If stream is still waiting and role is null, show loading for managers
+        // This handles the case where role hasn't loaded yet after login
+        if (snapshot.connectionState == ConnectionState.waiting && role == null) {
+          if (widget.requiredRole == RequiredRole.manager) {
+            return Center(child: CircularProgressIndicator(color: Color(0xFFC10D00)));
+          }
+          // For employees, allow access while loading
+          if (widget.requiredRole == RequiredRole.employee) {
+            return widget.child;
+          }
+        }
+        
+        if (snapshot.hasError) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
+        
+        // If role is null after stream has emitted, user truly has no role
+        if (role == null) {
+          if (widget.requiredRole == RequiredRole.employee) return widget.child;
+          // For managers with no role, show unauthorized
+          return widget.unauthorized ?? _Unauthorized(role: role);
+        }
+        
         final ok =
             (widget.requiredRole == RequiredRole.manager &&
                 role == 'manager') ||
