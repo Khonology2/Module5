@@ -11,8 +11,6 @@ class RoleService {
 
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
-  StreamController<String?>? _roleController;
-  StreamSubscription<DocumentSnapshot>? _roleSubscription;
   String? _currentUserId; // Track which user the stream is for
 
   String? get cachedRole => _cachedRole;
@@ -88,66 +86,44 @@ class RoleService {
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _clearStream();
-      return const Stream.empty();
+      return Stream.value(_cachedRole);
     }
 
-    // If user changed, clear old stream first to prevent multiple listeners
+    // If user changed, we need a new stream
+    // But only clear if we're sure the old stream has no listeners
     if (_currentUserId != null && _currentUserId != user.uid) {
-      _clearStream();
+      // User changed - clear reference but let old stream close naturally
+      _roleBroadcast = null;
+      _currentUserId = user.uid; // Set new user ID immediately
     }
 
     // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
     if (_roleBroadcast == null) {
       _currentUserId = user.uid;
       try {
-        // Cancel any existing subscription and close controller first
-        _roleSubscription?.cancel();
-        _roleController?.close();
-
-        // Create a new stream controller for better control
-        _roleController = StreamController<String?>.broadcast();
-
-        // Emit cached role immediately so StreamBuilders don't wait
-        // This ensures UI shows data right away if role is already loaded
-        if (_cachedRole != null && !_roleController!.isClosed) {
-          _roleController!.add(_cachedRole);
-        }
-
-        // Create the Firestore subscription
-        _roleSubscription = FirebaseFirestore.instance
+        // Create the Firestore stream and convert to broadcast
+        // This ensures only ONE Firestore listener exists per user
+        final firestoreStream = FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .snapshots()
-            .listen(
-              (doc) {
-                try {
-                  final role = doc.data()?['role'] as String?;
-                  _cachedRole = role;
-                  if (_roleController != null && !_roleController!.isClosed) {
-                    _roleController!.add(role);
-                  }
-                } catch (e) {
-                  developer.log('Error processing role snapshot: $e');
-                  if (_roleController != null && !_roleController!.isClosed) {
-                    _roleController!.add(_cachedRole);
-                  }
-                }
-              },
-              onError: (error) {
-                developer.log('Error in role stream: $error');
-                // Don't propagate error, just return cached role
-                if (_roleController != null && !_roleController!.isClosed) {
-                  _roleController!.add(_cachedRole);
-                }
-              },
-              cancelOnError: false, // Keep stream alive even on errors
-            );
+            .snapshots();
 
-        _roleBroadcast = _roleController!.stream.distinct();
+        _roleBroadcast = firestoreStream
+            .map((doc) {
+              try {
+                final role = doc.data()?['role'] as String?;
+                _cachedRole = role;
+                return role;
+              } catch (e) {
+                developer.log('Error processing role snapshot: $e');
+                return _cachedRole;
+              }
+            })
+            .distinct()
+            .asBroadcastStream();
       } catch (e) {
         developer.log('Error creating role stream: $e');
-        // Return a stream with cached role
+        // Return a stream with cached role as fallback
         return Stream.value(_cachedRole);
       }
     }
@@ -156,12 +132,8 @@ class RoleService {
   }
 
   void _clearStream() {
-    // Cancel the Firestore subscription properly
-    _roleSubscription?.cancel();
-    _roleSubscription = null;
-    // Close and clear the stream controller
-    _roleController?.close();
-    _roleController = null;
+    // Only clear stream reference - don't force cancellation
+    // Let Firestore handle cleanup naturally when all listeners unsubscribe
     _roleBroadcast = null;
     _currentUserId = null;
   }

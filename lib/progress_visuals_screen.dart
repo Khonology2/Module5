@@ -37,6 +37,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     _redirectIfManagerStandalone();
     _loadUserData();
   }
@@ -107,8 +109,12 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Widget build(BuildContext context) {
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
+      initialData: userProfile, // Use cached profile to avoid spinner
       builder: (context, profileSnapshot) {
-        if (profileSnapshot.connectionState == ConnectionState.waiting) {
+        // Only show loading if we truly don't have any data
+        if (profileSnapshot.connectionState == ConnectionState.waiting && 
+            profileSnapshot.data == null && 
+            userProfile == null) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
