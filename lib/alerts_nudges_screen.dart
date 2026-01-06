@@ -37,6 +37,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     // Check for new alerts when screen loads
     AlertService.checkAndCreateGoalAlerts();
     // Load predictive risk alerts
@@ -198,9 +200,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           child: StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
+            initialData: RoleService.instance.cachedRole ?? 'employee',
             builder: (context, roleSnapshot) {
               // role stream is observed to ensure auth context is alive; defaulting prevents spinners
-              roleSnapshot.data ?? 'employee';
+              // Role is available via roleSnapshot.data or cachedRole if needed
 
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) {
