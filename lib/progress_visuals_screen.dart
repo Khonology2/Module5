@@ -33,6 +33,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   UserProfile? userProfile;
   bool isLoading = true;
   String? error;
+  UserProfile? _cachedProfile;
 
   @override
   void initState() {
@@ -78,6 +79,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
         setState(() {
           userProfile = profile;
+          _cachedProfile = profile;
           isLoading = false;
         });
       }
@@ -109,20 +111,16 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Widget build(BuildContext context) {
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
-      initialData: userProfile, // Use cached profile to avoid spinner
+      initialData: _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
       builder: (context, profileSnapshot) {
-        // Only show loading if we truly don't have any data
-        if (profileSnapshot.connectionState == ConnectionState.waiting && 
-            profileSnapshot.data == null && 
-            userProfile == null) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+        final streamedProfile = profileSnapshot.data;
+        if (streamedProfile != null && streamedProfile != _cachedProfile) {
+          _cachedProfile = streamedProfile;
+          userProfile = streamedProfile;
         }
 
-        if (profileSnapshot.hasError) {
+        // Prefer cached profile to avoid spinner on transient errors
+        if (profileSnapshot.hasError && _cachedProfile == null) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -154,15 +152,27 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        userProfile = profileSnapshot.data;
+        final effectiveProfile = streamedProfile ?? _cachedProfile ?? userProfile;
 
-        if (userProfile == null) {
+        // Only show loading if we truly don't have any data
+        if (profileSnapshot.connectionState == ConnectionState.waiting &&
+            effectiveProfile == null) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
             ),
           );
         }
+
+        if (effectiveProfile == null) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+
+        userProfile = effectiveProfile;
 
         return Container(
           decoration: const BoxDecoration(

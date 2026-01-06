@@ -222,23 +222,23 @@ class _RoleGateState extends State<RoleGate> {
 
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
       builder: (context, snapshot) {
         final role = snapshot.data ?? RoleService.instance.cachedRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
 
-        // If stream is still waiting and role is null, show loading for managers
-        // This handles the case where role hasn't loaded yet after login
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            role == null) {
-          if (widget.requiredRole == RequiredRole.manager) {
-            return Center(
-              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-            );
-          }
-          // For employees, allow access while loading
-          if (widget.requiredRole == RequiredRole.employee) {
-            return widget.child;
-          }
+        final isLoading =
+            (snapshot.connectionState == ConnectionState.waiting ||
+                snapshot.connectionState == ConnectionState.none) &&
+            role == null;
+
+        // While role is loading, never show unauthorized to managers;
+        // employees are allowed through.
+        if (isLoading) {
+          if (widget.requiredRole == RequiredRole.employee) return widget.child;
+          return Center(
+            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+          );
         }
 
         if (snapshot.hasError) {
@@ -246,11 +246,12 @@ class _RoleGateState extends State<RoleGate> {
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
 
-        // If role is null after stream has emitted, user truly has no role
+        // If role is still null, treat as loading for managers, allow employees through.
         if (role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
-          // For managers with no role, show unauthorized
-          return widget.unauthorized ?? _Unauthorized(role: role);
+          return Center(
+            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+          );
         }
 
         final ok =

@@ -33,6 +33,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   List<Map<String, dynamic>>? _predictiveRisks;
   bool _isLoadingRisks = false;
   bool _isRiskAlertsExpanded = false;
+  List<Alert>? _cachedAlerts;
 
   @override
   void initState() {
@@ -222,19 +223,17 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 children: [
                   StreamBuilder<List<Alert>>(
                     stream: AlertService.getUserAlertsStream(user.uid),
+                    initialData: _cachedAlerts,
                     builder: (context, alertsSnapshot) {
-                      if (alertsSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
-                            ),
-                          ),
-                        );
+                      final streamedAlerts = alertsSnapshot.data;
+                      // Update cache when fresh data arrives
+                      if (streamedAlerts != null &&
+                          streamedAlerts != _cachedAlerts) {
+                        _cachedAlerts = streamedAlerts;
                       }
 
-                      if (alertsSnapshot.hasError) {
+                      // Prefer cached alerts to avoid spinner on transient errors
+                      if (alertsSnapshot.hasError && _cachedAlerts == null) {
                         final errorMessage = alertsSnapshot.error.toString();
 
                         // Check if it's a permission error
@@ -274,7 +273,20 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         );
                       }
 
-                      final alerts = alertsSnapshot.data ?? [];
+                      final alerts = streamedAlerts ?? _cachedAlerts ?? [];
+
+                      if (alerts.isEmpty &&
+                          alertsSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          _cachedAlerts == null) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          ),
+                        );
+                      }
+
                       // Filter: hide overdue goal alerts in this view
                       final filtered = alerts
                           .where((a) => a.type != AlertType.goalOverdue)

@@ -27,10 +27,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   UserSettings? _currentSettings;
   bool _hasInitialLoadAttempted = false;
   DateTime? _loadStartTime;
+  static const String _localSettingsKey = 'cached_user_settings_v1';
 
   @override
   void initState() {
     super.initState();
+    // Hydrate from local cache first so UI has data even if Firestore is slow
+    _hydrateLocalSettings();
     // Ensure role is loaded
     RoleService.instance.ensureRoleLoaded();
     // Try to load settings immediately as fallback
@@ -47,11 +50,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
           setState(() {
             _currentSettings = settings;
           });
+          _persistLocalSettings(settings);
         }
       } catch (e) {
         developer.log('Error loading settings fallback: $e');
       }
     }
+  }
+
+  Future<void> _hydrateLocalSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_localSettingsKey);
+      if (json == null) return;
+      final map = jsonDecode(json) as Map<String, dynamic>;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final settings = _userSettingsFromLocal(map, user.uid);
+      setState(() {
+        _currentSettings = settings;
+      });
+    } catch (e) {
+      developer.log('Error hydrating local settings: $e');
+    }
+  }
+
+  Future<void> _persistLocalSettings(UserSettings settings) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _localSettingsKey,
+        jsonEncode(_userSettingsToLocal(settings)),
+      );
+    } catch (e) {
+      developer.log('Error persisting local settings: $e');
+    }
+  }
+
+  Map<String, dynamic> _userSettingsToLocal(UserSettings s) {
+    return {
+      'displayName': s.displayName,
+      'email': s.email,
+      'photoURL': s.photoURL,
+      'department': s.department,
+      'jobTitle': s.jobTitle,
+      'privateGoals': s.privateGoals,
+      'managerOnly': s.managerOnly,
+      'teamShare': s.teamShare,
+      'leaderboardParticipation': s.leaderboardParticipation,
+      'profileVisible': s.profileVisible,
+      'pushNotifications': s.pushNotifications,
+      'emailNotifications': s.emailNotifications,
+      'soundAlerts': s.soundAlerts,
+      'goalReminders': s.goalReminders,
+      'weeklyReports': s.weeklyReports,
+      'darkMode': s.darkMode,
+      'speechRecognitionEnabled': s.speechRecognitionEnabled,
+      'celebrationFeed': s.celebrationFeed,
+      'autoSync': s.autoSync,
+      'language': s.language,
+      'timeZone': s.timeZone,
+      'tutorialEnabled': s.tutorialEnabled,
+      'twoFactorAuth': s.twoFactorAuth,
+      'sessionTimeout': s.sessionTimeout,
+      'sessionTimeoutMinutes': s.sessionTimeoutMinutes,
+      'biometricAuth': s.biometricAuth,
+    };
+  }
+
+  UserSettings _userSettingsFromLocal(Map<String, dynamic> m, String userId) {
+    return UserSettings(
+      userId: userId,
+      displayName: (m['displayName'] ?? '') as String,
+      email: (m['email'] ?? '') as String,
+      photoURL: m['photoURL'] as String?,
+      department: m['department'] as String?,
+      jobTitle: m['jobTitle'] as String?,
+      privateGoals: m['privateGoals'] as bool? ?? false,
+      managerOnly: m['managerOnly'] as bool? ?? false,
+      teamShare: m['teamShare'] as bool? ?? true,
+      leaderboardParticipation:
+          m['leaderboardParticipation'] as bool? ?? false,
+      profileVisible: m['profileVisible'] as bool? ?? true,
+      pushNotifications: m['pushNotifications'] as bool? ?? true,
+      emailNotifications: m['emailNotifications'] as bool? ?? true,
+      soundAlerts: m['soundAlerts'] as bool? ?? true,
+      goalReminders: m['goalReminders'] as bool? ?? true,
+      weeklyReports: m['weeklyReports'] as bool? ?? false,
+      darkMode: m['darkMode'] as bool? ?? true,
+      speechRecognitionEnabled:
+          m['speechRecognitionEnabled'] as bool? ?? false,
+      celebrationFeed: m['celebrationFeed'] as bool? ?? true,
+      autoSync: m['autoSync'] as bool? ?? true,
+      language: m['language'] as String? ?? 'en',
+      timeZone: m['timeZone'] as String? ?? 'UTC',
+      tutorialEnabled: m['tutorialEnabled'] as bool? ?? false,
+      twoFactorAuth: m['twoFactorAuth'] as bool? ?? false,
+      sessionTimeout: m['sessionTimeout'] as bool? ?? false,
+      sessionTimeoutMinutes:
+          m['sessionTimeoutMinutes'] as int? ?? 30,
+      biometricAuth: m['biometricAuth'] as bool? ?? false,
+    );
   }
 
   bool get _isLoadingTooLong {
@@ -80,9 +179,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: StreamBuilder<UserSettings?>(
             key: const ValueKey('settings_stream'),
             stream: SettingsService.getUserSettingsStream(),
+            initialData: _currentSettings, // use cached settings to avoid spinner
             builder: (context, settingsSnapshot) {
               // Prefer last known settings to avoid full-screen flicker while waiting
-              if (settingsSnapshot.hasError) {
+              if (settingsSnapshot.hasError && _currentSettings == null) {
                 return _buildErrorState(settingsSnapshot.error.toString());
               }
 
@@ -95,6 +195,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _currentSettings = streamed;
                     });
                   }
+                  _persistLocalSettings(streamed);
                 });
               }
 
