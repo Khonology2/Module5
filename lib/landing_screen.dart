@@ -503,7 +503,7 @@ class _PersonalDevelopmentHubScreenState
                         _isRedirecting
                             ? 'Redirecting to your dashboard...'
                             : (_isSlowNetwork
-                                ? 'Validating token... backend may be waking up'
+                                ? 'We\'re Are Signing You In... Just  A Moment'
                                 : 'Validating token...'),
                         style: const TextStyle(
                           color: Colors.white70,
