@@ -288,15 +288,19 @@ class _PersonalDevelopmentHubScreenState
             internalRole = 'manager'; // Admin uses manager role internally
           }
 
-          FirebaseFirestore.instance.collection('users').doc(userId).set({
-            'email': email,
-            'role': internalRole,
-            'pdhRole': pdhRole,
-            'tokenAuthenticated': true,
-            'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          try {
+            await FirebaseFirestore.instance.collection('users').doc(userId).set({
+              'email': email,
+              'role': internalRole,
+              'pdhRole': pdhRole,
+              'tokenAuthenticated': true,
+              'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+          } catch (e) {
+            debugPrint('Landing screen: Firestore write failed: $e');
+          }
 
-          await RoleService.instance.setRoleByUserId(userId, internalRole);
+          RoleService.instance.setRoleOverride(internalRole);
 
           // Call backend callback to notify authentication is complete
           BackendAuthService.instance.callAuthCallback(

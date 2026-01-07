@@ -13,8 +13,10 @@ class RoleService {
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
+  String? _roleOverride;
 
   String? get cachedRole => _cachedRole;
+  String? get roleOverride => _roleOverride;
 
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
@@ -139,6 +141,16 @@ class RoleService {
   void clearCache() {
     _cachedRole = null;
     _clearStream();
+  }
+  
+  void setRoleOverride(String role) {
+    final r = _normalizeRole(role) ?? role;
+    _roleOverride = r;
+    _cachedRole = r;
+  }
+  
+  void clearRoleOverride() {
+    _roleOverride = null;
   }
 
   // Method to ensure role is loaded and cached
@@ -332,7 +344,10 @@ class _RoleGateState extends State<RoleGate> {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snapshot) {
-        final role = _normalizeRole(snapshot.data ?? RoleService.instance.cachedRole);
+        String? role = _normalizeRole(snapshot.data ?? RoleService.instance.cachedRole);
+        if (RoleService.instance.roleOverride != null) {
+          role = RoleService.instance.roleOverride;
+        }
         if (widget.requiredRole == RequiredRole.any) return widget.child;
         if (snapshot.hasError || role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
