@@ -239,7 +239,34 @@ class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
-  ProgressViewType currentViewType = ProgressViewType.team;
+  ProgressViewType currentViewType = ProgressViewType.myProgress;
+  bool _hasAppliedDefaultView = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureDefaultManagerView();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureDefaultManagerView();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Make sure hot reload also reapplies the default view
+    _hasAppliedDefaultView = false;
+    _ensureDefaultManagerView();
+  }
+
+  void _ensureDefaultManagerView() {
+    if (_hasAppliedDefaultView) return;
+    currentViewType = ProgressViewType.myProgress;
+    _hasAppliedDefaultView = true;
+  }
 
   @override
   Widget build(BuildContext context) {
