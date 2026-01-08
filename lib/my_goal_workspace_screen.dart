@@ -550,7 +550,13 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                   'Generating dependencies and prerequisites...',
                 );
 
-                final response = await model.generateContent(prompt);
+                final response = await _generateContentWithRetry(
+                  model,
+                  prompt,
+                  onPhase: (p) {
+                    updatePhase(p);
+                  },
+                );
                 final responseText =
                     response.text?.replaceAll('*', '').trim() ?? '';
 
@@ -1122,7 +1128,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       ];
 
-      final response = await model.generateContent(prompt);
+      final response = await _generateContentWithRetry(model, prompt);
       final responseText = response.text?.replaceAll('*', '').trim() ?? '';
 
       // Parse JSON response
@@ -1227,6 +1233,41 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           context,
           'Error generating suggestions: $e',
         );
+      }
+    }
+  }
+
+  Future<dynamic> _generateContentWithRetry(
+    dynamic model,
+    List<Content> prompt, {
+    void Function(String)? onPhase,
+    int maxAttempts = 2,
+  }) async {
+    var attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        final response = await model.generateContent(prompt);
+        return response;
+      } catch (e) {
+        final msg = e.toString();
+        final lower = msg.toLowerCase();
+        final isRateLimited = lower.contains('quota') ||
+            lower.contains('rate') ||
+            lower.contains('retry');
+        if (!isRateLimited || attempt >= maxAttempts) {
+          rethrow;
+        }
+        final m = RegExp(r'Please retry in ([0-9.]+)s', caseSensitive: false)
+            .firstMatch(msg);
+        final seconds = m != null ? double.tryParse(m.group(1)!) : null;
+        final waitMs = ((seconds ?? 5) * 1000).round();
+        if (onPhase != null) {
+          onPhase(
+            'Rate limited – retrying in ${(seconds ?? 5).toStringAsFixed(1)}s...',
+          );
+        }
+        await Future.delayed(Duration(milliseconds: waitMs));
       }
     }
   }
