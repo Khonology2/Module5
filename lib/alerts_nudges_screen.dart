@@ -33,10 +33,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   List<Map<String, dynamic>>? _predictiveRisks;
   bool _isLoadingRisks = false;
   bool _isRiskAlertsExpanded = false;
+  List<Alert>? _cachedAlerts;
 
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     // Check for new alerts when screen loads
     AlertService.checkAndCreateGoalAlerts();
     // Load predictive risk alerts
@@ -242,9 +245,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           child: StreamBuilder<String?>(
             stream: RoleService.instance.roleStream(),
+            initialData: RoleService.instance.cachedRole ?? 'employee',
             builder: (context, roleSnapshot) {
               // role stream is observed to ensure auth context is alive; defaulting prevents spinners
-              roleSnapshot.data ?? 'employee';
+              // Role is available via roleSnapshot.data or cachedRole if needed
 
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) {
@@ -261,25 +265,20 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FutureBuilder<bool>(
-                    future: _isProfileIncomplete(),
-                    builder: (context, profileSnapshot) {
-                      return StreamBuilder<List<Alert>>(
-                        stream: AlertService.getUserAlertsStream(user.uid),
-                        builder: (context, alertsSnapshot) {
-                          if (alertsSnapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.activeColor,
-                                ),
-                              ),
-                            );
-                          }
+                  StreamBuilder<List<Alert>>(
+                    stream: AlertService.getUserAlertsStream(user.uid),
+                    initialData: _cachedAlerts,
+                    builder: (context, alertsSnapshot) {
+                      final streamedAlerts = alertsSnapshot.data;
+                      // Update cache when fresh data arrives
+                      if (streamedAlerts != null &&
+                          streamedAlerts != _cachedAlerts) {
+                        _cachedAlerts = streamedAlerts;
+                      }
 
-                          if (alertsSnapshot.hasError) {
-                            final errorMessage = alertsSnapshot.error.toString();
+                      // Prefer cached alerts to avoid spinner on transient errors
+                      if (alertsSnapshot.hasError && _cachedAlerts == null) {
+                        final errorMessage = alertsSnapshot.error.toString();
 
                             // Check if it's a permission error
                             if (errorMessage.contains('permission-denied') ||
@@ -318,66 +317,86 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             );
                           }
 
-                          final alerts = alertsSnapshot.data ?? [];
-                          // Filter: hide overdue goal alerts in this view
-                          final filtered = alerts
-                              .where((a) => a.type != AlertType.goalOverdue)
-                              .toList();
+                      final alerts = streamedAlerts ?? _cachedAlerts ?? [];
 
-                          // Add profile incomplete alert if profile is incomplete
-                          final isIncomplete = profileSnapshot.data ?? false;
-                          final allAlerts = isIncomplete
-                              ? [
-                                  _buildProfileIncompleteAlert()!,
-                                  ...filtered,
-                                ]
-                              : filtered;
+                      if (alerts.isEmpty &&
+                          alertsSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          _cachedAlerts == null) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                          ),
+                        );
+                      }
 
-                          return Column(
-                            children: [
-                              _buildAlertSummary(allAlerts),
-                              const SizedBox(height: AppSpacing.lg),
-                              _buildPredictiveRiskAlerts(),
-                              const SizedBox(height: AppSpacing.lg),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Filter: hide overdue goal alerts in this view
+                      final filtered = alerts
+                          .where((a) => a.type != AlertType.goalOverdue)
+                          .toList();
+
+                          return FutureBuilder<bool>(
+                            future: _isProfileIncomplete(),
+                            builder: (context, profileSnapshot) {
+                              final isIncomplete = profileSnapshot.data == true;
+                              final allAlerts = isIncomplete
+                                  ? [
+                                      _buildProfileIncompleteAlert()!,
+                                      ...filtered,
+                                    ]
+                                  : filtered;
+
+                              return Column(
                                 children: [
-                                  Text(
-                                    'Recent Alerts',
-                                    style: AppTypography.heading3.copyWith(
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: () =>
-                                        _showAIChatAssistant(context, allAlerts),
-                                    icon: const Icon(
-                                      Icons.chat_bubble_outline,
-                                      size: 18,
-                                    ),
-                                    label: const Text('AI Assistant'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.activeColor,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
+                                  _buildAlertSummary(allAlerts),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  _buildPredictiveRiskAlerts(),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Recent Alerts',
+                                        style: AppTypography.heading3.copyWith(
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(28),
+                                      ElevatedButton.icon(
+                                        onPressed: () => _showAIChatAssistant(
+                                          context,
+                                          allAlerts,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('AI Assistant'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              AppColors.activeColor,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(28),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                   ),
+                                  const SizedBox(height: AppSpacing.md),
+                                  _buildAlertsList(allAlerts),
                                 ],
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              _buildAlertsList(allAlerts),
-                            ],
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
                 ],
               );
             },

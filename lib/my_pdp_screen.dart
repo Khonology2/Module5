@@ -15,6 +15,7 @@ import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
+import 'package:pdh/widgets/version_badge.dart';
 // Drawer removed in favor of persistent sidebar
 
 class MyPdpScreen extends StatefulWidget {
@@ -990,7 +991,15 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 expanded: _isFinancialExpanded,
                 onToggle: (v) => setState(() => _isFinancialExpanded = v),
               ),
-              const SizedBox(height: 80),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: const VersionBadge(),
+                ),
+              ),
+              const SizedBox(height: 56),
             ],
           ),
         ),

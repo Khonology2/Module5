@@ -41,15 +41,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // User is signed in: determine their role and route them
         return FutureBuilder<String?>(
-          future: RoleService.instance.getRole(),
+          future: () async {
+            await RoleService.instance.ensureRoleLoaded();
+            // ensureRoleLoaded caches the role; return cached value
+            return RoleService.instance.cachedRole;
+          }(),
           builder: (context, roleSnapshot) {
-            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+
+            // While role is unknown, keep a loading screen to avoid misrouting
+            if (role == null || roleSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
             final targetRoute = role == 'manager'
                 ? '/manager_portal'
                 : '/employee_dashboard';
