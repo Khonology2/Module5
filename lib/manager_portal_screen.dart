@@ -24,7 +24,6 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
-import 'package:pdh/widgets/version_badge.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
@@ -200,23 +199,6 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
                 const SizedBox(width: 8),
                 _buildProfileButton(context),
               ],
-            ),
-          ),
-          const Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              left: true,
-              right: true,
-              bottom: true,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: 8),
-                  child: VersionBadge(),
-                ),
-              ),
             ),
           ),
         ],

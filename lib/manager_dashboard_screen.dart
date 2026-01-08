@@ -401,6 +401,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
+              const SizedBox(height: AppSpacing.lg),
+              const Align(
+                alignment: Alignment.center,
+                child: VersionBadge(),
+              ),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
