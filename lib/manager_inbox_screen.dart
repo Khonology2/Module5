@@ -26,6 +26,7 @@ class _NudgeFeedback {
   final String? response;
   final String? alertId;
   final DateTime? timestamp;
+    final Map<String, dynamic> metadata;
 
   const _NudgeFeedback({
     required this.id,
@@ -36,6 +37,7 @@ class _NudgeFeedback {
     this.response,
     this.alertId,
     this.timestamp,
+      this.metadata = const {},
   });
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
@@ -49,6 +51,7 @@ class _NudgeFeedback {
       response: metadata['response']?.toString(),
       alertId: metadata['alertId']?.toString(),
       timestamp: map['timestamp'] is DateTime ? map['timestamp'] as DateTime : null,
+        metadata: metadata,
     );
   }
 }
@@ -789,13 +792,27 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 return StreamBuilder<List<Map<String, dynamic>>>(
                   stream: ManagerRealtimeService.getNudgeFeedbackStream(
                     managerId: user.uid,
+                    managerName: user.displayName,
                     limit: 100,
                   ),
                   builder: (context, fbSnap) {
                     final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
-                    final feedback = feedbackMaps
+                    final rawFeedback = feedbackMaps
                         .map(_NudgeFeedback.fromMap)
                         .toList();
+
+                    final managerNameLower =
+                        (user.displayName ?? '').toLowerCase().trim();
+                    final feedback = rawFeedback.where((f) {
+                      final meta = f.metadata;
+                      final mid = meta['managerId']?.toString();
+                      final mname = meta['managerName']?.toString().toLowerCase().trim();
+                      final matchesId = mid != null && mid == user.uid;
+                      final matchesName = managerNameLower.isNotEmpty &&
+                          mname != null &&
+                          mname == managerNameLower;
+                      return matchesId || matchesName;
+                    }).toList();
 
                     final hPad = AppSpacing.screenPadding.left;
                     final widgets = <Widget>[];
@@ -1098,6 +1115,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (alert.type == AlertType.managerNudge &&
+                  alert.relatedGoalId != null &&
+                  alert.relatedGoalId!.isNotEmpty) ...[
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_portal',
+                      arguments: {
+                        'initialRoute': '/manager_review_team_dashboard',
+                        'goalId': alert.relatedGoalId,
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('View Goal'),
+                ),
+              ]
               else if (alert.type == AlertType.goalMilestoneCompleted ||
                   alert.type == AlertType.goalCreated ||
                   alert.type == AlertType.goalCompleted ||
