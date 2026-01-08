@@ -481,7 +481,7 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    final doc = await FirebaseFirestore.instance.collection('goals').add({
+    final data = {
       'userId': goal.userId,
       'title': goal.title,
       'description': goal.description,
@@ -489,17 +489,30 @@ class DatabaseService {
       'priority': goal.priority.name,
       'status': goal.status.name,
       'progress': goal.progress,
-      'createdAt': Timestamp.fromDate(goal.createdAt),
+      'createdAt': FieldValue.serverTimestamp(),
       'targetDate': Timestamp.fromDate(goal.targetDate),
       'points': goal.points,
       'kpa': goal.kpa,
-      // approval fields
       'approvalStatus': GoalApprovalStatus.pending.name,
       'approvedByUserId': null,
       'approvedByName': null,
       'approvedAt': null,
       'rejectionReason': null,
-    });
+    };
+
+    DocumentReference doc;
+    try {
+      doc = await FirebaseFirestore.instance.collection('goals').add(data);
+    } catch (e) {
+      final msg = e.toString();
+      final isInternal = msg.contains('INTERNAL ASSERTION FAILED') ||
+          msg.toLowerCase().contains('unexpected state');
+      if (!isInternal) rethrow;
+      await Future.delayed(const Duration(milliseconds: 500));
+      final ref = FirebaseFirestore.instance.collection('goals').doc();
+      await ref.set(data);
+      doc = ref;
+    }
     // Do not auto-notify managers; require explicit submit for approval.
     // Auto-request approval asynchronously to avoid blocking UI navigation
     // ignore: unawaited_futures
