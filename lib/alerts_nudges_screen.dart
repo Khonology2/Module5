@@ -14,6 +14,7 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -896,45 +897,16 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {
-                      final navigator = Navigator.of(context);
-                      final actionRoute = alert.actionRoute;
-
                       await AlertService.markAsRead(alert.id);
 
                       if (!mounted) return;
 
-                      if (actionRoute == '/my_goal_workspace') {
-                        final goalId = alert.actionData != null
-                            ? (alert.actionData!['goalId'] as String?)
-                            : alert.relatedGoalId;
-                        if (goalId != null && goalId.isNotEmpty) {
-                          try {
-                            final doc = await FirebaseFirestore.instance
-                                .collection('goals')
-                                .doc(goalId)
-                                .get();
-                            if (!mounted) return;
-                            if (doc.exists) {
-                              final goal = Goal.fromFirestore(doc);
-                              navigator.push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      GoalDetailScreen(goal: goal),
-                                ),
-                              );
-                              return;
-                            }
-                          } catch (_) {}
-                        }
+                      if (alert.type == AlertType.managerNudge) {
+                        await _showManagerNudgeDialog(alert);
+                        return;
                       }
 
-                      if (actionRoute != null) {
-                        var route = actionRoute;
-                        if (route == '/team_challenges_seasons') {
-                          route = '/season_challenges';
-                        }
-                        navigator.pushNamed(route);
-                      }
+                      await _handleAlertNavigation(alert);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,
@@ -944,7 +916,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(alert.actionText!),
+                    child: Text(
+                      alert.type == AlertType.managerNudge
+                          ? 'View Nudge'
+                          : alert.actionText!,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -970,6 +946,360 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleAlertNavigation(Alert alert) async {
+    final navigator = Navigator.of(context);
+    final actionRoute = alert.actionRoute;
+
+    if (actionRoute == '/my_goal_workspace') {
+      final goalId = alert.actionData != null
+          ? (alert.actionData!['goalId'] as String?)
+          : alert.relatedGoalId;
+      if (goalId != null && goalId.isNotEmpty) {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('goals')
+              .doc(goalId)
+              .get();
+          if (!mounted) return;
+          if (doc.exists) {
+            final goal = Goal.fromFirestore(doc);
+            navigator.push(
+              MaterialPageRoute(
+                builder: (context) => GoalDetailScreen(goal: goal),
+              ),
+            );
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (actionRoute != null) {
+      var route = actionRoute;
+      if (route == '/team_challenges_seasons') {
+        route = '/season_challenges';
+      }
+      navigator.pushNamed(route);
+    }
+  }
+
+  Future<void> _showManagerNudgeDialog(Alert alert) async {
+    final responseController = TextEditingController();
+    String? selectedReaction;
+    bool sendingReaction = false;
+    bool sendingResponse = false;
+
+    Future<void> _sendReaction(
+      String reaction,
+      StateSetter setDialogState,
+    ) async {
+      if (sendingReaction) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      setDialogState(() {
+        selectedReaction = reaction;
+        sendingReaction = true;
+      });
+
+      try {
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: user.uid,
+          activityType: 'nudge_reaction',
+          description: 'Reacted "$reaction" to manager nudge',
+          metadata: {
+            'alertId': alert.id,
+            'managerId': alert.fromUserId,
+            'managerName': alert.fromUserName,
+            'employeeName': user.displayName,
+            'reaction': reaction,
+          },
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Reaction recorded'),
+              backgroundColor: AppColors.activeColor,
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not record reaction. Please try again.'),
+              backgroundColor: AppColors.dangerColor,
+            ),
+          );
+        }
+      } finally {
+        setDialogState(() {
+          sendingReaction = false;
+        });
+      }
+    }
+
+    Future<void> _sendResponse(
+      StateSetter setDialogState,
+      BuildContext dialogContext,
+    ) async {
+      final response = responseController.text.trim();
+      if (response.isEmpty || sendingResponse) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      setDialogState(() {
+        sendingResponse = true;
+      });
+
+      try {
+        await ManagerRealtimeService.recordEmployeeActivity(
+          employeeId: user.uid,
+          activityType: 'nudge_response',
+          description: 'Responded to manager nudge',
+          metadata: {
+            'alertId': alert.id,
+            'managerId': alert.fromUserId,
+            'managerName': alert.fromUserName,
+            'employeeName': user.displayName,
+            'response': response,
+          },
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Response sent to your manager'),
+              backgroundColor: AppColors.activeColor,
+            ),
+          );
+        }
+        Navigator.of(dialogContext).pop();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not send response. Please try again.'),
+              backgroundColor: AppColors.dangerColor,
+            ),
+          );
+        }
+      } finally {
+        setDialogState(() {
+          sendingResponse = false;
+        });
+      }
+    }
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.6),
+        builder: (dialogContext) {
+          final managerName = alert.fromUserName ?? 'Manager';
+          final reactions = <String>[
+            '👍 On it',
+            '🙏 Thanks',
+            '✅ Done',
+            '❓ Need help',
+          ];
+
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: Colors.black.withValues(alpha: 0.75),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                title: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor:
+                          AppColors.activeColor.withValues(alpha: 0.15),
+                      child: Text(
+                        managerName.isNotEmpty
+                            ? managerName[0].toUpperCase()
+                            : 'M',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.activeColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Nudge from $managerName',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            _getTimeAgo(alert.createdAt),
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                content: SizedBox(
+                  width: 440,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Text(
+                          _removeEmojis(alert.message),
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Quick reaction',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: reactions.map((reaction) {
+                          final isSelected = selectedReaction == reaction;
+                          return ChoiceChip(
+                            label: Text(reaction),
+                            selected: isSelected,
+                            onSelected: (_) =>
+                                _sendReaction(reaction, setDialogState),
+                            selectedColor:
+                                AppColors.activeColor.withValues(alpha: 0.2),
+                            labelStyle: AppTypography.bodySmall.copyWith(
+                              color: isSelected
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Respond to your manager',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: responseController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText: 'Share an update or ask for support...',
+                          hintStyle: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                          filled: true,
+                          fillColor: Colors.black.withValues(alpha: 0.4),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.15),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.15),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: AppColors.activeColor,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.all(12),
+                        ),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                        enabled: !sendingResponse,
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  if (alert.actionRoute == '/my_goal_workspace') ...[
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                        _handleAlertNavigation(alert);
+                      },
+                      icon: const Icon(Icons.flag_outlined, size: 18),
+                      label: const Text('View Goal'),
+                    ),
+                  ],
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Close'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: sendingResponse
+                      ? null
+                      : () => _sendResponse(setDialogState, dialogContext),
+                    icon: sendingResponse
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.textPrimary,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.send, size: 18),
+                    label: Text(
+                      sendingResponse ? 'Sending...' : 'Send Response',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      responseController.dispose();
+    }
   }
 
   Color _getAlertColor(AlertType type, AlertPriority priority) {
