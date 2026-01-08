@@ -1,0 +1,41 @@
+import 'package:flutter/material.dart';
+
+class VersionControlOverlay extends StatelessWidget {
+  const VersionControlOverlay({super.key});
+
+  static const int _versionYear = 2026;
+  static const String _versionMonth = '01';
+  static const String _versionWeekCode = 'A';
+  static const String _versionDayCode = 'C';
+  static const int _versionCommitNumber = 7;
+  static const String _versionEnvironment = 'SIT';
+
+  static const String versionLabel =
+      'Ver. $_versionYear.$_versionMonth.'
+      '$_versionWeekCode$_versionDayCode'
+      '$_versionCommitNumber'
+      '_$_versionEnvironment';
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: IgnorePointer(
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 16),
+            child: Text(
+              versionLabel,
+              style: const TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+                color: Colors.white70,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

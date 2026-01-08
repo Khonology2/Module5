@@ -565,20 +565,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
                   // Parse JSON response
                   String jsonText = responseText.trim();
-                  // Remove markdown code blocks if present
-                  if (jsonText.contains('json')) {
-                    jsonText = jsonText
-                        .split('json')[1]
-                        .split('')[0]
-                        .trim();
-                  } else if (jsonText.contains('')) {
-                    jsonText = jsonText.split('')[1].split('')[0].trim();
+                  if (jsonText.contains('```json')) {
+                    jsonText =
+                        jsonText.split('```json')[1].split('```')[0].trim();
+                  } else if (jsonText.contains('```')) {
+                    jsonText = jsonText.split('```')[1].split('```')[0].trim();
                   }
 
                   // Extract JSON object
-                  final jsonMatch = RegExp(
-                    r'\{[^{}](?:\{[^{}]\}[^{}])\}',
-                  ).firstMatch(jsonText);
+                  final jsonMatch =
+                      RegExp(r'\{[\s\S]*\}', dotAll: true).firstMatch(jsonText);
 
                   if (jsonMatch != null) {
                     final jsonString = jsonMatch.group(0) ?? '{}';
@@ -1131,17 +1127,15 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
       // Parse JSON response
       String jsonText = responseText.trim();
-      // Remove markdown code blocks if present
-      if (jsonText.contains('json')) {
-        jsonText = jsonText.split('json')[1].split('')[0].trim();
-      } else if (jsonText.contains('')) {
-        jsonText = jsonText.split('')[1].split('')[0].trim();
+      if (jsonText.contains('```json')) {
+        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+      } else if (jsonText.contains('```')) {
+        jsonText = jsonText.split('```')[1].split('```')[0].trim();
       }
 
       // Extract JSON object using regex
-      final jsonMatch = RegExp(
-        r'\{[^{}](?:\{[^{}]\}[^{}])\}',
-      ).firstMatch(jsonText);
+      final jsonMatch =
+          RegExp(r'\{[\s\S]*\}', dotAll: true).firstMatch(jsonText);
       if (jsonMatch == null) {
         throw Exception('Could not find JSON object in AI response');
       }

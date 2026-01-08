@@ -53,6 +53,7 @@ import 'package:pdh/services/cache_service.dart'; // Import CacheService
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/widgets/version_control_overlay.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -271,9 +272,14 @@ class _MyAppState extends State<MyApp> {
               },
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
-                return FocusTraversalGroup(
-                  policy: WidgetOrderTraversalPolicy(),
-                  child: child,
+                return Stack(
+                  children: [
+                    FocusTraversalGroup(
+                      policy: WidgetOrderTraversalPolicy(),
+                      child: child,
+                    ),
+                    const VersionControlOverlay(),
+                  ],
                 );
               },
               routes: {
