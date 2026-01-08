@@ -14,6 +14,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/widgets/version_badge.dart';
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -628,149 +629,165 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           fit: BoxFit.cover,
         ),
       ),
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerScrolled) {
-          return [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: AppSpacing.screenPadding,
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: _glassCardDecoration(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+      child: Stack(
+        children: [
+          NestedScrollView(
+            headerSliverBuilder: (context, innerScrolled) {
+              return [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: AppSpacing.screenPadding,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: _glassCardDecoration(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              Text(
-                                _personal ? 'Personal Inbox' : 'Team Inbox',
-                                style: AppTypography.heading3.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _personal ? 'Personal Inbox' : 'Team Inbox',
+                                    style: AppTypography.heading3.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Review alerts, nudges, and approvals in one place.',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Review alerts, nudges, and approvals in one place.',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _bulkMarking
+                                    ? null
+                                    : () async {
+                                        final user =
+                                            FirebaseAuth.instance.currentUser;
+                                        if (user == null) return;
+                                        setState(() => _bulkMarking = true);
+                                        await AlertService.markAllAsRead(user.uid);
+                                        if (!mounted) return;
+                                        setState(() => _bulkMarking = false);
+                                        await _showCenterNotice(
+                                          this.context,
+                                          'All alerts marked as read',
+                                        );
+                                      },
+                                icon: _bulkMarking
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.mark_email_read_outlined),
+                                label: const Text('Mark all as read'),
                               ),
                             ],
                           ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _bulkMarking
-                                ? null
-                                : () async {
-                                    final user =
-                                        FirebaseAuth.instance.currentUser;
-                                    if (user == null) return;
-                                    setState(() => _bulkMarking = true);
-                                    await AlertService.markAllAsRead(user.uid);
-                                    if (!mounted) return;
-                                    setState(() => _bulkMarking = false);
-                                    await _showCenterNotice(
-                                      this.context,
-                                      'All alerts marked as read',
-                                    );
-                                  },
-                            icon: _bulkMarking
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.mark_email_read_outlined),
-                            label: const Text('Mark all as read'),
-                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildFilters(),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildFilters(),
-                    ],
+                    ),
                   ),
                 ),
+              ];
+            },
+            body: Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.1,
+                  colors: [Color(0x880A0F1F), Color(0x88040610)],
+                  stops: [0.0, 1.0],
+                ),
+              ),
+              child: StreamBuilder<List<Alert>>(
+                stream: AlertService.getManagerInboxStream(
+                  managerId: user.uid,
+                  personal: _personal,
+                  typeFilter: _typeFilter,
+                  limit: 200,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
+                      ),
+                    );
+                  }
+                  var items = snapshot.data ?? const <Alert>[];
+
+                  if (_unreadOnly) {
+                    items = items.where((a) => !a.isRead).toList();
+                  }
+                  if (_priorityFilter != null) {
+                    items = items
+                        .where((a) => a.priority == _priorityFilter)
+                        .toList();
+                  }
+                  if (_search.isNotEmpty) {
+                    final q = _search.toLowerCase();
+                    items = items
+                        .where(
+                          (a) =>
+                              a.title.toLowerCase().contains(q) ||
+                              a.message.toLowerCase().contains(q),
+                        )
+                        .toList();
+                  }
+
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: AppSpacing.screenPadding,
+                        child: Text(
+                          'No inbox items match your filters.',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: AppSpacing.screenPadding,
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (context, i) => _buildInboxCard(items[i]),
+                  );
+                },
               ),
             ),
-          ];
-        },
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.center,
-              radius: 1.1,
-              colors: [Color(0x880A0F1F), Color(0x88040610)],
-              stops: [0.0, 1.0],
+          ),
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: SafeArea(
+              left: true,
+              bottom: true,
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: VersionBadge(),
+              ),
             ),
           ),
-          child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getManagerInboxStream(
-              managerId: user.uid,
-              personal: _personal,
-              typeFilter: _typeFilter,
-              limit: 200,
-            ),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
-              }
-              var items = snapshot.data ?? const <Alert>[];
-
-              if (_unreadOnly) {
-                items = items.where((a) => !a.isRead).toList();
-              }
-              if (_priorityFilter != null) {
-                items = items
-                    .where((a) => a.priority == _priorityFilter)
-                    .toList();
-              }
-              if (_search.isNotEmpty) {
-                final q = _search.toLowerCase();
-                items = items
-                    .where(
-                      (a) =>
-                          a.title.toLowerCase().contains(q) ||
-                          a.message.toLowerCase().contains(q),
-                    )
-                    .toList();
-              }
-
-              if (items.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: AppSpacing.screenPadding,
-                    child: Text(
-                      'No inbox items match your filters.',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return ListView.separated(
-                padding: AppSpacing.screenPadding,
-                itemCount: items.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, i) => _buildInboxCard(items[i]),
-              );
-            },
-          ),
-        ),
+        ],
       ),
     );
   }
