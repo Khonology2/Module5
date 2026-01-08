@@ -1460,15 +1460,15 @@ class ManagerRealtimeService {
     }
   }
 
-  /// Stream nudge reactions/responses sent to a specific manager.
-  /// Filters by metadata.managerId and only returns reaction/response types.
+  /// Stream nudge reactions/responses (reaction/response types only).
+  /// Caller should filter by manager locally (using metadata.managerId/managerName).
   static Stream<List<Map<String, dynamic>>> getNudgeFeedbackStream({
     required String managerId,
+    String? managerName,
     int limit = 50,
   }) {
     return _firestore
         .collection('activities')
-        .where('metadata.managerId', isEqualTo: managerId)
         .where('activityType', whereIn: [
           'nudge_response',
           'nudge_reaction',

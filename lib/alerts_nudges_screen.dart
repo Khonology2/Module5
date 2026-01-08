@@ -788,6 +788,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   Widget _buildAlertCard(Alert alert) {
     final alertColor = _getAlertColor(alert.type, alert.priority);
     final alertIcon = _getAlertIcon(alert.type);
+    final isManagerNudge = alert.type == AlertType.managerNudge;
+    final hasGoal = _hasGoal(alert);
 
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -890,7 +892,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               ),
             ],
           ),
-          if (alert.actionText != null) ...[
+          if (alert.actionText != null &&
+              (!isManagerNudge || hasGoal)) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -916,11 +919,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: Text(
-                      alert.type == AlertType.managerNudge
-                          ? 'View Nudge'
-                          : alert.actionText!,
-                    ),
+                    child: Text(alert.actionText!),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -974,6 +973,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           }
         } catch (_) {}
       }
+      // No goal available; do not navigate
+      return;
     }
 
     if (actionRoute != null) {
@@ -1050,9 +1051,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      setDialogState(() {
-        sendingResponse = true;
-      });
+      if (dialogContext.mounted) {
+        setDialogState(() {
+          sendingResponse = true;
+        });
+      }
 
       try {
         await ManagerRealtimeService.recordEmployeeActivity(
@@ -1075,7 +1078,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             ),
           );
         }
-        Navigator.of(dialogContext).pop();
+        if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+          Navigator.of(dialogContext).pop();
+        }
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1085,10 +1090,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             ),
           );
         }
-      } finally {
-        setDialogState(() {
-          sendingResponse = false;
-        });
+        if (dialogContext.mounted) {
+          setDialogState(() {
+            sendingResponse = false;
+          });
+        }
       }
     }
 
@@ -1253,7 +1259,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                 ),
                 actions: [
-                  if (alert.actionRoute == '/my_goal_workspace') ...[
+                  if (alert.actionRoute == '/my_goal_workspace' && _hasGoal(alert)) ...[
                     TextButton.icon(
                       onPressed: () {
                         Navigator.of(dialogContext).pop();
@@ -1313,6 +1319,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       case AlertPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  bool _hasGoal(Alert alert) {
+    final goalId = alert.actionData != null
+        ? (alert.actionData!['goalId'] as String?)
+        : alert.relatedGoalId;
+    return goalId != null && goalId.isNotEmpty;
   }
 
   Widget _getAlertIcon(AlertType type) {
