@@ -14,7 +14,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/widgets/version_badge.dart';
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -772,18 +771,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     itemBuilder: (context, i) => _buildInboxCard(items[i]),
                   );
                 },
-              ),
-            ),
-          ),
-          const Positioned(
-            left: 0,
-            bottom: 0,
-            child: SafeArea(
-              left: true,
-              bottom: true,
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: VersionBadge(),
               ),
             ),
           ),
