@@ -10,6 +10,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -194,10 +195,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
-      await DatabaseService.deleteGoal(
+      final result = await UnifiedGoalDeletionService.deleteGoal(
         goalId: currentGoal.id,
-        requesterId: user.uid,
+        forceDelete: true, // Force delete from detail screen
       );
+      
+      if (!result.success) {
+        throw Exception(result.message);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -1,8 +1,8 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/models/goal_deletion_request.dart';
-import 'package:pdh/services/database_service.dart';
 
 class GoalDeletionService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -59,11 +59,15 @@ class GoalDeletionService {
       });
       await batch.commit();
 
-      // Perform actual deletion (will log internally)
-      await DatabaseService.deleteGoal(
+      // Perform actual deletion using unified service
+      final result = await UnifiedGoalDeletionService.deleteGoal(
         goalId: req.goalId,
-        requesterId: req.userId, // Use the original goal owner's ID
+        forceDelete: true, // Force delete since this is an approved deletion
       );
+      
+      if (!result.success) {
+        throw Exception(result.message);
+      }
     } catch (e) {
       developer.log('Error approving deletion request: $e');
       rethrow;
