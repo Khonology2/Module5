@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
@@ -186,13 +188,21 @@ class _MyPdpScreenState extends State<MyPdpScreen>
       );
       if (confirmed != true) return;
       try {
-        _showLoadingDialog(context, message: 'Deleting goal...');
-        await DatabaseService.deleteGoal(goalId: goal.id, requesterId: userId);
+        _showLoadingDialog(context, message: 'Processing deletion...');
+        developer.log('Using unified deletion system for goal: ${goal.id}');
+        
+        final result = await UnifiedGoalDeletionService.deleteGoal(
+          goalId: goal.id,
+          reason: '',
+        );
+        
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(context, 'Goal deleted');
         }
+        
+        await _showCenterNotice(context, result.message);
       } catch (e) {
+        developer.log('Delete failed in UI: $e');
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
           await _showCenterNotice(context, 'Failed to delete: $e');
@@ -245,23 +255,20 @@ class _MyPdpScreenState extends State<MyPdpScreen>
         return;
       }
       try {
-        _showLoadingDialog(context, message: 'Submitting request...');
-        await DatabaseService.requestGoalDeletion(
+        _showLoadingDialog(context, message: 'Processing deletion...');
+        final result = await UnifiedGoalDeletionService.deleteGoal(
           goalId: goal.id,
           reason: reason,
-          requesterId: userId,
         );
+        
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(
-            context,
-            'Deletion request submitted for manager approval',
-          );
+          await _showCenterNotice(context, result.message);
         }
       } catch (e) {
         if (mounted) {
           Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(context, 'Failed to submit request: $e');
+          await _showCenterNotice(context, 'Failed to process deletion: $e');
         }
       }
     }

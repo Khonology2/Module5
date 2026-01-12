@@ -164,19 +164,20 @@ service cloud.firestore {
     }
 
     match /goals/{goalId} {
+      // Owner can update their own goals
       allow update: if isSignedIn() && userId() == resource.data.userId;
+      // Managers can update goals (for approval/rejection)
       allow update: if canManagerUpdateGoal();
+      // Approval/rejection updates by managers
       allow update: if isSignedIn() && isApprovalOrReviewUpdate();
+      // Admins can update any goal
       allow update: if isSignedIn() && isAdmin();
 
-      // Allow deletion with multiple fallback checks for robustness
+      // Allow goal deletion with clear, simple rules
       allow delete: if isSignedIn() && (
-        // Check if user is the goal owner (multiple ways)
+        // Owner can delete their own goals (primary rule)
         userId() == resource.data.userId ||
-        userId() == resource.data.user_id ||
-        userId() == get(/databases/$(database)/documents/goals/$(goalId)).data.userId ||
-        userId() == get(/databases/$(database)/documents/goals/$(goalId)).data.user_id ||
-        // Allow managers and admins
+        // Managers and admins can delete any goal
         isManager() ||
         isAdmin()
       );
