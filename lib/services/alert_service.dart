@@ -398,7 +398,7 @@ class AlertService {
       title: 'Manager Nudge 📢',
       message:
           '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-      actionText: 'View Goal',
+      actionText: 'View Nudge',
       actionRoute: '/my_goal_workspace',
       createdAt: DateTime.now(),
       fromUserName: managerName,
@@ -427,7 +427,7 @@ class AlertService {
         title: 'Manager Nudge 📢',
         message:
             '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-        actionText: 'View Goal',
+        actionText: 'View Nudge',
         actionRoute: '/my_goal_workspace',
         actionData: {'goalId': goalId},
         createdAt: DateTime.now(),

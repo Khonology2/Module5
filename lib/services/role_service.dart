@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -85,23 +86,29 @@ class RoleService {
   Stream<String?> roleStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _clearStream();
-      return const Stream.empty();
+      return Stream.value(_cachedRole);
     }
 
-    // If user changed, clear old stream first to prevent multiple listeners
+    // If user changed, we need a new stream
+    // But only clear if we're sure the old stream has no listeners
     if (_currentUserId != null && _currentUserId != user.uid) {
-      _clearStream();
+      // User changed - clear reference but let old stream close naturally
+      _roleBroadcast = null;
+      _currentUserId = user.uid; // Set new user ID immediately
     }
 
     // Lazily initialize a single broadcast stream so all listeners share one Firestore subscription
     if (_roleBroadcast == null) {
       _currentUserId = user.uid;
       try {
-        _roleBroadcast = FirebaseFirestore.instance
+        // Create the Firestore stream and convert to broadcast
+        // This ensures only ONE Firestore listener exists per user
+        final firestoreStream = FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .snapshots()
+            .snapshots();
+
+        _roleBroadcast = firestoreStream
             .map((doc) {
               try {
                 final role = doc.data()?['role'] as String?;
@@ -113,14 +120,10 @@ class RoleService {
               }
             })
             .distinct()
-            .handleError((error) {
-              developer.log('Error in role stream: $error');
-              // Don't propagate error, just return cached role
-            })
             .asBroadcastStream();
       } catch (e) {
         developer.log('Error creating role stream: $e');
-        // Return a stream with cached role
+        // Return a stream with cached role as fallback
         return Stream.value(_cachedRole);
       }
     }
@@ -129,6 +132,8 @@ class RoleService {
   }
 
   void _clearStream() {
+    // Only clear stream reference - don't force cancellation
+    // Let Firestore handle cleanup naturally when all listeners unsubscribe
     _roleBroadcast = null;
     _currentUserId = null;
   }
@@ -142,7 +147,12 @@ class RoleService {
   // Method to ensure role is loaded and cached
   Future<void> ensureRoleLoaded() async {
     if (_cachedRole == null) {
-      await getRole();
+      await getRole(refresh: true);
+      // If still null after first attempt, wait a bit and retry (for timing issues)
+      if (_cachedRole == null) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        await getRole(refresh: true);
+      }
     }
   }
 }
@@ -212,13 +222,38 @@ class _RoleGateState extends State<RoleGate> {
 
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole,
       builder: (context, snapshot) {
         final role = snapshot.data ?? RoleService.instance.cachedRole;
         if (widget.requiredRole == RequiredRole.any) return widget.child;
-        if (snapshot.hasError || role == null) {
+
+        final isLoading =
+            (snapshot.connectionState == ConnectionState.waiting ||
+                snapshot.connectionState == ConnectionState.none) &&
+            role == null;
+
+        // While role is loading, never show unauthorized to managers;
+        // employees are allowed through.
+        if (isLoading) {
+          if (widget.requiredRole == RequiredRole.employee) return widget.child;
+          return Center(
+            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+          );
+        }
+
+        if (snapshot.hasError) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
           return widget.unauthorized ?? _Unauthorized(role: role);
         }
+
+        // If role is still null, treat as loading for managers, allow employees through.
+        if (role == null) {
+          if (widget.requiredRole == RequiredRole.employee) return widget.child;
+          return Center(
+            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+          );
+        }
+
         final ok =
             (widget.requiredRole == RequiredRole.manager &&
                 role == 'manager') ||

@@ -19,6 +19,9 @@ import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/widgets/ai_generation_indicator.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/services/manager_badge_evaluator.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -33,10 +36,13 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   UserProfile? userProfile;
   bool isLoading = true;
   String? error;
+  UserProfile? _cachedProfile;
 
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     _redirectIfManagerStandalone();
     _loadUserData();
   }
@@ -76,6 +82,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
         setState(() {
           userProfile = profile;
+          _cachedProfile = profile;
           isLoading = false;
         });
       }
@@ -107,16 +114,16 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Widget build(BuildContext context) {
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
+      initialData: _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
       builder: (context, profileSnapshot) {
-        if (profileSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+        final streamedProfile = profileSnapshot.data;
+        if (streamedProfile != null && streamedProfile != _cachedProfile) {
+          _cachedProfile = streamedProfile;
+          userProfile = streamedProfile;
         }
 
-        if (profileSnapshot.hasError) {
+        // Prefer cached profile to avoid spinner on transient errors
+        if (profileSnapshot.hasError && _cachedProfile == null) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -148,15 +155,27 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        userProfile = profileSnapshot.data;
+        final effectiveProfile = streamedProfile ?? _cachedProfile ?? userProfile;
 
-        if (userProfile == null) {
+        // Only show loading if we truly don't have any data
+        if (profileSnapshot.connectionState == ConnectionState.waiting &&
+            effectiveProfile == null) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
             ),
           );
         }
+
+        if (effectiveProfile == null) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+
+        userProfile = effectiveProfile;
 
         return Container(
           decoration: const BoxDecoration(
@@ -219,11 +238,56 @@ class ManagerActivity {
   });
 }
 
+class _ManagerActivitySummary {
+  final int total;
+  final int nudges;
+  final int approvals;
+  final int replans;
+  final int meetings;
+
+  const _ManagerActivitySummary({
+    required this.total,
+    required this.nudges,
+    required this.approvals,
+    required this.replans,
+    required this.meetings,
+  });
+}
+
 class _ManagerProgressVisualsContentState
     extends State<ManagerProgressVisualsContent> {
   TimeFilter currentTimeFilter = TimeFilter.month;
   String? selectedDepartment;
-  ProgressViewType currentViewType = ProgressViewType.team;
+  ProgressViewType currentViewType = ProgressViewType.myProgress;
+  bool _hasAppliedDefaultView = false;
+  DateTime? _lastBadgeEval;
+  static const Duration _badgeEvalCooldown = Duration(minutes: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _ensureDefaultManagerView();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ensureDefaultManagerView();
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Make sure hot reload also reapplies the default view
+    _hasAppliedDefaultView = false;
+    _ensureDefaultManagerView();
+  }
+
+  void _ensureDefaultManagerView() {
+    if (_hasAppliedDefaultView) return;
+    currentViewType = ProgressViewType.myProgress;
+    _hasAppliedDefaultView = true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -343,10 +407,10 @@ class _ManagerProgressVisualsContentState
   }
 
   Widget _buildMyProgressView() {
-    return StreamBuilder<List<Goal>>(
-      stream: _getManagerGoalsStream(),
-      builder: (context, goalsSnapshot) {
-        if (goalsSnapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<List<ManagerActivity>>(
+      stream: _getManagerActivitiesStream(),
+      builder: (context, activitySnapshot) {
+        if (activitySnapshot.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
@@ -354,55 +418,214 @@ class _ManagerProgressVisualsContentState
           );
         }
 
-        if (goalsSnapshot.hasError) {
-          return _buildErrorState(goalsSnapshot.error.toString());
+        if (activitySnapshot.hasError) {
+          return _buildErrorState(activitySnapshot.error.toString());
         }
 
-        final goals = goalsSnapshot.data ?? [];
-
-        if (goals.isEmpty) {
-          return _buildNoManagerGoalsState();
+        final activities = activitySnapshot.data ?? [];
+        if (activities.isEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildNoManagerActivitiesState(),
+              const SizedBox(height: AppSpacing.lg),
+              _buildManagerBadgesSummary(),
+            ],
+          );
         }
 
-        final metrics = _calculateManagerGoalMetrics(goals);
+        final summary = _summarizeManagerActivities(activities);
+        _maybeEvaluateManagerBadges();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildManagerGoalMetricsCards(metrics),
+            _buildManagerProgressMetrics(
+              summary.total,
+              summary.nudges,
+              summary.approvals,
+              summary.replans,
+              summary.meetings,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildManagerBadgesSummary(),
             const SizedBox(height: AppSpacing.xl),
             Text(
-              'My Goals & Milestones',
+              'Recent manager actions',
               style: AppTypography.heading3.copyWith(
                 color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            ...goals
-                .take(10)
-                .map(
-                  (goal) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: _buildGoalRow(goal),
-                  ),
-                ),
-            if (goals.length > 10)
+            ...activities.take(8).map(
+              (activity) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: _buildManagerActivityCard(activity),
+              ),
+            ),
+            if (activities.length > 8)
               Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.md),
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
                 child: Text(
-                  '+${goals.length - 10} more goals',
+                  '+${activities.length - 8} more actions',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.activeColor,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildManagerMilestoneInsights(goals),
           ],
         );
       },
     );
+  }
+
+  void _maybeEvaluateManagerBadges() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final now = DateTime.now();
+    if (_lastBadgeEval != null &&
+        now.difference(_lastBadgeEval!) < _badgeEvalCooldown) {
+      return;
+    }
+    _lastBadgeEval = now;
+    Future.microtask(() async {
+      try {
+        await ManagerBadgeEvaluator.evaluate(user.uid);
+      } catch (e) {
+        developer.log('Manager badge evaluate failed: $e');
+      }
+    });
+  }
+
+  _ManagerActivitySummary _summarizeManagerActivities(
+    List<ManagerActivity> activities,
+  ) {
+    int nudges = 0;
+    int approvals = 0;
+    int replans = 0;
+    int meetings = 0;
+
+    for (final a in activities) {
+      switch (a.type) {
+        case ManagerActivityType.nudge:
+          nudges++;
+          break;
+        case ManagerActivityType.approval:
+          approvals++;
+          break;
+        case ManagerActivityType.replan:
+          replans++;
+          break;
+        case ManagerActivityType.meeting:
+          meetings++;
+          break;
+        case ManagerActivityType.checkIn:
+          break;
+      }
+    }
+
+    return _ManagerActivitySummary(
+      total: activities.length,
+      nudges: nudges,
+      approvals: approvals,
+      replans: replans,
+      meetings: meetings,
+    );
+  }
+
+  Widget _buildManagerBadgesSummary() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    return StreamBuilder<List<badge_model.Badge>>(
+      stream: BadgeService.getUserBadgesStream(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          );
+        }
+
+        final badges = snapshot.data ?? <badge_model.Badge>[];
+        final managerBadges = badges.where(_isManagerBadge).toList();
+        final earnedCount = managerBadges.where((b) => b.isEarned).length;
+        final totalCount = managerBadges.length;
+        final progress = totalCount == 0 ? 0.0 : earnedCount / totalCount;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Manager badges',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                'Badge progress gives a quick view of how you are supporting your team (nudges, approvals, replans, seasons).',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              LinearPercentIndicator(
+                percent: progress.clamp(0.0, 1.0),
+                backgroundColor: AppColors.borderColor,
+                progressColor: AppColors.activeColor,
+                lineHeight: 10,
+                animation: true,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '$earnedCount of $totalCount earned',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/manager_badges_points',
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.activeColor,
+                    ),
+                    child: const Text('View badges'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isManagerBadge(badge_model.Badge badge) {
+    final criteria = badge.criteria;
+    final source = criteria['source'];
+    final hasManagerLevel = criteria.containsKey('managerLevel');
+    return badge.id.startsWith('mgr_') ||
+        source == 'season' ||
+        hasManagerLevel;
   }
 
   Stream<List<Goal>> _getManagerGoalsStream() {
