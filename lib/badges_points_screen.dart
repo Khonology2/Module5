@@ -1025,8 +1025,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         }
 
         final badges = snapshot.data ?? [];
+        final role = (RoleService.instance.cachedRole ?? '').toLowerCase();
+        final isManager = role == 'manager';
+        final filteredBadges = isManager
+            ? badges
+            : badges.where((b) => !BadgeService.isManagerBadge(b)).toList();
         // Filter out any placeholder docs like 'init'
-        final visibleBadges = badges.where((b) => b.id != 'init').toList();
+        final visibleBadges =
+            filteredBadges.where((b) => b.id != 'init').toList();
 
         if (visibleBadges.isEmpty) {
           // Initialize a user's badge catalog on first visit if missing
