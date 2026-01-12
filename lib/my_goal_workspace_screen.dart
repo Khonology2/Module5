@@ -67,6 +67,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     // Precache heavy assets to avoid initial jank/spinner when opening the workspace
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -163,6 +165,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   Widget build(BuildContext context) {
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole ?? 'employee',
       builder: (context, roleSnapshot) {
         final role =
             roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';

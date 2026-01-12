@@ -17,6 +17,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/widgets/version_badge.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 
@@ -400,6 +401,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
+              const SizedBox(height: AppSpacing.lg),
+              const Align(
+                alignment: Alignment.center,
+                child: VersionBadge(),
+              ),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -446,16 +452,30 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
         }
       },
-      content: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
+      content: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/khono_bg.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: content,
           ),
-        ),
-        child: content,
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: SafeArea(
+              left: true,
+              bottom: true,
+              child: VersionBadge(),
+            ),
+          ),
+        ],
       ),
     );
   }
