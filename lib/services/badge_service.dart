@@ -24,6 +24,19 @@ class BadgeService {
     return !(isSeasonGoal is bool && isSeasonGoal);
   }
 
+  /// Detect manager-only badges so employee views can hide them.
+  static bool isManagerBadge(Badge badge) {
+    final id = badge.id.toLowerCase();
+    if (id.startsWith('mgr_')) return true;
+
+    final criteria = badge.criteria;
+    final criteriaId = (criteria['badgeId'] ?? '').toString().toLowerCase();
+    if (criteriaId.startsWith('mgr_')) return true;
+
+    if (criteria.containsKey('managerLevel')) return true;
+    return false;
+  }
+
   // ===== Real-time tracking =====
   static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
   static final Map<String, DateTime> _lastCheckAtByUser = {};
