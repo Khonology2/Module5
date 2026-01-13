@@ -1465,8 +1465,11 @@ class ManagerRealtimeService {
   static Stream<List<Map<String, dynamic>>> getNudgeFeedbackStream({
     required String managerId,
     String? managerName,
-    int limit = 50,
+    int limit = 300,
   }) {
+    // Pull reactions/responses broadly, then filter client-side. This avoids
+    // dropping older reactions that may be missing managerId/managerNameLower
+    // metadata while still keeping a generous history window via the limit.
     return _firestore
         .collection('activities')
         .where('activityType', whereIn: [
