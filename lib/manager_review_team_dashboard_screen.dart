@@ -420,6 +420,10 @@ class _ManagerReviewTeamDashboardScreenState
         break;
     }
 
+    final approvedGoals = employee.goals
+        .where((g) => g.approvalStatus == GoalApprovalStatus.approved)
+        .toList();
+
     // Determine active status
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -573,7 +577,11 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                   label: 'Active Goals',
                   value: employee.goals
-                      .where((g) => g.status != GoalStatus.completed)
+                      .where(
+                        (g) =>
+                            g.approvalStatus == GoalApprovalStatus.approved &&
+                            g.status != GoalStatus.completed,
+                      )
                       .length
                       .toString(),
                   color: AppColors.activeColor,
@@ -642,7 +650,7 @@ class _ManagerReviewTeamDashboardScreenState
           ),
           const SizedBox(height: 12),
 
-          if (employee.goals.isNotEmpty) ...[
+          if (approvedGoals.isNotEmpty) ...[
             Text(
               'Goals',
               style: AppTypography.bodySmall.copyWith(
@@ -651,7 +659,7 @@ class _ManagerReviewTeamDashboardScreenState
               ),
             ),
             const SizedBox(height: 8),
-            ...employee.goals
+            ...approvedGoals
                 .take(3)
                 .map(
                   (goal) => Padding(
@@ -659,11 +667,11 @@ class _ManagerReviewTeamDashboardScreenState
                     child: _buildGoalRow(goal),
                   ),
                 ),
-            if (employee.goals.length > 3)
+            if (approvedGoals.length > 3)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  '+${employee.goals.length - 3} more goals',
+                  '+${approvedGoals.length - 3} more goals',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.activeColor,
                     fontWeight: FontWeight.w500,
@@ -686,7 +694,7 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'No goals yet',
+                    'No approved goals yet',
                     style: AppTypography.bodySmall.copyWith(
                       color: AppColors.textSecondary,
                     ),
