@@ -60,3 +60,4 @@ app.*.map.json
 !scripts/
 lib/config/env_config.dart.template
 .cursor\rules\pdhrules.mdc
+.trae\rules\pdh-rules.md
