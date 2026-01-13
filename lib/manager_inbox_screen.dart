@@ -793,7 +793,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   stream: ManagerRealtimeService.getNudgeFeedbackStream(
                     managerId: user.uid,
                     managerName: user.displayName,
-                    limit: 100,
+                    limit: 200,
                   ),
                   builder: (context, fbSnap) {
                     final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
