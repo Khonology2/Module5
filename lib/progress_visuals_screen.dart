@@ -2116,7 +2116,11 @@ class _ManagerProgressVisualsContentState
                   ),
                   label: 'Active Goals',
                   value: employee.goals
-                      .where((g) => g.status != GoalStatus.completed)
+                      .where(
+                        (g) =>
+                            g.approvalStatus == GoalApprovalStatus.approved &&
+                            g.status != GoalStatus.completed,
+                      )
                       .length
                       .toString(),
                   color: AppColors.activeColor,
