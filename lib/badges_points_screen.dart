@@ -144,7 +144,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        // Load all data in parallel for faster performance
+        // Load all primary data in parallel to speed up first render
         final results = await Future.wait([
           DatabaseService.getUserProfile(user.uid),
           BadgeService.getLeaderboard(),
@@ -152,12 +152,13 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           StreakService.getCurrentStreak(user.uid),
           StreakService.hasActivityToday(user.uid),
         ]);
-        
+
         final profile = results[0] as UserProfile;
-        final leaderboardData = results[1] as List<Map<String, dynamic>>;
-        final rank = results[2] as int;
-        final streak = results[3] as int;
-        final activityToday = results[4] as bool;
+        final leaderboardData =
+            (results[1] as List<Map<String, dynamic>>?) ?? const [];
+        final rank = (results[2] as int?) ?? 1;
+        final streak = (results[3] as int?) ?? 0;
+        final activityToday = (results[4] as bool?) ?? false;
 
         // On first profile load during this screen session, initialize baselines
         if (!_didInitialProfileLoad) {
@@ -1011,6 +1012,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         // Silently handle errors to prevent unmount errors
         developer.log('Error in getUserBadgesStream: $error');
       }),
+      initialData: const [],
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -1033,8 +1035,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         }
 
         final badges = snapshot.data ?? [];
+        final role = (RoleService.instance.cachedRole ?? '').toLowerCase();
+        final isManager = role == 'manager';
+        final filteredBadges = isManager
+            ? badges
+            : badges.where((b) => !BadgeService.isManagerBadge(b)).toList();
         // Filter out any placeholder docs like 'init'
-        final visibleBadges = badges.where((b) => b.id != 'init').toList();
+        final visibleBadges =
+            filteredBadges.where((b) => b.id != 'init').toList();
 
         if (visibleBadges.isEmpty) {
           // Initialize a user's badge catalog on first visit if missing

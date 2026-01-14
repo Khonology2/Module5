@@ -109,11 +109,17 @@ class _ManagerEmployeeDetailScreenState
                           ),
                         );
                       }
-                      final goals = snapshot.data!;
+                      final goals = snapshot.data!
+                          .where(
+                            (g) =>
+                                g.approvalStatus == GoalApprovalStatus.approved,
+                          )
+                          .toList();
+
                       if (goals.isEmpty) {
                         return Center(
                           child: Text(
-                            'No goals yet',
+                            'No approved goals yet',
                             style: AppTypography.muted,
                           ),
                         );

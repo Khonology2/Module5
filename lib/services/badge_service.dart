@@ -24,6 +24,19 @@ class BadgeService {
     return !(isSeasonGoal is bool && isSeasonGoal);
   }
 
+  /// Detect manager-only badges so employee views can hide them.
+  static bool isManagerBadge(Badge badge) {
+    final id = badge.id.toLowerCase();
+    if (id.startsWith('mgr_')) return true;
+
+    final criteria = badge.criteria;
+    final criteriaId = (criteria['badgeId'] ?? '').toString().toLowerCase();
+    if (criteriaId.startsWith('mgr_')) return true;
+
+    if (criteria.containsKey('managerLevel')) return true;
+    return false;
+  }
+
   // ===== Real-time tracking =====
   static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
   static final Map<String, DateTime> _lastCheckAtByUser = {};
@@ -86,42 +99,45 @@ class BadgeService {
   }
 
   // Get all badges for a user with their progress
-  static Stream<List<Badge>> getUserBadgesStream(String userId) {
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('badges')
-        .snapshots()
-        .map((snapshot) {
-          try {
-            return snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
-              ..sort((a, b) {
-                // Primary: rarity order Common -> Rare -> Epic -> Legendary
-                final rarityOrder = {
-                  BadgeRarity.common: 0,
-                  BadgeRarity.rare: 1,
-                  BadgeRarity.epic: 2,
-                  BadgeRarity.legendary: 3,
-                };
-                final aOrder = rarityOrder[a.rarity] ?? 99;
-                final bOrder = rarityOrder[b.rarity] ?? 99;
-                if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+  static Stream<List<Badge>> getUserBadgesStream(String userId) async* {
+    // Defensive stream: emit empty list on any Firestore/watch error instead of bubbling.
+    try {
+      await for (final snapshot in _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .snapshots()) {
+        try {
+          final list = snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
+            ..sort((a, b) {
+              // Primary: rarity order Common -> Rare -> Epic -> Legendary
+              final rarityOrder = {
+                BadgeRarity.common: 0,
+                BadgeRarity.rare: 1,
+                BadgeRarity.epic: 2,
+                BadgeRarity.legendary: 3,
+              };
+              final aOrder = rarityOrder[a.rarity] ?? 99;
+              final bOrder = rarityOrder[b.rarity] ?? 99;
+              if (aOrder != bOrder) return aOrder.compareTo(bOrder);
 
-                // Secondary: earned first within the same rarity
-                if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+              // Secondary: earned first within the same rarity
+              if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
 
-                // Tertiary: higher progress first
-                return b.progressPercentage.compareTo(a.progressPercentage);
-              });
-          } catch (e) {
-            developer.log('Error processing badges: $e');
-            return <Badge>[];
-          }
-        })
-        .handleError((error) {
-          developer.log('Error loading badges: $error');
-          return <Badge>[];
-        });
+              // Tertiary: higher progress first
+              return b.progressPercentage.compareTo(a.progressPercentage);
+            });
+          yield list;
+        } catch (e, st) {
+          developer.log('Error processing badges snapshot: $e', stackTrace: st);
+          yield <Badge>[];
+        }
+      }
+    } catch (e, st) {
+      developer.log('Error loading badges stream: $e', stackTrace: st);
+      // Emit a safe empty list so UI continues rendering.
+      yield <Badge>[];
+    }
   }
 
   // Initialize default badges for a user

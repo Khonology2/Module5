@@ -14,6 +14,47 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
+
+@immutable
+class _NudgeFeedback {
+  final String id;
+  final String employeeId;
+  final String? employeeName;
+  final String activityType;
+  final String? reaction;
+  final String? response;
+  final String? alertId;
+  final DateTime? timestamp;
+    final Map<String, dynamic> metadata;
+
+  const _NudgeFeedback({
+    required this.id,
+    required this.employeeId,
+    required this.activityType,
+    this.employeeName,
+    this.reaction,
+    this.response,
+    this.alertId,
+    this.timestamp,
+      this.metadata = const {},
+  });
+
+  factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
+    final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
+    return _NudgeFeedback(
+      id: map['id']?.toString() ?? '',
+      employeeId: map['employeeId']?.toString() ?? '',
+      employeeName: metadata['employeeName']?.toString(),
+      activityType: map['activityType']?.toString() ?? '',
+      reaction: metadata['reaction']?.toString(),
+      response: metadata['response']?.toString(),
+      alertId: metadata['alertId']?.toString(),
+      timestamp: map['timestamp'] is DateTime ? map['timestamp'] as DateTime : null,
+        metadata: metadata,
+    );
+  }
+}
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -730,24 +771,132 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   }
                   var items = snapshot.data ?? const <Alert>[];
 
-                  if (_unreadOnly) {
-                    items = items.where((a) => !a.isRead).toList();
-                  }
-                  if (_priorityFilter != null) {
-                    items = items
-                        .where((a) => a.priority == _priorityFilter)
+              if (_unreadOnly) {
+                items = items.where((a) => !a.isRead).toList();
+              }
+              if (_priorityFilter != null) {
+                items = items
+                    .where((a) => a.priority == _priorityFilter)
+                    .toList();
+              }
+              if (_search.isNotEmpty) {
+                final q = _search.toLowerCase();
+                items = items
+                    .where(
+                      (a) =>
+                          a.title.toLowerCase().contains(q) ||
+                          a.message.toLowerCase().contains(q),
+                    )
+                    .toList();
+              }
+
+              if (_typeFilter == 'nudge') {
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: ManagerRealtimeService.getNudgeFeedbackStream(
+                    managerId: user.uid,
+                    managerName: user.displayName,
+                    limit: 200,
+                  ),
+                  builder: (context, fbSnap) {
+                    final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
+                    final rawFeedback = feedbackMaps
+                        .map(_NudgeFeedback.fromMap)
                         .toList();
-                  }
-                  if (_search.isNotEmpty) {
-                    final q = _search.toLowerCase();
-                    items = items
-                        .where(
-                          (a) =>
-                              a.title.toLowerCase().contains(q) ||
-                              a.message.toLowerCase().contains(q),
-                        )
-                        .toList();
-                  }
+
+                    final managerNameLower =
+                        (user.displayName ?? '').toLowerCase().trim();
+                    final feedback = rawFeedback.where((f) {
+                      final meta = f.metadata;
+                      final mid = meta['managerId']?.toString();
+                      final mname = meta['managerName']?.toString().toLowerCase().trim();
+                      final matchesId = mid != null && mid == user.uid;
+                      final matchesName = managerNameLower.isNotEmpty &&
+                          mname != null &&
+                          mname == managerNameLower;
+                      return matchesId || matchesName;
+                    }).toList();
+
+                    final hPad = AppSpacing.screenPadding.left;
+                    final widgets = <Widget>[];
+
+                    widgets.add(
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          hPad,
+                          AppSpacing.lg,
+                          hPad,
+                          AppSpacing.sm,
+                        ),
+                        child: Text(
+                          'Nudge Feedback',
+                          style: AppTypography.heading4.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+
+                    if (feedback.isEmpty) {
+                      widgets.add(
+                        Padding(
+                          padding: AppSpacing.screenPadding,
+                          child: Text(
+                            'No replies or reactions yet.',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      widgets.addAll(
+                        feedback.map((f) => Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: hPad,
+                                vertical: AppSpacing.xs,
+                              ),
+                              child: _buildNudgeFeedbackCard(f),
+                            )),
+                      );
+                    }
+
+                    if (items.isNotEmpty) {
+                      widgets.add(
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            hPad,
+                            AppSpacing.lg,
+                            hPad,
+                            AppSpacing.sm,
+                          ),
+                          child: Text(
+                            'Manager Nudges',
+                            style: AppTypography.heading4.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                      widgets.addAll(
+                        items.map((a) => Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: hPad,
+                                vertical: AppSpacing.xs,
+                              ),
+                              child: _buildInboxCard(a),
+                            )),
+                      );
+                    }
+
+                    return ListView(
+                      padding: EdgeInsets.zero,
+                      children: widgets,
+                    );
+                  },
+                );
+              }
 
                   if (items.isEmpty) {
                     return Center(
@@ -970,6 +1119,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (alert.type == AlertType.managerNudge &&
+                  alert.relatedGoalId != null &&
+                  alert.relatedGoalId!.isNotEmpty) ...[
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_portal',
+                      arguments: {
+                        'initialRoute': '/manager_review_team_dashboard',
+                        'goalId': alert.relatedGoalId,
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('View Goal'),
+                ),
+              ]
               else if (alert.type == AlertType.goalMilestoneCompleted ||
                   alert.type == AlertType.goalCreated ||
                   alert.type == AlertType.goalCompleted ||
@@ -1064,6 +1231,97 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 icon: const Icon(Icons.close),
                 color: Colors.white,
               ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNudgeFeedbackCard(_NudgeFeedback fb) {
+    final isReaction = fb.activityType == 'nudge_reaction';
+    final chipLabel = isReaction ? 'Reaction' : 'Reply';
+    final chipColor =
+        isReaction ? AppColors.infoColor : AppColors.activeColor;
+    final title = fb.employeeName?.isNotEmpty == true
+        ? fb.employeeName!
+        : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}';
+    final message = isReaction
+        ? fb.reaction ?? 'Reaction'
+        : fb.response ?? 'Response';
+
+    return Container(
+      decoration: _glassCardDecoration(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: chipColor.withValues(alpha: 0.15),
+                child: Icon(
+                  isReaction ? Icons.emoji_emotions_outlined : Icons.reply,
+                  color: chipColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: chipColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: chipColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  chipLabel,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: chipColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                fb.timestamp != null ? _getTimeAgo(fb.timestamp!) : '',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (fb.alertId != null && fb.alertId!.isNotEmpty) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.tag, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '#${fb.alertId!.substring(0, fb.alertId!.length >= 6 ? 6 : fb.alertId!.length)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
             ],
           ),
         ],

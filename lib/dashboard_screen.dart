@@ -343,8 +343,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final activeGoals = _employeeData.fold<int>(
       0,
-      (sum, emp) =>
-          sum + emp.goals.where((g) => g.status != GoalStatus.completed).length,
+      (sum, emp) => sum +
+          emp.goals
+              .where(
+                (g) =>
+                    g.approvalStatus == GoalApprovalStatus.approved &&
+                    g.status != GoalStatus.completed,
+              )
+              .length,
     );
     final atRiskCount = _employeeData
         .where((emp) => emp.status == EmployeeStatus.atRisk)

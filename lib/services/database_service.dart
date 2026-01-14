@@ -110,6 +110,13 @@ class DatabaseService {
     return goals;
   }
 
+  // Detect Firestore transient internal assertion errors that we can safely retry.
+  static bool _isFirestoreInternalAssertion(dynamic e) {
+    final msg = e.toString();
+    return msg.contains('INTERNAL ASSERTION FAILED') ||
+        msg.contains('Unexpected state (ID:');
+  }
+
   static Stream<List<Goal>> getUserGoalsStreamForViewer({
     required String viewerId,
     required String targetUserId,
@@ -481,39 +488,39 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    final data = {
-      'userId': goal.userId,
-      'title': goal.title,
-      'description': goal.description,
-      'category': goal.category.name,
-      'priority': goal.priority.name,
-      'status': goal.status.name,
-      'progress': goal.progress,
-      'createdAt': FieldValue.serverTimestamp(),
-      'targetDate': Timestamp.fromDate(goal.targetDate),
-      'points': goal.points,
-      'kpa': goal.kpa,
-      'approvalStatus': GoalApprovalStatus.pending.name,
-      'approvedByUserId': null,
-      'approvedByName': null,
-      'approvedAt': null,
-      'rejectionReason': null,
-    };
-
-    DocumentReference doc;
-    try {
-      doc = await FirebaseFirestore.instance.collection('goals').add(data);
-    } catch (e) {
-      final msg = e.toString();
-      final isInternal = msg.contains('INTERNAL ASSERTION FAILED') ||
-          msg.toLowerCase().contains('unexpected state');
-      if (!isInternal) rethrow;
-      await Future.delayed(const Duration(milliseconds: 500));
-      final ref = FirebaseFirestore.instance.collection('goals').doc();
-      await ref.set(data);
-      doc = ref;
+    Future<DocumentReference<Map<String, dynamic>>> _attemptCreate(int attempt) async {
+      try {
+        return await FirebaseFirestore.instance.collection('goals').add({
+          'userId': goal.userId,
+          'title': goal.title,
+          'description': goal.description,
+          'category': goal.category.name,
+          'priority': goal.priority.name,
+          'status': goal.status.name,
+          'progress': goal.progress,
+          'createdAt': Timestamp.fromDate(goal.createdAt),
+          'targetDate': Timestamp.fromDate(goal.targetDate),
+          'points': goal.points,
+          'kpa': goal.kpa,
+          // approval fields
+          'approvalStatus': GoalApprovalStatus.pending.name,
+          'approvedByUserId': null,
+          'approvedByName': null,
+          'approvedAt': null,
+          'rejectionReason': null,
+        });
+      } catch (e) {
+        if (_isFirestoreInternalAssertion(e) && attempt < 2) {
+          final delayMs = 200 * (attempt + 1);
+          developer.log('Retrying goal create after transient Firestore error (attempt ${attempt + 1})');
+          await Future.delayed(Duration(milliseconds: delayMs));
+          return _attemptCreate(attempt + 1);
+        }
+        rethrow;
+      }
     }
-    // Do not auto-notify managers; require explicit submit for approval.
+
+    final doc = await _attemptCreate(0);
     // Auto-request approval asynchronously to avoid blocking UI navigation
     // ignore: unawaited_futures
     Future(() async {
@@ -528,6 +535,9 @@ class DatabaseService {
         );
       } catch (e) {
         developer.log('Error requesting goal approval: $e');
+        if (_isFirestoreInternalAssertion(e)) {
+          developer.log('Goal approval request hit transient Firestore error, will not block creation.');
+        }
         // Log more details for debugging
         developer.log(
           'Goal ID: ${doc.id}, User ID: ${goal.userId}, Title: ${goal.title}',
@@ -550,17 +560,29 @@ class DatabaseService {
     required String userId,
     required String goalTitle,
   }) async {
-    final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
-    await ref.set({
-      'approvalStatus': GoalApprovalStatus.pending.name,
-      'approvalRequestedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    Future<void> attempt(int attemptCount) async {
+      final ref = FirebaseFirestore.instance.collection('goals').doc(goalId);
+      try {
+        await ref.set({
+          'approvalStatus': GoalApprovalStatus.pending.name,
+          'approvalRequestedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
-    await AlertService.createGoalApprovalRequestedAlert(
-      employeeId: userId,
-      goalId: goalId,
-      goalTitle: goalTitle,
-    );
+        await AlertService.createGoalApprovalRequestedAlert(
+          employeeId: userId,
+          goalId: goalId,
+          goalTitle: goalTitle,
+        );
+      } catch (e) {
+        if (_isFirestoreInternalAssertion(e) && attemptCount < 1) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          return attempt(attemptCount + 1);
+        }
+        rethrow;
+      }
+    }
+
+    await attempt(0);
   }
 
   static Future<void> updateGoal(Goal goal) async {
