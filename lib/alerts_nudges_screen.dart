@@ -162,6 +162,20 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     }
   }
 
+  Future<String> _getEmployeeDisplayName(User user) async {
+    final fromAuth = (user.displayName ?? '').trim();
+    if (fromAuth.isNotEmpty) return fromAuth;
+    try {
+      final profile = await DatabaseService.getUserProfile(user.uid);
+      if (profile.displayName.isNotEmpty) {
+        return profile.displayName;
+      }
+    } catch (_) {
+      // Best-effort; fall back below.
+    }
+    return user.email ?? user.uid;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get tutorial state from global service and update context
@@ -1006,6 +1020,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       });
 
       try {
+        final employeeName = await _getEmployeeDisplayName(user);
         await ManagerRealtimeService.recordEmployeeActivity(
           employeeId: user.uid,
           activityType: 'nudge_reaction',
@@ -1015,7 +1030,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
-            'employeeName': user.displayName,
+            'employeeName': employeeName,
+            'employeeNameLower': employeeName.toLowerCase(),
             'reaction': reaction,
           },
         );
@@ -1059,6 +1075,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
 
       try {
+        final employeeName = await _getEmployeeDisplayName(user);
         await ManagerRealtimeService.recordEmployeeActivity(
           employeeId: user.uid,
           activityType: 'nudge_response',
@@ -1068,7 +1085,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
-            'employeeName': user.displayName,
+            'employeeName': employeeName,
+            'employeeNameLower': employeeName.toLowerCase(),
             'response': response,
           },
         );

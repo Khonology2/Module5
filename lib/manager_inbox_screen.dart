@@ -42,10 +42,16 @@ class _NudgeFeedback {
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
     final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
+    final employeeName = (metadata['employeeName'] ??
+            metadata['employeeDisplayName'] ??
+            metadata['userDisplayName'] ??
+            metadata['userName'] ??
+            metadata['fullName'])
+        ?.toString();
     return _NudgeFeedback(
       id: map['id']?.toString() ?? '',
       employeeId: map['employeeId']?.toString() ?? '',
-      employeeName: metadata['employeeName']?.toString(),
+      employeeName: employeeName,
       activityType: map['activityType']?.toString() ?? '',
       reaction: metadata['reaction']?.toString(),
       response: metadata['response']?.toString(),
@@ -72,6 +78,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   String _search = '';
   AlertPriority? _priorityFilter;
   bool _bulkMarking = false;
+  final Map<String, String> _employeeNameCache = {};
+  final Set<String> _pendingEmployeeLookups = {};
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -108,6 +116,33 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         );
       },
     );
+  }
+
+  void _prefetchEmployeeNames(List<_NudgeFeedback> feedback) {
+    for (final fb in feedback) {
+      final metaName = fb.employeeName?.trim() ?? '';
+      if (metaName.isNotEmpty) {
+        _employeeNameCache[fb.employeeId] ??= metaName;
+        continue;
+      }
+      if (_employeeNameCache.containsKey(fb.employeeId) ||
+          _pendingEmployeeLookups.contains(fb.employeeId)) {
+        continue;
+      }
+      _pendingEmployeeLookups.add(fb.employeeId);
+      DatabaseService.getUserProfile(fb.employeeId).then((profile) {
+        if (!mounted) return;
+        final resolved = profile.displayName.trim();
+        setState(() {
+          _employeeNameCache[fb.employeeId] =
+              resolved.isNotEmpty ? resolved : fb.employeeId;
+        });
+      }).catchError((e) {
+        developer.log('Could not load employee name: $e');
+      }).whenComplete(() {
+        _pendingEmployeeLookups.remove(fb.employeeId);
+      });
+    }
   }
 
   @override
@@ -806,13 +841,28 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
                       final mid = meta['managerId']?.toString();
-                      final mname = meta['managerName']?.toString().toLowerCase().trim();
-                      final matchesId = mid != null && mid == user.uid;
-                      final matchesName = managerNameLower.isNotEmpty &&
+                      final mname = (meta['managerNameLower'] ??
+                              meta['managerName'])
+                          ?.toString()
+                          .toLowerCase()
+                          .trim();
+                      
+                      // Match by manager ID if available
+                      if (mid != null && mid.isNotEmpty) {
+                        return mid == user.uid;
+                      }
+                      
+                      // Match by manager name if available
+                      if (managerNameLower.isNotEmpty &&
                           mname != null &&
-                          mname == managerNameLower;
-                      return matchesId || matchesName;
+                          mname.isNotEmpty) {
+                        return mname == managerNameLower;
+                      }
+                      
+                      // If no manager metadata, exclude to avoid showing other managers' reactions
+                      return false;
                     }).toList();
+                    _prefetchEmployeeNames(feedback);
 
                     final hPad = AppSpacing.screenPadding.left;
                     final widgets = <Widget>[];
@@ -1239,9 +1289,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     final chipLabel = isReaction ? 'Reaction' : 'Reply';
     final chipColor =
         isReaction ? AppColors.infoColor : AppColors.activeColor;
-    final title = fb.employeeName?.isNotEmpty == true
-        ? fb.employeeName!
-        : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}';
+    final cachedName = _employeeNameCache[fb.employeeId]?.trim() ?? '';
+    final resolvedName = fb.employeeName?.trim();
+    final title = (resolvedName?.isNotEmpty == true)
+        ? resolvedName!
+        : (cachedName.isNotEmpty
+            ? cachedName
+            : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}');
     final message = isReaction
         ? fb.reaction ?? 'Reaction'
         : fb.response ?? 'Response';
