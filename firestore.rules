@@ -237,6 +237,12 @@ service cloud.firestore {
       );
       allow create: if isSignedIn();
       allow list: if isSignedIn();
+      // Allow delete for goal deletion cleanup - simplified for batch safety
+      allow delete: if isSignedIn() && (
+        request.auth.uid == resource.data.userId ||
+        isManager() ||
+        isAdmin()
+      );
     }
 
     match /notifications/{notificationId} {
@@ -254,19 +260,10 @@ service cloud.firestore {
         isAdmin() ||
         (isManager() && resource.data.managerId == userId())
       );
-      allow list: if isSignedIn() && (
-        isAdmin() ||
-        (
-          isManager() &&
-          request.query.where('managerId', '==', userId())
-        )
-      );
+      allow list: if isSignedIn() && (isAdmin() || isManager());
       allow create: if isSignedIn() && (
         isAdmin() ||
-        (
-          isManager() &&
-          request.resource.data.managerId == userId()
-        )
+        (isManager() && request.resource.data.managerId == userId())
       );
       allow update, delete: if isAdmin();
     }
@@ -387,17 +384,45 @@ service cloud.firestore {
       );
     }
 
+    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
+    match /goal_daily_progress/{progressId} {
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == userId();
+      allow list: if isSignedIn();
+      // Allow delete for goal deletion cleanup - simplified for batch safety
+      allow delete: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        isManager() ||
+        isAdmin()
+      );
+    }
+
     match /goal_deletion_requests/{requestId} {
       allow create: if isEmployee() && request.resource.data.userId == userId();
       allow read, update: if isManager() || isAdmin();
     }
 
     match /deleted_goals/{goalId} {
+      // Allow create if user is the goal owner, manager, or admin
+      // Handle nested goalData.userId safely
       allow create: if isSignedIn() && (
-        userId() == request.resource.data.goalData.userId || isManager() || isAdmin()
+        ('goalData' in request.resource.data && 
+         'userId' in request.resource.data.goalData &&
+         userId() == request.resource.data.goalData.userId) ||
+        isManager() ||
+        isAdmin()
       );
+      // Allow read if user is the goal owner, manager, or admin
       allow read: if isSignedIn() && (
-        userId() == resource.data.goalData.userId || isManager() || isAdmin()
+        ('goalData' in resource.data &&
+         'userId' in resource.data.goalData &&
+         userId() == resource.data.goalData.userId) ||
+        isManager() ||
+        isAdmin()
       );
     }
 

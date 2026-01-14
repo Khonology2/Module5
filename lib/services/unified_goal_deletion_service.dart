@@ -131,15 +131,22 @@ class UnifiedGoalDeletionService {
     required UserPermissions permissions,
   }) async {
     try {
+      developer.log('=== PERFORMING DIRECT DELETION ===');
+      developer.log('GoalId: $goalId');
+      developer.log('RequesterId: $requesterId');
+      developer.log('UserRole: $userRole');
+      developer.log('Permissions: $permissions');
+
       // Get user information for audit
       final userDoc = await _firestore.collection('users').doc(requesterId).get();
       final userData = userDoc.data() ?? {};
+      developer.log('User data retrieved: ${userData.keys.join(", ")}');
 
       final batch = _firestore.batch();
 
       // Create audit log entry
       final deletedGoalRef = _firestore.collection('deleted_goals').doc(goalId);
-      batch.set(deletedGoalRef, {
+      final deletedGoalData = {
         'goalId': goalId,
         'goalData': {
           ...goalData,
@@ -156,21 +163,29 @@ class UnifiedGoalDeletionService {
           'approvedByName': userData['displayName'] ?? userData['name'] ?? 'Unknown',
           'approvedAt': FieldValue.serverTimestamp(),
         },
-      });
+      };
+      developer.log('Creating deleted_goals entry with goalData.userId: ${goalData['userId']}');
+      batch.set(deletedGoalRef, deletedGoalData);
 
       // Delete the goal
-      batch.delete(_firestore.collection('goals').doc(goalId));
+      final goalRef = _firestore.collection('goals').doc(goalId);
+      developer.log('Adding goal deletion to batch: $goalId');
+      batch.delete(goalRef);
 
       // Delete related data
+      developer.log('Deleting related data...');
       await _deleteRelatedData(batch, goalId);
 
       // Commit the batch
+      developer.log('Committing batch operation...');
       await batch.commit();
+      developer.log('Batch committed successfully');
 
       developer.log('Goal deleted successfully');
       return DeletionResult.success('Goal deleted successfully');
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('Direct deletion failed: $e');
+      developer.log('Stack trace: $stackTrace');
       return DeletionResult.failure('Direct deletion failed: ${e.toString()}');
     }
   }
@@ -179,42 +194,57 @@ class UnifiedGoalDeletionService {
   static Future<void> _deleteRelatedData(WriteBatch batch, String goalId) async {
     try {
       // Delete alerts
+      developer.log('Fetching alerts for goalId: $goalId');
       final alerts = await _firestore
           .collection('alerts')
           .where('relatedGoalId', isEqualTo: goalId)
           .get();
+      developer.log('Found ${alerts.docs.length} alerts to delete');
       for (final alert in alerts.docs) {
+        developer.log('Adding alert deletion to batch: ${alert.id}');
         batch.delete(alert.reference);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('Failed to delete alerts: $e');
+      developer.log('Stack trace: $stackTrace');
+      rethrow; // Re-throw to surface permission errors
     }
 
     try {
       // Delete daily progress
+      developer.log('Fetching goal_daily_progress for goalId: $goalId');
       final progress = await _firestore
           .collection('goal_daily_progress')
           .where('goalId', isEqualTo: goalId)
           .get();
+      developer.log('Found ${progress.docs.length} progress entries to delete');
       for (final prog in progress.docs) {
+        developer.log('Adding progress deletion to batch: ${prog.id}');
         batch.delete(prog.reference);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('Failed to delete daily progress: $e');
+      developer.log('Stack trace: $stackTrace');
+      rethrow; // Re-throw to surface permission errors
     }
 
     try {
       // Delete milestones
+      developer.log('Fetching milestones for goalId: $goalId');
       final milestones = await _firestore
           .collection('goals')
           .doc(goalId)
           .collection('milestones')
           .get();
+      developer.log('Found ${milestones.docs.length} milestones to delete');
       for (final milestone in milestones.docs) {
+        developer.log('Adding milestone deletion to batch: ${milestone.id}');
         batch.delete(milestone.reference);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       developer.log('Failed to delete milestones: $e');
+      developer.log('Stack trace: $stackTrace');
+      rethrow; // Re-throw to surface permission errors
     }
   }
 
