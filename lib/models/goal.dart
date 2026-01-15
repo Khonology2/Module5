@@ -67,6 +67,20 @@ class Goal {
     final rawStatus = (data?['status'] ?? 'notStarted').toString().toLowerCase();
     final rawApproval = (data?['approvalStatus'] ?? 'approved').toString().toLowerCase();
 
+    DateTime parseDate(dynamic v) {
+      if (v is Timestamp) return v.toDate();
+      if (v is DateTime) return v;
+      final parsed = DateTime.tryParse(v?.toString() ?? '');
+      return parsed ?? DateTime.now();
+    }
+
+    List<String> parseEvidence(dynamic v) {
+      if (v is List) {
+        return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      }
+      return const <String>[];
+    }
+
     return Goal(
       id: doc.id,
       userId: data?['userId'] ?? '',
@@ -98,8 +112,9 @@ class Goal {
         if (raw is num) return raw.round();
         return 0;
       })(),
-      createdAt: (data?['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      targetDate: (data?['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: parseDate(data?['createdAt']),
+      // tolerate older schemas that used 'dueDate'
+      targetDate: parseDate(data?['targetDate'] ?? data?['dueDate']),
       points: (() {
         final raw = data?['points'];
         if (raw is int) return raw;
@@ -108,15 +123,17 @@ class Goal {
       })(),
       isSeasonGoal: (data?['isSeasonGoal'] ?? false) == true,
       kpa: (data?['kpa'] as String?)?.toLowerCase(),
-      evidence: List<String>.from(data?['evidence'] ?? const []),
+      evidence: parseEvidence(data?['evidence']),
       approvalStatus: GoalApprovalStatus.values.firstWhere(
         (e) => e.name.toLowerCase() == rawApproval,
         orElse: () => GoalApprovalStatus.pending,
       ),
       approvedByUserId: data?['approvedByUserId']?.toString(),
       approvedByName: data?['approvedByName']?.toString(),
-      approvedAt: (data?['approvedAt'] as Timestamp?)?.toDate(),
-      approvalRequestedAt: (data?['approvalRequestedAt'] as Timestamp?)?.toDate(),
+      approvedAt: data?['approvedAt'] != null ? parseDate(data?['approvedAt']) : null,
+      approvalRequestedAt: data?['approvalRequestedAt'] != null
+          ? parseDate(data?['approvalRequestedAt'])
+          : null,
       rejectionReason: data?['rejectionReason']?.toString(),
       deletionStatus: data?['deletionStatus']?.toString(),
       deletionRequestedAt: (data?['deletionRequestedAt'] as Timestamp?)?.toDate(),
@@ -135,6 +152,13 @@ class Goal {
       if (v is DateTime) return v;
       final parsed = DateTime.tryParse(v?.toString() ?? '');
       return parsed ?? DateTime.now();
+    }
+
+    List<String> parseEvidence(dynamic v) {
+      if (v is List) {
+        return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+      }
+      return const <String>[];
     }
 
     return Goal(
@@ -160,13 +184,14 @@ class Goal {
           ? (map['progress'] as int)
           : int.tryParse(map['progress']?.toString() ?? '0') ?? 0,
       createdAt: parseDate(map['createdAt']),
-      targetDate: parseDate(map['targetDate']),
+      // tolerate older schemas that used 'dueDate'
+      targetDate: parseDate(map['targetDate'] ?? map['dueDate']),
       points: (map['points'] ?? 0) is int
           ? (map['points'] as int)
           : int.tryParse(map['points']?.toString() ?? '0') ?? 0,
       isSeasonGoal: (map['isSeasonGoal'] ?? false) == true,
       kpa: map['kpa']?.toString().toLowerCase(),
-      evidence: List<String>.from(map['evidence'] ?? const []),
+      evidence: parseEvidence(map['evidence']),
       approvalStatus: GoalApprovalStatus.values.firstWhere(
         (e) => e.name.toLowerCase() == rawApproval,
         orElse: () => GoalApprovalStatus.pending,
