@@ -33,9 +33,21 @@ service cloud.firestore {
     function goalExists(goalId) {
       return exists(/databases/$(database)/documents/goals/$(goalId));
     }
+
+    // Some older goal documents used different fields for ownership.
+    // Prefer userId, but tolerate legacy keys so owners don't get locked out.
+    function goalOwnerUidFromData(data) {
+      return data.userId != null
+        ? data.userId
+        : (data.ownerId != null
+            ? data.ownerId
+            : (data.uid != null
+                ? data.uid
+                : (data.employeeId != null ? data.employeeId : null)));
+    }
     function goalOwner(goalId) {
       return goalExists(goalId)
-        ? get(/databases/$(database)/documents/goals/$(goalId)).data.userId
+        ? goalOwnerUidFromData(get(/databases/$(database)/documents/goals/$(goalId)).data)
         : null;
     }
     function canAccessGoal(goalId) {
@@ -164,9 +176,7 @@ service cloud.firestore {
     }
 
     match /goals/{goalId} {
-      // Owner can update their own goals
-      allow update: if isSignedIn() && userId() == resource.data.userId;
-      // Managers can update goals (for approval/rejection)
+      allow update: if isSignedIn() && userId() == goalOwnerUidFromData(resource.data);
       allow update: if canManagerUpdateGoal();
       // Approval/rejection updates by managers
       allow update: if isSignedIn() && isApprovalOrReviewUpdate();
@@ -175,19 +185,32 @@ service cloud.firestore {
 
       // Allow goal deletion with clear, simple rules
       allow delete: if isSignedIn() && (
-        // Owner can delete their own goals (primary rule)
-        userId() == resource.data.userId ||
-        // Managers and admins can delete any goal
+        userId() == goalOwnerUidFromData(resource.data) ||
         isManager() ||
         isAdmin()
       );
       allow read: if isSignedIn() && (
-        (userId() == resource.data.userId && resource.data.deletionStatus != 'pending') ||
+        userId() == goalOwnerUidFromData(resource.data) ||
         isManager() ||
         isAdmin()
       );
-      allow create: if isSignedIn();
-      allow list: if isSignedIn();
+
+      // Only allow employees to create goals for themselves.
+      // Managers/admins may create goals for employees (e.g., stretch goals).
+      allow create: if isSignedIn() && (
+        isManager() ||
+        isAdmin() ||
+        goalOwnerUidFromData(request.resource.data) == userId()
+      );
+
+      // Tighten list/query access:
+      // - managers/admins can list any goals
+      // - employees can only list when the query is scoped to their own userId
+      allow list: if isSignedIn() && (
+        isManager() ||
+        isAdmin() ||
+        request.query.where('userId', '==', userId())
+      );
 
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);

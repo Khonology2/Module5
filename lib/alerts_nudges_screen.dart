@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -296,8 +297,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           _cachedAlerts == null) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
                           ),
                         );
                       }
@@ -906,8 +908,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               ),
             ],
           ),
-          if (alert.actionText != null &&
-              (!isManagerNudge || hasGoal)) ...[
+          if (alert.actionText != null && (!isManagerNudge || hasGoal)) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -963,40 +964,180 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
   Future<void> _handleAlertNavigation(Alert alert) async {
     final navigator = Navigator.of(context);
+
+    // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
+    final goalId = alert.actionData != null
+        ? (alert.actionData!['goalId'] as String?)
+        : null; 
+    final relatedGoalId = alert.relatedGoalId;
+    final targetGoalId = goalId ?? relatedGoalId;
     final actionRoute = alert.actionRoute;
 
-    if (actionRoute == '/my_goal_workspace') {
-      final goalId = alert.actionData != null
-          ? (alert.actionData!['goalId'] as String?)
-          : alert.relatedGoalId;
-      if (goalId != null && goalId.isNotEmpty) {
+    Future<void> openRouteIfAny() async {
+      if (actionRoute != null) {
+        var route = actionRoute;
+        if (route == '/team_challenges_seasons') {
+          route = '/season_challenges';
+        }
+        // Never send users to the goal creation workspace as a fallback for
+        // goal-related alerts. If we couldn't open the goal detail, take them
+        // to the employee dashboard where goals are listed.
+        if (route == '/my_goal_workspace' &&
+            targetGoalId != null &&
+            targetGoalId.isNotEmpty) {
+          route = '/employee_dashboard';
+        }
+        navigator.pushNamed(route);
+      }
+    }
+
+    // Helper to navigate to goal detail when doc exists
+    Future<bool> openGoalDetail(String gid) async {
+      try {
+        DocumentSnapshot<Map<String, dynamic>>? doc;
         try {
-          final doc = await FirebaseFirestore.instance
+          doc = await FirebaseFirestore.instance
               .collection('goals')
-              .doc(goalId)
+              .doc(gid)
               .get();
-          if (!mounted) return;
-          if (doc.exists) {
-            final goal = Goal.fromFirestore(doc);
-            navigator.push(
-              MaterialPageRoute(
-                builder: (context) => GoalDetailScreen(goal: goal),
+        } on FirebaseException catch (fe) {
+          // Some deployments mistakenly allow queries (list) but deny direct get.
+          // If that happens, try an owner-scoped query as a fallback.
+          if (fe.code == 'permission-denied') {
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            if (uid != null && uid.isNotEmpty) {
+              final q = await FirebaseFirestore.instance
+                  .collection('goals')
+                  .where('userId', isEqualTo: uid)
+                  .where(FieldPath.documentId, isEqualTo: gid)
+                  .limit(1)
+                  .get();
+              if (q.docs.isNotEmpty) {
+                doc = q.docs.first;
+              } else {
+                rethrow;
+              }
+            } else {
+              rethrow;
+            }
+          } else {
+            rethrow;
+          }
+        }
+        if (!mounted) return true; // stop further work
+        if (!doc.exists) {
+          return false;
+        }
+
+        final data = doc.data();
+        final approvalStatus = (data?['approvalStatus'] ?? '')
+            .toString()
+            .toLowerCase();
+        if (approvalStatus == GoalApprovalStatus.rejected.name.toLowerCase()) {
+          final reason = (data?['rejectionReason'] ?? '').toString().trim();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  reason.isNotEmpty
+                      ? 'This goal was rejected and cannot be viewed. Reason: $reason'
+                      : 'This goal was rejected and cannot be viewed.',
+                ),
+                duration: const Duration(seconds: 4),
               ),
             );
-            return;
           }
-        } catch (_) {}
+          return true; // handled
+        }
+
+        late final Goal goal;
+        try {
+          goal = Goal.fromFirestore(doc);
+        } catch (_) {
+          // Fallback to tolerate older/odd schemas
+          final raw = doc.data();
+          if (raw is Map<String, dynamic>) {
+            goal = Goal.fromMap(raw, id: doc.id);
+          } else {
+            return false;
+          }
+        }
+        navigator.push(
+          MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
+        );
+        return true;
+      } catch (e) {
+        if (e is FirebaseException && e.code == 'permission-denied') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'You don’t have access to view this goal right now.',
+                ),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return false;
+        }
+        developer.log('Error navigating to goal: $e');
       }
-      // No goal available; do not navigate
+      return false;
+    }
+
+    // If we have a goalId, always try to open the detail screen
+    if (targetGoalId != null && targetGoalId.isNotEmpty) {
+      // If the alert itself is a rejection notice, don't open details.
+      if (alert.type == AlertType.goalApprovalRejected) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                alert.message.isNotEmpty
+                    ? alert.message
+                    : 'This goal was rejected and cannot be viewed.',
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
+      final opened = await openGoalDetail(targetGoalId);
+      if (opened) return;
+
+      // Could not open goal detail; show notice then go to a safe screen
+      // (never to the goal creation workspace).
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not open goal (id: $targetGoalId). Please retry or update the goal list.',
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      if (mounted) {
+        navigator.pushNamed('/employee_dashboard');
+      }
       return;
     }
 
+    // No goal id available: fall back to route-based navigation if provided.
     if (actionRoute != null) {
-      var route = actionRoute;
-      if (route == '/team_challenges_seasons') {
-        route = '/season_challenges';
-      }
-      navigator.pushNamed(route);
+      await openRouteIfAny();
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No goal linked to this alert.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -1006,7 +1147,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     bool sendingReaction = false;
     bool sendingResponse = false;
 
-    Future<void> _sendReaction(
+    Future<void> sendReaction(
       String reaction,
       StateSetter setDialogState,
     ) async {
@@ -1047,7 +1188,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Could not record reaction. Please try again.'),
+              content: const Text(
+                'Could not record reaction. Please try again.',
+              ),
               backgroundColor: AppColors.dangerColor,
             ),
           );
@@ -1059,7 +1202,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
     }
 
-    Future<void> _sendResponse(
+    Future<void> sendResponse(
       StateSetter setDialogState,
       BuildContext dialogContext,
     ) async {
@@ -1137,16 +1280,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 backgroundColor: Colors.black.withValues(alpha: 0.75),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 title: Row(
                   children: [
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor:
-                          AppColors.activeColor.withValues(alpha: 0.15),
+                      backgroundColor: AppColors.activeColor.withValues(
+                        alpha: 0.15,
+                      ),
                       child: Text(
                         managerName.isNotEmpty
                             ? managerName[0].toUpperCase()
@@ -1221,9 +1363,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             label: Text(reaction),
                             selected: isSelected,
                             onSelected: (_) =>
-                                _sendReaction(reaction, setDialogState),
-                            selectedColor:
-                                AppColors.activeColor.withValues(alpha: 0.2),
+                                sendReaction(reaction, setDialogState),
+                            selectedColor: AppColors.activeColor.withValues(
+                              alpha: 0.2,
+                            ),
                             labelStyle: AppTypography.bodySmall.copyWith(
                               color: isSelected
                                   ? AppColors.textPrimary
@@ -1279,7 +1422,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                 ),
                 actions: [
-                  if (alert.actionRoute == '/my_goal_workspace' && _hasGoal(alert)) ...[
+                  if (_hasGoal(alert)) ...[
                     TextButton.icon(
                       onPressed: () {
                         Navigator.of(dialogContext).pop();
@@ -1295,8 +1438,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                   ElevatedButton.icon(
                     onPressed: sendingResponse
-                      ? null
-                      : () => _sendResponse(setDialogState, dialogContext),
+                        ? null
+                        : () => sendResponse(setDialogState, dialogContext),
                     icon: sendingResponse
                         ? SizedBox(
                             width: 16,
@@ -2325,50 +2468,103 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {
-                      final navigator = Navigator.of(context);
-                      final actionRoute = alert.actionRoute;
-
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
 
                       if (!mounted) return;
 
-                      // Special handling: If the action is to view a specific goal, open GoalDetailScreen
-                      if (actionRoute == '/my_goal_workspace') {
-                        final goalId = alert.actionData != null
-                            ? (alert.actionData!['goalId'] as String?)
-                            : alert.relatedGoalId;
-                        if (goalId != null && goalId.isNotEmpty) {
-                          try {
-                            final doc = await FirebaseFirestore.instance
-                                .collection('goals')
-                                .doc(goalId)
-                                .get();
-                            if (!mounted) return;
-                            if (doc.exists) {
-                              final goal = Goal.fromFirestore(doc);
-                              navigator.push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      GoalDetailScreen(goal: goal),
+                      final navigator = Navigator.of(context);
+                      final goalId = alert.actionData != null
+                          ? (alert.actionData!['goalId'] as String?)
+                          : null;
+                      final relatedGoalId = alert.relatedGoalId;
+                      final targetGoalId = goalId ?? relatedGoalId;
+
+                      // For rejection alerts: report and stop.
+                      if (alert.type == AlertType.goalApprovalRejected) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                alert.message.isNotEmpty
+                                    ? alert.message
+                                    : 'This goal was rejected and cannot be viewed.',
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      // If we have a goal id, attempt to open its detail view.
+                      if (targetGoalId != null && targetGoalId.isNotEmpty) {
+                        try {
+                          final doc = await FirebaseFirestore.instance
+                              .collection('goals')
+                              .doc(targetGoalId)
+                              .get();
+                          if (!mounted) return;
+                          if (doc.exists) {
+                            late final Goal goal;
+                            try {
+                              goal = Goal.fromFirestore(doc);
+                            } catch (_) {
+                              final raw = doc.data();
+                              if (raw is Map<String, dynamic>) {
+                                goal = Goal.fromMap(raw, id: doc.id);
+                              } else {
+                                throw Exception('Invalid goal data');
+                              }
+                            }
+
+                            if (goal.approvalStatus ==
+                                GoalApprovalStatus.rejected) {
+                              final reason = (goal.rejectionReason ?? '')
+                                  .trim();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    reason.isNotEmpty
+                                        ? 'This goal was rejected and cannot be viewed. Reason: $reason'
+                                        : 'This goal was rejected and cannot be viewed.',
+                                  ),
+                                  duration: const Duration(seconds: 4),
                                 ),
                               );
                               return;
                             }
-                          } catch (_) {
-                            // Fallback to workspace navigation below
+
+                            navigator.push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GoalDetailScreen(goal: goal),
+                              ),
+                            );
+                            return;
                           }
+                        } catch (_) {
+                          // Fall through to route navigation below
                         }
                       }
 
-                      // Default: Navigate to the provided route if any
+                      // Fallback to route-based navigation if provided.
+                      final actionRoute = alert.actionRoute;
                       if (actionRoute != null) {
                         var route = actionRoute;
                         if (route == '/team_challenges_seasons') {
                           route = '/season_challenges';
                         }
                         navigator.pushNamed(route);
+                        return;
                       }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No goal linked to this alert.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,

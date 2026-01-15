@@ -19,6 +19,7 @@ class AlertService {
     String message;
     String? actionText;
     String? actionRoute;
+    Map<String, dynamic>? actionData;
     AlertPriority priority;
 
     switch (type) {
@@ -27,7 +28,8 @@ class AlertService {
         message =
             'You have created a goal: "${goal.title}". Time to work on it! 🎯';
         actionText = 'View Goal';
-        actionRoute = '/my_goal_workspace';
+        actionRoute = '/employee_dashboard';
+        actionData = {'goalId': goal.id};
         priority = AlertPriority.medium;
         break;
       case AlertType.goalCompleted:
@@ -44,7 +46,8 @@ class AlertService {
         message =
             '"${goal.title}" is due in $daysLeft day${daysLeft == 1 ? '' : 's'}. Keep pushing!';
         actionText = 'Update Progress';
-        actionRoute = '/my_goal_workspace';
+        actionRoute = '/employee_dashboard';
+        actionData = {'goalId': goal.id};
         priority = AlertPriority.high; // Amber in UI
         break;
       case AlertType.goalOverdue:
@@ -53,7 +56,8 @@ class AlertService {
         message =
             '"${goal.title}" is overdue by $daysOverdue day${daysOverdue == 1 ? '' : 's'}. Don\'t give up!';
         actionText = 'Reschedule';
-        actionRoute = '/my_goal_workspace';
+        actionRoute = '/employee_dashboard';
+        actionData = {'goalId': goal.id};
         priority = AlertPriority.urgent; // Red in UI
         break;
       case AlertType.inactivity:
@@ -61,7 +65,8 @@ class AlertService {
         message =
             'No progress on "${goal.title}" recently. Try the next step to get moving again.';
         actionText = 'Next Step';
-        actionRoute = '/my_goal_workspace';
+        actionRoute = '/employee_dashboard';
+        actionData = {'goalId': goal.id};
         priority = AlertPriority.medium; // Calm, informational
         break;
       case AlertType.milestoneRisk:
@@ -69,7 +74,8 @@ class AlertService {
         message =
             'A dependency changed and may impact "${goal.title}". Review the plan.';
         actionText = 'Review Plan';
-        actionRoute = '/my_goal_workspace';
+        actionRoute = '/employee_dashboard';
+        actionData = {'goalId': goal.id};
         priority = AlertPriority.high; // Amber emphasis
         break;
       default:
@@ -85,6 +91,7 @@ class AlertService {
       message: message,
       actionText: actionText,
       actionRoute: actionRoute,
+      actionData: actionData,
       createdAt: DateTime.now(),
       relatedGoalId: goal.id,
       expiresAt: DateTime.now().add(
@@ -169,7 +176,7 @@ class AlertService {
       title: title,
       message: msg,
       actionText: 'View Goal',
-      actionRoute: '/my_goal_workspace',
+      actionRoute: '/employee_dashboard',
       actionData: {'goalId': goalId},
       createdAt: DateTime.now(),
       relatedGoalId: goalId,
@@ -260,7 +267,7 @@ class AlertService {
       title: 'Keep Going! 💪',
       message: message,
       actionText: goalId != null ? 'View Goal' : null,
-      actionRoute: goalId != null ? '/my_goal_workspace' : null,
+      actionRoute: goalId != null ? '/employee_dashboard' : null,
       actionData: goalId != null ? {'goalId': goalId} : null,
       createdAt: DateTime.now(),
       expiresAt: DateTime.now().add(const Duration(days: 3)),
@@ -399,7 +406,7 @@ class AlertService {
       message:
           '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
       actionText: 'View Nudge',
-      actionRoute: '/my_goal_workspace',
+      actionRoute: '/employee_dashboard',
       createdAt: DateTime.now(),
       fromUserName: managerName,
       expiresAt: DateTime.now().add(const Duration(days: 7)),
@@ -428,7 +435,7 @@ class AlertService {
         message:
             '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
         actionText: 'View Nudge',
-        actionRoute: '/my_goal_workspace',
+        actionRoute: '/employee_dashboard',
         actionData: {'goalId': goalId},
         createdAt: DateTime.now(),
         fromUserId: managerId,
