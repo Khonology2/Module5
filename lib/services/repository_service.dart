@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:pdh/models/audit_entry.dart';
 import 'package:pdh/models/repository_goal.dart';
+import 'package:pdh/models/approved_goal_audit.dart';
 
 class RepositoryService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -265,4 +266,74 @@ class RepositoryService {
     }
   }
 
+  // Add approved goal audit to repository for offline persistence
+  static Future<void> addApprovedGoalAudit(ApprovedGoalAudit audit) async {
+    try {
+      final userId = _auth.currentUser?.uid ?? '';
+      final auditRef = _firestore
+          .collection('repositories')
+          .doc(userId)
+          .collection('approvedGoalsAudit')
+          .doc(audit.goalId);
+      
+      await auditRef.set({
+        'goalId': audit.goalId,
+        'goalTitle': audit.goalTitle,
+        'employeeId': audit.employeeId,
+        'employeeName': audit.employeeName,
+        'department': audit.department,
+        'approvedAt': audit.approvedAt.toIso8601String(),
+        'approvedBy': audit.approvedBy,
+        'approvedByName': audit.approvedByName,
+        'timestamp': audit.timestamp.toIso8601String(),
+        'syncedAt': DateTime.now().toIso8601String(),
+      });
+      
+      developer.log('Added approved goal audit to repository: ${audit.goalId}');
+    } catch (e) {
+      developer.log('Error adding approved goal audit to repository: $e');
+    }
+  }
+
+  // Sync approved goal audits from repository to Firestore
+  static Future<void> syncApprovedGoalAudits() async {
+    try {
+      final userId = _auth.currentUser?.uid ?? '';
+      final localAudits = await _firestore
+          .collection('repositories')
+          .doc(userId)
+          .collection('approvedGoalsAudit')
+          .get();
+      
+      for (final doc in localAudits.docs) {
+        final data = doc.data();
+        final goalId = data['goalId'] as String;
+        
+        // Check if already synced
+        final existing = await _firestore
+            .collection('approved_goals_audit')
+            .where('goalId', isEqualTo: goalId)
+            .get();
+        
+        if (existing.docs.isEmpty) {
+          // Sync to Firestore
+          await _firestore.collection('approved_goals_audit').add({
+            'goalId': goalId,
+            'goalTitle': data['goalTitle'],
+            'employeeId': data['employeeId'],
+            'employeeName': data['employeeName'],
+            'department': data['department'],
+            'approvedAt': Timestamp.fromDate(DateTime.parse(data['approvedAt'])),
+            'approvedBy': data['approvedBy'],
+            'approvedByName': data['approvedByName'],
+            'timestamp': Timestamp.fromDate(DateTime.parse(data['timestamp'])),
+          });
+          
+          developer.log('Synced approved goal audit: $goalId');
+        }
+      }
+    } catch (e) {
+      developer.log('Error syncing approved goal audits: $e');
+    }
+  }
 }

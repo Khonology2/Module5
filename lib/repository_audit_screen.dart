@@ -4,8 +4,12 @@ import 'dart:developer' as developer;
 import 'dart:convert' as convert;
 import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
+import 'package:pdh/services/deleted_goal_service.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/approved_goal_audit.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
@@ -18,7 +22,9 @@ import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:pdh/services/goal_deletion_service.dart';
+import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/models/goal_deletion_request.dart';
+import 'package:pdh/models/deleted_goal_log.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
 
@@ -157,6 +163,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildDeletedGoalsSection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildApprovedGoalsSection(isManager: isManager),
                     ],
                   );
                 },
@@ -280,6 +290,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           value: 'rejected',
                           child: Text('Rejected'),
                         ),
+                        DropdownMenuItem(
+                          value: 'deleted',
+                          child: Text('Deleted'),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -344,6 +358,10 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       DropdownMenuItem(
                         value: 'rejected',
                         child: Text('Rejected'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'deleted',
+                          child: Text('Deleted'),
                       ),
                     ],
                     onChanged: (value) {
@@ -669,6 +687,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       'verified': 0,
       'pending': 0,
       'rejected': 0,
+      'deleted': 0,
     };
 
     if (isManager) {
@@ -707,7 +726,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return _buildStatsContainer(stats, isManager: true);
+          return StreamBuilder<List<DeletedGoalLog>>( 
+            stream: DeletedGoalService.getManagerDeletedGoalsStream(),
+            builder: (context, delSnap) {
+              final delCount = delSnap.data?.length ?? 0;
+              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
+              return _buildStatsContainer(updated, isManager: true);
+            },
+          );
         },
       );
     } else {
@@ -733,7 +759,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return _buildStatsContainer(stats, isManager: false);
+          return StreamBuilder<List<DeletedGoalLog>>( 
+            stream: DeletedGoalService.getEmployeeDeletedGoalsStream(),
+            builder: (context, delSnap) {
+              final delCount = delSnap.data?.length ?? 0;
+              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
+              return _buildStatsContainer(updated, isManager: false);
+            },
+          );
         },
       );
     }
@@ -791,6 +824,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 stats['rejected'] ?? 0,
                 AppColors.dangerColor,
               ),
+              _buildStatusChip(
+                'Deleted',
+                stats['deleted'] ?? 0,
+                Colors.grey,
+              ),
             ],
           ),
         ],
@@ -829,6 +867,40 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildAuditEntriesList({required bool isManager}) {
+    if (_statusFilter == 'deleted') {
+      final stream = isManager
+          ? DeletedGoalService.getManagerDeletedGoalsStream()
+          : DeletedGoalService.getEmployeeDeletedGoalsStream();
+      return StreamBuilder<List<DeletedGoalLog>>(
+        stream: stream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final logs = snapshot.data ?? [];
+          if (logs.isEmpty) {
+            return _buildEmptyState(isManager: isManager);
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: logs.length,
+            separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+            itemBuilder: (context, index) {
+              final l = logs[index];
+              final d = l.deletedAt;
+              final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+              return ListTile(
+                leading: const Icon(Icons.delete, color: Colors.grey),
+                title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+                subtitle: Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
+              );
+            },
+          );
+        },
+      );
+    }
+
     return StreamBuilder<List<AuditEntry>>(
       stream: isManager
           ? AuditService.getManagerAuditEntriesStream(
@@ -1601,7 +1673,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: requests.length,
-              separatorBuilder: (_, __) => const Divider(color: AppColors.borderColor),
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
               itemBuilder: (context, index) {
                 final r = requests[index];
                 return ListTile(
@@ -1629,11 +1701,24 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           );
                           if (ok == true) {
                             try {
-                              await GoalDeletionService.approveRequest(r);
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
+                              final result = await UnifiedGoalDeletionService.processDeletionRequest(
+                                requestId: r.id,
+                                approved: true,
                               );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result.success ? 'Deletion approved' : 'Error: ${result.message}'),
+                                    backgroundColor: result.success ? Colors.green : Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
                             }
                           }
                         },
@@ -1660,13 +1745,111 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                             ),
                           );
                           if (ok == true) {
-                            await GoalDeletionService.rejectRequest(r, reasonCtrl.text.trim());
+                            try {
+                              final result = await UnifiedGoalDeletionService.processDeletionRequest(
+                                requestId: r.id,
+                                approved: false,
+                                reason: reasonCtrl.text.trim(),
+                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result.success ? 'Deletion rejected' : 'Error: ${result.message}'),
+                                    backgroundColor: result.success ? Colors.orange : Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
+                            }
                           }
                         },
                       ),
                     ],
                   ),
                 );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDeletedGoalsSection({required bool isManager}) {
+    final stream = isManager
+        ? DeletedGoalService.getManagerDeletedGoalsStream()
+        : DeletedGoalService.getEmployeeDeletedGoalsStream();
+    return StreamBuilder<List<DeletedGoalLog>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final logs = snapshot.data ?? [];
+        if (logs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Deleted Goals', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: logs.length,
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final l = logs[index];
+                final d = l.deletedAt;
+                final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+                
+                // For managers, show goal title and employee info
+                if (isManager) {
+                  return FutureBuilder<Map<String, String>>(
+                    future: _getEmployeeDetails(l.deletedBy),
+                    builder: (context, snapshot) {
+                      String displayName = 'Unknown Employee';
+                      String department = 'Not specified';
+                      
+                      if (snapshot.hasData) {
+                        displayName = snapshot.data!['name'] ?? 'Unknown Employee';
+                        department = snapshot.data!['department'] ?? 'Not specified';
+                      } else if (snapshot.hasError) {
+                        // Fallback to stored data if available
+                        displayName = l.deletedByName ?? l.employeeName ?? 'Unknown Employee';
+                        department = l.department ?? 'Not specified';
+                      }
+                      
+                      return ListTile(
+                        leading: const Icon(Icons.delete, color: Colors.red),
+                        title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Employee: $displayName', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                            Text('Department: $department', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                            Text('Deleted: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                } else {
+                  // For employees, show full details
+                  return ListTile(
+                    leading: const Icon(Icons.delete, color: Colors.red),
+                    title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
+                        if (l.approvedByName != null) 
+                          Text('Approved by: ${l.approvedByName}', style: TextStyle(color: AppColors.textMuted)),
+                      ],
+                    ),
+                  );
+                }
               },
             ),
           ],
@@ -2693,5 +2876,85 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       default:
         return Icons.help;
     }
+  }
+
+  // Helper method to fetch employee details from profile
+  Future<Map<String, String>> _getEmployeeDetails(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userData = userDoc.data() ?? {};
+      
+      String name = userData['displayName'] ?? userData['fullName'] ?? userData['name'] ?? userData['email'] ?? 'Unknown Employee';
+      String department = userData['department'] ?? 'Not specified';
+      
+      return {
+        'name': name,
+        'department': department,
+      };
+    } catch (e) {
+      return {
+        'name': 'Unknown Employee',
+        'department': 'Not specified',
+      };
+    }
+  }
+
+  Widget _buildApprovedGoalsSection({required bool isManager}) {
+    final stream = isManager
+        ? ApprovedGoalAuditService.getManagerApprovedGoalsStream()
+        : ApprovedGoalAuditService.getEmployeeApprovedGoalsStream();
+    return StreamBuilder<List<ApprovedGoalAudit>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final audits = snapshot.data ?? [];
+        if (audits.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Approved Goals Audit', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: audits.length,
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final audit = audits[index];
+                final date = '${audit.approvedAt.year}-${audit.approvedAt.month.toString().padLeft(2, '0')}-${audit.approvedAt.day.toString().padLeft(2, '0')}';
+                
+                if (isManager) {
+                  // Manager view: show goal title, employee name, department, timestamp
+                  return ListTile(
+                    leading: const Icon(Icons.verified, color: Colors.green),
+                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Employee: ${audit.employeeName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Department: ${audit.department}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      ],
+                    ),
+                  );
+                } else {
+                  // Employee view: show goal name, who approved, timestamp
+                  return ListTile(
+                    leading: const Icon(Icons.verified, color: Colors.green),
+                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Approved by: ${audit.approvedByName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 }

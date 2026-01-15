@@ -10,6 +10,9 @@ class GoalDeletionRequest {
   final DateTime createdAt;
   final DateTime? resolvedAt;
   final String? resolvedBy;
+  final String? employeeName;
+  final String? employeeEmail;
+  final String? department;
 
   GoalDeletionRequest({
     required this.id,
@@ -21,6 +24,9 @@ class GoalDeletionRequest {
     required this.createdAt,
     this.resolvedAt,
     this.resolvedBy,
+    this.employeeName,
+    this.employeeEmail,
+    this.department,
   });
 
   factory GoalDeletionRequest.fromFirestore(DocumentSnapshot doc) {
@@ -35,6 +41,9 @@ class GoalDeletionRequest {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       resolvedAt: (data['resolvedAt'] as Timestamp?)?.toDate(),
       resolvedBy: data['resolvedBy'],
+      employeeName: data['employeeName'],
+      employeeEmail: data['employeeEmail'],
+      department: data['department'],
     );
   }
 
@@ -48,6 +57,9 @@ class GoalDeletionRequest {
       'createdAt': Timestamp.fromDate(createdAt),
       if (resolvedAt != null) 'resolvedAt': Timestamp.fromDate(resolvedAt!),
       if (resolvedBy != null) 'resolvedBy': resolvedBy,
+      if (employeeName != null) 'employeeName': employeeName,
+      if (employeeEmail != null) 'employeeEmail': employeeEmail,
+      if (department != null) 'department': department,
     };
   }
 }
