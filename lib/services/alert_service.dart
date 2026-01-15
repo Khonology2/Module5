@@ -624,24 +624,11 @@ class AlertService {
     String? typeFilter,
     int limit = 200,
   }) {
-    // Team-only alert types (manager-facing team insights)
-    final Set<AlertType> teamOnly = {
-      AlertType.teamGoalAvailable,
-      AlertType.employeeJoinedTeamGoal,
-      AlertType.seasonJoined,
-      AlertType.seasonProgressUpdate,
-      AlertType.seasonCompleted,
-      AlertType.goalMilestoneCompleted,
-    };
-
-    // Goal-related alert types that should appear in team alerts
-    final Set<AlertType> employeeGoalAlerts = {
-      AlertType.goalOverdue,
-      AlertType.goalDueSoon,
-      AlertType.goalCompleted,
-      AlertType.goalCreated,
-      AlertType.goalMilestoneCompleted,
-    };
+    // NOTE:
+    // The manager inbox should show manager-facing alerts addressed to the manager
+    // (userId == managerId). Previously, "Team" mode also fetched employee alerts
+    // from the manager's department and merged them in, which caused managers to
+    // see employee-facing cards like "Goal Overdue ⚠️" that they cannot action.
 
     if (personal) {
       // Personal mode: Only manager's own alerts
@@ -654,22 +641,18 @@ class AlertService {
           .map((alerts) {
             List<Alert> items = List<Alert>.from(alerts);
 
-            // In personal mode, exclude team-only types but allow approval requests
-            // Approval requests are important for managers even in personal mode
-            items = items.where((a) {
-              if (teamOnly.contains(a.type)) return false;
-              // Allow approval requests in personal mode - they're manager-facing
-              return true;
-            }).toList();
+            // In personal mode, keep only alerts addressed to the manager.
+            // (getUserAlertsStream already scopes by userId, this is defensive.)
+            items = items.where((a) => a.userId == managerId).toList();
 
             // Apply type filter if specified
             if (typeFilter != null) {
               items = items.where((a) {
                 switch (typeFilter) {
                   case 'alert':
+                    // "Alerts" excludes nudges and approvals.
                     return a.type != AlertType.managerNudge &&
-                        a.type != AlertType.goalApprovalRequested &&
-                        !teamOnly.contains(a.type);
+                        a.type != AlertType.goalApprovalRequested;
                   case 'nudge':
                     return a.type == AlertType.managerNudge;
                   case 'approval_request':
@@ -689,122 +672,35 @@ class AlertService {
             return items;
           });
     } else {
-      // Team mode: Get manager's alerts and team employee alerts
-      final managerAlertsStream = getUserAlertsStream(managerId);
+      // Team mode: show manager-facing alerts addressed to the manager.
+      // (Employee-facing alerts should never appear in the manager inbox.)
+      final baseStream = getUserAlertsStream(managerId);
+      return baseStream.map((alerts) {
+        var items = alerts.where((a) => a.userId == managerId).toList();
 
-      // Get manager's department to query team employee alerts
-      return managerAlertsStream
-          .handleError((error) {
-            // Silently handle errors to prevent unmount errors
-            developer.log('Error in getManagerInboxStream (team): $error');
-          })
-          .asyncMap((managerAlerts) async {
-            try {
-              // Get manager's department
-              final managerDoc = await _firestore
-                  .collection('users')
-                  .doc(managerId)
-                  .get();
-              final managerDept = managerDoc.data()?['department'] as String?;
-
-              List<Alert> allItems = List<Alert>.from(managerAlerts);
-
-              // If filtering for alerts or all, get team employee alerts
-              if (typeFilter == null ||
-                  typeFilter == 'alert' ||
-                  typeFilter == 'all') {
-                if (managerDept != null && managerDept.isNotEmpty) {
-                  // Get all employees in manager's department
-                  final employeesSnapshot = await _firestore
-                      .collection('users')
-                      .where('department', isEqualTo: managerDept)
-                      .where('role', isEqualTo: 'employee')
-                      .get();
-
-                  final employeeIds = employeesSnapshot.docs
-                      .map((doc) => doc.id)
-                      .toList();
-
-                  if (employeeIds.isNotEmpty) {
-                    // Query alerts for all employees in the department
-                    // Note: Firestore 'in' queries are limited to 10 items, so we need to batch
-                    final List<Alert> employeeAlerts = [];
-                    for (int i = 0; i < employeeIds.length; i += 10) {
-                      final batch = employeeIds.skip(i).take(10).toList();
-                      final alertsSnapshot = await _firestore
-                          .collection('alerts')
-                          .where('userId', whereIn: batch)
-                          .where('isDismissed', isEqualTo: false)
-                          .get();
-
-                      for (final doc in alertsSnapshot.docs) {
-                        try {
-                          final alert = Alert.fromFirestore(doc);
-                          // Filter out expired alerts
-                          if (alert.expiresAt != null &&
-                              alert.expiresAt!.isBefore(DateTime.now())) {
-                            continue;
-                          }
-                          // Only include employee goal-related alerts
-                          if (employeeGoalAlerts.contains(alert.type)) {
-                            employeeAlerts.add(alert);
-                          }
-                        } catch (e) {
-                          developer.log('Error parsing alert: $e');
-                        }
-                      }
-                    }
-                    allItems.addAll(employeeAlerts);
-                  }
-                }
-              }
-
-              // Apply type filter
-              if (typeFilter != null) {
-                allItems = allItems.where((a) {
-                  switch (typeFilter) {
-                    case 'alert':
-                      // Show only employee goal alerts (not manager's own alerts)
-                      return employeeGoalAlerts.contains(a.type) &&
-                          a.userId != managerId;
-                    case 'nudge':
-                      return a.type == AlertType.managerNudge;
-                    case 'approval_request':
-                      // Only show approval requests (these have manager's userId)
-                      return a.type == AlertType.goalApprovalRequested;
-                    case 'all':
-                      // Show all team-related alerts: approvals, employee goal alerts, and team-only types
-                      return a.type == AlertType.goalApprovalRequested ||
-                          employeeGoalAlerts.contains(a.type) ||
-                          teamOnly.contains(a.type);
-                    default:
-                      return true;
-                  }
-                }).toList();
-              } else {
-                // No type filter: show all team-related alerts
-                allItems = allItems.where((a) {
-                  return a.type == AlertType.goalApprovalRequested ||
-                      employeeGoalAlerts.contains(a.type) ||
-                      teamOnly.contains(a.type);
-                }).toList();
-              }
-
-              // Sort by creation date (newest first)
-              allItems.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-              // Apply limit
-              if (limit < allItems.length) {
-                allItems = allItems.take(limit).toList();
-              }
-
-              return allItems;
-            } catch (e) {
-              developer.log('Error in getManagerInboxStream: $e');
-              // Fallback to just manager's alerts
-              return managerAlerts;
+        if (typeFilter != null) {
+          items = items.where((a) {
+            switch (typeFilter) {
+              case 'alert':
+                return a.type != AlertType.managerNudge &&
+                    a.type != AlertType.goalApprovalRequested;
+              case 'nudge':
+                return a.type == AlertType.managerNudge;
+              case 'approval_request':
+                return a.type == AlertType.goalApprovalRequested;
+              case 'all':
+              default:
+                return true;
             }
-          });
+          }).toList();
+        }
+
+        items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        if (limit < items.length) {
+          items = items.take(limit).toList();
+        }
+        return items;
+      });
     }
   }
 
