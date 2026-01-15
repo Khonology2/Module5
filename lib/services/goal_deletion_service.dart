@@ -49,22 +49,13 @@ class GoalDeletionService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Not authenticated');
 
-      final batch = _firestore.batch();
-      final reqRef =
-          _firestore.collection('goal_deletion_requests').doc(req.id);
-      batch.update(reqRef, {
-        'status': 'approved',
-        'resolvedAt': FieldValue.serverTimestamp(),
-        'resolvedBy': user.uid,
-      });
-      await batch.commit();
-
-      // Perform actual deletion using unified service
-      final result = await UnifiedGoalDeletionService.deleteGoal(
-        goalId: req.goalId,
-        forceDelete: true, // Force delete since this is an approved deletion
+      // Use unified service to process approval and perform deletion
+      final result = await UnifiedGoalDeletionService.processDeletionRequest(
+        requestId: req.id,
+        approved: true,
+        reason: 'Approved by manager/admin via GoalDeletionService',
       );
-      
+
       if (!result.success) {
         throw Exception(result.message);
       }

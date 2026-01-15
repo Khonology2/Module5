@@ -192,16 +192,24 @@ service cloud.firestore {
       match /milestones/{milestoneId} {
         allow list: if isSignedIn() && canAccessGoal(goalId);
         allow read: if isSignedIn() && canAccessGoal(goalId);
-        allow create: if isSignedIn() &&
-          canEditGoalMilestones(goalId) &&
-          validateMilestoneCreate(request.resource.data);
-        allow update: if isSignedIn() &&
-          canEditGoalMilestones(goalId) &&
-          validateMilestoneUpdate(resource.data.diff(request.resource.data)) &&
-          request.resource.data.createdBy == resource.data.createdBy &&
-          request.resource.data.status is string &&
-          isValidMilestoneStatus(request.resource.data.status);
-        allow delete: if isSignedIn() && canEditGoalMilestones(goalId);
+        allow create: if isSignedIn() && request.resource.data.createdBy == userId();
+        // Allow owner to update most fields, but restrict deletion-related fields
+        allow update: if isSignedIn() && (
+          (userId() == resource.data.createdBy &&
+           // Allow non-deletion related updates by owner
+           (!('deletionStatus' in request.resource.data) ||
+            (!('deletionStatus' in resource.data) && request.resource.data.deletionStatus == 'pending') || // Allow initial pending status
+            (resource.data.deletionStatus == 'pending' && request.resource.data.deletionStatus == 'pending'))
+          ) ||
+          // Managers/Admins can update anything, including deletion status
+          isManager() || isAdmin()
+        );
+        // Milestone can only be deleted if its deletionStatus is 'approved' (by service)
+        // Or if deleted by a manager/admin directly (force delete)
+        allow delete: if isSignedIn() && (
+          (resource.data.deletionStatus == 'approved') ||
+          isManager() || isAdmin()
+        );
       }
     }
 
@@ -239,9 +247,14 @@ service cloud.firestore {
       allow list: if isSignedIn();
       // Allow delete for goal deletion cleanup - simplified for batch safety
       allow delete: if isSignedIn() && (
+        // Allow if user is the owner
         request.auth.uid == resource.data.userId ||
+        // Allow if user is a manager or admin
         isManager() ||
-        isAdmin()
+        isAdmin() ||
+        // Allow system-initiated deletions (from backend)
+        (resource.data.relatedGoalId != null && 
+         request.auth.uid == resource.data.relatedGoalId + '_system')
       );
     }
 
@@ -266,6 +279,73 @@ service cloud.firestore {
         (isManager() && request.resource.data.managerId == userId())
       );
       allow update, delete: if isAdmin();
+    }
+
+    // Audit entries for tracking system events
+    match /audit_entries/{entryId} {
+      // Allow reading own audit entries or all if admin/manager
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        isManager() ||
+        isAdmin()
+      );
+      
+      // Allow creating audit entries for goal deletions
+      allow create: if isSignedIn() && (
+        // System-generated goal deletion audit
+        (request.resource.data.action == 'goal_deleted' &&
+         request.resource.data.metadata.deletedBy == userId()) ||
+        // Admin/manager can create other audit entries
+        isAdmin() || isManager()
+      );
+      
+      // Only admins can modify audit entries
+      allow update, delete: if isAdmin();
+      
+      // Allow listing for admins and managers
+      allow list: if isSignedIn() && (isManager() || isAdmin());
+    }
+    
+    // Deleted goals archive
+    match /deleted_goals/{goalId} {
+      // Only admins and managers can view deleted goals
+      allow read: if isSignedIn() && (isManager() || isAdmin());
+      
+      // Only the system can create deleted_goals entries (during deletion)
+      allow create: if isSignedIn() && (
+        // System-generated during goal deletion
+        (request.resource.data.deletedBy == userId() &&
+         request.resource.data.deletedAt is timestamp) ||
+        // Or created by admin/manager
+        isAdmin() || isManager()
+      );
+      
+      // Only admins can modify or delete
+      allow update, delete: if isAdmin();
+      
+      // Allow listing for admins and managers
+      allow list: if isSignedIn() && (isManager() || isAdmin());
+    }
+    
+    // Deletion error logs
+    match /deletion_errors/{errorId} {
+      // Only admins can view deletion errors
+      allow read: if isSignedIn() && isAdmin();
+      
+      // System can log deletion errors
+      allow create: if isSignedIn() && (
+        // System-generated during deletion failure
+        (request.resource.data.requesterId == userId() &&
+         request.resource.data.timestamp is timestamp) ||
+        // Or created by admin
+        isAdmin()
+      );
+      
+      // Only admins can modify or delete
+      allow update, delete: if isAdmin();
+      
+      // Allow listing for admins only
+      allow list: if isSignedIn() && isAdmin();
     }
 
     match /seasons/{seasonId} {
@@ -424,6 +504,13 @@ service cloud.firestore {
         isManager() ||
         isAdmin()
       );
+    }
+
+    match /milestone_deletion_requests/{requestId} {
+      // Employees can create their own milestone deletion requests
+      allow create: if isEmployee() && request.resource.data.userId == userId();
+      // Managers and admins can read, list, and update requests
+      allow read, list, update: if isManager() || isAdmin();
     }
 
     match /deleted_accounts/{docId} {

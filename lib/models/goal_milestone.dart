@@ -14,6 +14,10 @@ class GoalMilestone {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? completedAt;
+  final String? deletionStatus; // 'pending', 'approved', 'rejected'
+  final DateTime? deletionRequestedAt;
+  final String? deletionReason;
+  final String? deletionRequestId;
 
   const GoalMilestone({
     required this.id,
@@ -27,6 +31,10 @@ class GoalMilestone {
     required this.createdAt,
     required this.updatedAt,
     this.completedAt,
+    this.deletionStatus,
+    this.deletionRequestedAt,
+    this.deletionReason,
+    this.deletionRequestId,
   });
 
   factory GoalMilestone.fromFirestore(DocumentSnapshot doc) {
@@ -43,6 +51,10 @@ class GoalMilestone {
       createdAt: _parseDate(data['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDate(data['updatedAt']) ?? DateTime.now(),
       completedAt: _parseDate(data['completedAt']),
+      deletionStatus: data['deletionStatus']?.toString(),
+      deletionRequestedAt: _parseDate(data['deletionRequestedAt']),
+      deletionReason: data['deletionReason']?.toString(),
+      deletionRequestId: data['deletionRequestId']?.toString(),
     );
   }
 
@@ -88,6 +100,10 @@ class GoalMilestone {
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? completedAt,
+    String? deletionStatus,
+    DateTime? deletionRequestedAt,
+    String? deletionReason,
+    String? deletionRequestId,
   }) {
     return GoalMilestone(
       id: id ?? this.id,
@@ -101,6 +117,10 @@ class GoalMilestone {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       completedAt: completedAt ?? this.completedAt,
+      deletionStatus: deletionStatus ?? this.deletionStatus,
+      deletionRequestedAt: deletionRequestedAt ?? this.deletionRequestedAt,
+      deletionReason: deletionReason ?? this.deletionReason,
+      deletionRequestId: deletionRequestId ?? this.deletionRequestId,
     );
   }
 }

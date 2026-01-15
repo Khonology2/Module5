@@ -11,6 +11,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/unified_goal_deletion_service.dart';
+import 'package:pdh/services/milestone_deletion_service.dart'; // NEW
 import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -33,6 +34,19 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   StreamSubscription<DocumentSnapshot>? _goalSub;
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
+
+  // NEW: Helper for consistent alerts
+  Future<void> _showCenterNotice(String message, {String title = 'Notice'}) async {
+    if (!mounted) return;
+    await showDialog(context: context, builder: (context) => AlertDialog(
+      backgroundColor: AppColors.elevatedBackground,
+      title: Text(title, style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+      content: Text(message, style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('OK', style: AppTypography.bodyMedium.copyWith(color: AppColors.activeColor)))
+      ],
+    ));
+  }
 
   @override
   void initState() {
@@ -204,21 +218,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         throw Exception(result.message);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Goal deleted'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Using _showCenterNotice for consistency
+      await _showCenterNotice('Goal deleted', title: 'Success');
       Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete goal: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        await _showCenterNotice('Failed to delete goal: $e', title: 'Error');
       }
     } finally {
       if (mounted) {
@@ -1365,6 +1370,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           onUpdateStatus: (status) =>
                               _updateMilestoneStatus(milestone, status),
                           onDelete: () => _deleteMilestone(milestone),
+                          isDeletionPending: milestone.deletionStatus == 'pending', // NEW
                         ),
                       ),
                     )
@@ -1639,39 +1645,96 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Future<void> _deleteMilestone(GoalMilestone milestone) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Milestone'),
-        content: const Text('Remove this milestone from the goal?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+    // Check if the goal is approved or a season goal to determine deletion flow
+    final bool isGoalApproved = currentGoal.approvalStatus == GoalApprovalStatus.approved;
+    final bool isSeasonGoal = _isSeasonGoal;
+
+    if (isGoalApproved || isSeasonGoal) {
+      // For approved goals or season goals, request deletion with a reason
+      final reasonController = TextEditingController();
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Request Milestone Deletion'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Please provide a reason for deleting "${milestone.title}". Your manager will review this request.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Reason for deletion',
+                  hintText: 'e.g., No longer relevant, scope changed',
+                ),
+                maxLines: 3,
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      await DatabaseService.deleteGoalMilestone(
-        goalId: currentGoal.id,
-        milestoneId: milestone.id,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Submit Request'),
+            ),
+          ],
+        ),
       );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Milestone deleted.')));
+      if (confirm != true) return;
+
+      final reason = reasonController.text.trim();
+      if (reason.isEmpty) {
+        await _showCenterNotice('Deletion reason cannot be empty.', title: 'Input Required');
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete milestone: $e')),
+
+      try {
+        final result = await MilestoneDeletionService.requestMilestoneDeletion(
+          goalId: currentGoal.id,
+          milestoneId: milestone.id,
+          reason: reason,
         );
+        if (!mounted) return;
+        await _showCenterNotice(result.message, title: result.success ? 'Request Submitted' : 'Error');
+      } catch (e) {
+        if (!mounted) return;
+        await _showCenterNotice('Failed to request milestone deletion: $e', title: 'Error');
+      }
+    } else {
+      // For unapproved goals, direct deletion (existing flow)
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete Milestone'),
+          content: const Text('Remove this milestone from the goal?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+      try {
+        await DatabaseService.deleteGoalMilestone(
+          goalId: currentGoal.id,
+          milestoneId: milestone.id,
+        );
+        if (mounted) {
+          await _showCenterNotice('Milestone deleted.', title: 'Success');
+        }
+      } catch (e) {
+        if (mounted) {
+          await _showCenterNotice('Failed to delete milestone: $e', title: 'Error');
+        }
       }
     }
   }
@@ -1703,6 +1766,7 @@ class _GoalMilestoneTile extends StatelessWidget {
   final VoidCallback onEdit;
   final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
   final VoidCallback onDelete;
+  final bool isDeletionPending; // NEW
 
   const _GoalMilestoneTile({
     required this.milestone,
@@ -1711,6 +1775,7 @@ class _GoalMilestoneTile extends StatelessWidget {
     required this.onEdit,
     required this.onUpdateStatus,
     required this.onDelete,
+    this.isDeletionPending = false, // NEW
   });
 
   @override
@@ -1789,24 +1854,31 @@ class _GoalMilestoneTile extends StatelessWidget {
               if (canEdit)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_horiz),
-                  onSelected: (value) {
+                  onSelected: (value) async { // Added async
                     switch (value) {
                       case 'edit':
                         onEdit();
                         break;
                       case 'start':
-                        onUpdateStatus(GoalMilestoneStatus.notStarted);
+                        await onUpdateStatus(GoalMilestoneStatus.notStarted);
                         break;
                       case 'progress':
-                        onUpdateStatus(GoalMilestoneStatus.inProgress);
+                        await onUpdateStatus(GoalMilestoneStatus.inProgress);
                         break;
                       case 'blocked':
-                        onUpdateStatus(GoalMilestoneStatus.blocked);
+                        await onUpdateStatus(GoalMilestoneStatus.blocked);
                         break;
                       case 'complete':
-                        onUpdateStatus(GoalMilestoneStatus.completed);
+                        await onUpdateStatus(GoalMilestoneStatus.completed);
                         break;
                       case 'delete':
+                        if (milestone.deletionStatus == 'pending') {
+                          // Milestone already pending deletion, show notice
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('This milestone is already awaiting deletion approval.')),
+                          );
+                          return;
+                        }
                         onDelete();
                         break;
                     }
