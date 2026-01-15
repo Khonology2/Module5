@@ -1383,6 +1383,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.milestoneDeletionRequest:
+        return Icon(Icons.delete_forever);
+      case AlertType.milestoneDeleted:
+        return Icon(Icons.delete_outline);
+      case AlertType.milestoneDeletionRejected:
+        return Icon(Icons.block);
+      case AlertType.managerGeneral:
+        return Icon(Icons.notifications);
     }
   }
 
@@ -2454,6 +2462,14 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.milestoneDeletionRequest:
+        return Icon(Icons.delete_forever);
+      case AlertType.milestoneDeleted:
+        return Icon(Icons.delete_outline);
+      case AlertType.milestoneDeletionRejected:
+        return Icon(Icons.block);
+      case AlertType.managerGeneral:
+        return Icon(Icons.notifications);
     }
   }
 
