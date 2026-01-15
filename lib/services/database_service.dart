@@ -13,6 +13,7 @@ import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
+import 'package:pdh/services/approved_goal_audit_service.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -360,6 +361,32 @@ class DatabaseService {
       });
     });
     if (goalData == null) return;
+    
+    // Get employee details for audit
+    String employeeName = '';
+    String department = '';
+    try {
+      final employeeDoc = await firestore.collection('users').doc(goalData!['userId']).get();
+      final employeeData = employeeDoc.data() ?? {};
+      employeeName = employeeData['displayName'] ?? employeeData['fullName'] ?? employeeData['name'] ?? employeeData['email'] ?? '';
+      department = employeeData['department'] ?? '';
+    } catch (_) {}
+    
+    // Log approved goal audit
+    try {
+      await ApprovedGoalAuditService.logApprovedGoal(
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String,
+        employeeId: (goalData!['userId'] ?? '') as String,
+        employeeName: employeeName,
+        department: department,
+        approvedBy: managerId,
+        approvedByName: managerName,
+      );
+    } catch (e) {
+      developer.log('Error logging approved goal audit: $e');
+    }
+    
     try {
       await AlertService.createGoalApprovalDecisionAlert(
         employeeId: (goalData!['userId'] ?? '') as String,
@@ -599,89 +626,16 @@ class DatabaseService {
     });
   }
 
-  static Future<void> requestGoalDeletion({
-    required String goalId,
-    required String reason,
-    required String requesterId,
-  }) async {
-    final fs = FirebaseFirestore.instance;
-    final goalRef = fs.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    if (!goalSnap.exists) {
-      throw Exception('Goal not found');
+
+  static Future<String> getUserName(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      return userDoc.data()?['displayName'] ?? userDoc.data()?['name'] ?? 'Unknown';
+    } catch (_) {
+      return 'Unknown';
     }
-    final data = goalSnap.data() as Map<String, dynamic>;
-    final ownerId = (data['userId'] ?? '') as String;
-    if (requesterId != ownerId) {
-      throw Exception('Only the goal owner can request deletion');
-    }
-    await fs.collection('goal_deletion_requests').add({
-      'goalId': goalId,
-      'userId': ownerId,
-      'reason': reason,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'goalTitle': data['title'] ?? '',
-    });
   }
 
-  static Future<void> deleteGoal({
-    required String goalId,
-    required String requesterId,
-  }) async {
-    final fs = FirebaseFirestore.instance;
-    final goalRef = fs.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    if (!goalSnap.exists) {
-      throw Exception('Goal not found');
-    }
-    final data = goalSnap.data() as Map<String, dynamic>;
-    final ownerId = (data['userId'] ?? '') as String;
-
-    String role = 'employee';
-    try {
-      final userDoc = await fs.collection('users').doc(requesterId).get();
-      role = (userDoc.data()?['role'] ?? 'employee') as String;
-    } catch (_) {}
-
-    if (requesterId != ownerId && role != 'manager') {
-      throw Exception('Not authorized to delete this goal');
-    }
-
-    final batch = fs.batch();
-    // Log deletion for audit before deleting
-    final deletionLogRef = fs.collection('deleted_goals').doc(goalId);
-    batch.set(deletionLogRef, {
-      'goalId': goalId,
-      'deletedAt': FieldValue.serverTimestamp(),
-      'deletedBy': requesterId,
-      'goalData': data,
-    });
-
-    batch.delete(goalRef);
-
-    try {
-      final alerts = await fs
-          .collection('alerts')
-          .where('relatedGoalId', isEqualTo: goalId)
-          .get();
-      for (final d in alerts.docs) {
-        batch.delete(d.reference);
-      }
-    } catch (_) {}
-
-    try {
-      final daily = await fs
-          .collection('goal_daily_progress')
-          .where('goalId', isEqualTo: goalId)
-          .get();
-      for (final d in daily.docs) {
-        batch.delete(d.reference);
-      }
-    } catch (_) {}
-
-    await batch.commit();
-  }
 
   static CollectionReference<Map<String, dynamic>> _goalMilestonesRef(
     String goalId,
@@ -1628,32 +1582,56 @@ class DatabaseService {
     return null;
   }
 
+  /// Helper function to prepare user document data for writing
+  /// Removes 'role' field if document exists (to satisfy security rules)
+  /// This ensures all write operations (set, update) comply with Firestore rules
+  static Future<Map<String, dynamic>> _prepareUserDataForWrite(
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    final existing = await userDocRef.get();
+
+    // Create a copy to avoid modifying the original
+    final preparedData = Map<String, dynamic>.from(data);
+
+    // Remove 'role' field if document exists (users can't change their own role)
+    // Only admins can modify roles, and they should use a separate admin function
+    if (existing.exists) {
+      preparedData.remove('role');
+    }
+
+    return preparedData;
+  }
+
   static Future<void> updateUserProfile(UserProfile userProfile) async {
     final userDocRef = FirebaseFirestore.instance
         .collection('users')
         .doc(userProfile.uid);
 
-    // Get all profile fields as a map - toFirestore() includes all fields
-    // We need to avoid updating the 'role' field for existing documents to satisfy security rules
-    final existing = await userDocRef.get();
-    final data = Map<String, dynamic>.from(userProfile.toFirestore());
-    if (existing.exists) {
-      // Only admins are allowed to modify roles per Firestore rules; omit role on normal updates
-      data.remove('role');
+    // Verify user is authenticated and matches the profile UID
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid == null) {
+      throw Exception('User not authenticated');
+    }
+    if (authUid != userProfile.uid) {
+      throw Exception(
+        'Cannot update profile: authenticated user ($authUid) does not match profile UID ($userProfile.uid)',
+      );
     }
 
-    // Debug log to help diagnose permission issues in the field
+    // Prepare data for write (removes role if document exists)
+    final data = await _prepareUserDataForWrite(
+      userProfile.uid,
+      userProfile.toFirestore(),
+    );
+
+    // Debug log to help diagnose permission issues
     try {
-      final authUid = FirebaseAuth.instance.currentUser?.uid;
       final projectId = Firebase.app().options.projectId;
       developer.log(
-        'updateUserProfile: authUid=${authUid ?? 'null'}, targetUid=${userProfile.uid}, exists=${existing.exists}, keys=${data.keys.join(',')}, project=$projectId',
+        'updateUserProfile: authUid=$authUid, targetUid=${userProfile.uid}, keys=${data.keys.join(',')}, project=$projectId',
       );
-      if (authUid != null && authUid != userProfile.uid) {
-        developer.log(
-          'updateUserProfile: WARNING authUid != targetUid; this will be denied by rules',
-        );
-      }
     } catch (_) {}
 
     // Use set with merge: true to ensure all fields are saved

@@ -89,11 +89,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must be logged in to remove your photo.'),
-        ),
-      );
+      await _showCenterNotice('You must be logged in to remove your photo.');
       return;
     }
     try {
@@ -109,8 +105,9 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to remove photo: ${e.toString()}')),
+      await _showCenterNotice(
+        'Failed to remove photo: ${e.toString()}',
+        title: 'Error',
       );
     }
   }
@@ -178,21 +175,55 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
         }
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load profile: ${e.toString()}'),
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: Colors.white,
-            onPressed: () {
-              if (mounted) {
-                _loadUserProfile(retryCount: 0);
-              }
-            },
-          ),
-        ),
+      await _showCenterNotice(
+        'Failed to load profile: ${e.toString()}',
+        title: 'Error',
       );
+      // Show retry option in a separate dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0E1A2E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              content: const Text(
+                'Would you like to retry loading your profile?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+              actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    if (mounted) {
+                      _loadUserProfile(retryCount: 0);
+                    }
+                  },
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(color: Color(0xFFC10D00)),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
     }
   }
 
@@ -219,11 +250,7 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must be logged in to upload a photo.'),
-        ),
-      );
+      await _showCenterNotice('You must be logged in to upload a photo.');
       return;
     }
 
@@ -243,41 +270,81 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       // Update Firebase Auth user photoURL for global usage
       await user.updatePhotoURL(cloudinaryUrl);
       await user.reload();
-      await _saveProfile();
+      
+      // Try to save profile, only show success if save succeeded
+      final saveSuccess = await _saveProfile(showDialog: false);
+      if (saveSuccess && mounted) {
+        _showProfileSavedDialog(
+          title: 'Photo Uploaded',
+          message: 'Your profile photo has been uploaded successfully!',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload photo: ${e.toString()}')),
+      await _showCenterNotice(
+        'Failed to upload photo: ${e.toString()}',
+        title: 'Error',
       );
     }
   }
 
-  void _showProfileSavedDialog({
-    String title = 'Profile Saved',
-    String message = 'Your profile has been saved successfully!',
-  }) {
-    showDialog(
+  Future<void> _showCenterNotice(String message, {String? title}) async {
+    if (!mounted) return;
+    return showDialog<void>(
       context: context,
-      builder: (BuildContext context) {
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF2C3E50), // Matches dark-card-2
-          title: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          content: Text(message, style: const TextStyle(color: Colors.white70)),
-          actions: <Widget>[
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          title: title != null
+              ? Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Poppins',
+                  ),
+                )
+              : null,
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                title?.toLowerCase().contains('error') == true ||
+                        message.toLowerCase().contains('failed')
+                    ? Icons.error_outline
+                    : Icons.check_circle_outline,
+                color: title?.toLowerCase().contains('error') == true ||
+                        message.toLowerCase().contains('failed')
+                    ? const Color(0xFFC10D00)
+                    : Colors.green,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontFamily: 'Poppins',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
             TextButton(
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ), // Matches primary-red
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('OK', style: TextStyle(color: Colors.white)),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
             ),
           ],
         );
@@ -285,19 +352,79 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     );
   }
 
-  Future<void> _saveProfile({
+  void _showProfileSavedDialog({
+    String title = 'Profile Saved',
+    String message = 'Your profile has been saved successfully!',
+  }) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0E1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.green),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontFamily: 'Poppins',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Color(0xFFC10D00)),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _saveProfile({
     bool showDialog = true,
     String? successTitle,
     String? successMessage,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You must be logged in to save your profile.'),
-        ),
-      );
-      return;
+      if (!mounted) return false;
+      await _showCenterNotice('You must be logged in to save your profile.');
+      return false;
     }
 
     // Flush any pending tag text so the latest entry gets saved even if the user didn't press enter
@@ -360,10 +487,14 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
               successMessage ?? 'Your profile has been saved successfully!',
         );
       }
+      return true;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save profile: ${e.toString()}')),
+      if (!mounted) return false;
+      await _showCenterNotice(
+        'Failed to save profile: ${e.toString()}',
+        title: 'Error',
       );
+      return false;
     }
   }
 
