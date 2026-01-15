@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
@@ -19,6 +20,144 @@ class _ManagerReviewTeamDashboardScreenState
     extends State<ManagerReviewTeamDashboardScreen> {
   final TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
+
+  final TextEditingController _employeeSearchController =
+      TextEditingController();
+  Timer? _employeeSearchDebounce;
+  String _employeeSearchQuery = '';
+
+  @override
+  void dispose() {
+    _employeeSearchDebounce?.cancel();
+    _employeeSearchController.dispose();
+    super.dispose();
+  }
+
+  void _onEmployeeSearchChanged(String raw) {
+    // Rebuild immediately to keep suffix icon (clear button) in sync with input.
+    if (mounted) setState(() {});
+
+    _employeeSearchDebounce?.cancel();
+    _employeeSearchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        _employeeSearchQuery = raw.trim().toLowerCase();
+      });
+    });
+  }
+
+  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
+    final q = _employeeSearchQuery.trim();
+    if (q.isEmpty) return employees;
+
+    final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (terms.isEmpty) return employees;
+
+    return employees.where((e) {
+      final name = e.profile.displayName.toLowerCase();
+      final email = e.profile.email.toLowerCase();
+      final haystack = '$name $email';
+      return terms.every(haystack.contains);
+    }).toList();
+  }
+
+  Widget _buildEmployeeSearchBar({
+    required int totalCount,
+    required int filteredCount,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _employeeSearchController,
+            onChanged: _onEmployeeSearchChanged,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search employees by name or email...',
+              hintStyle: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+              ),
+              suffixIcon: _employeeSearchController.text.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear',
+                      icon: const Icon(Icons.close),
+                      color: AppColors.textSecondary,
+                      onPressed: () {
+                        _employeeSearchController.clear();
+                        _employeeSearchDebounce?.cancel();
+                        setState(() {
+                          _employeeSearchQuery = '';
+                        });
+                      },
+                    ),
+              filled: true,
+              fillColor: Colors.black.withValues(alpha: 0.25),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.activeColor),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            filteredCount == totalCount
+                ? '$totalCount employee${totalCount == 1 ? '' : 's'}'
+                : '$filteredCount of $totalCount employees',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoSearchResults() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: const Center(
+        child: Text(
+          'No employees match your search.',
+          style: TextStyle(color: Colors.white70),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -142,15 +281,32 @@ class _ManagerReviewTeamDashboardScreenState
                                     _buildHeader(),
                                     const SizedBox(height: 20),
 
-                                    if (employeesSnapshot.hasData &&
-                                        employeesSnapshot.data!.isNotEmpty)
-                                      _buildRealTimeEmployeeList(
-                                        employeesSnapshot.data!,
-                                      )
-                                    else if (employeesSnapshot.hasData &&
-                                        employeesSnapshot.data!.isEmpty)
-                                      _buildEmptyState()
-                                    else if (employeesSnapshot.hasError)
+                                    if (employeesSnapshot.hasData) ...[
+                                      if (employeesSnapshot.data!.isNotEmpty)
+                                        _buildEmployeeSearchBar(
+                                          totalCount:
+                                              employeesSnapshot.data!.length,
+                                          filteredCount: _filterEmployees(
+                                            employeesSnapshot.data!,
+                                          ).length,
+                                        ),
+                                      if (employeesSnapshot.data!.isNotEmpty)
+                                        const SizedBox(height: 12),
+                                      if (employeesSnapshot.data!.isNotEmpty &&
+                                          _filterEmployees(
+                                            employeesSnapshot.data!,
+                                          ).isNotEmpty)
+                                        _buildRealTimeEmployeeList(
+                                          _filterEmployees(
+                                            employeesSnapshot.data!,
+                                          ),
+                                        )
+                                      else if (employeesSnapshot
+                                          .data!.isNotEmpty)
+                                        _buildNoSearchResults()
+                                      else
+                                        _buildEmptyState(),
+                                    ] else if (employeesSnapshot.hasError)
                                       _buildErrorState(employeesSnapshot.error!)
                                     else
                                       _buildLoadingState(),
