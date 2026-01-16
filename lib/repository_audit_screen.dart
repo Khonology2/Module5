@@ -4,7 +4,6 @@ import 'dart:developer' as developer;
 import 'dart:convert' as convert;
 import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
-import 'package:pdh/services/deleted_goal_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -21,10 +20,6 @@ import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
-import 'package:pdh/services/goal_deletion_service.dart';
-import 'package:pdh/services/unified_goal_deletion_service.dart';
-import 'package:pdh/models/goal_deletion_request.dart';
-import 'package:pdh/models/deleted_goal_log.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
 
@@ -154,17 +149,9 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   return Column(
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      if (isManager) ...[
-                        const SizedBox(height: 16),
-                        _buildDeletionRequestsSection(),
-                        const SizedBox(height: 16),
-                      ],
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
-                      const SizedBox(height: 24),
-                      _buildDeletedGoalsSection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildApprovedGoalsSection(isManager: isManager),
                     ],
@@ -290,10 +277,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                           value: 'rejected',
                           child: Text('Rejected'),
                         ),
-                        DropdownMenuItem(
-                          value: 'deleted',
-                          child: Text('Deleted'),
-                        ),
                       ],
                       onChanged: (value) {
                         setState(() {
@@ -359,10 +342,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                         value: 'rejected',
                         child: Text('Rejected'),
                         ),
-                        DropdownMenuItem(
-                          value: 'deleted',
-                          child: Text('Deleted'),
-                      ),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -687,7 +666,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       'verified': 0,
       'pending': 0,
       'rejected': 0,
-      'deleted': 0,
     };
 
     if (isManager) {
@@ -726,14 +704,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return StreamBuilder<List<DeletedGoalLog>>( 
-            stream: DeletedGoalService.getManagerDeletedGoalsStream(),
-            builder: (context, delSnap) {
-              final delCount = delSnap.data?.length ?? 0;
-              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
-              return _buildStatsContainer(updated, isManager: true);
-            },
-          );
+          return _buildStatsContainer(stats, isManager: true);
         },
       );
     } else {
@@ -759,14 +730,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             'rejected': entries.where((e) => e.status == 'rejected').length,
           };
 
-          return StreamBuilder<List<DeletedGoalLog>>( 
-            stream: DeletedGoalService.getEmployeeDeletedGoalsStream(),
-            builder: (context, delSnap) {
-              final delCount = delSnap.data?.length ?? 0;
-              final updated = Map<String,int>.from(stats)..['deleted']=delCount;
-              return _buildStatsContainer(updated, isManager: false);
-            },
-          );
+          return _buildStatsContainer(stats, isManager: false);
         },
       );
     }
@@ -824,11 +788,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                 stats['rejected'] ?? 0,
                 AppColors.dangerColor,
               ),
-              _buildStatusChip(
-                'Deleted',
-                stats['deleted'] ?? 0,
-                Colors.grey,
-              ),
             ],
           ),
         ],
@@ -867,40 +826,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildAuditEntriesList({required bool isManager}) {
-    if (_statusFilter == 'deleted') {
-      final stream = isManager
-          ? DeletedGoalService.getManagerDeletedGoalsStream()
-          : DeletedGoalService.getEmployeeDeletedGoalsStream();
-      return StreamBuilder<List<DeletedGoalLog>>(
-        stream: stream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final logs = snapshot.data ?? [];
-          if (logs.isEmpty) {
-            return _buildEmptyState(isManager: isManager);
-          }
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: logs.length,
-            separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
-            itemBuilder: (context, index) {
-              final l = logs[index];
-              final d = l.deletedAt;
-              final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-              return ListTile(
-                leading: const Icon(Icons.delete, color: Colors.grey),
-                title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
-                subtitle: Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
-              );
-            },
-          );
-        },
-      );
-    }
-
     return StreamBuilder<List<AuditEntry>>(
       stream: isManager
           ? AuditService.getManagerAuditEntriesStream(
@@ -1653,211 +1578,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildDeletionRequestsSection() {
-    return StreamBuilder<List<GoalDeletionRequest>>(
-      stream: GoalDeletionService.getManagerPendingRequestsStream(),
-      builder: (context, snapshot) {
-        final requests = snapshot.data ?? [];
-        if (requests.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Goal Deletion Requests',
-              style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: requests.length,
-              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
-              itemBuilder: (context, index) {
-                final r = requests[index];
-                return ListTile(
-                  leading: const Icon(Icons.delete_forever, color: Colors.orange),
-                  title: Text(r.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
-                  subtitle: Text(r.reason, style: TextStyle(color: AppColors.textMuted)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green),
-                        tooltip: 'Approve',
-                        onPressed: () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1F2840),
-                              title: const Text('Approve deletion?', style: TextStyle(color: Colors.white)),
-                              content: const Text('This will permanently delete the goal.', style: TextStyle(color: Colors.white70)),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Approve')),
-                              ],
-                            ),
-                          );
-                          if (ok == true) {
-                            try {
-                              final result = await UnifiedGoalDeletionService.processDeletionRequest(
-                                requestId: r.id,
-                                approved: true,
-                              );
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(result.success ? 'Deletion approved' : 'Error: ${result.message}'),
-                                    backgroundColor: result.success ? Colors.green : Colors.red,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
-                              }
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
-                        tooltip: 'Reject',
-                        onPressed: () async {
-                          final reasonCtrl = TextEditingController();
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1F2840),
-                              title: const Text('Reject deletion', style: TextStyle(color: Colors.white)),
-                              content: TextField(
-                                controller: reasonCtrl,
-                                decoration: const InputDecoration(hintText: 'Reason', hintStyle: TextStyle(color: Colors.white38)),
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Reject')),
-                              ],
-                            ),
-                          );
-                          if (ok == true) {
-                            try {
-                              final result = await UnifiedGoalDeletionService.processDeletionRequest(
-                                requestId: r.id,
-                                approved: false,
-                                reason: reasonCtrl.text.trim(),
-                              );
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(result.success ? 'Deletion rejected' : 'Error: ${result.message}'),
-                                    backgroundColor: result.success ? Colors.orange : Colors.red,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
-                              }
-                            }
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDeletedGoalsSection({required bool isManager}) {
-    final stream = isManager
-        ? DeletedGoalService.getManagerDeletedGoalsStream()
-        : DeletedGoalService.getEmployeeDeletedGoalsStream();
-    return StreamBuilder<List<DeletedGoalLog>>(
-      stream: stream,
-      builder: (context, snapshot) {
-        final logs = snapshot.data ?? [];
-        if (logs.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Deleted Goals', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
-            const SizedBox(height: 8),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: logs.length,
-              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
-              itemBuilder: (context, index) {
-                final l = logs[index];
-                final d = l.deletedAt;
-                final date = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-                
-                // For managers, show goal title and employee info
-                if (isManager) {
-                  return FutureBuilder<Map<String, String>>(
-                    future: _getEmployeeDetails(l.deletedBy),
-                    builder: (context, snapshot) {
-                      String displayName = 'Unknown Employee';
-                      String department = 'Not specified';
-                      
-                      if (snapshot.hasData) {
-                        displayName = snapshot.data!['name'] ?? 'Unknown Employee';
-                        department = snapshot.data!['department'] ?? 'Not specified';
-                      } else if (snapshot.hasError) {
-                        // Fallback to stored data if available
-                        displayName = l.deletedByName ?? l.employeeName ?? 'Unknown Employee';
-                        department = l.department ?? 'Not specified';
-                      }
-                      
-                      return ListTile(
-                        leading: const Icon(Icons.delete, color: Colors.red),
-                        title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Employee: $displayName', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                            Text('Department: $department', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                            Text('Deleted: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                } else {
-                  // For employees, show full details
-                  return ListTile(
-                    leading: const Icon(Icons.delete, color: Colors.red),
-                    title: Text(l.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Deleted $date', style: TextStyle(color: AppColors.textMuted)),
-                        if (l.approvedByName != null) 
-                          Text('Approved by: ${l.approvedByName}', style: TextStyle(color: AppColors.textMuted)),
-                      ],
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
+  
+  
   Widget _buildRepositorySection({required bool isManager}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();

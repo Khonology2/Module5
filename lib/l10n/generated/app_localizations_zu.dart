@@ -30,7 +30,7 @@ class AppLocalizationsZu extends AppLocalizations {
   String get save => 'Londoloza';
 
   @override
-  String get delete => 'Susa';
+  String get delete => 'Delete';
 
   @override
   String get create => 'Dala';
@@ -51,7 +51,7 @@ class AppLocalizationsZu extends AppLocalizations {
   String get sign_out => 'Phuma';
 
   @override
-  String get delete_account => 'Susa i-akhawunti';
+  String get delete_account => 'Delete Account';
 
   @override
   String get export_my_data => 'Thumela idatha yami';
@@ -270,7 +270,7 @@ class AppLocalizationsZu extends AppLocalizations {
   String get season_details_recompute => 'Bala kabusha';
 
   @override
-  String get season_details_delete_season => 'Susa isizini';
+  String get season_details_delete_season => 'Delete Season';
 
   @override
   String get season_details_force_complete_title => 'Qedela isizini ngamandla?';
@@ -285,10 +285,10 @@ class AppLocalizationsZu extends AppLocalizations {
   String get season_details_complete_confirm => 'Qedela';
 
   @override
-  String get season_details_delete_title => 'Susa isizini?';
+  String get season_details_delete_title => 'Delete Season?';
 
   @override
-  String get season_details_delete_confirm => 'Susa';
+  String get season_details_delete_confirm => 'Delete';
 
   @override
   String get season_goal_completion_title => 'Qedela inhloso yesizini';
@@ -350,19 +350,18 @@ class AppLocalizationsZu extends AppLocalizations {
   }
 
   @override
-  String get goal_delete_title => 'Susa inhloso';
+  String get goal_delete_title => 'Delete Goal';
 
   @override
-  String get goal_deleted => 'Inhloso isusiwe';
+  String get goal_deleted => 'Goal deleted';
 
   @override
   String goal_delete_error(Object error) {
-    return 'Yehlulekile ukususa inhloso: $error';
+    return 'Failed to delete goal: $error';
   }
 
   @override
-  String get goal_start_success =>
-      'Inhloso iqalile! Amamaki angu-20 atholiwe 🎉';
+  String get goal_start_success => 'Inhloso iqalile! Amamaki angu-20 atholiwe ';
 
   @override
   String goal_start_error(Object error) {
@@ -379,7 +378,7 @@ class AppLocalizationsZu extends AppLocalizations {
 
   @override
   String get goal_complete_success =>
-      'Inhloso iqediwe! Amamaki angu-100 atholiwe 🏆';
+      'Inhloso iqediwe! Amamaki angu-100 atholiwe ';
 
   @override
   String goal_complete_error(Object error) {
@@ -442,18 +441,18 @@ class AppLocalizationsZu extends AppLocalizations {
   }
 
   @override
-  String get goal_milestone_delete_title => 'Susa ibanga';
+  String get goal_milestone_delete_title => 'Delete Milestone';
 
   @override
   String get goal_milestone_delete_confirm_text =>
-      'Susa leli banga enhlosweni?';
+      'Remove this milestone from the goal?';
 
   @override
-  String get goal_milestone_deleted => 'Ibangalokususa.';
+  String get goal_milestone_deleted => 'Milestone deleted.';
 
   @override
   String goal_milestone_delete_error(Object error) {
-    return 'Yehlulekile ukususa ibanga: $error';
+    return 'Failed to delete milestone: $error';
   }
 
   @override
@@ -535,11 +534,11 @@ class AppLocalizationsZu extends AppLocalizations {
   String get team_chats_edit_message => 'Hlela umlayezo';
 
   @override
-  String get team_chats_delete_message_title => 'Susa umlayezo?';
+  String get team_chats_delete_message_title => 'Delete message?';
 
   @override
   String get team_chats_delete_message_confirm_text =>
-      'Lesi senzo asikwazi ukubuyiselwa emuva.';
+      'This action cannot be undone.';
 
   @override
   String get gamification_title => 'Ukugqugquzela ngokuqanjwa kwamaphuzu';

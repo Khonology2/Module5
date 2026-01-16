@@ -30,9 +30,6 @@ class Goal {
   final DateTime? approvedAt;
   final DateTime? approvalRequestedAt;
   final String? rejectionReason;
-  final String? deletionStatus;
-  final DateTime? deletionRequestedAt;
-  final String? deletionReason;
 
   const Goal({
     required this.id,
@@ -55,9 +52,6 @@ class Goal {
     this.approvedAt,
     this.approvalRequestedAt,
     this.rejectionReason,
-    this.deletionStatus,
-    this.deletionRequestedAt,
-    this.deletionReason,
   });
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
@@ -135,9 +129,6 @@ class Goal {
           ? parseDate(data?['approvalRequestedAt'])
           : null,
       rejectionReason: data?['rejectionReason']?.toString(),
-      deletionStatus: data?['deletionStatus']?.toString(),
-      deletionRequestedAt: (data?['deletionRequestedAt'] as Timestamp?)?.toDate(),
-      deletionReason: data?['deletionReason']?.toString(),
     );
   }
 

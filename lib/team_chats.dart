@@ -477,16 +477,7 @@ class _TeamChatsScreenState extends State<TeamChatsScreen> {
                   ),
                   onTap: () => Navigator.pop(context, 'edit'),
                 ),
-              if (isMine && !msg.isDeleted)
-                ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.redAccent),
-                  title: const Text(
-                    'Delete',
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
-                  onTap: () => Navigator.pop(context, 'delete'),
-                ),
-            ],
+                          ],
           ),
         );
       },
