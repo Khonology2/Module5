@@ -37,42 +37,6 @@ class AuditLogger {
     }
   }
 
-  /// Logs a goal deletion event with detailed metadata
-  static Future<void> logGoalDeletion({
-    required String goalId,
-    required String deletedBy,
-    required Map<String, dynamic> goalData,
-    String? reason,
-    bool deletedByAdmin = false,
-  }) async {
-    try {
-      final event = {
-        'action': 'goal_deleted',
-        'goalId': goalId,
-        'userId': goalData['userId'] ?? 'unknown',
-        'deletedBy': deletedBy,
-        'timestamp': FieldValue.serverTimestamp(),
-        'metadata': {
-          'goalTitle': goalData['title'] ?? 'Untitled Goal',
-          'goalStatus': goalData['status'] ?? 'unknown',
-          'deletionReason': reason,
-          'deletedByAdmin': deletedByAdmin,
-          'relatedEntitiesDeleted': true,
-        },
-      };
-
-      await _firestore.collection('audit_entries').add(event);
-      developer.log('Goal deletion logged: $goalId by $deletedBy');
-    } catch (e, stackTrace) {
-      developer.log(
-        'Error logging goal deletion: $e',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      await _logError('goal_deletion', e, stackTrace);
-    }
-  }
-
   /// Logs a system event (not tied to a specific goal)
   static Future<void> logSystemEvent({
     required String eventType,
