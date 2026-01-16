@@ -1,6 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
@@ -10,7 +9,6 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
@@ -97,7 +95,6 @@ void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
 
 class _MyPdpScreenState extends State<MyPdpScreen>
     with SingleTickerProviderStateMixin {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
@@ -156,124 +153,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     }
   }
 
-  Future<void> _handleDeleteGoal(Goal goal) async {
-    final userId = _auth.currentUser?.uid ?? '';
-    if (userId.isEmpty) {
-      await _showCenterNotice(context, 'User not authenticated');
-      return;
-    }
-
-    if (goal.approvalStatus != GoalApprovalStatus.approved) {
-      // Direct delete flow
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1F2840),
-          title: const Text('Delete Goal', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            'Are you sure you want to delete this goal? This cannot be undone.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Delete'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
-      try {
-        _showLoadingDialog(context, message: 'Processing deletion...');
-        developer.log('Using unified deletion system for goal: ${goal.id}');
-        
-        final result = await UnifiedGoalDeletionService.deleteGoal(
-          goalId: goal.id,
-          reason: '',
-        );
-        
-        if (mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-        }
-        
-        await _showCenterNotice(context, result.message);
-      } catch (e) {
-        developer.log('Delete failed in UI: $e');
-        if (mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(context, 'Failed to delete: $e');
-        }
-      }
-    } else {
-      // Request deletion flow
-      final reasonController = TextEditingController();
-      final submitted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1F2840),
-          title: const Text('Request Goal Deletion', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Provide a reason for deleting this approved goal. Your manager will need to approve this request.',
-                style: TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: 'Reason',
-                  hintStyle: TextStyle(color: Colors.white38),
-                  border: OutlineInputBorder(),
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Submit'),
-            ),
-          ],
-        ),
-      );
-      if (submitted != true) return;
-      final reason = reasonController.text.trim();
-      if (reason.isEmpty) {
-        await _showCenterNotice(context, 'Please provide a reason');
-        return;
-      }
-      try {
-        _showLoadingDialog(context, message: 'Processing deletion...');
-        final result = await UnifiedGoalDeletionService.deleteGoal(
-          goalId: goal.id,
-          reason: reason,
-        );
-        
-        if (mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(context, result.message);
-        }
-      } catch (e) {
-        if (mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-          await _showCenterNotice(context, 'Failed to process deletion: $e');
-        }
-      }
-    }
-  }
-
+  
   Future<void> _markModuleComplete(Goal goal) async {
     try {
       final next = (goal.progress + 25).clamp(0, 100);
@@ -1199,13 +1079,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                 ),
                               ),
                             ),
-                            IconButton(
-                              tooltip: 'Delete goal',
-                              onPressed: () => _handleDeleteGoal(goal),
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              splashRadius: 18,
-                            ),
-                            Text(
+                                                        Text(
                               '${goal.progress}%',
                               style: const TextStyle(color: Colors.white70),
                             ),

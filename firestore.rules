@@ -173,16 +173,8 @@ service cloud.firestore {
       // Admins can update any goal
       allow update: if isSignedIn() && isAdmin();
 
-      // Allow goal deletion with clear, simple rules
-      allow delete: if isSignedIn() && (
-        // Owner can delete their own goals (primary rule)
-        userId() == resource.data.userId ||
-        // Managers and admins can delete any goal
-        isManager() ||
-        isAdmin()
-      );
       allow read: if isSignedIn() && (
-        (userId() == resource.data.userId && resource.data.deletionStatus != 'pending') ||
+        userId() == resource.data.userId ||
         isManager() ||
         isAdmin()
       );
@@ -193,21 +185,8 @@ service cloud.firestore {
         allow list: if isSignedIn() && canAccessGoal(goalId);
         allow read: if isSignedIn() && canAccessGoal(goalId);
         allow create: if isSignedIn() && request.resource.data.createdBy == userId();
-        // Allow owner to update most fields, but restrict deletion-related fields
         allow update: if isSignedIn() && (
-          (userId() == resource.data.createdBy &&
-           // Allow non-deletion related updates by owner
-           (!('deletionStatus' in request.resource.data) ||
-            (!('deletionStatus' in resource.data) && request.resource.data.deletionStatus == 'pending') || // Allow initial pending status
-            (resource.data.deletionStatus == 'pending' && request.resource.data.deletionStatus == 'pending'))
-          ) ||
-          // Managers/Admins can update anything, including deletion status
-          isManager() || isAdmin()
-        );
-        // Milestone can only be deleted if its deletionStatus is 'approved' (by service)
-        // Or if deleted by a manager/admin directly (force delete)
-        allow delete: if isSignedIn() && (
-          (resource.data.deletionStatus == 'approved') ||
+          (userId() == resource.data.createdBy) ||
           isManager() || isAdmin()
         );
       }
@@ -290,12 +269,9 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Allow creating audit entries for goal deletions
+      // Allow creating audit entries for system events
       allow create: if isSignedIn() && (
-        // System-generated goal deletion audit
-        (request.resource.data.action == 'goal_deleted' &&
-         request.resource.data.metadata.deletedBy == userId()) ||
-        // Admin/manager can create other audit entries
+        // Admin/manager can create audit entries
         isAdmin() || isManager()
       );
       
@@ -306,48 +282,6 @@ service cloud.firestore {
       allow list: if isSignedIn() && (isManager() || isAdmin());
     }
     
-    // Deleted goals archive
-    match /deleted_goals/{goalId} {
-      // Only admins and managers can view deleted goals
-      allow read: if isSignedIn() && (isManager() || isAdmin());
-      
-      // Only the system can create deleted_goals entries (during deletion)
-      allow create: if isSignedIn() && (
-        // System-generated during goal deletion
-        (request.resource.data.deletedBy == userId() &&
-         request.resource.data.deletedAt is timestamp) ||
-        // Or created by admin/manager
-        isAdmin() || isManager()
-      );
-      
-      // Only admins can modify or delete
-      allow update, delete: if isAdmin();
-      
-      // Allow listing for admins and managers
-      allow list: if isSignedIn() && (isManager() || isAdmin());
-    }
-    
-    // Deletion error logs
-    match /deletion_errors/{errorId} {
-      // Only admins can view deletion errors
-      allow read: if isSignedIn() && isAdmin();
-      
-      // System can log deletion errors
-      allow create: if isSignedIn() && (
-        // System-generated during deletion failure
-        (request.resource.data.requesterId == userId() &&
-         request.resource.data.timestamp is timestamp) ||
-        // Or created by admin
-        isAdmin()
-      );
-      
-      // Only admins can modify or delete
-      allow update, delete: if isAdmin();
-      
-      // Allow listing for admins only
-      allow list: if isSignedIn() && isAdmin();
-    }
-
     match /seasons/{seasonId} {
       allow read: if isSignedIn();
       allow list: if isSignedIn();
@@ -449,11 +383,8 @@ service cloud.firestore {
           request.resource.data.text == resource.data.text &&
           request.resource.data.timestamp == resource.data.timestamp &&
           request.resource.data.senderName == resource.data.senderName &&
-          request.resource.data.isDeleted == resource.data.isDeleted &&
           request.resource.data.clientAt == resource.data.clientAt &&
           request.resource.data.editedAt == resource.data.editedAt &&
-          request.resource.data.deletedAt == resource.data.deletedAt &&
-          request.resource.data.deletedBy == resource.data.deletedBy &&
           request.resource.data.replyTo == resource.data.replyTo &&
           request.resource.data.replyToText == resource.data.replyToText &&
           (
@@ -464,7 +395,7 @@ service cloud.firestore {
       );
     }
 
-    // Goal Daily Progress - owner can delete their own entries (used in goal deletion)
+    // Goal Daily Progress
     match /goal_daily_progress/{progressId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
@@ -473,45 +404,8 @@ service cloud.firestore {
       );
       allow create: if isSignedIn() && request.resource.data.userId == userId();
       allow list: if isSignedIn();
-      // Allow delete for goal deletion cleanup - simplified for batch safety
-      allow delete: if isSignedIn() && (
-        userId() == resource.data.userId ||
-        isManager() ||
-        isAdmin()
-      );
     }
 
-    match /goal_deletion_requests/{requestId} {
-      allow create: if isEmployee() && request.resource.data.userId == userId();
-      allow read, update: if isManager() || isAdmin();
-    }
-
-    match /deleted_goals/{goalId} {
-      // Allow create if user is the goal owner, manager, or admin
-      // Handle nested goalData.userId safely
-      allow create: if isSignedIn() && (
-        ('goalData' in request.resource.data && 
-         'userId' in request.resource.data.goalData &&
-         userId() == request.resource.data.goalData.userId) ||
-        isManager() ||
-        isAdmin()
-      );
-      // Allow read if user is the goal owner, manager, or admin
-      allow read: if isSignedIn() && (
-        ('goalData' in resource.data &&
-         'userId' in resource.data.goalData &&
-         userId() == resource.data.goalData.userId) ||
-        isManager() ||
-        isAdmin()
-      );
-    }
-
-    match /milestone_deletion_requests/{requestId} {
-      // Employees can create their own milestone deletion requests
-      allow create: if isEmployee() && request.resource.data.userId == userId();
-      // Managers and admins can read, list, and update requests
-      allow read, list, update: if isManager() || isAdmin();
-    }
 
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();

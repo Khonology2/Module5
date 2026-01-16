@@ -1384,9 +1384,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
       case AlertType.milestoneDeletionRequest:
-        return Icon(Icons.delete_forever);
+        return Icon(Icons.info_outline);
       case AlertType.milestoneDeleted:
-        return Icon(Icons.delete_outline);
+        return Icon(Icons.info_outline);
       case AlertType.milestoneDeletionRejected:
         return Icon(Icons.block);
       case AlertType.managerGeneral:
@@ -2463,9 +2463,9 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
       case AlertType.milestoneDeletionRequest:
-        return Icon(Icons.delete_forever);
+        return Icon(Icons.info_outline);
       case AlertType.milestoneDeleted:
-        return Icon(Icons.delete_outline);
+        return Icon(Icons.info_outline);
       case AlertType.milestoneDeletionRejected:
         return Icon(Icons.block);
       case AlertType.managerGeneral:

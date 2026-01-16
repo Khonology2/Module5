@@ -720,14 +720,7 @@ class DatabaseService {
     );
   }
 
-  static Future<void> deleteGoalMilestone({
-    required String goalId,
-    required String milestoneId,
-  }) async {
-    await _goalMilestonesRef(goalId).doc(milestoneId).delete();
-    await _syncGoalProgressWithMilestones(goalId);
-  }
-
+  
   static Future<void> _afterMilestoneMutation({
     required String goalId,
     required GoalMilestone milestone,
