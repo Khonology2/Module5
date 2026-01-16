@@ -391,28 +391,66 @@ class AlertService {
     await _createAlert(alert);
   }
 
-  static Future<void> createManagerNudgeAlert({
-    required String userId,
-    required String managerName,
+  /// Helper to create alerts for managers, often used for approval requests or notifications
+  static Future<void> createManagerAlert({
+    required String goalId,
     required String goalTitle,
-    required String nudgeMessage,
+    required String ownerId,
+    required String ownerName,
+    required String managerId,
+    required String type, // e.g., 'milestoneDeletionRequest', 'milestoneDeleted', 'milestoneDeletionRejected'
+    String? message,
   }) async {
-    final alert = Alert(
-      id: '',
-      userId: userId,
-      type: AlertType.managerNudge,
-      priority: AlertPriority.high,
-      title: 'Manager Nudge 📢',
-      message:
-          '$managerName sent you a nudge about "$goalTitle": $nudgeMessage',
-      actionText: 'View Nudge',
-      actionRoute: '/employee_dashboard',
-      createdAt: DateTime.now(),
-      fromUserName: managerName,
-      expiresAt: DateTime.now().add(const Duration(days: 7)),
-    );
+    try {
+      String alertTitle;
+      String alertMessage;
+      AlertType alertType;
 
-    await _createAlert(alert);
+      switch (type) {
+        case 'milestoneDeletionRequest':
+          alertTitle = 'Milestone Deletion Request';
+          alertMessage = '$ownerName has requested to delete a milestone from goal "$goalTitle". Please review.';
+          alertType = AlertType.milestoneDeletionRequest;
+          break;
+        case 'milestoneDeleted':
+          alertTitle = 'Milestone Deleted';
+          alertMessage = message ?? 'A milestone from goal "$goalTitle" has been deleted.';
+          alertType = AlertType.milestoneDeleted;
+          break;
+        case 'milestoneDeletionRejected':
+          alertTitle = 'Milestone Deletion Rejected';
+          alertMessage = message ?? 'The request to delete a milestone from goal "$goalTitle" has been rejected.';
+          alertType = AlertType.milestoneDeletionRejected;
+          break;
+        default:
+          alertTitle = 'Manager Alert';
+          alertMessage = message ?? 'An action requires your attention regarding goal "$goalTitle".';
+          alertType = AlertType.managerGeneral;
+      }
+
+      final alert = Alert(
+        id: '',
+        userId: managerId,
+        type: alertType,
+        priority: AlertPriority.high,
+        title: alertTitle,
+        message: alertMessage,
+        actionText: 'Review',
+        actionRoute: '/manager_alerts_nudges',
+        actionData: {'goalId': goalId, 'employeeId': ownerId},
+        createdAt: DateTime.now(),
+        fromUserId: ownerId,
+        fromUserName: ownerName,
+        relatedGoalId: goalId,
+        expiresAt: DateTime.now().add(const Duration(days: 14)),
+      );
+
+      await _createAlert(alert);
+      developer.log('Created manager alert of type $type for manager $managerId');
+    } catch (e) {
+      developer.log('Error creating manager alert: $e');
+      rethrow;
+    }
   }
 
   /// Create manager nudge alert with enhanced data
@@ -866,8 +904,7 @@ class AlertService {
                   'type': AlertType.goalOverdue.name,
                   'priority': AlertPriority.high.name,
                   'title': 'Employee Goal Overdue',
-                  'message':
-                      '${userDoc.data()?['displayName'] ?? 'An employee'}\'s goal "${goal.title}" is 1 day overdue. Review and decide next step.',
+                  'message': "${userDoc.data()?['displayName'] ?? 'An employee'}'s goal \"${goal.title}\" is 1 day overdue. Review and decide next step.",
                   'actionText': 'Review Goal',
                   'actionRoute': '/manager_alerts_nudges',
                   'createdAt': FieldValue.serverTimestamp(),

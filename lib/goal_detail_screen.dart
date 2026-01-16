@@ -10,7 +10,6 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
-import 'package:pdh/services/unified_goal_deletion_service.dart';
 import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/role_service.dart';
@@ -34,6 +33,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool _submittingApproval = false;
   bool _isSeasonGoal = false;
 
+  
   @override
   void initState() {
     super.initState();
@@ -162,72 +162,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
   }
 
-  Future<void> _confirmAndDeleteGoal() async {
-    if (isLoading) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Goal'),
-        content: const Text(
-          'Are you sure you want to permanently delete this goal? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.dangerColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Not signed in');
-      final result = await UnifiedGoalDeletionService.deleteGoal(
-        goalId: currentGoal.id,
-        forceDelete: true, // Force delete from detail screen
-      );
-      
-      if (!result.success) {
-        throw Exception(result.message);
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Goal deleted'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete goal: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-    }
-  }
 
   Future<void> _startGoal() async {
     if (isLoading) return;
@@ -595,11 +529,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               color: AppColors.textPrimary,
             ),
           ),
-        ),
-        IconButton(
-          tooltip: 'Delete Goal',
-          onPressed: isLoading ? null : _confirmAndDeleteGoal,
-          icon: Icon(Icons.delete_outline, color: AppColors.dangerColor),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -1364,7 +1293,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                               _showMilestoneDialog(milestone: milestone),
                           onUpdateStatus: (status) =>
                               _updateMilestoneStatus(milestone, status),
-                          onDelete: () => _deleteMilestone(milestone),
                         ),
                       ),
                     )
@@ -1638,43 +1566,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
   }
 
-  Future<void> _deleteMilestone(GoalMilestone milestone) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Milestone'),
-        content: const Text('Remove this milestone from the goal?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      await DatabaseService.deleteGoalMilestone(
-        goalId: currentGoal.id,
-        milestoneId: milestone.id,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Milestone deleted.')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete milestone: $e')),
-        );
-      }
-    }
-  }
 
   String _milestoneStatusLabel(GoalMilestoneStatus status) {
     switch (status) {
@@ -1702,7 +1593,6 @@ class _GoalMilestoneTile extends StatelessWidget {
   final bool isLocked;
   final VoidCallback onEdit;
   final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
-  final VoidCallback onDelete;
 
   const _GoalMilestoneTile({
     required this.milestone,
@@ -1710,7 +1600,6 @@ class _GoalMilestoneTile extends StatelessWidget {
     required this.isLocked,
     required this.onEdit,
     required this.onUpdateStatus,
-    required this.onDelete,
   });
 
   @override
@@ -1789,25 +1678,22 @@ class _GoalMilestoneTile extends StatelessWidget {
               if (canEdit)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_horiz),
-                  onSelected: (value) {
+                  onSelected: (value) async { // Added async
                     switch (value) {
                       case 'edit':
                         onEdit();
                         break;
                       case 'start':
-                        onUpdateStatus(GoalMilestoneStatus.notStarted);
+                        await onUpdateStatus(GoalMilestoneStatus.notStarted);
                         break;
                       case 'progress':
-                        onUpdateStatus(GoalMilestoneStatus.inProgress);
+                        await onUpdateStatus(GoalMilestoneStatus.inProgress);
                         break;
                       case 'blocked':
-                        onUpdateStatus(GoalMilestoneStatus.blocked);
+                        await onUpdateStatus(GoalMilestoneStatus.blocked);
                         break;
                       case 'complete':
-                        onUpdateStatus(GoalMilestoneStatus.completed);
-                        break;
-                      case 'delete':
-                        onDelete();
+                        await onUpdateStatus(GoalMilestoneStatus.completed);
                         break;
                     }
                   },
@@ -1832,14 +1718,6 @@ class _GoalMilestoneTile extends StatelessWidget {
                     const PopupMenuItem(
                       value: 'complete',
                       child: Text('Mark Completed'),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete',
-                        style: TextStyle(color: AppColors.dangerColor),
-                      ),
                     ),
                   ],
                 ),
