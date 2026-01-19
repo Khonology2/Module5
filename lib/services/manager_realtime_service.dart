@@ -369,6 +369,8 @@ class ManagerRealtimeService {
     String? department,
   ) async {
     try {
+      String norm(String? s) => (s ?? '').trim().toLowerCase();
+
       Query onboardingQuery = _firestore.collection('onboarding');
 
       // Note: We can't filter by department in onboarding collection easily
@@ -434,8 +436,9 @@ class ManagerRealtimeService {
 
       // Filter by department if specified
       if (department != null && department.trim().isNotEmpty) {
+        final target = norm(department);
         return onboardingProfiles
-            .where((profile) => profile.department == department.trim())
+            .where((profile) => norm(profile.department) == target)
             .toList();
       }
 
@@ -765,17 +768,21 @@ class ManagerRealtimeService {
             ? department.trim()
             : null;
 
-        // Build employee query; if department known, constrain to that team
-        Query usersQuery = _firestore
-            .collection('users')
-            .where('role', isEqualTo: 'employee')
-            .limit(_initialEmployeeLimit);
-        if (explicitDepartment != null) {
-          usersQuery = usersQuery.where(
-            'department',
-            isEqualTo: explicitDepartment,
-          );
+        String norm(String? s) => (s ?? '').trim().toLowerCase();
+
+        bool includeEmployeeProfile(UserProfile p) {
+          final role = (p.role).trim().toLowerCase();
+          if (role != 'employee') return false;
+          if (explicitDepartment == null) return true;
+          return norm(p.department) == norm(explicitDepartment);
         }
+
+        // Query users broadly, then filter in-memory.
+        // This prevents accidentally excluding employees whose user doc is missing `role`
+        // (many parts of the app default missing role to 'employee').
+        Query usersQuery = _firestore.collection('users').limit(
+          _initialEmployeeLimit,
+        );
 
         Future<void> rebuildAndEmit(QuerySnapshot usersSnapshot) async {
           if (isCancelled) return;
@@ -788,10 +795,15 @@ class ManagerRealtimeService {
 
           if (isCancelled) return;
 
+          // Filter regular users to employees (and department if specified)
+          final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
+            final profile = UserProfile.fromFirestore(doc);
+            return includeEmployeeProfile(profile);
+          }).toList();
+
           // Get regular employee IDs
-          final regularEmployeeIds = usersSnapshot.docs
-              .map((doc) => doc.id)
-              .toList();
+          final regularEmployeeIds =
+              regularEmployeeDocs.map((doc) => doc.id).toList();
 
           // Get onboarding employee IDs
           final onboardingEmployeeIds = onboardingProfiles
@@ -913,7 +925,7 @@ class ManagerRealtimeService {
           final employeeDataList = <EmployeeData>[];
 
           // Process regular employees
-          for (final userDoc in usersSnapshot.docs) {
+          for (final userDoc in regularEmployeeDocs) {
             final userProfile = UserProfile.fromFirestore(userDoc);
             final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
             final activeAlerts = rawAlerts.where((a) {
@@ -972,27 +984,30 @@ class ManagerRealtimeService {
             // Emit a lightweight team list immediately to transition UI out of 'waiting'
             try {
               final now = DateTime.now();
-              final minimal = snapshot.docs.map((d) {
-                final profile = UserProfile.fromFirestore(d);
-                return EmployeeData(
-                  profile: profile,
-                  goals: const [],
-                  recentActivities: const [],
-                  recentAlerts: const [],
-                  completedGoalsCount: 0,
-                  overdueGoalsCount: 0,
-                  totalPoints: profile.totalPoints,
-                  lastActivity:
-                      profile.lastLoginAt ??
-                      now.subtract(const Duration(days: 30)),
-                  avgProgress: 0.0,
-                  streakDays: 0,
-                  status: EmployeeStatus.onTrack,
-                  weeklyActivityCount: 0,
-                  engagementScore: 0.0,
-                  motivationLevel: 'N/A',
-                );
-              }).toList();
+              final minimal = snapshot.docs
+                  .map((d) => UserProfile.fromFirestore(d))
+                  .where(includeEmployeeProfile)
+                  .map((profile) {
+                    return EmployeeData(
+                      profile: profile,
+                      goals: const [],
+                      recentActivities: const [],
+                      recentAlerts: const [],
+                      completedGoalsCount: 0,
+                      overdueGoalsCount: 0,
+                      totalPoints: profile.totalPoints,
+                      lastActivity:
+                          profile.lastLoginAt ??
+                          now.subtract(const Duration(days: 30)),
+                      avgProgress: 0.0,
+                      streakDays: 0,
+                      status: EmployeeStatus.onTrack,
+                      weeklyActivityCount: 0,
+                      engagementScore: 0.0,
+                      motivationLevel: 'N/A',
+                    );
+                  })
+                  .toList();
               // Only emit if we actually have docs; otherwise let full rebuild handle empty
               if (minimal.isNotEmpty && !isCancelled) {
                 controller.add(minimal);
