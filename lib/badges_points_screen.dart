@@ -13,6 +13,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/rarity_badges_list_screen.dart';
@@ -144,6 +145,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
+        // Sync any completed season challenge points into the user's profile.
+        await SeasonService.syncCurrentEmployeeSeasonPoints();
+
         // Load all primary data in parallel to speed up first render
         final results = await Future.wait([
           DatabaseService.getUserProfile(user.uid),

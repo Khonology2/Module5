@@ -62,6 +62,9 @@ class _EmployeeSeasonChallengesScreenState
           _currentUserDepartment = userDoc.data()?['department'];
         });
       }
+
+      // Sync season challenge points into the employee profile.
+      await SeasonService.syncCurrentEmployeeSeasonPoints();
     }
   }
 

@@ -946,6 +946,55 @@ class SeasonService {
     }
   }
 
+  /// Reconcile/sync an employee's season challenge points into their user profile.
+  /// This sums participation points from completed seasons and applies the delta
+  /// to `users/{uid}.totalPoints`, storing the season subtotal in `seasonChallengePoints`.
+  static Future<void> syncCurrentEmployeeSeasonPoints() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+      final userId = currentUser.uid;
+
+      final seasonsSnap = await _firestore
+          .collection('seasons')
+          .where('participantIds', arrayContains: userId)
+          .get();
+
+      int computedTotal = 0;
+      for (final doc in seasonsSnap.docs) {
+        final season = Season.fromFirestore(doc);
+        if (season.status != SeasonStatus.completed) continue;
+        final participation = season.participations[userId];
+        if (participation == null) continue;
+        computedTotal += participation.totalPoints;
+      }
+
+      final userRef = _firestore.collection('users').doc(userId);
+      final userDoc = await userRef.get();
+      final currentSeasonPointsRaw =
+          userDoc.data()?['seasonChallengePoints'];
+      final currentSeasonPoints = currentSeasonPointsRaw is int
+          ? currentSeasonPointsRaw
+          : (currentSeasonPointsRaw is num
+              ? currentSeasonPointsRaw.toInt()
+              : int.tryParse('$currentSeasonPointsRaw') ?? 0);
+
+      final delta = computedTotal - currentSeasonPoints;
+      if (delta <= 0) return;
+
+      await userRef.set({
+        'seasonChallengePoints': computedTotal,
+        'totalPoints': FieldValue.increment(delta),
+      }, SetOptions(merge: true));
+
+      developer.log(
+        'Synced season challenge points for $userId: $currentSeasonPoints -> $computedTotal (delta $delta)',
+      );
+    } catch (e) {
+      developer.log('Error syncing employee season points: $e');
+    }
+  }
+
   /// Ensure manager season badges earned (tracked on seasons) are written to
   /// `users/{managerId}/badges` and their badge points applied to the manager profile.
   ///
@@ -1055,6 +1104,100 @@ class SeasonService {
       }
     } catch (e) {
       developer.log('Error syncing manager season badges: $e');
+    }
+  }
+
+  /// Payout season-earned points into the current user's global `users/{uid}.totalPoints`
+  /// once a season is completed.
+  ///
+  /// - Employees accumulate points inside `seasons/{seasonId}.participations.{uid}.totalPoints`
+  ///   while doing season milestones.
+  /// - When the season is completed, each participant should receive those points in their
+  ///   global total (Badges & Points screen).
+  /// - Managers cannot write to employee user docs due to security rules, so each user
+  ///   claims their own payout (idempotent) and marks it in the season doc.
+  static Future<void> syncCurrentUserSeasonPayouts() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+      final uid = currentUser.uid;
+      if (uid.trim().isEmpty) return;
+
+      final seasonsSnap = await _firestore
+          .collection('seasons')
+          .where('participantIds', arrayContains: uid)
+          .get();
+
+      if (seasonsSnap.docs.isEmpty) return;
+
+      for (final seasonDoc in seasonsSnap.docs) {
+        final data = seasonDoc.data();
+        final status = (data['status'] ?? '').toString();
+        if (status != SeasonStatus.completed.name) continue;
+
+        final participations =
+            (data['participations'] as Map<String, dynamic>?) ?? {};
+        final p = (participations[uid] as Map<String, dynamic>?) ?? {};
+        if (p.isEmpty) continue;
+
+        final alreadyApplied = p['payoutApplied'] == true;
+        if (alreadyApplied) continue;
+
+        final pointsRaw = p['totalPoints'];
+        final points = pointsRaw is int
+            ? pointsRaw
+            : (pointsRaw is num
+                ? pointsRaw.toInt()
+                : int.tryParse('$pointsRaw') ?? 0);
+        if (points <= 0) {
+          // Mark as applied even if 0 to avoid reprocessing forever.
+          try {
+            await seasonDoc.reference.update({
+              'participations.$uid.payoutApplied': true,
+              'participations.$uid.payoutAppliedAt':
+                  FieldValue.serverTimestamp(),
+              'participations.$uid.payoutPoints': 0,
+            });
+          } catch (_) {}
+          continue;
+        }
+
+        // Transaction per season to ensure idempotency even with multiple devices.
+        await _firestore.runTransaction((tx) async {
+          final seasonSnap = await tx.get(seasonDoc.reference);
+          if (!seasonSnap.exists) return;
+          final seasonData = seasonSnap.data() ?? {};
+          final seasonStatus = (seasonData['status'] ?? '').toString();
+          if (seasonStatus != SeasonStatus.completed.name) return;
+
+          final seasonParts =
+              (seasonData['participations'] as Map<String, dynamic>?) ?? {};
+          final myPart =
+              (seasonParts[uid] as Map<String, dynamic>?) ?? {};
+          if (myPart.isEmpty) return;
+          if (myPart['payoutApplied'] == true) return;
+
+          final myPtsRaw = myPart['totalPoints'];
+          final myPts = myPtsRaw is int
+              ? myPtsRaw
+              : (myPtsRaw is num
+                  ? myPtsRaw.toInt()
+                  : int.tryParse('$myPtsRaw') ?? 0);
+
+          final userRef = _firestore.collection('users').doc(uid);
+          tx.set(userRef, {
+            'totalPoints': FieldValue.increment(myPts),
+          }, SetOptions(merge: true));
+
+          tx.update(seasonDoc.reference, {
+            'participations.$uid.payoutApplied': true,
+            'participations.$uid.payoutAppliedAt': FieldValue.serverTimestamp(),
+            'participations.$uid.payoutPoints': myPts,
+          });
+        });
+      }
+    } catch (e) {
+      developer.log('Error syncing season payouts for current user: $e');
     }
   }
 
