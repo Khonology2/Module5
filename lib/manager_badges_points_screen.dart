@@ -14,6 +14,7 @@ import 'package:pdh/services/manager_level_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/services/season_service.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -35,6 +36,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   static const int weightHighCompletionBonus =
       100; // bonus when team completion high
   static const int weightEngagementBonus = 50; // bonus for engagement threshold
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure season-earned points/badges are synced into the manager profile before rendering.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +123,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   }
 
   // ===== Manager grouped badges (levels 1-5) =====
-  Widget _buildManagerGroupedBadges(_ManagerMetrics m) {
+  Widget _buildManagerGroupedBadges(_ManagerMetrics m, int totalPoints) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return Container(
@@ -128,9 +137,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       );
     }
 
-    final currentLevel = ManagerLevelService.getInfoForPoints(
-      m.totalPoints,
-    ).level;
+    final currentLevel = ManagerLevelService.getInfoForPoints(totalPoints).level;
 
     return StreamBuilder<List<badge_model.Badge>>(
       stream: BadgeService.getUserBadgesStream(user.uid),
@@ -625,9 +632,23 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             fit: BoxFit.cover,
           ),
         ),
-        child: StreamBuilder(
-          stream: _buildManagerMetricsStream(manager.uid),
-          builder: (context, AsyncSnapshot<_ManagerMetrics> snapshot) {
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(manager.uid)
+              .snapshots(),
+          builder: (context, userSnap) {
+            final userData = userSnap.data?.data() ?? {};
+            final totalPointsRaw = userData['totalPoints'];
+            final totalPoints = totalPointsRaw is int
+                ? totalPointsRaw
+                : (totalPointsRaw is num
+                    ? totalPointsRaw.toInt()
+                    : int.tryParse('$totalPointsRaw') ?? 0);
+
+            return StreamBuilder(
+              stream: _buildManagerMetricsStream(manager.uid),
+              builder: (context, AsyncSnapshot<_ManagerMetrics> snapshot) {
             // Run badge evaluation in background (non-blocking) after first build
             if (_didEval != true) {
               _didEval = true;
@@ -658,18 +679,25 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             return RefreshIndicator(
               onRefresh: () async {
                 await ManagerBadgeEvaluator.evaluate(manager.uid);
+                await SeasonService.syncCurrentManagerSeasonPoints();
+                await SeasonService.syncCurrentManagerSeasonBadges();
                 if (mounted) setState(() {});
               },
               child: ListView(
                 padding: AppSpacing.screenPadding,
                 children: [
-                  _buildPointsCard(m),
+                  _buildPointsCard(
+                    m,
+                    totalPoints: totalPoints,
+                  ),
                   const SizedBox(height: AppSpacing.xl),
                   _buildSectionHeader('Your Badges'),
-                  _buildManagerGroupedBadges(m),
+                  _buildManagerGroupedBadges(m, totalPoints),
                   const SizedBox(height: AppSpacing.xl),
                 ],
               ),
+            );
+              },
             );
           },
         ),
@@ -687,8 +715,11 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  Widget _buildPointsCard(_ManagerMetrics m) {
-    final points = m.totalPoints;
+  Widget _buildPointsCard(
+    _ManagerMetrics m, {
+    required int totalPoints,
+  }) {
+    final points = totalPoints;
     final info = ManagerLevelService.getInfoForPoints(points);
     // Determine next level threshold and remaining points
     int? nextThreshold;
@@ -765,7 +796,7 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                     ),
                   ),
                   Text(
-                    'Manager Points (Leadership Score)',
+                    'Total Points',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),

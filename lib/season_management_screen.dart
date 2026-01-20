@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/season_celebration_screen.dart';
 
 class SeasonManagementScreen extends StatefulWidget {
   final Season? season;
@@ -819,10 +820,11 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   }
 
   void _viewCelebration() {
-    Navigator.pushNamed(
+    Navigator.push(
       context,
-      '/season_celebration',
-      arguments: {'seasonId': _season!.id},
+      MaterialPageRoute(
+        builder: (context) => SeasonCelebrationScreen(season: _season!),
+      ),
     );
   }
 }

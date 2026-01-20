@@ -24,6 +24,7 @@ This document contains the **complete, production-ready** Firestore and Storage 
   - `onboarding`
   - `alerts`
   - `seasons`
+  - `season_celebrations`
 
 ### 2. **Storage Rules** (`storage.rules`)
 - ✅ UID-based path ownership

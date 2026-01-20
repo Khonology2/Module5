@@ -190,11 +190,10 @@ service cloud.firestore {
       );
 
       // Only allow employees to create goals for themselves.
-      // Managers/admins may create goals for employees (e.g., stretch goals).
+      // Managers are NOT allowed to create goals.
       allow create: if isSignedIn() && (
-        isManager() ||
         isAdmin() ||
-        goalOwnerUidFromData(request.resource.data) == userId()
+        (!isManager() && goalOwnerUidFromData(request.resource.data) == userId())
       );
 
       // Tighten list/query access:
@@ -328,6 +327,20 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin()
+      );
+    }
+
+    // Season celebration summary documents created when a season is completed.
+    // Written by the season owner (manager) or admin; readable by signed-in users.
+    match /season_celebrations/{seasonId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/seasons/$(seasonId)) &&
+          get(/databases/$(database)/documents/seasons/$(seasonId)).data.createdBy == request.auth.uid
+        )
       );
     }
 

@@ -51,6 +51,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
 
+    // Sync manager season points from season metrics into the manager's user doc.
+    // This is required because employee milestone updates cannot write to the manager's user doc.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
+    // Sync manager season badges earned (tracked on seasons) into the manager's badges collection.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
+
     // Check if tutorial should be shown
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {

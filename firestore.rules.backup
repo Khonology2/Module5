@@ -174,7 +174,11 @@ service cloud.firestore {
         isManager() ||
         isAdmin()
       );
-      allow create: if isSignedIn();
+      // Managers are NOT allowed to create goals.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (!isManager() && request.resource.data.userId == userId())
+      );
       allow list: if isSignedIn();
 
       match /milestones/{milestoneId} {
@@ -284,6 +288,20 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin()
+      );
+    }
+
+    // Season celebration summary documents created when a season is completed.
+    // Written by the season owner (manager) or admin; readable by signed-in users.
+    match /season_celebrations/{seasonId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/seasons/$(seasonId)) &&
+          get(/databases/$(database)/documents/seasons/$(seasonId)).data.createdBy == request.auth.uid
+        )
       );
     }
 
