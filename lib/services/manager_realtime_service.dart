@@ -9,6 +9,7 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/onboarding_service.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
@@ -1575,6 +1576,11 @@ class ManagerRealtimeService {
           'nudgeType': nudgeType.name,
         },
       );
+
+      // Best-effort: refresh manager badges after a nudge is sent
+      try {
+        await ManagerBadgeEvaluator.evaluate(currentUser.uid);
+      } catch (_) {}
 
       developer.log(
         'Enhanced nudge sent to employee $employeeId for goal $goalId',
