@@ -46,6 +46,43 @@ class SeasonService {
     ),
   };
 
+  static const Map<String, SeasonBadge> _managerPerformanceBadges = {
+    'team_builder': SeasonBadge(
+      id: 'team_builder',
+      name: 'Team Builder',
+      description: 'Assembled a team of 5+ for a season',
+      icon: '👥',
+      color: '#3498DB',
+      points: 50,
+      criteria: {'participants': 5},
+    ),
+    'momentum_maker': SeasonBadge(
+      id: 'momentum_maker',
+      name: 'Momentum Maker',
+      description: 'Team earned over 500 points in a season',
+      icon: '🚀',
+      color: '#E67E22',
+      points: 100,
+      criteria: {'points': 500},
+    ),
+    'challenge_crusher': SeasonBadge(
+      id: 'challenge_crusher',
+      name: 'Challenge Crusher',
+      description: 'Team completed 10+ challenges in a season',
+      icon: '💥',
+      color: '#E74C3C',
+      points: 150,
+      criteria: {'challenges': 10},
+    ),
+  };
+
+  static Map<String, SeasonBadge> _allManagerSeasonBadges() {
+    return {
+      ..._managerActionBadges,
+      ..._managerPerformanceBadges,
+    };
+  }
+
   // Create a new season
   static Future<String> createSeason({
     required String title,
@@ -487,6 +524,36 @@ class SeasonService {
     }
   }
 
+  /// Seasons an employee has participated in (active + completed + etc).
+  /// Uses only `arrayContains` and sorts client-side to avoid composite indexes.
+  static Stream<List<Season>> getParticipantSeasonsStream(String participantId) {
+    try {
+      if (participantId.trim().isEmpty) return const Stream.empty();
+      return _firestore
+          .collection('seasons')
+          .where('participantIds', arrayContains: participantId)
+          .snapshots()
+          .map((snapshot) {
+        final seasons =
+            snapshot.docs.map((doc) => Season.fromFirestore(doc)).toList();
+        // Sort newest first. Prefer endDate if present, else createdAt.
+        seasons.sort((a, b) {
+          final aDate = a.endDate;
+          final bDate = b.endDate;
+          return bDate.compareTo(aDate);
+        });
+        for (final season in seasons) {
+          // ignore: unawaited_futures
+          refreshParticipantDisplayNames(season.id);
+        }
+        return seasons;
+      });
+    } catch (e) {
+      developer.log('Error getting participant seasons: $e');
+      return const Stream.empty();
+    }
+  }
+
   // Get active seasons for employees
   static Stream<List<Season>> getActiveSeasonsStream({String? department}) {
     try {
@@ -784,19 +851,24 @@ class SeasonService {
 
     try {
       final seasonRef = _firestore.collection('seasons').doc(season.id);
-      final managerRef = _firestore.collection('users').doc(managerId);
 
-      final batch = _firestore.batch();
-      batch.set(managerRef, {
-        'totalPoints': FieldValue.increment(points),
-        'managerSeasonPoints': FieldValue.increment(points),
-      }, SetOptions(merge: true));
-      batch.update(seasonRef, {
+      // Always record manager season points on the season doc.
+      // This write is allowed from employee sessions (participants can update season docs),
+      // whereas writing to the manager's own user doc is typically NOT allowed.
+      await seasonRef.update({
         'metrics.managerPointsEarned': FieldValue.increment(points),
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       });
 
-      await batch.commit();
+      // Only the manager (or admin) session should update the manager's own user doc.
+      final currentUid = _auth.currentUser?.uid;
+      if (currentUid == managerId) {
+        final managerRef = _firestore.collection('users').doc(managerId);
+        await managerRef.set({
+          'totalPoints': FieldValue.increment(points),
+          'managerSeasonPoints': FieldValue.increment(points),
+        }, SetOptions(merge: true));
+      }
 
       if (logActivity) {
         final description = reason.isNotEmpty
@@ -819,6 +891,173 @@ class SeasonService {
     }
   }
 
+  /// Reconcile/sync the manager's season points into their own `users/{uid}` document.
+  /// Needed because employee milestone updates should not write to the manager's user doc
+  /// (Firestore rules block that), but the manager still "earns" points via season metrics.
+  static Future<void> syncCurrentManagerSeasonPoints() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+      final managerId = currentUser.uid;
+
+      final seasonsSnap = await _firestore
+          .collection('seasons')
+          .where('createdBy', isEqualTo: managerId)
+          .get();
+
+      int computedTotal = 0;
+      for (final doc in seasonsSnap.docs) {
+        final data = doc.data();
+        final metrics = (data['metrics'] as Map<String, dynamic>?) ?? {};
+        final raw = metrics['managerPointsEarned'];
+        if (raw is int) {
+          computedTotal += raw;
+        } else if (raw is num) {
+          computedTotal += raw.toInt();
+        } else {
+          computedTotal += int.tryParse('$raw') ?? 0;
+        }
+      }
+
+      final userRef = _firestore.collection('users').doc(managerId);
+      final userDoc = await userRef.get();
+      final currentManagerSeasonPointsRaw =
+          userDoc.data()?['managerSeasonPoints'];
+      final currentManagerSeasonPoints = currentManagerSeasonPointsRaw is int
+          ? currentManagerSeasonPointsRaw
+          : (currentManagerSeasonPointsRaw is num
+              ? currentManagerSeasonPointsRaw.toInt()
+              : int.tryParse('$currentManagerSeasonPointsRaw') ?? 0);
+
+      final delta = computedTotal - currentManagerSeasonPoints;
+      if (delta == 0) return;
+
+      await userRef.set({
+        'managerSeasonPoints': computedTotal,
+        // Keep totalPoints consistent without overwriting other point sources.
+        'totalPoints': FieldValue.increment(delta),
+      }, SetOptions(merge: true));
+
+      developer.log(
+        'Synced managerSeasonPoints for $managerId: $currentManagerSeasonPoints -> $computedTotal (delta $delta)',
+      );
+    } catch (e) {
+      developer.log('Error syncing manager season points: $e');
+    }
+  }
+
+  /// Ensure manager season badges earned (tracked on seasons) are written to
+  /// `users/{managerId}/badges` and their badge points applied to the manager profile.
+  ///
+  /// Reason: employees can update season metrics but cannot write to a manager's
+  /// user subcollections due to security rules.
+  static Future<void> syncCurrentManagerSeasonBadges() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return;
+      final managerId = currentUser.uid;
+
+      final seasonsSnap = await _firestore
+          .collection('seasons')
+          .where('createdBy', isEqualTo: managerId)
+          .get();
+
+      if (seasonsSnap.docs.isEmpty) return;
+
+      final catalog = _allManagerSeasonBadges();
+      final userRef = _firestore.collection('users').doc(managerId);
+      final batch = _firestore.batch();
+      int awardedCount = 0;
+
+      for (final seasonDoc in seasonsSnap.docs) {
+        final data = seasonDoc.data();
+        final seasonTitle = (data['title'] ?? '').toString();
+        final metrics = (data['metrics'] as Map<String, dynamic>?) ?? {};
+        final earned = (metrics['managerBadgesEarned'] as List<dynamic>?) ?? [];
+
+        for (final raw in earned) {
+          if (raw is! String || raw.trim().isEmpty) continue;
+          final badgeId = raw.trim();
+          final badge = catalog[badgeId];
+          if (badge == null) continue;
+
+          final userBadgeId = '${badgeId}_${seasonDoc.id}';
+          final userBadgeRef = userRef.collection('badges').doc(userBadgeId);
+          final existing = await userBadgeRef.get();
+          final alreadyEarned = existing.data()?['isEarned'] == true;
+          if (alreadyEarned) continue;
+
+          int managerLevel = 4;
+          switch (badgeId) {
+            case 'season_guardian':
+              managerLevel = 2;
+              break;
+            case 'season_architect':
+              managerLevel = 3;
+              break;
+            case 'season_closer':
+              managerLevel = 4;
+              break;
+            case 'team_builder':
+              managerLevel = 3;
+              break;
+            case 'momentum_maker':
+              managerLevel = 4;
+              break;
+            case 'challenge_crusher':
+              managerLevel = 4;
+              break;
+          }
+
+          batch.set(
+            userBadgeRef,
+            {
+              'name': badge.name,
+              'description': '${badge.description} - $seasonTitle',
+              'iconName': 'emoji_events',
+              'category': 'leadership',
+              'rarity': 'common',
+              'pointsRequired': badge.points,
+              'criteria': {
+                'source': 'season',
+                'seasonId': seasonDoc.id,
+                'seasonTitle': seasonTitle,
+                'isManager': true,
+                'managerLevel': managerLevel,
+                'badgeId': badgeId,
+              },
+              'earnedAt': FieldValue.serverTimestamp(),
+              'isEarned': true,
+              'progress': 1,
+              'maxProgress': 1,
+            },
+            SetOptions(merge: true),
+          );
+
+          batch.set(
+            userRef,
+            {
+              'totalPoints': FieldValue.increment(badge.points),
+              'totalBadges': FieldValue.increment(1),
+            },
+            SetOptions(merge: true),
+          );
+          awardedCount++;
+        }
+      }
+
+      if (awardedCount > 0) {
+        await batch.commit();
+        await BadgeService.updateUserBadgeSummary(managerId);
+        developer.log(
+          'Synced $awardedCount manager season badges for $managerId',
+        );
+      }
+    } catch (e) {
+      developer.log('Error syncing manager season badges: $e');
+    }
+  }
+
   // Check and award badges for managers
   static Future<void> _checkAndAwardManagerBadges(Season season) async {
     try {
@@ -826,37 +1065,7 @@ class SeasonService {
       final metrics = season.metrics;
       final earnedBadgeIds = metrics.managerBadgesEarned.toSet();
 
-      final managerBadges = [
-        SeasonBadge(
-          id: 'team_builder',
-          name: 'Team Builder',
-          description: 'Assembled a team of 5+ for a season',
-          icon: '👥',
-          color: '#3498DB',
-          points: 50,
-          criteria: {'participants': 5},
-        ),
-        SeasonBadge(
-          id: 'momentum_maker',
-          name: 'Momentum Maker',
-          description: 'Team earned over 500 points in a season',
-          icon: '🚀',
-          color: '#E67E22',
-          points: 100,
-          criteria: {'points': 500},
-        ),
-        SeasonBadge(
-          id: 'challenge_crusher',
-          name: 'Challenge Crusher',
-          description: 'Team completed 10+ challenges in a season',
-          icon: '💥',
-          color: '#E74C3C',
-          points: 150,
-          criteria: {'challenges': 10},
-        ),
-      ];
-
-      for (final badge in managerBadges) {
+      for (final badge in _managerPerformanceBadges.values) {
         if (!earnedBadgeIds.contains(badge.id)) {
           bool shouldAward = false;
           if (badge.criteria.containsKey('participants')) {
@@ -874,12 +1083,15 @@ class SeasonService {
               'metrics.managerBadgesEarned': FieldValue.arrayUnion([badge.id]),
             });
 
-            await _syncBadgeWithEmployeeSystem(
-              managerId,
-              badge,
-              season,
-              isManager: true,
-            );
+            // Only the manager session should write to the manager's user/badges docs.
+            if (_auth.currentUser?.uid == managerId) {
+              await _syncBadgeWithEmployeeSystem(
+                managerId,
+                badge,
+                season,
+                isManager: true,
+              );
+            }
           }
         }
       }
@@ -1478,11 +1690,17 @@ class SeasonService {
         'metrics.lastUpdated': FieldValue.serverTimestamp(),
       });
       if (status == SeasonStatus.completed) {
-        final celebration = await getSeasonCelebration(seasonId);
-        await _firestore
-            .collection('season_celebrations')
-            .doc(seasonId)
-            .set(celebration);
+        // Celebration document is a convenience cache. Do not fail season completion
+        // if rules prevent writing it (e.g., employee viewing celebration or rules not deployed).
+        try {
+          final celebration = await getSeasonCelebration(seasonId);
+          await _firestore
+              .collection('season_celebrations')
+              .doc(seasonId)
+              .set(celebration);
+        } catch (e) {
+          developer.log('Skipping celebration doc write for $seasonId: $e');
+        }
         await SeasonMetricsJob.recomputeSeasonMetrics(seasonId);
         await refreshParticipantDisplayNames(seasonId);
 
@@ -1587,11 +1805,25 @@ class SeasonService {
   ) async {
     final existing = await getSeasonCelebrationDocument(seasonId);
     if (existing != null) return existing;
+    // Always generate a view of the celebration so employees can see it,
+    // but only the season creator (manager) or admin should attempt to persist it.
     final generated = await getSeasonCelebration(seasonId);
-    await _firestore
-        .collection('season_celebrations')
-        .doc(seasonId)
-        .set(generated);
+    try {
+      final currentUid = _auth.currentUser?.uid;
+      if (currentUid != null) {
+        final season = await getSeason(seasonId);
+        final canPersist = season != null && season.createdBy == currentUid;
+        if (canPersist) {
+          await _firestore
+              .collection('season_celebrations')
+              .doc(seasonId)
+              .set(generated);
+        }
+      }
+    } catch (e) {
+      // Permission denied is expected for non-owners. Return generated doc anyway.
+      developer.log('Could not persist celebration doc for $seasonId: $e');
+    }
     return generated;
   }
 
