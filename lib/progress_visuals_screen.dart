@@ -999,21 +999,84 @@ class _ManagerProgressVisualsContentState
           );
         }
 
-        // Fetch approvals from goals
-        final approvalsSnapshot = await FirebaseFirestore.instance
-            .collection('goals')
-            .where('approvedByUserId', isEqualTo: user.uid)
-            .orderBy('approvedAt', descending: true)
-            .limit(50)
-            .get();
+        // Fetch approvals from goals (ONLY goals approved by *this* manager).
+        // Include both top-level goals and nested user goals, with index-safe fallbacks.
+        List<QueryDocumentSnapshot<Map<String, dynamic>>> approvalDocs = [];
+        Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchApprovalDocsFrom(
+          Query<Map<String, dynamic>> q,
+        ) async {
+          try {
+            final snap = await q
+                .where('approvedByUserId', isEqualTo: user.uid)
+                .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
+                .orderBy('approvedAt', descending: true)
+                .limit(50)
+                .get();
+            return snap.docs;
+          } catch (e) {
+            // If composite index fails, try without orderBy and sort in memory
+            developer.log('Approvals orderBy failed, using fallback: $e');
+            try {
+              final snap = await q
+                  .where('approvedByUserId', isEqualTo: user.uid)
+                  .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
+                  .limit(100)
+                  .get();
+              final docs = snap.docs.toList()
+                ..sort((a, b) {
+                  final aTime =
+                      (a.data()['approvedAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime =
+                      (b.data()['approvedAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
+              return docs.take(50).toList();
+            } catch (e2) {
+              developer.log('Approvals fallback also failed: $e2');
+              return const [];
+            }
+          }
+        }
 
-        for (final doc in approvalsSnapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) continue;
+        // Top-level goals approvals
+        approvalDocs.addAll(
+          await fetchApprovalDocsFrom(
+            FirebaseFirestore.instance.collection('goals'),
+          ),
+        );
+        // Nested user goals approvals (in case approvals are stored under users/{uid}/goals)
+        approvalDocs.addAll(
+          await fetchApprovalDocsFrom(
+            FirebaseFirestore.instance.collectionGroup('goals'),
+          ),
+        );
 
-          final employeeId = data['userId'] as String?;
+        // Process approvals (dedupe across sources)
+        final seenApprovalKeys = <String>{};
+        for (final doc in approvalDocs) {
+          final data = doc.data();
+
+          // Defensive: ensure it's really approved by this manager
+          if ((data['approvedByUserId'] ?? '').toString() != user.uid) continue;
+          if ((data['approvalStatus'] ?? '').toString() !=
+              GoalApprovalStatus.approved.name) {
+            continue;
+          }
+
+          final employeeId = (data['userId'] ?? data['ownerId'])?.toString();
+          final approvedAt =
+              (data['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final goalTitle = (data['title'] ?? 'Approved a goal').toString();
+
+          // Build a stable dedupe key across collections
+          final approvalKey = '${employeeId ?? ''}|$goalTitle|${approvedAt.millisecondsSinceEpoch}';
+          if (seenApprovalKeys.contains(approvalKey)) continue;
+          seenApprovalKeys.add(approvalKey);
+
           String? employeeName;
-          if (employeeId != null) {
+          if (employeeId != null && employeeId.isNotEmpty) {
             try {
               final empDoc = await FirebaseFirestore.instance
                   .collection('users')
@@ -1027,17 +1090,15 @@ class _ManagerProgressVisualsContentState
 
           activities.add(
             ManagerActivity(
-              id: doc.id,
+              id: 'approval_${doc.id}',
               type: ManagerActivityType.approval,
               title: 'Approved Goal',
-              description: data['title'] as String? ?? 'Approved a goal',
+              description: goalTitle,
               employeeId: employeeId,
               employeeName: employeeName,
-              createdAt:
-                  (data['approvedAt'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
+              createdAt: approvedAt,
               isCompleted: true,
-              metadata: {'goalTitle': data['title']},
+              metadata: {'goalTitle': goalTitle},
             ),
           );
         }
