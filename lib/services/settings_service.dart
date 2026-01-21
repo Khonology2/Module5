@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 class UserSettings {
   final String userId;
@@ -209,6 +210,29 @@ class SettingsService {
   // Cached stream to prevent recreation on every build
   static Stream<UserSettings?>? _cachedSettingsStream;
   static String? _cachedUserId;
+  static final Map<String, Future<void>> _initInFlightByUserId = {};
+
+  static Future<void> _ensureUserSettingsDocInitialized(
+    String uid,
+    UserSettings defaultSettings,
+  ) {
+    final existing = _initInFlightByUserId[uid];
+    if (existing != null) return existing;
+
+    final fut = _firestore
+        .collection('users')
+        .doc(uid)
+        .set(defaultSettings.toFirestore(), SetOptions(merge: true))
+        .catchError((e) {
+      developer.log('Error initializing user settings: $e');
+      throw e;
+    }).whenComplete(() {
+      _initInFlightByUserId.remove(uid);
+    });
+
+    _initInFlightByUserId[uid] = fut;
+    return fut;
+  }
 
   // Clear cached stream (call on sign out or user change)
   // This prevents multiple Firestore listeners on the same document
@@ -246,14 +270,16 @@ class SettingsService {
             if (!snapshot.exists) {
               // Initialize default settings for new users
               final defaultSettings = getDefaultSettings(user);
-              // Save to Firestore asynchronously (don't await to avoid blocking)
-              _firestore
-                  .collection('users')
-                  .doc(user.uid)
-                  .set(defaultSettings.toFirestore(), SetOptions(merge: true))
-                  .catchError((e) {
-                    developer.log('Error initializing user settings: $e');
-                  });
+              // Ensure only one initialization write happens at a time.
+              // This avoids overlapping writes during active listeners (notably on web).
+              try {
+                await _ensureUserSettingsDocInitialized(
+                  user.uid,
+                  defaultSettings,
+                );
+              } catch (_) {
+                // Non-fatal: still return defaults so UI can render.
+              }
               return defaultSettings;
             }
             try {
@@ -265,6 +291,7 @@ class SettingsService {
           })
           .handleError((error) {
             developer.log('Error in user settings stream: $error');
+            FirestoreWebCircuitBreaker.maybeReload(error);
             // Return default settings if there's an error
             return getDefaultSettings(user);
           })
@@ -289,6 +316,7 @@ class SettingsService {
       return UserSettings.fromFirestore(snapshot);
     } catch (e) {
       developer.log('Error getting user settings: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
       return null;
     }
   }
@@ -348,6 +376,7 @@ class SettingsService {
       }
     } catch (e) {
       developer.log('Error updating setting $key: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
       rethrow;
     }
   }
