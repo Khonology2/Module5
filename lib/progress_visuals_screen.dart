@@ -10,6 +10,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
@@ -43,6 +44,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     super.initState();
     // Ensure role is loaded before building
     RoleService.instance.ensureRoleLoaded();
+    // Populate daily progress snapshots used by "View Trend" charts.
+    // This was previously only triggered on Alerts & Nudges screen load.
+    AlertService.checkAndCreateGoalAlerts();
     _redirectIfManagerStandalone();
     _loadUserData();
   }
@@ -4748,15 +4752,18 @@ class GoalTrendDialog extends StatelessWidget {
     final since = now.subtract(const Duration(days: 30));
     final sinceKey =
         '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogWidth = (screenW * 0.92).clamp(320.0, 720.0);
     return AlertDialog(
       backgroundColor: AppColors.elevatedBackground,
+      scrollable: true,
       contentPadding: const EdgeInsets.all(16),
       title: Text(
         'Trends • $goalTitle',
         style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
       ),
       content: SizedBox(
-        width: 600,
+        width: dialogWidth,
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('goal_daily_progress')
@@ -4770,6 +4777,20 @@ class GoalTrendDialog extends StatelessWidget {
               return const SizedBox(
                 height: 260,
                 child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return SizedBox(
+                height: 260,
+                child: Center(
+                  child: Text(
+                    'Could not load trend data.\n${snapshot.error}',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               );
             }
             final docs = snapshot.data?.docs ?? [];
@@ -4892,6 +4913,9 @@ class _LineChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
+    final pointPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
 
     // Padding for axes
     const leftPad = 28.0;
@@ -4924,17 +4948,25 @@ class _LineChartPainter extends CustomPainter {
     final n = values.length;
     final dx = n > 1 ? chartRect.width / (n - 1) : 0;
     final path = Path();
+    final points = <Offset>[];
     for (int i = 0; i < n; i++) {
       final v = values[i].clamp(0.0, 100.0);
       final x = chartRect.left + dx * i;
       final y = chartRect.bottom - (v / 100.0) * chartRect.height;
+      final pt = Offset(x, y);
+      points.add(pt);
       if (i == 0) {
-        path.moveTo(x, y);
+        path.moveTo(pt.dx, pt.dy);
       } else {
-        path.lineTo(x, y);
+        path.lineTo(pt.dx, pt.dy);
       }
     }
     canvas.drawPath(path, linePaint);
+
+    // Draw markers so a single data point is still visible.
+    for (final p in points) {
+      canvas.drawCircle(p, 3.0, pointPaint);
+    }
 
     // Axes tick labels (0, 25, 50, 75, 100)
     final textPainter = TextPainter(textDirection: TextDirection.ltr);

@@ -14,6 +14,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -1571,6 +1572,7 @@ class DatabaseService {
       }
     } catch (e) {
       developer.log('Error getting user name from onboarding: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
     }
     return null;
   }

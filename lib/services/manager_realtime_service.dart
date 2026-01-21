@@ -746,7 +746,7 @@ class ManagerRealtimeService {
 
   // Stream real-time team data based on current manager
   static const int _initialEmployeeLimit =
-      1000; // Increased limit to show all employees for managers
+      10000; // Show all employees for managers (avoid silently dropping users)
 
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -772,7 +772,8 @@ class ManagerRealtimeService {
         String norm(String? s) => (s ?? '').trim().toLowerCase();
 
         bool includeEmployeeProfile(UserProfile p) {
-          final role = (p.role).trim().toLowerCase();
+          // Treat missing/blank role as employee (many parts of the app default this way)
+          final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
           if (role != 'employee') return false;
           if (explicitDepartment == null) return true;
           return norm(p.department) == norm(explicitDepartment);

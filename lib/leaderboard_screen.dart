@@ -982,12 +982,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   }) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final bool showTopPerformersSection = !isManager;
+
+    // Podium already shows top 3; avoid duplicating them in lists below.
     final List<Map<String, dynamic>> topPerformers = showTopPerformersSection
-        ? leaderboardData.take(5).toList()
+        ? leaderboardData.skip(3).take(5).toList()
         : const [];
+
     final int alreadyShownCount = showTopPerformersSection
-        ? topPerformers.length
+        ? (3 + topPerformers.length)
         : 3;
+
     final remainingUsers = leaderboardData.skip(alreadyShownCount).toList();
 
     return Column(
