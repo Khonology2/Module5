@@ -248,6 +248,9 @@ class SettingsService {
       clearCache();
       return Stream.value(null);
     }
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return Stream.value(getDefaultSettings(user));
+    }
 
     // If user changed, clear old stream first to prevent multiple listeners
     if (_cachedSettingsStream != null && _cachedUserId != user.uid) {
@@ -309,6 +312,9 @@ class SettingsService {
   static Future<UserSettings?> getUserSettings() async {
     final user = _auth.currentUser;
     if (user == null) return null;
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return getDefaultSettings(user);
+    }
 
     try {
       final snapshot = await _firestore.collection('users').doc(user.uid).get();
@@ -344,6 +350,11 @@ class SettingsService {
   static Future<void> updateSetting(String key, dynamic value) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      throw Exception(
+        'Firestore is temporarily unavailable on web. Please reload.',
+      );
+    }
 
     try {
       Map<String, dynamic> updateData = {

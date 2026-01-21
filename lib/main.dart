@@ -50,6 +50,8 @@ import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'dart:ui' as ui;
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -134,6 +136,9 @@ void main() async {
       debugPrint(
         'Caught Firestore internal assertion error - suppressing crash',
       );
+      FirestoreWebCircuitBreaker.enableAutoReload = false;
+      FirestoreWebCircuitBreaker.maybeReload(details.exception);
+      FirestoreWebCircuitBreaker.isBroken = true;
       // Don't show error dialog for Firestore internal errors
       return;
     }
@@ -144,6 +149,17 @@ void main() async {
     if (!kIsWeb) {
       FlutterError.presentError(details);
     }
+  };
+
+  // Catch uncaught async errors (including some web/JS promise rejections).
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    if (FirestoreWebCircuitBreaker.isFirestoreInternalUnexpectedState(error)) {
+      FirestoreWebCircuitBreaker.enableAutoReload = false;
+      FirestoreWebCircuitBreaker.maybeReload(error);
+      FirestoreWebCircuitBreaker.isBroken = true;
+      return true;
+    }
+    return false;
   };
 
   // Note: For unhandled async errors, FlutterError.onError should catch most cases

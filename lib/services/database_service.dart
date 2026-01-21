@@ -1532,6 +1532,9 @@ class DatabaseService {
     required String userId,
     String? email,
   }) async {
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return null;
+    }
     try {
       // First try by userId
       var onboardingDoc = await FirebaseFirestore.instance

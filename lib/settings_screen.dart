@@ -7,6 +7,7 @@ import 'dart:developer' as developer;
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
@@ -15,6 +16,7 @@ import 'package:pdh/main.dart' show appLocaleNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -366,28 +368,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildPrivacySection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
+    final isFirestoreBroken = FirestoreWebCircuitBreaker.isBroken;
 
     return _buildSectionCard(
       title: 'Privacy Controls',
       icon: Icons.privacy_tip_outlined,
       children: [
+        if (isFirestoreBroken)
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.warningColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.warningColor.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.warningColor,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Firestore is temporarily unavailable in Chrome. Reload the page to restore settings updates.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         _buildSwitchTile(
           title: 'Private Goals',
           subtitle: 'Hide your goals from other team members',
           value: settings.privateGoals,
           onChanged: (value) => _updateSetting('privateGoals', value),
+          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Manager Only Visibility',
           subtitle: 'Only managers can see your goals and progress',
           value: settings.managerOnly,
           onChanged: (value) => _updateSetting('managerOnly', value),
+          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Team Sharing',
           subtitle: 'Allow team members to see your completed goals',
           value: settings.teamShare,
           onChanged: (value) => _updateSetting('teamShare', value),
+          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Leaderboard Participation',
@@ -395,12 +430,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           value: settings.leaderboardParticipation,
           onChanged: (value) =>
               _updateSetting('leaderboardParticipation', value),
+          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Profile Visibility',
           subtitle: 'Make your profile visible to other users',
           value: settings.profileVisible,
           onChanged: (value) => _updateSetting('profileVisible', value),
+          enabled: !isFirestoreBroken,
         ),
         const SizedBox(height: 16),
         StreamBuilder<String?>(
@@ -777,6 +814,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String subtitle,
     required bool value,
     required Function(bool) onChanged,
+    bool enabled = true,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -789,7 +827,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: enabled
+                        ? AppColors.textPrimary
+                        : AppColors.textMuted,
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
@@ -798,7 +838,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: enabled
+                        ? AppColors.textSecondary
+                        : AppColors.textMuted,
                     fontSize: 14,
                   ),
                 ),
@@ -807,7 +849,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Switch(
             value: value,
-            onChanged: onChanged,
+            onChanged: enabled ? onChanged : null,
             activeThumbColor: AppColors.activeColor,
             activeTrackColor: AppColors.activeColor.withValues(alpha: 0.3),
             inactiveThumbColor: AppColors.textMuted,
@@ -904,6 +946,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Action methods
 
   Future<void> _updateSetting(String key, dynamic value) async {
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _showCenterOverlay(
+              'Firestore is temporarily unavailable in Chrome. Reload the page to restore settings updates.',
+            );
+          }
+        });
+      }
+      return;
+    }
     try {
       await SettingsService.updateSetting(key, value);
       // Immediate side-effects for specific toggles
