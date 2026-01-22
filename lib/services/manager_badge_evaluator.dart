@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/badge_service.dart';
 
 class ManagerBadgeEvaluator {
   static final _db = FirebaseFirestore.instance;
@@ -8,6 +9,11 @@ class ManagerBadgeEvaluator {
   static const Duration _window = Duration(days: 7);
   static const Duration _nudgeCooldown = Duration(minutes: 60);
   // Lifetime-based counting for Nudge Network badges (no window)
+  static const int _timelyApprovalTier1 = 10;
+  static const int _timelyApprovalTier2 = 25;
+  static const int _meetingTier1 = 5;
+  static const int _meetingTier2 = 10;
+  static const int _replanTier2 = 15;
 
   static Future<void> evaluate(String managerId) async {
     // Compute metrics
@@ -19,6 +25,8 @@ class ManagerBadgeEvaluator {
     final reactivations = await _countReactivatedEmployees(managerId);
     final replansHelped = await _countReplansHelped(managerId);
     final managerPoints = await _computeManagerPoints(managerId, approvalsCount, detailedNudges);
+    final timelyApprovals30d = await _countTimelyApprovals30d(managerId);
+    final meetingsUnique30d = await _countMeetingsUniqueEmployees30d(managerId);
 
     // Award badges (write to users/{uid}/badges)
     await _upsertBadge(
@@ -61,6 +69,34 @@ class ManagerBadgeEvaluator {
       progress: managerPoints.clamp(0, 500),
       maxProgress: 500,
       managerLevel: 2,
+    );
+
+    await _upsertBadge(
+      userId: managerId,
+      badgeId: 'mgr_timely_approver_1',
+      name: 'Timely Approver I',
+      description: 'Approved 10 goals within 24h of request in the last 30 days',
+      iconName: 'check_circle',
+      category: 'leadership',
+      rarity: 'common',
+      isEarned: timelyApprovals30d >= _timelyApprovalTier1,
+      progress: timelyApprovals30d.clamp(0, _timelyApprovalTier1),
+      maxProgress: _timelyApprovalTier1,
+      managerLevel: 2,
+    );
+
+    await _upsertBadge(
+      userId: managerId,
+      badgeId: 'mgr_timely_approver_2',
+      name: 'Timely Approver II',
+      description: 'Approved 25 goals within 24h of request in the last 30 days',
+      iconName: 'verified',
+      category: 'leadership',
+      rarity: 'rare',
+      isEarned: timelyApprovals30d >= _timelyApprovalTier2,
+      progress: timelyApprovals30d.clamp(0, _timelyApprovalTier2),
+      maxProgress: _timelyApprovalTier2,
+      managerLevel: 3,
     );
 
     await _upsertBadge(
@@ -133,6 +169,48 @@ class ManagerBadgeEvaluator {
       managerLevel: 3,
     );
 
+    await _upsertBadge(
+      userId: managerId,
+      badgeId: 'mgr_replan_closer_2',
+      name: 'Replan Closer II',
+      description: 'Helped replan 15 distinct goals',
+      iconName: 'build',
+      category: 'leadership',
+      rarity: 'rare',
+      isEarned: replansHelped >= _replanTier2,
+      progress: replansHelped.clamp(0, _replanTier2),
+      maxProgress: _replanTier2,
+      managerLevel: 4,
+    );
+
+    await _upsertBadge(
+      userId: managerId,
+      badgeId: 'mgr_meeting_steward_1',
+      name: 'Meeting Steward I',
+      description: 'Held 1:1s with 5 unique employees in the last 30 days',
+      iconName: 'calendar_today',
+      category: 'leadership',
+      rarity: 'common',
+      isEarned: meetingsUnique30d >= _meetingTier1,
+      progress: meetingsUnique30d.clamp(0, _meetingTier1),
+      maxProgress: _meetingTier1,
+      managerLevel: 3,
+    );
+
+    await _upsertBadge(
+      userId: managerId,
+      badgeId: 'mgr_meeting_steward_2',
+      name: 'Meeting Steward II',
+      description: 'Held 1:1s with 10 unique employees in the last 30 days',
+      iconName: 'groups',
+      category: 'leadership',
+      rarity: 'rare',
+      isEarned: meetingsUnique30d >= _meetingTier2,
+      progress: meetingsUnique30d.clamp(0, _meetingTier2),
+      maxProgress: _meetingTier2,
+      managerLevel: 4,
+    );
+
     // === Nudge Network per Level (lifetime distinct employees nudged) ===
     final distinctNudged = await _countDistinctEmployeesNudgedAllTime(managerId);
 
@@ -157,6 +235,8 @@ class ManagerBadgeEvaluator {
     await upsertNudgeNetwork(level: 3, requiredCount: 7);
     await upsertNudgeNetwork(level: 4, requiredCount: 8);
     await upsertNudgeNetwork(level: 5, requiredCount: 9);
+
+    await BadgeService.updateUserBadgeSummary(managerId);
   }
 
   // Ensure manager badge docs exist (locked) so UI can display them grouped by level
@@ -195,9 +275,14 @@ class ManagerBadgeEvaluator {
       seed('mgr_active_coach', 'Active Coach', 'Acknowledge 10+ milestones in a month', 'verified', 'common', 10, 1),
       seed('mgr_feedback_champion', 'Feedback Champion', 'Provide 10+ detailed feedback entries', 'chat', 'common', 10, 2),
       seed('mgr_growth_enabler', 'Growth Enabler', 'Reach 500+ manager points', 'emoji_events', 'rare', 500, 2),
+      seed('mgr_timely_approver_1', 'Timely Approver I', 'Approve 10 goals within 24h in the last 30 days', 'check_circle', 'common', _timelyApprovalTier1, 2),
       seed('mgr_replan_hero', 'Replan Hero', 'Helped replan 5+ delayed goals', 'build', 'common', 5, 3),
       seed('mgr_engagement_booster', 'Engagement Booster', 'Reactivated 3+ inactive employees', 'bolt', 'common', 3, 3),
       seed('mgr_all_star_manager', 'All-Star Manager', 'Reach 1000+ manager points', 'workspace_premium', 'epic', 1000, 3),
+      seed('mgr_meeting_steward_1', 'Meeting Steward I', 'Held 1:1s with 5 unique employees in the last 30 days', 'calendar_today', 'common', _meetingTier1, 3),
+      seed('mgr_timely_approver_2', 'Timely Approver II', 'Approve 25 goals within 24h in the last 30 days', 'verified', 'rare', _timelyApprovalTier2, 3),
+      seed('mgr_replan_closer_2', 'Replan Closer II', 'Helped replan 15 distinct goals', 'build', 'rare', _replanTier2, 4),
+      seed('mgr_meeting_steward_2', 'Meeting Steward II', 'Held 1:1s with 10 unique employees in the last 30 days', 'groups', 'rare', _meetingTier2, 4),
       seed('mgr_season_leader', 'Season Leader', 'Lead a team challenge/season to completion', 'flag', 'rare', 1, 4),
       seed('mgr_master_coach', 'Master Coach', 'Reach 3500+ manager points', 'trophy', 'legendary', 3500, 5),
       // Seed Nudge Network badges (lifetime distinct employees nudged)
@@ -353,6 +438,57 @@ class ManagerBadgeEvaluator {
       }
     }
     return count;
+  }
+
+  static Future<int> _countTimelyApprovals30d(String managerId) async {
+    final now = DateTime.now();
+    final windowStart = now.subtract(const Duration(days: 30));
+    int count = 0;
+
+    final goalsSnap = await _db
+        .collection('goals')
+        .where('approvedByUserId', isEqualTo: managerId)
+        .get();
+
+    for (final d in goalsSnap.docs) {
+      final data = d.data();
+      final createdTs = data['createdAt'];
+      final approvedTs = data['approvedAt'] ?? data['lastUpdated'];
+      if (createdTs is! Timestamp || approvedTs is! Timestamp) continue;
+      final createdAt = createdTs.toDate();
+      final approvedAt = approvedTs.toDate();
+      if (approvedAt.isBefore(windowStart)) continue;
+      final diff = approvedAt.difference(createdAt);
+      if (diff.inHours <= 24) {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  static Future<int> _countMeetingsUniqueEmployees30d(String managerId) async {
+    final now = DateTime.now();
+    final windowStart = now.subtract(const Duration(days: 30));
+    final actionsSnap = await _db
+        .collection('manager_actions')
+        .where('managerId', isEqualTo: managerId)
+        .where('actionType', isEqualTo: 'scheduleMeeting')
+        .get();
+
+    final ids = <String>{};
+    for (final d in actionsSnap.docs) {
+      final data = d.data();
+      final ts = data['createdAt'];
+      if (ts is! Timestamp) continue;
+      final dt = ts.toDate();
+      if (dt.isBefore(windowStart)) continue;
+      final employeeId = (data['employeeId'] ?? '').toString();
+      if (employeeId.isNotEmpty) {
+        ids.add(employeeId);
+      }
+    }
+    return ids.length;
   }
 
   static Future<int> _countDetailedNudgesInWindow(String managerId, DateTime windowStart) async {

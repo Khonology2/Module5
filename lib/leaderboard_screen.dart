@@ -3,10 +3,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
+import 'package:pdh/design_system/app_typography.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -16,7 +19,14 @@ enum LeaderboardFilter {
   myTeam,
   organization,
 }
-enum LeaderboardMetric { points, level, badges }
+
+enum LeaderboardMetric { points, level, badges, streaks }
+
+/// Helper class to represent onboarding users as document-like objects
+class _OnboardingUserDoc {
+  final Map<String, dynamic> data;
+  _OnboardingUserDoc(this.data);
+}
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -55,6 +65,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _topHoverController.dispose();
     super.dispose();
   }
+
   Future<void> _loadCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -78,6 +89,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       if (_selectedFilters.contains(filter)) {
         _selectedFilters.remove(filter);
       } else {
+        // Handle mutually exclusive filters
+        if (filter == LeaderboardFilter.thisMonth) {
+          _selectedFilters.remove(LeaderboardFilter.allTime);
+        } else if (filter == LeaderboardFilter.allTime) {
+          _selectedFilters.remove(LeaderboardFilter.thisMonth);
+        } else if (filter == LeaderboardFilter.points) {
+          _selectedFilters.remove(LeaderboardFilter.streaks);
+        } else if (filter == LeaderboardFilter.streaks) {
+          _selectedFilters.remove(LeaderboardFilter.points);
+        }
         _selectedFilters.add(filter);
       }
     });
@@ -96,9 +117,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       'users',
     );
 
-    // For non-managers, we'll filter in the processing step instead of in the query
-    // This avoids issues with missing fields in the database
-    // Note: role-specific filtering is handled later; no need to store here
+    // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
+    query = query.where('role', isEqualTo: 'employee');
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
@@ -109,11 +129,111 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
     // Use a simple query without ordering to avoid field existence issues
     // We'll handle sorting in the processing step
-    return query.limit(100);
+    // Increased limit to 10000 to show all employees in Full Leaderboard
+    return query.limit(10000);
+  }
+
+  /// Fetch onboarding users and convert them to a list of maps compatible with user format
+  Future<List<Map<String, dynamic>>> _fetchOnboardingUsers() async {
+    try {
+      final onboardingSnapshot = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .get();
+
+      // Filter onboarding users to only include those with 'employee' persona for PDH
+      final employeeOnboardingUsers = onboardingSnapshot.docs.where((doc) {
+        final data = doc.data();
+        final moduleAccessRole = data['moduleAccessRole'] as String?;
+        return OnboardingService.shouldIncludeUser(
+          moduleAccessRole,
+          'employee',
+        );
+      }).toList();
+
+      // Convert onboarding users to user format
+      return employeeOnboardingUsers.map((doc) {
+        final data = doc.data();
+        final convertedData =
+            OnboardingService.convertOnboardingUserToUserFormat(data, doc.id);
+        // Add the document ID for reference
+        convertedData['_id'] = doc.id;
+        return convertedData;
+      }).toList();
+    } catch (e) {
+      developer.log('Error fetching onboarding users: $e');
+      return [];
+    }
+  }
+
+  // Calculate monthly points from daily points data
+  int _calculateMonthlyPoints(Map<String, dynamic> data) {
+    try {
+      final now = DateTime.now();
+      final currentMonth = now.month;
+      final currentYear = now.year;
+
+      // Get daily points from metrics.points.daily
+      final metrics = data['metrics'] as Map<String, dynamic>?;
+      if (metrics == null) return 0;
+
+      final points = metrics['points'] as Map<String, dynamic>?;
+      if (points == null) return 0;
+
+      final daily = points['daily'] as Map<String, dynamic>?;
+      if (daily == null) return 0;
+
+      int monthlyTotal = 0;
+
+      // Iterate through daily points and sum up current month's points
+      daily.forEach((dateKey, value) {
+        try {
+          // Date key format: YYYYMMDD (e.g., "20240115")
+          if (dateKey.length == 8) {
+            final year = int.tryParse(dateKey.substring(0, 4));
+            final month = int.tryParse(dateKey.substring(4, 6));
+
+            if (year == currentYear && month == currentMonth) {
+              final pointsValue = value is num
+                  ? value.toInt()
+                  : (value is int
+                        ? value
+                        : (int.tryParse(value.toString()) ?? 0));
+              monthlyTotal += pointsValue;
+            }
+          }
+        } catch (e) {
+          // Skip invalid date keys
+        }
+      });
+
+      return monthlyTotal;
+    } catch (e) {
+      developer.log('Error calculating monthly points: $e');
+      return 0;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _processLeaderboardDataWithOnboarding(
+    List<QueryDocumentSnapshot> docs, {
+    String? userRole,
+  }) async {
+    // Fetch onboarding users
+    final onboardingUsers = await _fetchOnboardingUsers();
+
+    // Convert onboarding users to a format that can be processed like regular docs
+    final onboardingDocs = onboardingUsers.map((userData) {
+      // Create a mock document-like structure
+      return _OnboardingUserDoc(userData);
+    }).toList();
+
+    // Combine regular docs with onboarding docs
+    final allDocs = <dynamic>[...docs, ...onboardingDocs];
+
+    return _processLeaderboardData(allDocs, userRole: userRole);
   }
 
   List<Map<String, dynamic>> _processLeaderboardData(
-    List<QueryDocumentSnapshot> docs, {
+    List<dynamic> docs, {
     String? userRole,
   }) {
     try {
@@ -125,112 +245,240 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         return [];
       }
 
+      // Determine filter states
+      final isThisMonth = _selectedFilters.contains(
+        LeaderboardFilter.thisMonth,
+      );
+      final isAllTime = _selectedFilters.contains(LeaderboardFilter.allTime);
+      final isPoints = _selectedFilters.contains(LeaderboardFilter.points);
+      final isStreaks = _selectedFilters.contains(LeaderboardFilter.streaks);
+
+      // Determine time period: if thisMonth is selected (and allTime is not), use monthly; otherwise use all-time
+      final useThisMonth = isThisMonth && !isAllTime;
+
+      // Determine metric: if streaks is selected (and points is not), use streaks; otherwise use points
+      final useStreaks = isStreaks && !isPoints;
+      final usePoints =
+          !useStreaks; // Default to points if streaks not selected
+
       // Use the role parameter instead of checking filters
       final isManager = userRole == 'manager';
-      List<QueryDocumentSnapshot> filteredDocs;
+      List<dynamic> filteredDocs;
 
-      // For managers, show all users regardless of opt-in status
-      if (isManager) {
-        filteredDocs = docs;
-      } else {
-        // For regular users, filter for users who have opted into the leaderboard
-        filteredDocs = docs.where((doc) {
-          try {
-            final data = doc.data() as Map<String, dynamic>?;
-            if (data != null) {
-              // Check both field names for compatibility and default to false if field doesn't exist
-              final opted =
-                  (data['leaderboardParticipation'] == true) ||
-                  (data['leaderboardOptin'] == true);
-              return opted;
-            }
-            return false;
-          } catch (e) {
-            developer.log('Error processing doc ${doc.id}: $e');
-            return false;
+      // ALWAYS filter to exclude managers - leaderboard is for employees only
+      // Filter to ensure we only have employees (role check is already in query, but double-check here)
+      // For managers viewing, show all opted-in employees
+      // For employees viewing, show only opted-in employees
+      filteredDocs = docs.where((doc) {
+        try {
+          Map<String, dynamic>? data;
+
+          // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
+          if (doc is QueryDocumentSnapshot) {
+            data = doc.data() as Map<String, dynamic>?;
+          } else if (doc is _OnboardingUserDoc) {
+            data = doc.data;
           }
-        }).toList();
-      }
+
+          if (data != null) {
+            // ALWAYS exclude managers from leaderboard
+            final role = data['role']?.toString() ?? 'employee';
+            if (role != 'employee') {
+              return false; // Exclude managers and any other non-employee roles
+            }
+
+            // Check opt-in status (onboarding users don't have opt-in, so include them)
+            final optIn = data['leaderboardOptin'];
+            final legacyOptIn = data['leaderboardParticipation'];
+            final fromOnboarding = data['fromOnboarding'] == true;
+
+            // Managers can see all employees regardless of opt-in, employees only see opted-in
+            // Onboarding users are always included
+            if (isManager || fromOnboarding) {
+              return true; // Managers see all employees, onboarding users always visible
+            } else {
+              return optIn == true ||
+                  legacyOptIn == true; // Employees only see opted-in
+            }
+          }
+          return false;
+        } catch (e) {
+          final docId = doc is QueryDocumentSnapshot ? doc.id : 'unknown';
+          developer.log('Error processing doc $docId: $e');
+          return false;
+        }
+      }).toList();
 
       developer.log('${filteredDocs.length} users to display on leaderboard');
 
       // If no users to display, return empty list
       if (filteredDocs.isEmpty) {
         if (!isManager) {
-          developer.log('No users have opted into leaderboard');
+          developer.log('No employees have enabled leaderboard participation');
         }
         return [];
       }
 
       // Process and sort data with better error handling
       List<Map<String, dynamic>> processedData = filteredDocs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        Map<String, dynamic> data;
+        String docId;
+
+        // Handle both QueryDocumentSnapshot and _OnboardingUserDoc
+        if (doc is QueryDocumentSnapshot) {
+          data = doc.data() as Map<String, dynamic>;
+          docId = doc.id;
+        } else if (doc is _OnboardingUserDoc) {
+          data = doc.data;
+          docId = data['_id'] as String? ?? 'unknown';
+        } else {
+          data = {};
+          docId = 'unknown';
+        }
 
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
+          }
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+
+          if (_currentUser != null && docId == _currentUser!.uid) {
+            badgeCount = max(badgeCount, _currentUser!.badges.length);
           }
         } catch (e) {
-          developer.log('Error processing badges for user ${doc.id}: $e');
+          developer.log('Error processing badges for user $docId: $e');
         }
 
-        // Ensure numeric fields have valid defaults
+        // Calculate points based on time filter
         num points = 0;
-        num level = 1;
-
-        try {
-          if (data['totalPoints'] is num) {
-            points = data['totalPoints'] as num;
+        if (useThisMonth) {
+          points = _calculateMonthlyPoints(data);
+        } else {
+          // All time - use totalPoints
+          try {
+            if (data['totalPoints'] is num) {
+              points = data['totalPoints'] as num;
+            }
+          } catch (e) {
+            developer.log('Error processing points for user $docId: $e');
           }
-        } catch (e) {
-          developer.log('Error processing points for user ${doc.id}: $e');
         }
 
+        num level = 1;
         try {
           if (data['level'] is num) {
             level = data['level'] as num;
           }
         } catch (e) {
-          developer.log('Error processing level for user ${doc.id}: $e');
+          developer.log('Error processing level for user $docId: $e');
+        }
+
+        // Extract streak data
+        int currentStreak = 0;
+        int longestStreak = 0;
+        try {
+          currentStreak = (data['currentStreak'] is num)
+              ? (data['currentStreak'] as num).toInt()
+              : (data['currentStreak'] is int
+                    ? data['currentStreak'] as int
+                    : 0);
+          longestStreak = (data['longestStreak'] is num)
+              ? (data['longestStreak'] as num).toInt()
+              : (data['longestStreak'] is int
+                    ? data['longestStreak'] as int
+                    : 0);
+        } catch (e) {
+          developer.log('Error processing streaks for user $docId: $e');
         }
 
         return {
-          'userId': doc.id,
+          'userId': docId,
           'name': data['displayName']?.toString() ?? 'Anonymous',
           'points': points,
           'level': level,
           'badges': badgeCount,
+          'currentStreak': currentStreak,
+          'longestStreak': longestStreak,
           'department': data['department']?.toString() ?? 'Unknown',
           'jobTitle': data['jobTitle']?.toString() ?? 'Unknown',
         };
       }).toList();
 
-      // Sort by the selected metric
-      switch (_currentMetric) {
-        case LeaderboardMetric.points:
-          processedData.sort((a, b) {
-            final aPoints = (a['points'] as num?) ?? 0;
-            final bPoints = (b['points'] as num?) ?? 0;
-            return bPoints.compareTo(aPoints);
-          });
-          break;
-        case LeaderboardMetric.level:
-          processedData.sort((a, b) {
-            final aLevel = (a['level'] as num?) ?? 1;
-            final bLevel = (b['level'] as num?) ?? 1;
-            return bLevel.compareTo(aLevel);
-          });
-          break;
-        case LeaderboardMetric.badges:
-          processedData.sort((a, b) {
-            final aBadges = (a['badges'] as int?) ?? 0;
-            final bBadges = (b['badges'] as int?) ?? 0;
-            return bBadges.compareTo(aBadges);
-          });
-          break;
+      // Sort by the selected metric based on filters
+      // Priority: Filter selections > Dropdown menu selection
+      if (useStreaks) {
+        // Sort by streaks (use currentStreak, fallback to longestStreak)
+        processedData.sort((a, b) {
+          final aStreak =
+              (a['currentStreak'] as int?) ?? (a['longestStreak'] as int?) ?? 0;
+          final bStreak =
+              (b['currentStreak'] as int?) ?? (b['longestStreak'] as int?) ?? 0;
+          return bStreak.compareTo(aStreak);
+        });
+      } else if (usePoints) {
+        // Sort by points (already calculated based on time filter - monthly or all-time)
+        processedData.sort((a, b) {
+          final aPoints = (a['points'] as num?) ?? 0;
+          final bPoints = (b['points'] as num?) ?? 0;
+          return bPoints.compareTo(aPoints);
+        });
+      } else {
+        // Fallback to current metric (from dropdown menu)
+        switch (_currentMetric) {
+          case LeaderboardMetric.points:
+            processedData.sort((a, b) {
+              final aPoints = (a['points'] as num?) ?? 0;
+              final bPoints = (b['points'] as num?) ?? 0;
+              return bPoints.compareTo(aPoints);
+            });
+            break;
+          case LeaderboardMetric.level:
+            processedData.sort((a, b) {
+              final aLevel = (a['level'] as num?) ?? 1;
+              final bLevel = (b['level'] as num?) ?? 1;
+              return bLevel.compareTo(aLevel);
+            });
+            break;
+          case LeaderboardMetric.badges:
+            processedData.sort((a, b) {
+              final aBadges = (a['badges'] as int?) ?? 0;
+              final bBadges = (b['badges'] as int?) ?? 0;
+              return bBadges.compareTo(aBadges);
+            });
+            break;
+          case LeaderboardMetric.streaks:
+            processedData.sort((a, b) {
+              final aStreak =
+                  (a['currentStreak'] as int?) ??
+                  (a['longestStreak'] as int?) ??
+                  0;
+              final bStreak =
+                  (b['currentStreak'] as int?) ??
+                  (b['longestStreak'] as int?) ??
+                  0;
+              return bStreak.compareTo(aStreak);
+            });
+            break;
+        }
       }
 
       // Add rankings
@@ -252,71 +500,105 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return Container(
       color: Colors.transparent,
       child: StreamBuilder<String?>(
-          stream: RoleService.instance.roleStream(),
-          builder: (context, roleSnapshot) {
-            final role = roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        stream: RoleService.instance.roleStream(),
+        builder: (context, roleSnapshot) {
+          final role =
+              roleSnapshot.data ??
+              RoleService.instance.cachedRole ??
+              'employee';
 
-            final isManager = role == 'manager';
+          final isManager = role == 'manager';
 
-            return StreamBuilder<QuerySnapshot>(
-              stream: _buildQuery(userRole: role).snapshots(),
-              builder: (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
-                if (leaderboardSnapshot.hasError) {
-                  developer.log(
-                    'Leaderboard error: ${leaderboardSnapshot.error}',
-                  );
-                  developer.log(
-                    'Error details: ${leaderboardSnapshot.error.toString()}',
-                  );
-                  return _buildErrorState();
-                }
-
-                List<Map<String, dynamic>> leaderboardData;
-                try {
-                  final docs = leaderboardSnapshot.hasData
-                      ? leaderboardSnapshot.data!.docs.toList()
-                      : const <QueryDocumentSnapshot>[];
-                  if (docs.isNotEmpty) {
-                    leaderboardData = _processLeaderboardData(docs, userRole: role);
-                    _lastLeaderboardData = leaderboardData;
-                  } else {
-                    leaderboardData = _lastLeaderboardData;
+          return StreamBuilder<QuerySnapshot>(
+            stream: _buildQuery(userRole: role).snapshots().handleError((
+              error,
+            ) {
+              // Silently handle errors to prevent unmount errors
+              developer.log('Error in leaderboard stream: $error');
+            }),
+            builder:
+                (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
+                  if (leaderboardSnapshot.hasError) {
+                    developer.log(
+                      'Leaderboard error: ${leaderboardSnapshot.error}',
+                    );
+                    developer.log(
+                      'Error details: ${leaderboardSnapshot.error.toString()}',
+                    );
+                    return _buildErrorState();
                   }
-                } catch (e) {
-                  developer.log('Error processing leaderboard data: $e');
-                  return _buildErrorState();
-                }
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildHeader(),
-                      const SizedBox(height: 20),
-                      _buildFiltersBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      leaderboardData.isEmpty
-                          ? _buildEmptyState()
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildPodium(leaderboardData),
-                                const SizedBox(height: 20),
-                                _buildLeaderList(
-                                  leaderboardData,
-                                  isManager: isManager,
-                                ),
-                              ],
-                            ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+                  return FutureBuilder<List<Map<String, dynamic>>>(
+                    future: () async {
+                      try {
+                        final docs = leaderboardSnapshot.hasData
+                            ? leaderboardSnapshot.data!.docs.toList()
+                            : const <QueryDocumentSnapshot>[];
+                        if (docs.isNotEmpty) {
+                          return await _processLeaderboardDataWithOnboarding(
+                            docs,
+                            userRole: role,
+                          );
+                        } else {
+                          return _lastLeaderboardData;
+                        }
+                      } catch (e) {
+                        developer.log('Error processing leaderboard data: $e');
+                        return _lastLeaderboardData;
+                      }
+                    }(),
+                    builder: (context, snapshot) {
+                      List<Map<String, dynamic>> leaderboardData;
+                      if (snapshot.hasData) {
+                        leaderboardData = snapshot.data!;
+                        _lastLeaderboardData = leaderboardData;
+                      } else if (snapshot.hasError) {
+                        developer.log(
+                          'Error in FutureBuilder: ${snapshot.error}',
+                        );
+                        return _buildErrorState();
+                      } else {
+                        leaderboardData = _lastLeaderboardData;
+                      }
+
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(
+                          24.0,
+                          32.0,
+                          24.0,
+                          24.0,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 20),
+                            _buildFiltersBar(isManager: isManager),
+                            const SizedBox(height: 16),
+                            leaderboardData.isEmpty
+                                ? _buildEmptyState()
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildPodium(leaderboardData),
+                                      const SizedBox(height: 20),
+                                      _buildLeaderList(
+                                        leaderboardData,
+                                        isManager: isManager,
+                                      ),
+                                    ],
+                                  ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+          );
+        },
       ),
     );
   }
@@ -334,9 +616,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         children: [
           Text(
             'Leaderboard',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: AppTypography.heading2.copyWith(
               color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
             ),
           ),
           Row(
@@ -455,6 +736,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                       'Sort by Badges',
                       style: TextStyle(
                         color: _currentMetric == LeaderboardMetric.badges
+                            ? AppColors.activeColor
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: LeaderboardMetric.streaks,
+                    child: Text(
+                      'Sort by Streaks',
+                      style: TextStyle(
+                        color: _currentMetric == LeaderboardMetric.streaks
                             ? AppColors.activeColor
                             : AppColors.textSecondary,
                       ),
@@ -689,8 +981,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     bool isManager = false,
   }) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    final topPerformers = leaderboardData.take(5).toList();
-    final remainingUsers = leaderboardData.skip(3).toList();
+    final bool showTopPerformersSection = !isManager;
+    final List<Map<String, dynamic>> topPerformers = showTopPerformersSection
+        ? leaderboardData.take(5).toList()
+        : const [];
+    final int alreadyShownCount = showTopPerformersSection
+        ? topPerformers.length
+        : 3;
+    final remainingUsers = leaderboardData.skip(alreadyShownCount).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,13 +996,32 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       children: [
         // Current user's position (hidden for managers)
         if (!isManager && currentUserId != null && _currentUser != null) ...[
-          const Text(
-            'Your Position',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Your Position',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    _showCompetitorAnalysis(context, leaderboardData),
+                icon: const Icon(Icons.insights, size: 16),
+                label: const Text('AI Competitor Analysis'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.activeColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           _buildLeaderboardItem(
@@ -714,16 +1031,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           const SizedBox(height: 20),
         ],
 
-        const Text(
-          'Top Performers',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
+        if (showTopPerformersSection && topPerformers.isNotEmpty) ...[
+          const Text(
+            'Top Performers',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        ...topPerformers.map((user) => _buildLeaderboardItem(user)),
+          const SizedBox(height: 10),
+          ...topPerformers.map((user) => _buildLeaderboardItem(user)),
+        ],
         if (remainingUsers.isNotEmpty) ...[
           const SizedBox(height: 16),
           const Text(
@@ -746,6 +1065,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   ) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null || _currentUser == null) {
+      return {};
+    }
+
+    final bool isManager = _currentUser!.role == 'manager';
+    final bool optedIn = _currentUser!.leaderboardOptin;
+    if (!isManager && !optedIn) {
+      // Employees who opted out shouldn't be surfaced anywhere on the leaderboard
       return {};
     }
 
@@ -1087,5 +1413,197 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _showCompetitorAnalysis(
+    BuildContext context,
+    List<Map<String, dynamic>> leaderboardData,
+  ) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || _currentUser == null) return;
+
+    final currentUserRank = _getCurrentUserRank(leaderboardData);
+    final currentRank = currentUserRank['rank'] ?? leaderboardData.length + 1;
+
+    // Get users ranked just above and below
+    final usersAbove = leaderboardData
+        .where((user) => (user['rank'] ?? 0) < currentRank)
+        .take(3)
+        .toList();
+    final usersBelow = leaderboardData
+        .where((user) => (user['rank'] ?? 0) > currentRank)
+        .take(2)
+        .toList();
+
+    if (usersAbove.isEmpty && usersBelow.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Not enough data for competitor analysis'),
+            backgroundColor: AppColors.warningColor,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Show loading dialog
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          ),
+        ),
+      );
+    }
+
+    try {
+      // Get goals for current user and competitors
+      final currentUserGoals = await DatabaseService.getUserGoals(
+        currentUserId,
+      );
+
+      // Build comparison data
+      final comparisonData = StringBuffer();
+      comparisonData.writeln('Current User (Rank $currentRank):');
+      comparisonData.writeln('Points: ${currentUserRank['points'] ?? 0}');
+      comparisonData.writeln('Level: ${currentUserRank['level'] ?? 1}');
+      comparisonData.writeln('Badges: ${currentUserRank['badges'] ?? 0}');
+      comparisonData.writeln('Goals: ${currentUserGoals.length}');
+      comparisonData.writeln('');
+
+      for (var competitor in usersAbove) {
+        final competitorId = competitor['userId'];
+        final competitorGoals = await DatabaseService.getUserGoals(
+          competitorId,
+        );
+        comparisonData.writeln(
+          'Competitor Above (Rank ${competitor['rank']}):',
+        );
+        comparisonData.writeln('Name: ${competitor['name']}');
+        comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
+        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
+        comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
+        comparisonData.writeln('Goals: ${competitorGoals.length}');
+        comparisonData.writeln('');
+      }
+
+      for (var competitor in usersBelow) {
+        final competitorId = competitor['userId'];
+        final competitorGoals = await DatabaseService.getUserGoals(
+          competitorId,
+        );
+        comparisonData.writeln(
+          'Competitor Below (Rank ${competitor['rank']}):',
+        );
+        comparisonData.writeln('Name: ${competitor['name']}');
+        comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
+        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
+        comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
+        comparisonData.writeln('Goals: ${competitorGoals.length}');
+        comparisonData.writeln('');
+      }
+
+      // Generate AI analysis
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in analyzing leaderboard performance and providing actionable insights. '
+          'Compare the current user\'s performance with competitors ranked above and below them. '
+          'Identify specific differences in:\n'
+          '1. Points earned and how they\'re distributed\n'
+          '2. Goal completion rates and types\n'
+          '3. Badge achievements and types\n'
+          '4. Activity patterns and consistency\n'
+          '5. Level progression\n\n'
+          'Provide specific, actionable recommendations on what the user should focus on to improve their ranking. '
+          'Be encouraging but direct. Format your response in clear sections with bullet points.',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this leaderboard comparison data and provide insights:\n\n'
+          '$comparisonData\n\n'
+          'What specific actions or achievements do the competitors have that the current user doesn\'t? '
+          'What should the current user focus on to move up in the rankings?',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final analysis =
+          response.text?.replaceAll('*', '').trim() ??
+          'Unable to generate analysis. Please try again.';
+
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Show analysis dialog
+      if (context.mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.black.withValues(alpha: 0.9),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
+              ),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.insights, color: AppColors.activeColor, size: 24),
+                const SizedBox(width: 8),
+                Text(
+                  'AI Competitor Analysis',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Text(
+                  analysis,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: AppColors.activeColor),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating analysis: $e'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
   }
 }

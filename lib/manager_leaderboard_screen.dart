@@ -1,9 +1,6 @@
-import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/role_service.dart';
 
@@ -19,7 +16,6 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 }
 
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
-  UserProfile? _manager;
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastTeam = const [];
 
@@ -27,19 +23,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
-    _loadManagerProfile();
   }
-
-  
 
   Widget _buildEmptyState() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: const [
-        Icon(
-          Icons.trending_up_outlined,
-          color: AppColors.textSecondary,
-        ),
+        Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
         SizedBox(height: 8),
         Text(
           'No opted-in employees found',
@@ -48,10 +38,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         SizedBox(height: 4),
         Text(
           'Ask your team to enable Leaderboard Participation',
-          style: TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       ],
     );
@@ -79,33 +66,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     }
   }
 
-  Future<void> _loadManagerProfile() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      setState(() {
-        _manager = UserProfile.fromFirestore(doc);
-      });
-    } catch (e) {
-      developer.log('Error loading manager profile: $e');
-    }
-  }
-
   // Removed unused legacy query function to avoid linter warning
 
   @override
   Widget build(BuildContext context) {
-    final String? dept = (_manager == null || _manager!.department.isEmpty)
-        ? null
-        : _manager!.department;
-
     final content = StreamBuilder<List<EmployeeData>>(
       stream: ManagerRealtimeService.getTeamDataStream(
-        department: dept,
+        department: null,
         timeFilter: TimeFilter.month,
       ),
       builder: (context, snapshot) {
@@ -114,10 +81,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.error_outline,
-                  color: AppColors.dangerColor,
-                ),
+                const Icon(Icons.error_outline, color: AppColors.dangerColor),
                 const SizedBox(height: 8),
                 const Text(
                   'Failed to load leaderboard',
@@ -138,7 +102,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
         // Prefer live data, otherwise show last cached team to avoid spinners
         final raw = snapshot.data ?? _lastTeam;
-        var team = raw.where((e) => e.profile.leaderboardOptin == true).toList();
+        // Managers see all employees, not just those who opted in
+        var team = raw.toList();
 
         // Sort by metric
         team.sort((a, b) {
@@ -157,7 +122,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           _lastTeam = team;
         }
 
-        if (team.isEmpty && (snapshot.connectionState == ConnectionState.waiting)) {
+        if (team.isEmpty &&
+            (snapshot.connectionState == ConnectionState.waiting)) {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -170,7 +136,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
         if (team.isEmpty) {
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
             children: [
               _buildHeaderWithFilters(),
               const SizedBox(height: 16),
@@ -184,7 +150,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         final rest = team.skip(3).toList();
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           children: [
             _buildHeaderWithFilters(),
             const SizedBox(height: 16),
@@ -204,7 +170,11 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       backgroundColor: AppColors.backgroundColor,
       appBar: AppBar(
         backgroundColor: AppColors.backgroundColor,
-        title: const Text('Manager Leaderboard'),
+        title: Text(
+          'Manager Leaderboard',
+          style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+        ),
+        centerTitle: false,
       ),
       body: content,
     );
@@ -239,22 +209,38 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       );
     }
 
-    return Row(
-      children: [
-        const Expanded(
-          child: Text(
-            'Top Team Performers',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Top Team Performers',
+                  style: AppTypography.heading2.copyWith(color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Switch metrics to compare different dimensions of impact.',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        metricChip('Points', LeaderboardMetric.points),
-        metricChip('Streaks', LeaderboardMetric.streaks),
-        metricChip('Progress', LeaderboardMetric.progress),
-      ],
+          metricChip('Points', LeaderboardMetric.points),
+          metricChip('Streaks', LeaderboardMetric.streaks),
+          metricChip('Progress', LeaderboardMetric.progress),
+        ],
+      ),
     );
   }
 
@@ -302,15 +288,24 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color, width: 2),
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
-                      radius: 18,
+                      radius: 20,
                       backgroundColor: color,
                       child: Text(
                         e.profile.displayName.isNotEmpty
@@ -322,17 +317,18 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       e.profile.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 12,
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -341,7 +337,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                         Text(
                           '${e.totalPoints} pts',
                           style: const TextStyle(
-                            color: AppColors.textSecondary,
+                            color: Colors.white70,
                             fontSize: 11,
                           ),
                         ),
@@ -388,9 +384,9 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderColor),
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -422,10 +418,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   e.profile.department,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
                 ),
               ],
             ),
@@ -433,7 +426,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           Text(
             rightText,
             style: const TextStyle(
-              color: AppColors.textPrimary,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),

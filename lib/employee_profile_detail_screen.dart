@@ -7,6 +7,8 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
 
@@ -150,12 +152,21 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
       }
 
       Stream<UserProfile?> _getEmployeeProfileStream() {
+        final viewerId = FirebaseAuth.instance.currentUser?.uid;
+        if (viewerId == null) {
+          return Stream.value(null);
+        }
         return FirebaseFirestore.instance
             .collection('users')
             .doc(widget.employeeId)
             .snapshots()
-            .map((doc) {
+            .asyncMap((doc) async {
           if (!doc.exists) return null;
+          final allowed = await DatabaseService.canViewerSeeUserProfile(
+            viewerId: viewerId,
+            targetUserId: widget.employeeId,
+          );
+          if (!allowed) return null;
           return UserProfile.fromFirestore(doc);
         });
       }
@@ -803,15 +814,11 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
 
       // Data streams
       Stream<List<Goal>> _getEmployeeGoalsStream() {
-        return FirebaseFirestore.instance
-            .collection('goals')
-            .where('userId', isEqualTo: widget.employeeId)
-            .snapshots()
-            .map((snapshot) {
-          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
-          goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return goals;
-        });
+        final viewerId = FirebaseAuth.instance.currentUser?.uid ?? widget.employeeId;
+        return DatabaseService.getUserGoalsStreamForViewer(
+          viewerId: viewerId,
+          targetUserId: widget.employeeId,
+        );
       }
 
       // Helper methods

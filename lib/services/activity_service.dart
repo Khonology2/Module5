@@ -16,7 +16,7 @@ class ActivityService {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       final targetUserId = userId ?? currentUser?.uid;
-      
+
       if (targetUserId == null) {
         developer.log('Error: No user ID available to record activity');
         return;
@@ -88,8 +88,10 @@ class ActivityService {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => ActivityRecord.fromFirestore(doc)).toList();
-    });
+          return snapshot.docs
+              .map((doc) => ActivityRecord.fromFirestore(doc))
+              .toList();
+        });
   }
 
   /// Create sample activities for demo/development
@@ -98,11 +100,15 @@ class ActivityService {
       {
         'activityType': 'goal_created',
         'description': 'Created new goal: "Complete React Certification"',
-        'metadata': {'goalTitle': 'Complete React Certification', 'priority': 'high'},
+        'metadata': {
+          'goalTitle': 'Complete React Certification',
+          'priority': 'high',
+        },
       },
       {
         'activityType': 'goal_progress',
-        'description': 'Updated progress on "Complete React Certification" to 45%',
+        'description':
+            'Updated progress on "Complete React Certification" to 45%',
         'metadata': {'progress': 45, 'previousProgress': 30},
       },
       {
@@ -131,7 +137,9 @@ class ActivityService {
       );
     }
 
-    developer.log('Created ${activities.length} sample activities for user $userId');
+    developer.log(
+      'Created ${activities.length} sample activities for user $userId',
+    );
   }
 }
 

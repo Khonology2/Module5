@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
+import 'dart:convert';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
@@ -11,6 +13,10 @@ import 'package:pdh/services/database_service.dart';
 // import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/goal.dart';
 // import 'package:pdh/models/alert.dart';
+import 'package:pdh/services/role_service.dart';
+import 'package:pdh/services/employee_tutorial_service.dart';
+import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
+import 'package:pdh/widgets/ai_generation_indicator.dart';
 
 class MyGoalWorkspaceScreen extends StatefulWidget {
   final bool embedded;
@@ -23,17 +29,19 @@ class MyGoalWorkspaceScreen extends StatefulWidget {
 
 class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   // SMART scoring (1-5)
-  int _clarity = 3;        // Specific
-  int _measurability = 3;  // Measurable
-  int _achievability = 3;  // Achievable
-  int _relevance = 3;      // Relevant
-  int _timeline = 3;       // Time-bound
+  int _clarity = 3; // Specific
+  int _measurability = 3; // Measurable
+  int _achievability = 3; // Achievable
+  int _relevance = 3; // Relevant
+  int _timeline = 3; // Time-bound
+  bool _smartScoresGenerated = false; // Track if AI has generated scores
 
   // Controllers for text fields
   final _goalTitleController = TextEditingController();
   final _goalDescriptionController = TextEditingController();
   final _dependenciesController = TextEditingController();
   final _successMetricsController = TextEditingController();
+  final _customCategoryController = TextEditingController();
 
   // Date variables
   DateTime? _startDate;
@@ -43,6 +51,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   String? _goalCategory;
   String? _currentStatus;
   String? _kpa; // 'operational' | 'customer' | 'financial'
+  String? _customCategory; // For "Other" category custom input
+  bool _isOtherCategorySelected = false;
 
   // Lists for dropdowns
   final List<String> _goalCategories = [
@@ -52,33 +62,71 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Finance',
     'Other',
   ];
-  final List<String> _kpaOptions = [
-    'Operational',
-    'Customer',
-    'Financial',
-  ];
+  final List<String> _kpaOptions = ['Operational', 'Customer', 'Financial'];
 
   @override
   void initState() {
     super.initState();
+    // Ensure role is loaded before building
+    RoleService.instance.ensureRoleLoaded();
     // Precache heavy assets to avoid initial jank/spinner when opening the workspace
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         precacheImage(const AssetImage('assets/khono_bg.png'), context);
-        precacheImage(const AssetImage('Calendar_Date_Picker/Date_Picker_White_Badge_Red.png'), context);
-        precacheImage(const AssetImage('Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png'), context);
+        precacheImage(
+          const AssetImage(
+            'Calendar_Date_Picker/Date_Picker_White_Badge_Red.png',
+          ),
+          context,
+        );
+        precacheImage(
+          const AssetImage(
+            'Innovation_Brainstorm/Innovation_Brainstorm_White_Badge_Red.png',
+          ),
+          context,
+        );
       } catch (_) {}
     });
+  }
+
+  @override
+  void dispose() {
+    _goalTitleController.dispose();
+    _goalDescriptionController.dispose();
+    _dependenciesController.dispose();
+    _successMetricsController.dispose();
+    _customCategoryController.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDate(
     BuildContext context, {
     required bool isStartDate,
   }) async {
+    // For Target Date (End Date), restrict selection to dates after Start Date
+    DateTime? firstDate;
+    DateTime? initialDate;
+
+    if (!isStartDate && _startDate != null) {
+      // End date must be after start date - set firstDate to the day after start date
+      firstDate = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+      ).add(const Duration(days: 1));
+      // Set initial date to be a reasonable default after start date
+      initialDate = firstDate.isBefore(DateTime.now())
+          ? DateTime.now()
+          : firstDate;
+    } else {
+      firstDate = DateTime(2000);
+      initialDate = DateTime.now();
+    }
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
+      initialDate: initialDate,
+      firstDate: firstDate,
       lastDate: DateTime(2101),
       builder: (BuildContext context, Widget? child) {
         return Theme(
@@ -101,6 +149,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       setState(() {
         if (isStartDate) {
           _startDate = picked;
+          // If target date is already set and is before or equal to the new start date,
+          // clear it so user must select a new target date
+          if (_targetDate != null && !_targetDate!.isAfter(picked)) {
+            _targetDate = null;
+          }
         } else {
           _targetDate = picked;
         }
@@ -110,144 +163,214 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Goal Workspace',
-      showAppBar: false,
-      embedded: widget.embedded,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/my_goal_workspace',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      initialData: RoleService.instance.cachedRole ?? 'employee',
+      builder: (context, roleSnapshot) {
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        // Get tutorial state from global service (only for employees)
+        final tutorialService = EmployeeTutorialService.instance;
+        if (role == 'employee' && tutorialService.isTutorialActive) {
+          tutorialService.setCurrentContext(context);
+
+          // Check if we should show tutorial popup for this screen
+          // This happens after navigation when the new screen builds
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !tutorialService.isTutorialActive) return;
+
+            // Check if current route matches the tutorial step
+            final currentRoute = ModalRoute.of(context)?.settings.name;
+            if (currentRoute != null &&
+                tutorialService.currentTutorialStep <
+                    EmployeeSidebarTutorialConfig.steps.length) {
+              final step = EmployeeSidebarTutorialConfig
+                  .steps[tutorialService.currentTutorialStep];
+              if (step.route == currentRoute ||
+                  (step.route == '__collapse_toggle__' &&
+                      tutorialService.currentTutorialStep ==
+                          SidebarConfig.employeeItems.length)) {
+                // This screen matches the current tutorial step, show popup
+                Future.delayed(const Duration(milliseconds: 500), () {
+                  if (mounted && tutorialService.isTutorialActive) {
+                    // ignore: use_build_context_synchronously
+                    tutorialService.showTutorialPopup(context);
+                  }
+                });
+              }
+            }
+          });
         }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-        }
-      },
-      content: AppComponents.backgroundWithImage(
-        imagePath:
-            'assets/khono_bg.png',
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Create Personal Development Goal',
-                style: AppTypography.heading2.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+        final tutorialParams = role == 'employee'
+            ? tutorialService.getTutorialParams()
+            : {
+                'tutorialStepIndex': null,
+                'sidebarTutorialKeys': null,
+                'onTutorialNext': null,
+                'onTutorialSkip': null,
+              };
+
+        return AppScaffold(
+          title: 'Goal Workspace',
+          showAppBar: false,
+          embedded: widget.embedded,
+          items: items,
+          currentRouteName: '/my_goal_workspace',
+          tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
+          sidebarTutorialKeys:
+              tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
+          onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
+          onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            final navigator = Navigator.of(context);
+            await AuthService().signOut();
+            if (mounted) {
+              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            }
+          },
+          content: AppComponents.backgroundWithImage(
+            imagePath: 'assets/khono_bg.png',
+            child: SingleChildScrollView(
+              padding: AppSpacing.screenPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Create Personal Development Goal',
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextFieldWithGenerate(
+                        controller: _goalTitleController,
+                        hintText: 'Enter your development goal title',
+                        onGenerate: () =>
+                            _showGenerateDescriptionDialog(context),
+                      ),
+                      _buildTextField(
+                        controller: _goalDescriptionController,
+                        hintText: 'Describe your goal in detail...',
+                        maxLines: 5,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildSectionHeader('Goal Details'),
+                      ElevatedButton.icon(
+                        onPressed:
+                            _goalDescriptionController.text.trim().isEmpty
+                            ? null
+                            : () => _suggestGoalDetails(context),
+                        icon: const Icon(Icons.auto_awesome, size: 18),
+                        label: const Text('Suggest'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.activeColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  _buildSectionCard(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDateInput(
+                              context,
+                              'Start Date',
+                              _startDate,
+                              isStartDate: true,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: _buildDateInput(
+                              context,
+                              'Target Date',
+                              _targetDate,
+                              isStartDate: false,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildCategoryDropdown(),
+                      _buildDropdownField(
+                        hintText: 'Select priority',
+                        value: _currentStatus,
+                        items: ['High', 'Medium', 'Low'],
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _currentStatus = newValue;
+                          });
+                        },
+                      ),
+                      _buildDropdownField(
+                        hintText: 'Select Key Performance Area',
+                        value: _kpa != null
+                            ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
+                            : null,
+                        items: _kpaOptions,
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _kpa = newValue?.toLowerCase();
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSmartCriteriaSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Dependencies & Prerequisites'),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextField(
+                        controller: _dependenciesController,
+                        hintText:
+                            'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
+                        maxLines: 4,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildSectionHeader('Success Metrics'),
+                  _buildSectionCard(
+                    children: [
+                      _buildTextField(
+                        controller: _successMetricsController,
+                        hintText: 'Define specific metrics or milestones...',
+                        maxLines: 4,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  _buildSectionCard(children: [_buildActionButtons()]),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Goal Information'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _goalTitleController,
-                  hintText: 'Enter your development goal title',
-                ),
-                _buildTextField(
-                  controller: _goalDescriptionController,
-                  hintText: 'Describe your goal in detail...',
-                  maxLines: 5,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Goal Details'),
-              _buildSectionCard(children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDateInput(
-                        context,
-                        'Start Date',
-                        _startDate,
-                        isStartDate: true,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: _buildDateInput(
-                        context,
-                        'Target Date',
-                        _targetDate,
-                        isStartDate: false,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _buildDropdownField(
-                  hintText: 'Select category',
-                  value: _goalCategory,
-                  items: _goalCategories,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _goalCategory = newValue;
-                    });
-                  },
-                ),
-                _buildDropdownField(
-                  hintText: 'Select priority',
-                  value: _currentStatus,
-                  items: ['High', 'Medium', 'Low'],
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _currentStatus = newValue;
-                    });
-                  },
-                ),
-                _buildDropdownField(
-                  hintText: 'Select Key Performance Area',
-                  value: _kpa != null
-                      ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
-                      : null,
-                  items: _kpaOptions,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _kpa = newValue?.toLowerCase();
-                    });
-                  },
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSmartCriteriaSection(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Dependencies & Prerequisites'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _dependenciesController,
-                  hintText:
-                      'List any dependencies or prerequisites needed to achieve this goal\n\ne.g., Complete certification course, Save \$5000, Learn specific skills...',
-                  maxLines: 4,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xl),
-              _buildSectionHeader('Success Metrics'),
-              _buildSectionCard(children: [
-                _buildTextField(
-                  controller: _successMetricsController,
-                  hintText: 'Define specific metrics or milestones...',
-                  maxLines: 4,
-                ),
-              ]),
-              const SizedBox(height: AppSpacing.xxl),
-              _buildSectionCard(children: [
-                _buildActionButtons(),
-              ]),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
-
-  
-
 
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -284,7 +407,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -307,6 +433,383 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  Widget _buildTextFieldWithGenerate({
+    required TextEditingController controller,
+    required String hintText,
+    required VoidCallback onGenerate,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: TextField(
+          controller: controller,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.all(16),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.auto_awesome,
+                color: AppColors.activeColor,
+              ),
+              onPressed: onGenerate,
+              tooltip: 'Generate description',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showGenerateDescriptionDialog(BuildContext context) async {
+    final titleController = TextEditingController(
+      text: _goalTitleController.text.trim(),
+    );
+    bool isGenerating = false;
+    String currentPhase = '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> generateDescription() async {
+              final goalTitle = titleController.text.trim();
+              if (goalTitle.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a goal title'),
+                    backgroundColor: AppColors.dangerColor,
+                  ),
+                );
+                return;
+              }
+
+              setDialogState(() {
+                isGenerating = true;
+                currentPhase = 'Generating description...';
+              });
+
+              // Simulate phase progression with delays
+              Future<void> updatePhase(String phase) async {
+                setDialogState(() {
+                  currentPhase = phase;
+                });
+                await Future.delayed(const Duration(milliseconds: 800));
+              }
+
+              try {
+                await updatePhase('Generating description...');
+
+                // Initialize Firebase AI model
+                final model = FirebaseAI.googleAI().generativeModel(
+                  model: 'gemini-2.5-flash',
+                  systemInstruction: Content.text(
+                    'You are an AI assistant specialized in creating comprehensive personal development goal plans and evaluating SMART criteria. '
+                    'When given a goal title, you must generate four components:\n\n'
+                    '1. DESCRIPTION: A detailed and actionable description of the goal (no more than 5 sentences). '
+                    'Be concise but thorough, making it comprehensive, motivating, and including specific steps or considerations.\n\n'
+                    '2. DEPENDENCIES AND PREREQUISITES: Exactly 5 dependencies or prerequisites needed to achieve this goal. '
+                    'Format each as a bullet point starting with "-" or "•". Be specific and actionable.\n\n'
+                    '3. SUCCESS METRICS: Specific, measurable metrics or milestones that indicate successful completion of this goal. '
+                    'Provide a substantial amount of detail with clear, quantifiable indicators.\n\n'
+                    '4. SMART SCORES: Based on the goal title, description, dependencies, prerequisites, and success metrics, evaluate and assign a score from 1-5 for each SMART criterion:\n'
+                    '   - clarity (Specific): How clear and well-defined is the goal? (1=vague, 3=some detail, 5=precise deliverable & scope)\n'
+                    '   - measurability (Measurable): Can progress be tracked? (1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source)\n'
+                    '   - achievability (Achievable): Is the goal realistic? (1=unlikely, 3=stretch, 5=realistic with resources)\n'
+                    '   - relevance (Relevant): Does it align with values/role/OKR? (1=not aligned, 3=indirect, 5=direct OKR/competency fit)\n'
+                    '   - timeline (Time-bound): Is there a clear deadline? (1=no date, 3=date tight, 5=realistic + milestones)\n\n'
+                    'Respond in this EXACT JSON format (no other text):\n'
+                    '{"description": "the goal description here", "dependencies": "• First dependency\\n• Second dependency\\n• Third dependency\\n• Fourth dependency\\n• Fifth dependency", "successMetrics": "the success metrics here", "smartScores": {"clarity": 3, "measurability": 4, "achievability": 4, "relevance": 5, "timeline": 3}}',
+                  ),
+                );
+
+                final prompt = [
+                  Content.text(
+                    'Generate a comprehensive plan for this personal development goal: $goalTitle\n\n'
+                    'First, create the description, 5 dependencies/prerequisites, and success metrics. '
+                    'Then, based on the complete goal information (title, description, dependencies, prerequisites, and success metrics you generated), '
+                    'evaluate and assign SMART criteria scores (1-5 for each: clarity, measurability, achievability, relevance, timeline). '
+                    'The SMART scores should reflect how well the goal meets each criterion based on all the information provided.',
+                  ),
+                ];
+
+                await updatePhase(
+                  'Generating dependencies and prerequisites...',
+                );
+
+                final response = await model.generateContent(prompt);
+                final responseText =
+                    response.text?.replaceAll('*', '').trim() ?? '';
+
+                await updatePhase('Selecting SMART verification scores...');
+
+                if (mounted) {
+                  // Update the goal title if it was changed in the dialog
+                  if (titleController.text.trim() !=
+                      _goalTitleController.text.trim()) {
+                    _goalTitleController.text = titleController.text.trim();
+                  }
+
+                  // Parse JSON response
+                  String jsonText = responseText.trim();
+                  // Remove markdown code blocks if present
+                  if (jsonText.contains('```json')) {
+                    jsonText = jsonText
+                        .split('```json')[1]
+                        .split('```')[0]
+                        .trim();
+                  } else if (jsonText.contains('```')) {
+                    jsonText = jsonText.split('```')[1].split('```')[0].trim();
+                  }
+
+                  // Extract JSON object
+                  final jsonMatch = RegExp(
+                    r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+                  ).firstMatch(jsonText);
+
+                  if (jsonMatch != null) {
+                    final jsonString = jsonMatch.group(0) ?? '{}';
+                    Map<String, dynamic> generatedData;
+
+                    try {
+                      generatedData =
+                          jsonDecode(jsonString) as Map<String, dynamic>;
+                    } catch (e) {
+                      // Fallback parsing with multiline support
+                      final descMatch = RegExp(
+                        r'"description"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+                      final depsMatch = RegExp(
+                        r'"dependencies"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+                      final metricsMatch = RegExp(
+                        r'"successMetrics"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        dotAll: true,
+                      ).firstMatch(jsonString);
+
+                      generatedData = {};
+                      if (descMatch != null) {
+                        generatedData['description'] = descMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                      if (depsMatch != null) {
+                        generatedData['dependencies'] = depsMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                      if (metricsMatch != null) {
+                        generatedData['successMetrics'] = metricsMatch
+                            .group(1)!
+                            .replaceAll('\\n', '\n')
+                            .replaceAll('\\"', '"');
+                      }
+                    }
+
+                    // Fill all three fields
+                    final description =
+                        generatedData['description']?.toString() ?? '';
+                    final dependencies =
+                        generatedData['dependencies']?.toString() ?? '';
+                    final successMetrics =
+                        generatedData['successMetrics']?.toString() ?? '';
+
+                    _goalDescriptionController.text = description;
+                    _dependenciesController.text = dependencies;
+                    _successMetricsController.text = successMetrics;
+
+                    await updatePhase('Generating success metrics...');
+
+                    // Extract and set SMART scores
+                    final smartScores = generatedData['smartScores'];
+                    if (smartScores is Map<String, dynamic>) {
+                      setState(() {
+                        _clarity = _parseSmartScore(smartScores['clarity'], 3);
+                        _measurability = _parseSmartScore(
+                          smartScores['measurability'],
+                          3,
+                        );
+                        _achievability = _parseSmartScore(
+                          smartScores['achievability'],
+                          3,
+                        );
+                        _relevance = _parseSmartScore(
+                          smartScores['relevance'],
+                          3,
+                        );
+                        _timeline = _parseSmartScore(
+                          smartScores['timeline'],
+                          3,
+                        );
+                        _smartScoresGenerated =
+                            true; // Mark that AI has generated scores
+                      });
+                    } else {
+                      // If no SMART scores in response, mark as not generated
+                      setState(() {
+                        _smartScoresGenerated = false;
+                      });
+                    }
+
+                    await updatePhase('Complete!');
+                    await Future.delayed(const Duration(milliseconds: 500));
+
+                    // Close the dialog
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(dialogContext).pop();
+
+                    // Show success message in centered dialog
+                    if (mounted) {
+                      await _showCenteredSuccessDialog(
+                        // ignore: use_build_context_synchronously
+                        context,
+                        'Goal description, dependencies, success metrics, and SMART scores generated successfully!',
+                      );
+                    }
+                  } else {
+                    // Fallback: if JSON parsing fails, try to extract description only
+                    _goalDescriptionController.text = responseText;
+                    // Don't set SMART scores if parsing fails - keep them unselected
+                    setState(() {
+                      _smartScoresGenerated = false;
+                    });
+
+                    // Close the dialog
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(dialogContext).pop();
+
+                    // Show success message
+                    if (mounted) {
+                      await _showCenteredSuccessDialog(
+                        // ignore: use_build_context_synchronously
+                        context,
+                        'Goal description generated. Dependencies, metrics, and SMART scores could not be parsed.',
+                      );
+                    }
+                  }
+                }
+              } catch (e) {
+                setDialogState(() => isGenerating = false);
+                if (mounted) {
+                  // Show error in centered dialog
+                  await _showCenteredErrorDialog(
+                    // ignore: use_build_context_synchronously
+                    context,
+                    'Error generating description: $e',
+                  );
+                }
+              }
+            }
+
+            return AlertDialog(
+              backgroundColor: AppColors.elevatedBackground,
+              title: Text(
+                'Generate Goal Description',
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Goal Title',
+                        labelStyle: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        hintText: 'Enter the goal title',
+                        hintStyle: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        filled: true,
+                        fillColor: Colors.black.withValues(alpha: 0.4),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppColors.activeColor),
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                    if (isGenerating) ...[
+                      const SizedBox(height: 16),
+                      AIGenerationIndicator(
+                        currentPhase: currentPhase,
+                        onPhaseChange: (phase) {
+                          setDialogState(() => currentPhase = phase);
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isGenerating
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isGenerating ? null : generateDescription,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text('Generate'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildDateInput(
     BuildContext context,
     String hintText,
@@ -318,7 +821,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -353,6 +859,91 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     );
   }
 
+  Widget _buildCategoryDropdown() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isOtherCategorySelected) ...[
+            TextField(
+              controller: _customCategoryController,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Category (Other)',
+                labelStyle: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                hintText: 'Enter custom category',
+                hintStyle: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                filled: true,
+                fillColor: Colors.black.withValues(alpha: 0.4),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.activeColor),
+                ),
+                contentPadding: const EdgeInsets.all(16),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () {
+                    setState(() {
+                      _isOtherCategorySelected = false;
+                      _goalCategory = null;
+                      _customCategory = null;
+                      _customCategoryController.clear();
+                    });
+                  },
+                  tooltip: 'Clear and select from dropdown',
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _customCategory = value;
+                });
+              },
+            ),
+          ] else
+            _buildDropdownField(
+              hintText: 'Select category',
+              value: _goalCategory,
+              items: _goalCategories,
+              onChanged: (String? newValue) {
+                setState(() {
+                  if (newValue == 'Other') {
+                    _isOtherCategorySelected = true;
+                    _goalCategory = 'Other';
+                    _customCategory = null;
+                    _customCategoryController.clear();
+                  } else {
+                    _goalCategory = newValue;
+                    _isOtherCategorySelected = false;
+                    _customCategory = null;
+                    _customCategoryController.clear();
+                  }
+                });
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDropdownField({
     required String hintText,
     required String? value,
@@ -365,7 +956,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -384,8 +978,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           ),
           icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
           onChanged: onChanged,
-          items: (items ?? const <String>[])
-              .map<DropdownMenuItem<String>>((String value) {
+          items: (items ?? const <String>[]).map<DropdownMenuItem<String>>((
+            String value,
+          ) {
             return DropdownMenuItem<String>(
               value: value,
               child: Text(
@@ -399,6 +994,250 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showCenteredSuccessDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.check_circle, color: AppColors.successColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showCenteredErrorDialog(
+    BuildContext context,
+    String message,
+  ) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.elevatedBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline, color: AppColors.dangerColor, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('OK', style: TextStyle(color: AppColors.activeColor)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _suggestGoalDetails(BuildContext context) async {
+    final description = _goalDescriptionController.text.trim();
+    if (description.isEmpty) {
+      await _showCenteredErrorDialog(
+        context,
+        'Please generate a goal description first',
+      );
+      return;
+    }
+
+    // Check if start date and target date are selected
+    if (_startDate == null || _targetDate == null) {
+      await _showCenteredErrorDialog(
+        context,
+        'Please select both Start Date and Target Date before generating suggestions.',
+      );
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+        ),
+      ),
+    );
+
+    try {
+      // Initialize Firebase AI model
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant that analyzes personal development goal descriptions and suggests appropriate categories, priorities, and key performance areas. '
+          'Based on the goal description provided, you must suggest:\n'
+          '1. Category: Choose ONE from these exact options: Career, Skills, Wellness, Finance, or Other. If it does not fit any of the first four, suggest "Other".\n'
+          '2. Priority: Choose ONE from these exact options: High, Medium, or Low.\n'
+          '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational, Customer, or Financial.\n\n'
+          'Respond ONLY with a JSON object in this exact format (no other text):\n'
+          '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational|Customer|Financial"}',
+        ),
+      );
+
+      final prompt = [
+        Content.text(
+          'Analyze this goal description and suggest the category, priority, and key performance area:\n\n$description',
+        ),
+      ];
+
+      final response = await model.generateContent(prompt);
+      final responseText = response.text?.replaceAll('*', '').trim() ?? '';
+
+      // Parse JSON response
+      String jsonText = responseText.trim();
+      // Remove markdown code blocks if present
+      if (jsonText.contains('```json')) {
+        jsonText = jsonText.split('```json')[1].split('```')[0].trim();
+      } else if (jsonText.contains('```')) {
+        jsonText = jsonText.split('```')[1].split('```')[0].trim();
+      }
+
+      // Extract JSON object using regex
+      final jsonMatch = RegExp(
+        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',
+      ).firstMatch(jsonText);
+      if (jsonMatch == null) {
+        throw Exception('Could not find JSON object in AI response');
+      }
+
+      final jsonString = jsonMatch.group(0) ?? '{}';
+      Map<String, dynamic> suggestions;
+
+      try {
+        suggestions = jsonDecode(jsonString) as Map<String, dynamic>;
+      } catch (e) {
+        // Fallback: try to parse manually if JSON decode fails
+        final categoryMatch = RegExp(
+          r'"category"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+        final priorityMatch = RegExp(
+          r'"priority"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+        final kpaMatch = RegExp(
+          r'"kpa"\s*:\s*"([^"]+)"',
+        ).firstMatch(jsonString);
+
+        suggestions = {};
+        if (categoryMatch != null) {
+          suggestions['category'] = categoryMatch.group(1);
+        }
+        if (priorityMatch != null) {
+          suggestions['priority'] = priorityMatch.group(1);
+        }
+        if (kpaMatch != null) {
+          suggestions['kpa'] = kpaMatch.group(1);
+        }
+      }
+
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+      }
+
+      // Apply suggestions
+      if (mounted) {
+        setState(() {
+          final category = suggestions['category']?.toString().trim();
+          if (category != null) {
+            if (category == 'Other') {
+              _isOtherCategorySelected = true;
+              _goalCategory = 'Other';
+              _customCategory = null;
+              _customCategoryController.clear();
+            } else if (_goalCategories.contains(category)) {
+              _goalCategory = category;
+              _isOtherCategorySelected = false;
+              _customCategory = null;
+              _customCategoryController.clear();
+            }
+          }
+
+          final priority = suggestions['priority']?.toString().trim();
+          if (priority != null &&
+              ['High', 'Medium', 'Low'].contains(priority)) {
+            _currentStatus = priority;
+          }
+
+          final kpa = suggestions['kpa']?.toString().trim();
+          if (kpa != null && _kpaOptions.contains(kpa)) {
+            _kpa = kpa.toLowerCase();
+          }
+        });
+
+        // Show success message in centered dialog
+        if (mounted) {
+          await _showCenteredSuccessDialog(
+            // ignore: use_build_context_synchronously
+            context,
+            'Suggestions applied successfully!',
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        Navigator.of(context).pop();
+      }
+
+      if (mounted) {
+        await _showCenteredErrorDialog(
+          // ignore: use_build_context_synchronously
+          context,
+          'Error generating suggestions: $e',
+        );
+      }
+    }
   }
 
   Widget _buildSmartCriteriaSection() {
@@ -433,15 +1272,24 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.elevatedBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.borderColor),
                   ),
                   child: Text(
-                    'SMART: ${_computeSmartTotal()}/25',
-                    style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+                    _smartScoresGenerated
+                        ? 'SMART: ${_computeSmartTotal()}/25'
+                        : 'SMART: Not evaluated',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: _smartScoresGenerated
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
@@ -449,33 +1297,52 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             const SizedBox(height: AppSpacing.md),
             _buildScoreSelector(
               title: 'Specific - Goal is clear and well-defined',
-              value: _clarity,
-              onChanged: (v) => setState(() => _clarity = v),
+              value: _smartScoresGenerated ? _clarity : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=vague, 3=some detail, 5=precise deliverable & scope',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Measurable - Progress can be tracked',
-              value: _measurability,
-              onChanged: (v) => setState(() => _measurability = v),
-              helper: '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
+              value: _smartScoresGenerated
+                  ? _measurability
+                  : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
+              helper:
+                  '1=no KPI, 3=KPI w/o baseline/target, 5=KPI+baseline+target+source',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Achievable - Goal is realistic and attainable',
-              value: _achievability,
-              onChanged: (v) => setState(() => _achievability = v),
+              value: _smartScoresGenerated
+                  ? _achievability
+                  : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=unlikely, 3=stretch, 5=realistic with resources',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Relevant - Goal aligns with your values/role/OKR',
-              value: _relevance,
-              onChanged: (v) => setState(() => _relevance = v),
+              value: _smartScoresGenerated
+                  ? _relevance
+                  : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=not aligned, 3=indirect, 5=direct OKR/competency fit',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
             _buildScoreSelector(
               title: 'Time-bound - Goal has a clear deadline',
-              value: _timeline,
-              onChanged: (v) => setState(() => _timeline = v),
+              value: _smartScoresGenerated
+                  ? _timeline
+                  : 0, // 0 means unselected
+              onChanged: null, // Disabled - AI will set scores
               helper: '1=no date, 3=date tight, 5=realistic + milestones',
+              enabled: false,
+              aiGenerated: _smartScoresGenerated,
             ),
           ],
         ),
@@ -484,14 +1351,33 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   }
 
   int _computeSmartTotal() {
+    if (!_smartScoresGenerated) {
+      return 0; // Return 0 if scores haven't been generated
+    }
     return _clarity + _measurability + _achievability + _relevance + _timeline;
+  }
+
+  int _parseSmartScore(dynamic value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is int) {
+      return value.clamp(1, 5);
+    }
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      if (parsed != null) {
+        return parsed.clamp(1, 5);
+      }
+    }
+    return defaultValue;
   }
 
   Widget _buildScoreSelector({
     required String title,
     required int value,
-    required ValueChanged<int> onChanged,
+    required ValueChanged<int>? onChanged,
     String? helper,
+    bool enabled = true,
+    bool aiGenerated = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -500,13 +1386,17 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         children: [
           Text(
             title,
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textPrimary,
+            ),
           ),
           if (helper != null) ...[
             const SizedBox(height: 4),
             Text(
               helper,
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -514,19 +1404,38 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             spacing: 8,
             children: List.generate(5, (index) {
               final score = index + 1;
-              final selected = value == score;
+              final selected =
+                  value == score && value > 0; // Only selected if value > 0
+              // Use red color #C10D00 for AI-generated selections
+              final selectedColor = aiGenerated && selected
+                  ? const Color(0xFFC10D00)
+                  : AppColors.activeColor;
               return ChoiceChip(
                 label: Text(
                   '$score',
                   style: AppTypography.bodyMedium.copyWith(
-                    color: selected ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: enabled
+                        ? (selected ? Colors.white : AppColors.textSecondary)
+                        : (selected
+                              ? Colors.white
+                              : AppColors.textSecondary.withValues(alpha: 0.5)),
                   ),
                 ),
                 selected: selected,
-                onSelected: (_) => onChanged(score),
-                selectedColor: AppColors.activeColor,
+                onSelected: enabled ? (_) => onChanged?.call(score) : null,
+                selectedColor: selectedColor,
                 backgroundColor: Colors.black.withValues(alpha: 0.3),
-                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+                disabledColor: Colors.black.withValues(alpha: 0.2),
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: selected
+                        ? selectedColor
+                        : (enabled
+                              ? AppColors.borderColor
+                              : AppColors.borderColor.withValues(alpha: 0.3)),
+                    width: selected ? 2 : 1,
+                  ),
+                ),
               );
             }),
           ),
@@ -591,8 +1500,16 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
       if (user == null) return;
 
       // Map category to GoalCategory enum
+      // Use custom category if "Other" is selected, otherwise use selected category
+      final categoryValue =
+          _isOtherCategorySelected &&
+              _customCategory != null &&
+              _customCategory!.isNotEmpty
+          ? _customCategory!.toLowerCase()
+          : _goalCategory?.toLowerCase() ?? '';
+
       GoalCategory category;
-      switch (_goalCategory?.toLowerCase()) {
+      switch (categoryValue) {
         case 'career':
           category = GoalCategory.work;
           break;
@@ -601,7 +1518,12 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           category = GoalCategory.learning;
           break;
         case 'wellness':
+        case 'health':
           category = GoalCategory.health;
+          break;
+        case 'finance':
+        case 'financial':
+          category = GoalCategory.personal; // Map finance to personal
           break;
         default:
           category = GoalCategory.personal;
@@ -649,7 +1571,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -680,7 +1604,6 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
         );
       }
     } catch (e) {
-      
       try {
         if (mounted) {
           Navigator.of(context).pop();
@@ -722,7 +1645,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
               side: BorderSide(color: AppColors.borderColor),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
             child: const Text('Cancel'),
@@ -734,10 +1657,10 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             onPressed: _saveGoal,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
-              foregroundColor: AppColors.textPrimary,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(28),
               ),
             ),
             child: const Text('Create Goal'),

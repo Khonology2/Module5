@@ -9,18 +9,35 @@ class TimelineService {
   static Map<String, dynamic> buildEvent({
     required String eventType,
     required String description,
+    String? actorIdOverride,
+    String? actorNameOverride,
   }) {
     final user = _auth.currentUser;
+    final actorId = actorIdOverride ?? user?.uid ?? '';
+
+    String name = actorNameOverride ?? user?.displayName ?? '';
+    if (name.trim().isEmpty) {
+      final email = user?.email ?? '';
+      if (email.isNotEmpty) {
+        name = email.split('@').first;
+      } else {
+        name = 'Unknown';
+      }
+    }
+
     return {
       'eventType': eventType,
       'description': description,
       'timestamp': Timestamp.now(),
-      'actorId': user?.uid ?? '',
-      'actorName': user?.displayName ?? 'Unknown',
+      'actorId': actorId,
+      'actorName': name,
     };
   }
 
-  static Future<void> logEvent(String entryId, Map<String, dynamic> event) async {
+  static Future<void> logEvent(
+    String entryId,
+    Map<String, dynamic> event,
+  ) async {
     final data = Map<String, dynamic>.from(event);
     data['timestamp'] = data['timestamp'] ?? Timestamp.now();
     await _firestore
@@ -37,9 +54,10 @@ class TimelineService {
         .collection('timeline')
         .orderBy('timestamp', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => AuditTimelineEvent.fromFirestore(doc))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => AuditTimelineEvent.fromFirestore(doc))
+              .toList(),
+        );
   }
 }
-

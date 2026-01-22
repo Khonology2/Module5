@@ -1,9 +1,14 @@
+// Firestore Security Rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isSignedIn() { return request.auth != null; }
     function userId() { return request.auth.uid; }
-    function isAdmin() { return request.auth.token.admin == true; }
+    function isAdmin() { 
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(userId())) &&
+             get(/databases/$(database)/documents/users/$(userId())).data.role == 'admin';
+    }
     function isManager() {
       return isSignedIn() &&
              exists(/databases/$(database)/documents/users/$(userId())) &&
@@ -19,155 +24,295 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(uid)).data.role : null;
     }
     function sameDepartment(uid) {
-      return exists(/databases/$(database)/documents/users/$(userId())) &&
-             exists(/databases/$(database)/documents/users/$(uid)) &&
-             get(/databases/$(database)/documents/users/$(userId())).data.department ==
-             get(/databases/$(database)/documents/users/$(uid)).data.department;
+      return true;
     }
     function canManagerSeeEmployee(userId) {
-      return userRole(userId) == 'employee' && sameDepartment(userId);
+      return userRole(userId) == 'employee';
+    }
+
+    function goalExists(goalId) {
+      return exists(/databases/$(database)/documents/goals/$(goalId));
+    }
+
+    // Some older goal documents used different fields for ownership.
+    // Prefer userId, but tolerate legacy keys so owners don't get locked out.
+    function goalOwnerUidFromData(data) {
+      return data.userId != null
+        ? data.userId
+        : (data.ownerId != null
+            ? data.ownerId
+            : (data.uid != null
+                ? data.uid
+                : (data.employeeId != null ? data.employeeId : null)));
+    }
+    function goalOwner(goalId) {
+      return goalExists(goalId)
+        ? goalOwnerUidFromData(get(/databases/$(database)/documents/goals/$(goalId)).data)
+        : null;
+    }
+    function canAccessGoal(goalId) {
+      let owner = goalOwner(goalId);
+      return owner != null && (
+        userId() == owner ||
+        isManager() ||
+        isAdmin()
+      );
+    }
+    function canEditGoalMilestones(goalId) {
+      let owner = goalOwner(goalId);
+      return owner != null && (
+        userId() == owner ||
+        isAdmin()
+      );
+    }
+    function canManagerUpdateGoal() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(userId())) &&
+             get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
+    }
+    function isValidMilestoneStatus(status) {
+      return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
+    }
+    function validateMilestoneCreate(data) {
+      return data.keys().hasOnly([
+        'title',
+        'description',
+        'status',
+        'dueDate',
+        'createdBy',
+        'createdByName',
+        'createdAt',
+        'updatedAt',
+        'completedAt'
+      ]) &&
+      data.title is string &&
+      data.title.size() > 0 &&
+      (!('description' in data) || data.description is string) &&
+      data.dueDate is timestamp &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp &&
+      (!('completedAt' in data) || data.completedAt == null || data.completedAt is timestamp) &&
+      data.createdBy == userId() &&
+      isValidMilestoneStatus(data.status);
+    }
+    function validateMilestoneUpdate(diff) {
+      return diff.changedKeys().hasOnly([
+        'title',
+        'description',
+        'status',
+        'dueDate',
+        'updatedAt',
+        'completedAt'
+      ]);
+    }
+    function isApprovalOrReviewUpdate() {
+      let allowedKeys = ['approvalStatus', 'approvedByUserId', 'approvedByName', 'approvedAt', 'rejectionReason', 'review'];
+      let changedOnlyAllowed = resource.data.diff(request.resource.data).changedKeys().hasOnly(allowedKeys);
+      return changedOnlyAllowed && (
+        (
+          ('approvalStatus' in request.resource.data) &&
+          ('approvedByUserId' in request.resource.data) &&
+          request.resource.data.approvedByUserId == userId() &&
+          resource.data.userId != userId()
+        ) ||
+        (
+          ('review' in request.resource.data) &&
+          resource.data.userId != userId()
+        )
+      );
     }
 
     match /users/{userId} {
-      // Allow reads for: the user themselves, managers/admins per policy,
-      // or any user document where the owner has opted-in to leaderboard visibility
       allow read: if isSignedIn() && (
         userId() == userId ||
-        (isManager() && sameDepartment(userId)) ||
-        isAdmin() ||
-        resource.data.leaderboardOptin == true
+        isManager() ||
+        isAdmin()
       );
+      allow read: if isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.leaderboardOptin == true;
 
-      // Allow listing for signed-in users; individual docs still must satisfy read rule
       allow list: if isSignedIn();
 
-      // Create allowed for the user to set their initial role.
+      // Owner can create their own doc (including setting initial role)
       allow create: if isSignedIn() && userId() == userId;
 
-      // Allow owner to update their own profile as long as they are not changing role.
-      // Permit initial role set only if roleSetAt is not set yet.
+      // Owner can update their profile as long as they are NOT changing role.
+      // Permit initial role set only if role doesn't exist yet.
       allow update: if isSignedIn() && userId() == userId && (
-        // Either role is not changing (not present in the request or same value)
-        !('role' in request.resource.data) || request.resource.data.role == resource.data.role ||
-        // Or first-time role selection allowed when roleSetAt isn't set yet
-        (!('roleSetAt' in resource.data) && ('role' in request.resource.data))
+        !('role' in request.resource.data) ||
+        (!('role' in resource.data) && ('role' in request.resource.data)) ||
+        (resource.data.role == request.resource.data.role)
       );
 
       // Admins can write anything (including changing roles).
       allow write: if isAdmin();
 
-      // Rules for subcollections
       match /{subcollection}/{subDocument} {
         allow read, create: if isSignedIn() && (
           userId() == userId ||
-          (isManager() && sameDepartment(userId)) ||
+          isManager() ||
+          isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          userId() == userId ||
+          isManager() ||
           isAdmin()
         );
 
-        // Allow user to update their own daily activity tracking entries
         allow update: if isSignedIn() && request.auth.uid == userId && (subcollection == 'daily_activities' || subcollection == 'badges');
 
-        // Allow managers to create alerts, nudges for their employees
         allow create: if isManager() && userRole(userId) == 'employee' && 
-          sameDepartment(userId) && subcollection == 'alerts';
+          subcollection == 'alerts';
         
-        // Allow managers to update employee goals, progress
         allow update: if isManager() && userRole(userId) == 'employee' && 
-          sameDepartment(userId) && (subcollection == 'goals' || subcollection == 'activities');
+          (subcollection == 'goals' || subcollection == 'activities');
       }
     }
 
-    // Goals collection - managers can read/write employee goals
-    match /goals/{goalId} {
-      allow update: if isSignedIn() && isManager();
-      allow read, write: if isSignedIn() && (
-        userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
-        isAdmin()
-      );
-      
-        allow create: if isSignedIn();
+    match /onboarding/{uid} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
-    // Activities tracking for managers
-    match /activities/{activityId} {
-      // Reads allowed to owner, managers, admins
+    match /goals/{goalId} {
+      allow update: if isSignedIn() && userId() == goalOwnerUidFromData(resource.data);
+      allow update: if canManagerUpdateGoal();
+      // Approval/rejection updates by managers
+      allow update: if isSignedIn() && isApprovalOrReviewUpdate();
+      // Admins can update any goal
+      allow update: if isSignedIn() && isAdmin();
+
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
 
-      // Create must validate against request.resource since resource doesn't exist yet
-        allow create: if isSignedIn();
+      // Only allow employees to create goals for themselves.
+      // Managers are NOT allowed to create goals.
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (!isManager() && goalOwnerUidFromData(request.resource.data) == userId())
+      );
 
-      // Updates/deletes validate against existing resource
+      // Tighten list/query access:
+      // - managers/admins can list any goals
+      // - employees can only list when the query is scoped to their own userId
+      allow list: if isSignedIn() && (
+        isManager() ||
+        isAdmin() ||
+        request.query.where('userId', '==', userId())
+      );
+
+      match /milestones/{milestoneId} {
+        allow list: if isSignedIn() && canAccessGoal(goalId);
+        allow read: if isSignedIn() && canAccessGoal(goalId);
+        allow create: if isSignedIn() && request.resource.data.createdBy == userId();
+        allow update: if isSignedIn() && (
+          (userId() == resource.data.createdBy) ||
+          isManager() || isAdmin()
+        );
+      }
+    }
+
+    match /activities/{activityId} {
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        isManager() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn();
       allow update, delete: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
-
-      // Allow managers to perform batch queries for their team
-      allow list: if isSignedIn() && isManager();
+      allow list: if isSignedIn();
     }
 
-    // Team Goals - managers can create team goals for their department
     match /team_goals/{goalId} {
-      allow read: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
-      allow create: if isSignedIn() && (
-        isManager() || isAdmin()
-      );
-      
+      allow read: if isSignedIn() && (isManager() || isAdmin());
+      allow create: if isSignedIn() && (isManager() || isAdmin());
       allow update: if isSignedIn() && (
         (isManager() && resource.data.managerId == request.auth.uid) ||
         isAdmin()
       );
     }
 
-    // Alerts - managers can create alerts for employees
     match /alerts/{alertId} {
       allow read, update: if isSignedIn() && (
         request.auth.uid == resource.data.userId ||
         (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
         isAdmin()
       );
-      
       allow create: if isSignedIn();
-
-      // Allow managers to perform batch queries for their team
-      allow list: if isSignedIn() && isManager();
+      allow list: if isSignedIn();
+      // Allow delete for goal deletion cleanup - simplified for batch safety
+      allow delete: if isSignedIn() && (
+        // Allow if user is the owner
+        request.auth.uid == resource.data.userId ||
+        // Allow if user is a manager or admin
+        isManager() ||
+        isAdmin() ||
+        // Allow system-initiated deletions (from backend)
+        (resource.data.relatedGoalId != null && 
+         request.auth.uid == resource.data.relatedGoalId + '_system')
+      );
     }
 
-    // Notifications - managers can read notifications sent to their employees
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow list: if isSignedIn();
+    }
+
+    match /manager_actions/{actionId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        (isManager() && resource.data.managerId == userId())
+      );
+      allow list: if isSignedIn() && (isAdmin() || isManager());
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (isManager() && request.resource.data.managerId == userId())
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Audit entries for tracking system events
+    match /audit_entries/{entryId} {
+      // Allow reading own audit entries or all if admin/manager
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        isManager() ||
         isAdmin()
       );
       
-        allow create: if isSignedIn();
+      // Allow creating audit entries for system events
+      allow create: if isSignedIn() && (
+        // Admin/manager can create audit entries
+        isAdmin() || isManager()
+      );
+      
+      // Only admins can modify audit entries
+      allow update, delete: if isAdmin();
+      
+      // Allow listing for admins and managers
+      allow list: if isSignedIn() && (isManager() || isAdmin());
     }
-
-    // Seasons/Challenges - managers create; employees can read and self-join
+    
     match /seasons/{seasonId} {
-      // Allow any signed-in user to read seasons so employees can browse/join
       allow read: if isSignedIn();
-
-      // Allow managers to create seasons
+      allow list: if isSignedIn();
       allow create: if isSignedIn() && (isManager() || isAdmin());
-
-      // Allow updates:
-      //  - manager (creator) and admins can update/delete anything
-      //  - employee can update only if the new doc includes their own participation
       allow update: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin() ||
-        // employee self-join: their uid must be present in the UPDATED fields
         (
           (
             ('participantIds' in request.resource.data) &&
@@ -179,87 +324,93 @@ service cloud.firestore {
           )
         )
       );
-
       allow delete: if isSignedIn() && (
         (isManager() && resource.data.createdBy == request.auth.uid) ||
         isAdmin()
       );
     }
 
-    // Badges - users can read their own badges, managers can read employee badges
+    // Season celebration summary documents created when a season is completed.
+    // Written by the season owner (manager) or admin; readable by signed-in users.
+    match /season_celebrations/{seasonId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        isAdmin() ||
+        (
+          exists(/databases/$(database)/documents/seasons/$(seasonId)) &&
+          get(/databases/$(database)/documents/seasons/$(seasonId)).data.createdBy == request.auth.uid
+        )
+      );
+    }
+
     match /badges/{badgeId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
-      
-        allow create: if isSignedIn();
+      allow create: if isSignedIn();
+      allow list: if isSignedIn();
     }
 
-    // Audit Entries - employees can create/read own; managers can read/write within department
     match /audit_entries/{auditId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
       allow create: if isEmployee() && request.resource.data.userId == userId();
-      allow update, delete: if (isManager() && sameDepartment(resource.data.userId)) || isAdmin();
+      allow update, delete: if isManager() || isAdmin();
 
-      // Timeline subcollection (events tied to audit entry)
       match /timeline/{timelineId} {
-        // Read/create allowed for any signed-in user, since parent read already restricted
         allow read, create, list: if isSignedIn();
       }
+      allow list: if isSignedIn();
     }
 
-    // Evidence Files - users can read/write own; managers can read within department
     match /evidence_files/{fileId} {
       allow read: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
       allow create: if isSignedIn() && request.resource.data.userId == userId();
       allow update, delete: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
       allow list: if isSignedIn() && (
         userId() == resource.data.userId ||
-        (isManager() && sameDepartment(resource.data.userId)) ||
+        isManager() ||
         isAdmin()
       );
     }
 
-    // Repositories - users read own; managers read department
     match /repositories/{userId} {
       allow read: if isSignedIn() && (
         userId() == userId ||
-        (isManager() && sameDepartment(userId)) ||
+        isManager() ||
         isAdmin()
       );
       allow list: if isSignedIn() && (isManager() || isAdmin());
-      
-      // Completed goals subcollection
+
       match /completedGoals/{goalId} {
         allow read: if isSignedIn() && (
           userId() == userId ||
-          (isManager() && sameDepartment(userId)) ||
+          isManager() ||
           isAdmin()
         );
         allow write: if isSignedIn() && (userId() == userId || isManager() || isAdmin());
         allow list: if isSignedIn() && (
           userId() == userId ||
-          (isManager() && sameDepartment(userId)) ||
+          isManager() ||
           isAdmin()
         );
       }
     }
-    
-    // Team chat rules
+
     match /team.chat/{messageId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
@@ -270,11 +421,8 @@ service cloud.firestore {
           request.resource.data.text == resource.data.text &&
           request.resource.data.timestamp == resource.data.timestamp &&
           request.resource.data.senderName == resource.data.senderName &&
-          request.resource.data.isDeleted == resource.data.isDeleted &&
           request.resource.data.clientAt == resource.data.clientAt &&
           request.resource.data.editedAt == resource.data.editedAt &&
-          request.resource.data.deletedAt == resource.data.deletedAt &&
-          request.resource.data.deletedBy == resource.data.deletedBy &&
           request.resource.data.replyTo == resource.data.replyTo &&
           request.resource.data.replyToText == resource.data.replyToText &&
           (
@@ -285,9 +433,25 @@ service cloud.firestore {
       );
     }
 
-    // Deleted accounts blocklist - allow reads for signed-in users only
+    // Goal Daily Progress
+    match /goal_daily_progress/{progressId} {
+      allow read: if isSignedIn() && (
+        userId() == resource.data.userId ||
+        (isManager() && canManagerSeeEmployee(resource.data.userId)) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == userId();
+      allow list: if isSignedIn();
+    }
+
+
     match /deleted_accounts/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Catch-all deny
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

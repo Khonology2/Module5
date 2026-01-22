@@ -7,7 +7,35 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/streak_service.dart';
 
 class BadgeService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+
+  // Some user subcollections (like goals) are bootstrapped with an "init" document
+  // so the collection exists for security rules. These placeholders should NEVER
+  // count toward badge progress or goal totals.
+  static bool _isPlaceholderGoalDoc(Map<String, dynamic>? data, String docId) {
+    if (docId == 'init') return true;
+    final placeholderFlag = data?['placeholder'];
+    return placeholderFlag is bool && placeholderFlag;
+  }
+
+  static bool _isManualUserGoalDoc(Map<String, dynamic>? data, String docId) {
+    if (_isPlaceholderGoalDoc(data, docId)) return false;
+    final isSeasonGoal = data?['isSeasonGoal'];
+    return !(isSeasonGoal is bool && isSeasonGoal);
+  }
+
+  /// Detect manager-only badges so employee views can hide them.
+  static bool isManagerBadge(Badge badge) {
+    final id = badge.id.toLowerCase();
+    if (id.startsWith('mgr_')) return true;
+
+    final criteria = badge.criteria;
+    final criteriaId = (criteria['badgeId'] ?? '').toString().toLowerCase();
+    if (criteriaId.startsWith('mgr_')) return true;
+
+    if (criteria.containsKey('managerLevel')) return true;
+    return false;
+  }
 
   // ===== Real-time tracking =====
   static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
@@ -71,47 +99,73 @@ class BadgeService {
   }
 
   // Get all badges for a user with their progress
-  static Stream<List<Badge>> getUserBadgesStream(String userId) {
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('badges')
-        .snapshots()
-        .map((snapshot) {
-          try {
-            return snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
-              ..sort((a, b) {
-                // Primary: rarity order Common -> Rare -> Epic -> Legendary
-                final rarityOrder = {
-                  BadgeRarity.common: 0,
-                  BadgeRarity.rare: 1,
-                  BadgeRarity.epic: 2,
-                  BadgeRarity.legendary: 3,
-                };
-                final aOrder = rarityOrder[a.rarity] ?? 99;
-                final bOrder = rarityOrder[b.rarity] ?? 99;
-                if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+  static Stream<List<Badge>> getUserBadgesStream(String userId) async* {
+    // Defensive stream: emit empty list on any Firestore/watch error instead of bubbling.
+    try {
+      await for (final snapshot in _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .snapshots()) {
+        try {
+          final list = snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
+            ..sort((a, b) {
+              // Primary: rarity order Common -> Rare -> Epic -> Legendary
+              final rarityOrder = {
+                BadgeRarity.common: 0,
+                BadgeRarity.rare: 1,
+                BadgeRarity.epic: 2,
+                BadgeRarity.legendary: 3,
+              };
+              final aOrder = rarityOrder[a.rarity] ?? 99;
+              final bOrder = rarityOrder[b.rarity] ?? 99;
+              if (aOrder != bOrder) return aOrder.compareTo(bOrder);
 
-                // Secondary: earned first within the same rarity
-                if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+              // Secondary: earned first within the same rarity
+              if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
 
-                // Tertiary: higher progress first
-                return b.progressPercentage.compareTo(a.progressPercentage);
-              });
-          } catch (e) {
-            developer.log('Error processing badges: $e');
-            return <Badge>[];
-          }
-        })
-        .handleError((error) {
-          developer.log('Error loading badges: $error');
-          return <Badge>[];
-        });
+              // Tertiary: higher progress first
+              return b.progressPercentage.compareTo(a.progressPercentage);
+            });
+          yield list;
+        } catch (e, st) {
+          developer.log('Error processing badges snapshot: $e', stackTrace: st);
+          yield <Badge>[];
+        }
+      }
+    } catch (e, st) {
+      developer.log('Error loading badges stream: $e', stackTrace: st);
+      // Emit a safe empty list so UI continues rendering.
+      yield <Badge>[];
+    }
   }
 
   // Initialize default badges for a user
   static Future<void> initializeUserBadges(String userId) async {
     try {
+      // First, check if user has any goals (critical for first_goal badge)
+      int userGoalCount = 0;
+      try {
+        final goalsSnapshot = await _firestore
+            .collection('goals')
+            .where('userId', isEqualTo: userId)
+            .get();
+        userGoalCount = goalsSnapshot.docs
+            .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
+            .length;
+        try {
+          final subSnap = await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('goals')
+              .get();
+          final validSubDocs = subSnap.docs.where(
+            (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
+          );
+          userGoalCount += validSubDocs.length;
+        } catch (_) {}
+      } catch (_) {}
+
       final defaultBadges = _getDefaultBadges();
       final batch = _firestore.batch();
 
@@ -121,10 +175,63 @@ class BadgeService {
             .doc(userId)
             .collection('badges')
             .doc(badge.id);
-        batch.set(docRef, badge.toFirestore());
+
+        // CRITICAL: For first_goal badge, ensure it's NEVER created as earned if user has no goals
+        if (badge.id == 'first_goal' && userGoalCount == 0) {
+          final safeBadge = badge.copyWith(
+            isEarned: false,
+            progress: 0,
+            earnedAt: null,
+          );
+          batch.set(docRef, safeBadge.toFirestore());
+          developer.log(
+            'Initialized first_goal badge as unearned (user has no goals)',
+          );
+        } else {
+          batch.set(docRef, badge.toFirestore());
+        }
       }
 
       await batch.commit();
+
+      // CRITICAL: Immediately after initialization, verify and correct first_goal badge
+      // This ensures the badge is never incorrectly marked as earned
+      try {
+        final firstGoalBadgeRef = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc('first_goal');
+        final firstGoalBadgeDoc = await firstGoalBadgeRef.get();
+
+        if (firstGoalBadgeDoc.exists) {
+          final badgeData = firstGoalBadgeDoc.data() ?? {};
+          final isEarned = (badgeData['isEarned'] ?? false) as bool;
+
+          // Double-check: if badge is marked as earned but user has no goals, correct it
+          if (isEarned && userGoalCount == 0) {
+            await firstGoalBadgeRef.update({
+              'isEarned': false,
+              'progress': 0,
+              'earnedAt': null,
+            });
+            developer.log(
+              'Post-initialization correction: first_goal badge un-earned (user has no goals)',
+            );
+          }
+        }
+      } catch (e) {
+        developer.log('Error in post-initialization badge correction: $e');
+      }
+
+      await updateUserBadgeSummary(
+        userId,
+        snapshot: await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .get(),
+      );
     } catch (e) {
       developer.log('Error initializing badges: $e');
     }
@@ -155,6 +262,7 @@ class BadgeService {
           .get();
 
       List<Goal> goals = goalsSnapshot.docs
+          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
           .map((doc) => Goal.fromFirestore(doc))
           .toList();
 
@@ -166,6 +274,7 @@ class BadgeService {
             .collection('goals')
             .get();
         final subGoals = subSnap.docs
+            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
             .map((doc) => Goal.fromFirestore(doc))
             .toList();
         final seen = goals.map((g) => g.id).toSet();
@@ -201,6 +310,8 @@ class BadgeService {
         totalGoals,
         correctLevel,
       );
+
+      await updateUserBadgeSummary(userId);
 
       developer.log('Completed retroactive badge and level update');
     } catch (e) {
@@ -518,8 +629,35 @@ class BadgeService {
           .get();
 
       final existingIds = existing.docs.map((d) => d.id).toSet();
-      final missing = defaults.where((b) => !existingIds.contains(b.id)).toList();
+      final missing = defaults
+          .where((b) => !existingIds.contains(b.id))
+          .toList();
       if (missing.isEmpty) return;
+
+      // Before creating missing badges, verify user has goals for first_goal badge
+      int userGoalCount = 0;
+      if (missing.any((b) => b.id == 'first_goal')) {
+        try {
+          final goalsSnapshot = await _firestore
+              .collection('goals')
+              .where('userId', isEqualTo: userId)
+              .get();
+          userGoalCount = goalsSnapshot.docs
+              .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
+              .length;
+          try {
+            final subSnap = await _firestore
+                .collection('users')
+                .doc(userId)
+                .collection('goals')
+                .get();
+            final validSubDocs = subSnap.docs.where(
+              (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
+            );
+            userGoalCount += validSubDocs.length;
+          } catch (_) {}
+        } catch (_) {}
+      }
 
       final batch = _firestore.batch();
       for (final badge in missing) {
@@ -528,7 +666,18 @@ class BadgeService {
             .doc(userId)
             .collection('badges')
             .doc(badge.id);
-        batch.set(ref, badge.toFirestore());
+
+        // For first_goal badge, ensure it's not marked as earned if user has no goals
+        if (badge.id == 'first_goal' && userGoalCount == 0) {
+          final safeBadge = badge.copyWith(
+            isEarned: false,
+            progress: 0,
+            earnedAt: null,
+          );
+          batch.set(ref, safeBadge.toFirestore());
+        } else {
+          batch.set(ref, badge.toFirestore());
+        }
       }
       await batch.commit();
     } catch (e) {
@@ -547,6 +696,58 @@ class BadgeService {
     BadgeRarity rarity,
   ) async {
     try {
+      // Special validation for first_goal badge: verify user actually has goals
+      if (badgeId == 'first_goal') {
+        final goalsSnapshot = await _firestore
+            .collection('goals')
+            .where('userId', isEqualTo: userId)
+            .get();
+
+        // Also check user subcollection
+        int totalGoals = goalsSnapshot.docs
+            .where((doc) => _isManualUserGoalDoc(doc.data(), doc.id))
+            .length;
+        try {
+          final subSnap = await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('goals')
+              .get();
+          final validSubDocs = subSnap.docs.where(
+            (doc) => _isManualUserGoalDoc(doc.data(), doc.id),
+          );
+          totalGoals += validSubDocs.length;
+        } catch (_) {}
+
+        // Don't award the badge if user has no goals
+        if (totalGoals == 0) {
+          developer.log('Skipping first_goal badge award: user has no goals');
+          // If badge exists and is incorrectly marked as earned, correct it
+          final badgeDoc = await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('badges')
+              .doc(badgeId)
+              .get();
+          if (badgeDoc.exists) {
+            final data = badgeDoc.data() ?? {};
+            final isEarned = (data['isEarned'] ?? false) as bool;
+            if (isEarned) {
+              await _firestore
+                  .collection('users')
+                  .doc(userId)
+                  .collection('badges')
+                  .doc(badgeId)
+                  .update({'isEarned': false, 'progress': 0, 'earnedAt': null});
+              developer.log(
+                'Corrected first_goal badge: un-earned because user has no goals',
+              );
+            }
+          }
+          return;
+        }
+      }
+
       final badgeDoc = await _firestore
           .collection('users')
           .doc(userId)
@@ -621,6 +822,7 @@ class BadgeService {
           .get();
 
       List<Goal> goals = goalsSnapshot.docs
+          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
           .map((doc) => Goal.fromFirestore(doc))
           .toList();
 
@@ -632,14 +834,47 @@ class BadgeService {
             .collection('goals')
             .get();
         final subGoals = subSnap.docs
+            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
             .map((doc) => Goal.fromFirestore(doc))
             .toList();
         final seen = goals.map((g) => g.id).toSet();
         goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
       } catch (_) {}
 
+      final hasUserCreatedGoals = goals.any((g) => !g.isSeasonGoal);
+
       // Ensure defaults exist so newly added badges appear for legacy users
       await _ensureDefaultBadgesExist(userId);
+
+      // CRITICAL: Explicitly validate and correct first_goal badge before any other checks
+      // This ensures the badge is never incorrectly marked as earned for users with no goals
+      try {
+        final firstGoalBadgeRef = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc('first_goal');
+        final firstGoalBadgeDoc = await firstGoalBadgeRef.get();
+
+        if (firstGoalBadgeDoc.exists) {
+          final badgeData = firstGoalBadgeDoc.data() ?? {};
+          final isEarned = (badgeData['isEarned'] ?? false) as bool;
+
+          // If badge is marked as earned but user has no goals, correct it immediately
+          if (isEarned && !hasUserCreatedGoals) {
+            await firstGoalBadgeRef.update({
+              'isEarned': false,
+              'progress': 0,
+              'earnedAt': null,
+            });
+            developer.log(
+              'Corrected first_goal badge: user has no goals but badge was marked as earned',
+            );
+          }
+        }
+      } catch (e) {
+        developer.log('Error validating first_goal badge: $e');
+      }
 
       // Get user badges
       var badgesSnapshot = await _firestore
@@ -649,8 +884,9 @@ class BadgeService {
           .get();
       // Migration: if 'goal_finisher' exists with outdated metadata, align it
       try {
-        final finisherDocs =
-            badgesSnapshot.docs.where((d) => d.id == 'goal_finisher').toList();
+        final finisherDocs = badgesSnapshot.docs
+            .where((d) => d.id == 'goal_finisher')
+            .toList();
         if (finisherDocs.isNotEmpty) {
           final data = finisherDocs.first.data();
           final needsUpdate =
@@ -666,13 +902,13 @@ class BadgeService {
                 .collection('badges')
                 .doc('goal_finisher')
                 .update({
-              'name': 'Goal Master',
-              'description': 'Complete 10 goals',
-              'iconName': 'check_circle',
-              'category': BadgeCategory.achievement.name,
-              'rarity': BadgeRarity.rare.name,
-              'maxProgress': 10,
-            });
+                  'name': 'Goal Master',
+                  'description': 'Complete 10 goals',
+                  'iconName': 'check_circle',
+                  'category': BadgeCategory.achievement.name,
+                  'rarity': BadgeRarity.rare.name,
+                  'maxProgress': 10,
+                });
             // Refresh snapshot after migration
             badgesSnapshot = await _firestore
                 .collection('users')
@@ -689,7 +925,9 @@ class BadgeService {
 
       // Check each badge criteria
       for (final badge in userBadges) {
-        if (!badge.isEarned) {
+        // Always check first_goal badge to ensure it's only earned when user has goals
+        // For other badges, only check if not already earned
+        if (!badge.isEarned || badge.id == 'first_goal') {
           final updatedBadge = await _checkBadgeCriteria(
             badge,
             userProfile,
@@ -700,7 +938,7 @@ class BadgeService {
               updatedBadge.isEarned != badge.isEarned) {
             await _updateUserBadge(userId, updatedBadge);
 
-            // Create alert if badge was earned
+            // Create alert if badge was earned (but not if it was un-earned)
             if (updatedBadge.isEarned && !badge.isEarned) {
               await _createBadgeEarnedAlert(userId, updatedBadge);
               developer.log('Badge earned: ${updatedBadge.name}');
@@ -717,6 +955,8 @@ class BadgeService {
 
       // Check for points milestone badges
       await _checkPointsMilestoneBadges(userId, userProfile);
+
+      await updateUserBadgeSummary(userId);
     } catch (e) {
       developer.log('Error checking badges: $e');
     }
@@ -744,7 +984,11 @@ class BadgeService {
 
     switch (badge.id) {
       case 'first_goal':
-        newProgress = goals.isNotEmpty ? 1 : 0;
+        // Only mark progress if user actually has at least one goal
+        // This badge should only be earned when the user has created at least one goal
+        // CRITICAL: Explicitly check goals count - badge should NEVER be earned if goals list is empty
+        final hasUserCreatedGoals = goals.any((g) => !g.isSeasonGoal);
+        newProgress = hasUserCreatedGoals ? 1 : 0;
         break;
 
       // Complete 5 goals (progressive)
@@ -780,9 +1024,8 @@ class BadgeService {
         break;
 
       case 'goal_finisher_1':
-        newProgress = goals
-                .where((g) => g.status == GoalStatus.completed)
-                .isNotEmpty
+        newProgress =
+            goals.where((g) => g.status == GoalStatus.completed).isNotEmpty
             ? 1
             : 0;
         break;
@@ -807,7 +1050,11 @@ class BadgeService {
       case 'cat_work_silver':
       case 'cat_work_gold':
         final workCompleted = goals
-            .where((g) => g.status == GoalStatus.completed && g.category == GoalCategory.work)
+            .where(
+              (g) =>
+                  g.status == GoalStatus.completed &&
+                  g.category == GoalCategory.work,
+            )
             .length;
         final max = (badge.criteria['count'] as int?) ?? badge.maxProgress;
         newProgress = workCompleted.clamp(0, max);
@@ -816,7 +1063,9 @@ class BadgeService {
       case 'cat_financial_silver':
       case 'cat_financial_gold':
         final finCompleted = goals
-            .where((g) => g.status == GoalStatus.completed && (g.kpa == 'financial'))
+            .where(
+              (g) => g.status == GoalStatus.completed && (g.kpa == 'financial'),
+            )
             .length;
         final max = (badge.criteria['count'] as int?) ?? badge.maxProgress;
         newProgress = finCompleted.clamp(0, max);
@@ -863,7 +1112,9 @@ class BadgeService {
 
       case 'goal_master_3q':
         // Approximation: 3+ completed goals (until time-window metadata available)
-        final completed = goals.where((g) => g.status == GoalStatus.completed).length;
+        final completed = goals
+            .where((g) => g.status == GoalStatus.completed)
+            .length;
         newProgress = completed.clamp(0, badge.maxProgress);
         break;
 
@@ -987,7 +1238,8 @@ class BadgeService {
           int total = 0;
           for (final d in snap.docs) {
             final data = d.data();
-            final participation = (data['participations'] ?? {}) as Map<String, dynamic>;
+            final participation =
+                (data['participations'] ?? {}) as Map<String, dynamic>;
             final me = participation[userId] as Map<String, dynamic>?;
             if (me != null) {
               final points = me['totalPoints'];
@@ -1014,7 +1266,8 @@ class BadgeService {
           int total = 0;
           for (final d in snap.docs) {
             final data = d.data();
-            final participation = (data['participations'] ?? {}) as Map<String, dynamic>;
+            final participation =
+                (data['participations'] ?? {}) as Map<String, dynamic>;
             final me = participation[userId] as Map<String, dynamic>?;
             if (me != null) {
               final points = me['totalPoints'];
@@ -1061,6 +1314,13 @@ class BadgeService {
     }
 
     isEarned = newProgress >= badge.maxProgress;
+
+    // CRITICAL FINAL CHECK: For first_goal badge, NEVER mark as earned if user has no goals
+    // This is a final safeguard to prevent any edge cases
+    if (badge.id == 'first_goal' && !goals.any((g) => !g.isSeasonGoal)) {
+      isEarned = false;
+      newProgress = 0;
+    }
 
     return badge.copyWith(
       progress: newProgress,
@@ -1408,6 +1668,51 @@ class BadgeService {
     ];
   }
 
+  static Future<void> updateUserBadgeSummary(
+    String userId, {
+    QuerySnapshot<Map<String, dynamic>>? snapshot,
+  }) async {
+    try {
+      final badgeSnapshot =
+          snapshot ??
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('badges')
+              .get();
+
+      final earnedBadgeIds = badgeSnapshot.docs
+          .where((doc) {
+            return _isBadgeEarned(doc.data());
+          })
+          .map((doc) => doc.id)
+          .toList();
+
+      await _firestore.collection('users').doc(userId).set({
+        'badges': earnedBadgeIds,
+        'earnedBadgesCount': earnedBadgeIds.length,
+        'badgeSummary': {
+          'earned': earnedBadgeIds.length,
+          'total': badgeSnapshot.docs.length,
+          'lastSyncedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+    } catch (e) {
+      developer.log('Error syncing badge summary for $userId: $e');
+    }
+  }
+
+  static bool _isBadgeEarned(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    if (data['isEarned'] == true) return true;
+    final progress = data['progress'];
+    final maxProgress = data['maxProgress'];
+    if (progress is num && maxProgress is num && maxProgress > 0) {
+      return progress >= maxProgress;
+    }
+    return false;
+  }
+
   // Get leaderboard data
   static Future<List<Map<String, dynamic>>> getLeaderboard({
     int limit = 10,
@@ -1418,6 +1723,9 @@ class BadgeService {
   }) async {
     try {
       Query query = _firestore.collection('users');
+
+      // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
+      query = query.where('role', isEqualTo: 'employee');
 
       // Add department filter if specified
       if (department != null && department.isNotEmpty) {
@@ -1431,17 +1739,30 @@ class BadgeService {
 
       final snapshot = await query.get();
 
-      // Filter for opted-in users after fetching
-      final filteredDocs = onlyOptedIn
-          ? snapshot.docs.where((doc) {
-              try {
-                final data = doc.data() as Map<String, dynamic>?;
-                return data != null && data['leaderboardOptin'] == true;
-              } catch (e) {
-                return false;
-              }
-            }).toList()
-          : snapshot.docs;
+      // Filter for opted-in users after fetching and ensure no managers slipped through
+      final filteredDocs = snapshot.docs.where((doc) {
+        try {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) return false;
+
+          // Double-check: ALWAYS exclude managers
+          final role = data['role']?.toString() ?? 'employee';
+          if (role != 'employee') {
+            return false;
+          }
+
+          // Filter by opt-in status if required
+          if (onlyOptedIn) {
+            final optIn = data['leaderboardOptin'];
+            final legacyOptIn = data['leaderboardParticipation'];
+            return optIn == true || legacyOptIn == true;
+          }
+
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }).toList();
 
       return filteredDocs.take(limit).toList().asMap().entries.map((entry) {
         final index = entry.key;
@@ -1451,11 +1772,28 @@ class BadgeService {
         // Safely extract badge count
         int badgeCount = 0;
         try {
-          final badges = data['badges'];
-          if (badges is List) {
-            badgeCount = badges.length;
+          final badgesField = data['badges'];
+          if (badgesField is List) {
+            badgeCount = badgesField.length;
+          } else if (badgesField is num) {
+            badgeCount = badgesField.toInt();
           }
-        } catch (e) {
+
+          if (badgeCount == 0) {
+            final earnedBadgesCount = data['earnedBadgesCount'];
+            if (earnedBadgesCount is num) {
+              badgeCount = earnedBadgesCount.toInt();
+            } else {
+              final badgeSummary = data['badgeSummary'];
+              if (badgeSummary is Map<String, dynamic>) {
+                final earned = badgeSummary['earned'];
+                if (earned is num) {
+                  badgeCount = earned.toInt();
+                }
+              }
+            }
+          }
+        } catch (_) {
           // Ignore badge count errors
         }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -13,6 +14,53 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/manager_realtime_service.dart';
+
+@immutable
+class _NudgeFeedback {
+  final String id;
+  final String employeeId;
+  final String? employeeName;
+  final String activityType;
+  final String? reaction;
+  final String? response;
+  final String? alertId;
+  final DateTime? timestamp;
+    final Map<String, dynamic> metadata;
+
+  const _NudgeFeedback({
+    required this.id,
+    required this.employeeId,
+    required this.activityType,
+    this.employeeName,
+    this.reaction,
+    this.response,
+    this.alertId,
+    this.timestamp,
+      this.metadata = const {},
+  });
+
+  factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
+    final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
+    final employeeName = (metadata['employeeName'] ??
+            metadata['employeeDisplayName'] ??
+            metadata['userDisplayName'] ??
+            metadata['userName'] ??
+            metadata['fullName'])
+        ?.toString();
+    return _NudgeFeedback(
+      id: map['id']?.toString() ?? '',
+      employeeId: map['employeeId']?.toString() ?? '',
+      employeeName: employeeName,
+      activityType: map['activityType']?.toString() ?? '',
+      reaction: metadata['reaction']?.toString(),
+      response: metadata['response']?.toString(),
+      alertId: metadata['alertId']?.toString(),
+      timestamp: map['timestamp'] is DateTime ? map['timestamp'] as DateTime : null,
+        metadata: metadata,
+    );
+  }
+}
 
 class ManagerInboxScreen extends StatefulWidget {
   final bool embedded;
@@ -24,11 +72,14 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
-  bool _personal = true; // true: personal inbox, false: team inbox
+  bool _personal = false; // true: personal inbox, false: team inbox (default to Team to show approval requests)
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';
   AlertPriority? _priorityFilter;
+  bool _bulkMarking = false;
+  final Map<String, String> _employeeNameCache = {};
+  final Set<String> _pendingEmployeeLookups = {};
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -37,6 +88,62 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _relevance = {};
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _prefetchEmployeeNames(List<_NudgeFeedback> feedback) {
+    for (final fb in feedback) {
+      final metaName = fb.employeeName?.trim() ?? '';
+      if (metaName.isNotEmpty) {
+        _employeeNameCache[fb.employeeId] ??= metaName;
+        continue;
+      }
+      if (_employeeNameCache.containsKey(fb.employeeId) ||
+          _pendingEmployeeLookups.contains(fb.employeeId)) {
+        continue;
+      }
+      _pendingEmployeeLookups.add(fb.employeeId);
+      DatabaseService.getUserProfile(fb.employeeId).then((profile) {
+        if (!mounted) return;
+        final resolved = profile.displayName.trim();
+        setState(() {
+          _employeeNameCache[fb.employeeId] =
+              resolved.isNotEmpty ? resolved : fb.employeeId;
+        });
+      }).catchError((e) {
+        developer.log('Could not load employee name: $e');
+      }).whenComplete(() {
+        _pendingEmployeeLookups.remove(fb.employeeId);
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -71,61 +178,176 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance.collection('goals').doc(goalId).snapshots(),
+                stream: FirebaseFirestore.instance
+                    .collection('goals')
+                    .doc(goalId)
+                    .snapshots()
+                    .handleError((error) {
+                      // Silently handle errors to prevent unmount errors
+                      developer.log('Error in goal stream: $error');
+                    }),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && snap.data!.exists) {
-                    try { goal = Goal.fromFirestore(snap.data!); } catch (_) {}
+                    try {
+                      goal = Goal.fromFirestore(snap.data!);
+                    } catch (_) {}
                   }
+                  final bool finalDecision =
+                      goal != null &&
+                      (goal.approvalStatus == GoalApprovalStatus.approved ||
+                          goal.approvalStatus == GoalApprovalStatus.rejected);
+                  final bool finalApproved =
+                      goal?.approvalStatus == GoalApprovalStatus.approved;
                   return ListView(
                     controller: scrollController,
                     children: [
                       Row(
                         children: [
-                          Text('Goal Review', style: AppTypography.heading3.copyWith(color: AppColors.textPrimary)),
+                          Text(
+                            'Goal Review',
+                            style: AppTypography.heading3.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                           const Spacer(),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
                             icon: const Icon(Icons.close),
-                            color: AppColors.textSecondary,
-                          )
+                            color: Colors.white,
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       if (goal != null) ...[
-                        Text(goal.title, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                        Text(
+                          goal.title,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         if ((goal.description).isNotEmpty)
-                          Text(goal.description, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+                          Text(
+                            goal.description,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         const SizedBox(height: 8),
-                        Wrap(spacing: 8, runSpacing: 8, children: [
-                          _chip('Category', goal.category.name),
-                          if (goal.kpa != null && goal.kpa!.isNotEmpty) _chip('KPA', goal.kpa!.toUpperCase()),
-                          _chip('Target', _fmtDate(goal.targetDate)),
-                        ]),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _chip('Category', goal.category.name),
+                            if (goal.kpa != null && goal.kpa!.isNotEmpty)
+                              _chip('KPA', goal.kpa!.toUpperCase()),
+                            _chip('Created', _fmtDateTime(goal.createdAt)),
+                            _chip('Target', _fmtDate(goal.targetDate)),
+                          ],
+                        ),
                         const SizedBox(height: 12),
                       ],
                       Row(
                         children: [
-                          Icon(Icons.rule, color: AppColors.activeColor, size: 18),
+                          Icon(
+                            Icons.rule,
+                            color: AppColors.activeColor,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
-                          Text('SMART Review', style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                          Text(
+                            'SMART Review',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const Spacer(),
                           _scorePill(_smartTotal(goalId)),
                         ],
                       ),
                       const SizedBox(height: 10),
-                      _scoreRow('Clarity (Specific)', goalId, _clarity, '1=vague, 5=precise'),
-                      _scoreRow('Measurability', goalId, _measurability, '1=no KPI, 5=KPI+baseline+target'),
-                      _scoreRow('Achievability', goalId, _achievability, '1=unlikely, 5=realistic'),
-                      _scoreRow('Relevance', goalId, _relevance, '1=not aligned, 5=directly aligned'),
-                      _scoreRow('Timeline', goalId, _timeline, '1=no date, 5=realistic date'),
+                      _scoreRow(
+                        'Clarity (Specific)',
+                        goalId,
+                        _clarity,
+                        '1=vague, 5=precise',
+                      ),
+                      _scoreRow(
+                        'Measurability',
+                        goalId,
+                        _measurability,
+                        '1=no KPI, 5=KPI+baseline+target',
+                      ),
+                      _scoreRow(
+                        'Achievability',
+                        goalId,
+                        _achievability,
+                        '1=unlikely, 5=realistic',
+                      ),
+                      _scoreRow(
+                        'Relevance',
+                        goalId,
+                        _relevance,
+                        '1=not aligned, 5=directly aligned',
+                      ),
+                      _scoreRow(
+                        'Timeline',
+                        goalId,
+                        _timeline,
+                        '1=no date, 5=realistic date',
+                      ),
                       const SizedBox(height: 12),
+                      if (finalDecision) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color:
+                                (finalApproved
+                                        ? AppColors.successColor
+                                        : AppColors.dangerColor)
+                                    .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color:
+                                  (finalApproved
+                                          ? AppColors.successColor
+                                          : AppColors.dangerColor)
+                                      .withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                finalApproved
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: finalApproved
+                                    ? AppColors.successColor
+                                    : AppColors.dangerColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'This goal is already ${finalApproved ? 'approved' : 'rejected'}. Further approval decisions are locked.',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       TextField(
                         controller: _reviewNotes[goalId],
                         maxLines: 3,
                         decoration: const InputDecoration(
-                          labelText: 'Review note (required for Request changes/Reject)',
+                          labelText:
+                              'Review note (required for Request changes/Reject)',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -133,49 +355,81 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       Row(
                         children: [
                           ElevatedButton.icon(
-                            onPressed: () async {
-                              await _persistReview(goalId, decision: 'approved');
-                              await _approveGoal(goalId);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    await _persistReview(
+                                      goalId,
+                                      decision: 'approved',
+                                    );
+                                    await _approveGoal(goalId);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
                             icon: const Icon(Icons.check),
                             label: const Text('Approve'),
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.successColor, foregroundColor: Colors.white),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.successColor,
+                              foregroundColor: Colors.white,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton.icon(
-                            onPressed: () async {
-                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
-                              if (note.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a note for Request changes')));
-                                return;
-                              }
-                              await _persistReview(goalId, decision: 'changes_requested');
-                              await _rejectGoal(goalId, reason: note);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    final note =
+                                        _reviewNotes[goalId]?.text.trim() ?? '';
+                                    if (note.isEmpty) {
+                                      await _showCenterNotice(
+                                        context,
+                                        'Please add a note for Request changes',
+                                      );
+                                      return;
+                                    }
+                                    await _persistReview(
+                                      goalId,
+                                      decision: 'changes_requested',
+                                    );
+                                    await _rejectGoal(goalId, reason: note);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
                             icon: const Icon(Icons.edit_note),
                             label: const Text('Request changes'),
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warningColor, foregroundColor: Colors.white),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.warningColor,
+                              foregroundColor: Colors.white,
+                            ),
                           ),
                           const SizedBox(width: 8),
                           OutlinedButton.icon(
-                            onPressed: () async {
-                              final note = _reviewNotes[goalId]?.text.trim() ?? '';
-                              if (note.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add a reason to reject')));
-                                return;
-                              }
-                              await _persistReview(goalId, decision: 'rejected');
-                              await _rejectGoal(goalId, reason: note);
-                              if (!context.mounted) return;
-                              Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.close),
+                            onPressed: finalDecision
+                                ? null
+                                : () async {
+                                    final note =
+                                        _reviewNotes[goalId]?.text.trim() ?? '';
+                                    if (note.isEmpty) {
+                                      await _showCenterNotice(
+                                        context,
+                                        'Please add a reason to reject',
+                                      );
+                                      return;
+                                    }
+                                    await _persistReview(
+                                      goalId,
+                                      decision: 'rejected',
+                                    );
+                                    await _rejectGoal(goalId, reason: note);
+                                    if (!context.mounted) return;
+                                    Navigator.pop(context);
+                                  },
+                            icon: const Icon(Icons.close, color: Colors.white),
                             label: const Text('Reject'),
-                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.dangerColor, side: BorderSide(color: AppColors.dangerColor)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.dangerColor,
+                              side: BorderSide(color: AppColors.dangerColor),
+                            ),
                           ),
                         ],
                       ),
@@ -207,13 +461,17 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           'note': _reviewNotes[goalId]?.text.trim(),
           'reviewerId': reviewer?.uid,
           'reviewedAt': FieldValue.serverTimestamp(),
-        }
+        },
       }, SetOptions(merge: true));
     } catch (_) {}
   }
 
   int _smartTotal(String goalId) {
-    return (_clarity[goalId] ?? 3) + (_measurability[goalId] ?? 3) + (_achievability[goalId] ?? 3) + (_relevance[goalId] ?? 3) + (_timeline[goalId] ?? 3);
+    return (_clarity[goalId] ?? 3) +
+        (_measurability[goalId] ?? 3) +
+        (_achievability[goalId] ?? 3) +
+        (_relevance[goalId] ?? 3) +
+        (_timeline[goalId] ?? 3);
   }
 
   Widget _scorePill(int total) {
@@ -224,20 +482,38 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.borderColor),
       ),
-      child: Text('SMART: $total/25', style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+      child: Text(
+        'SMART: $total/25',
+        style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary),
+      ),
     );
   }
 
-  Widget _scoreRow(String title, String goalId, Map<String, int> map, String helper) {
+  Widget _scoreRow(
+    String title,
+    String goalId,
+    Map<String, int> map,
+    String helper,
+  ) {
     final current = map[goalId] ?? 3;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+          Text(
+            title,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(helper, style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Text(
+            helper,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
@@ -250,8 +526,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 onSelected: (_) => setState(() => map[goalId] = score),
                 selectedColor: AppColors.activeColor.withValues(alpha: 0.3),
                 backgroundColor: AppColors.elevatedBackground,
-                labelStyle: AppTypography.bodySmall.copyWith(color: selected ? AppColors.textPrimary : AppColors.textSecondary),
-                shape: StadiumBorder(side: BorderSide(color: AppColors.borderColor)),
+                labelStyle: AppTypography.bodySmall.copyWith(
+                  color: selected
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                ),
+                shape: StadiumBorder(
+                  side: BorderSide(color: AppColors.borderColor),
+                ),
               );
             }),
           ),
@@ -261,6 +543,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   String _fmtDate(DateTime dt) => '${dt.day}/${dt.month}/${dt.year}';
+  String _fmtDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    if (difference.inDays > 0) return '${difference.inDays}d ago';
+    if (difference.inHours > 0) return '${difference.inHours}h ago';
+    if (difference.inMinutes > 0) return '${difference.inMinutes}m ago';
+    return 'Just now';
+  }
 
   Widget _chip(String label, String value) {
     return Container(
@@ -273,8 +569,18 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$label: ', style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary)),
-          Text(value, style: AppTypography.bodySmall.copyWith(color: AppColors.textPrimary)),
+          Text(
+            '$label: ',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
         ],
       ),
     );
@@ -290,15 +596,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         managerName: managerName,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal approved')),
-        );
+        await _showCenterNotice(context, 'Goal approved');
       }
     } catch (e) {
+      final message = e is StateError
+          ? 'Failed to approve goal: ${e.message}'
+          : 'Failed to approve goal: $e';
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to approve goal: $e')),
-        );
+        await _showCenterNotice(context, message);
       }
     }
   }
@@ -314,15 +619,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         reason: reason,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal rejected')),
-        );
+        await _showCenterNotice(context, 'Goal rejected');
       }
     } catch (e) {
+      final message = e is StateError
+          ? 'Failed to reject goal: ${e.message}'
+          : 'Failed to reject goal: $e';
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to reject goal: $e')),
-        );
+        await _showCenterNotice(context, message);
       }
     }
   }
@@ -356,7 +660,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Inbox',
+      title: '',
       showAppBar: false,
       embedded: widget.embedded,
       items: SidebarConfig.getItemsForRole('manager'),
@@ -385,100 +689,287 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           padding: AppSpacing.screenPadding,
           child: Text(
             'Please sign in to view inbox',
-            style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
       );
     }
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.backgroundColor,
-            AppColors.backgroundColor.withValues(alpha: 0.8),
-          ],
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
         ),
       ),
-      child: Column(
-        children: [
-          Padding(
-            padding: AppSpacing.screenPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Inbox',
-                        style: AppTypography.heading2.copyWith(color: AppColors.textPrimary),
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerScrolled) {
+          return [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: AppSpacing.screenPadding,
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: _glassCardDecoration(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _personal ? 'Personal Inbox' : 'Team Inbox',
+                                style: AppTypography.heading3.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Review alerts, nudges, and approvals in one place.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _bulkMarking
+                                ? null
+                                : () async {
+                                    final user =
+                                        FirebaseAuth.instance.currentUser;
+                                    if (user == null) return;
+                                    setState(() => _bulkMarking = true);
+                                    await AlertService.markAllAsRead(user.uid);
+                                    if (!mounted) return;
+                                    setState(() => _bulkMarking = false);
+                                    await _showCenterNotice(
+                                      this.context,
+                                      'All alerts marked as read',
+                                    );
+                                  },
+                            icon: _bulkMarking
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.mark_email_read_outlined),
+                            label: const Text('Mark all as read'),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: AppSpacing.md),
+                      _buildFilters(),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                _buildFilters(),
-              ],
+              ),
+            ),
+          ];
+        },
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.1,
+              colors: [Color(0x880A0F1F), Color(0x88040610)],
+              stops: [0.0, 1.0],
             ),
           ),
-          Expanded(
-            child: StreamBuilder<List<Alert>>(
-              stream: AlertService.getManagerInboxStream(
-                managerId: user.uid,
-                personal: _personal,
-                // Treat generic alerts as default (null)
-                typeFilter: _typeFilter == 'alert' ? null : _typeFilter,
-                limit: 200,
-              ),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          child: StreamBuilder<List<Alert>>(
+            stream: AlertService.getManagerInboxStream(
+              managerId: user.uid,
+              personal: _personal,
+              typeFilter: _typeFilter,
+              limit: 200,
+            ),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
                     ),
-                  );
-                }
-                var items = snapshot.data ?? const <Alert>[];
+                  ),
+                );
+              }
+              var items = snapshot.data ?? const <Alert>[];
 
-                if (_unreadOnly) {
-                  items = items.where((a) => !a.isRead).toList();
-                }
-                if (_priorityFilter != null) {
-                  items = items.where((a) => a.priority == _priorityFilter).toList();
-                }
-                if (_search.isNotEmpty) {
-                  final q = _search.toLowerCase();
-                  items = items.where((a) =>
-                    a.title.toLowerCase().contains(q) ||
-                    a.message.toLowerCase().contains(q)
-                  ).toList();
-                }
+              if (_unreadOnly) {
+                items = items.where((a) => !a.isRead).toList();
+              }
+              if (_priorityFilter != null) {
+                items = items
+                    .where((a) => a.priority == _priorityFilter)
+                    .toList();
+              }
+              if (_search.isNotEmpty) {
+                final q = _search.toLowerCase();
+                items = items
+                    .where(
+                      (a) =>
+                          a.title.toLowerCase().contains(q) ||
+                          a.message.toLowerCase().contains(q),
+                    )
+                    .toList();
+              }
 
-                if (items.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: AppSpacing.screenPadding,
-                      child: Text(
-                        'No items',
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary),
+              if (_typeFilter == 'nudge') {
+                return StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: ManagerRealtimeService.getNudgeFeedbackStream(
+                    managerId: user.uid,
+                    managerName: user.displayName,
+                    limit: 200,
+                  ),
+                  builder: (context, fbSnap) {
+                    final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
+                    final rawFeedback = feedbackMaps
+                        .map(_NudgeFeedback.fromMap)
+                        .toList();
+
+                    final managerNameLower =
+                        (user.displayName ?? '').toLowerCase().trim();
+                    final feedback = rawFeedback.where((f) {
+                      final meta = f.metadata;
+                      final mid = meta['managerId']?.toString();
+                      final mname = (meta['managerNameLower'] ??
+                              meta['managerName'])
+                          ?.toString()
+                          .toLowerCase()
+                          .trim();
+                      
+                      // Match by manager ID if available
+                      if (mid != null && mid.isNotEmpty) {
+                        return mid == user.uid;
+                      }
+                      
+                      // Match by manager name if available
+                      if (managerNameLower.isNotEmpty &&
+                          mname != null &&
+                          mname.isNotEmpty) {
+                        return mname == managerNameLower;
+                      }
+                      
+                      // If no manager metadata, exclude to avoid showing other managers' reactions
+                      return false;
+                    }).toList();
+                    _prefetchEmployeeNames(feedback);
+
+                    final hPad = AppSpacing.screenPadding.left;
+                    final widgets = <Widget>[];
+
+                    widgets.add(
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          hPad,
+                          AppSpacing.lg,
+                          hPad,
+                          AppSpacing.sm,
+                        ),
+                        child: Text(
+                          'Nudge Feedback',
+                          style: AppTypography.heading4.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+
+                    if (feedback.isEmpty) {
+                      widgets.add(
+                        Padding(
+                          padding: AppSpacing.screenPadding,
+                          child: Text(
+                            'No replies or reactions yet.',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      widgets.addAll(
+                        feedback.map((f) => Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: hPad,
+                                vertical: AppSpacing.xs,
+                              ),
+                              child: _buildNudgeFeedbackCard(f),
+                            )),
+                      );
+                    }
+
+                    if (items.isNotEmpty) {
+                      widgets.add(
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            hPad,
+                            AppSpacing.lg,
+                            hPad,
+                            AppSpacing.sm,
+                          ),
+                          child: Text(
+                            'Manager Nudges',
+                            style: AppTypography.heading4.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      );
+                      widgets.addAll(
+                        items.map((a) => Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: hPad,
+                                vertical: AppSpacing.xs,
+                              ),
+                              child: _buildInboxCard(a),
+                            )),
+                      );
+                    }
+
+                    return ListView(
+                      padding: EdgeInsets.zero,
+                      children: widgets,
+                    );
+                  },
+                );
+              }
+
+              if (items.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: AppSpacing.screenPadding,
+                    child: Text(
+                      'No inbox items match your filters.',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: Colors.white70,
                       ),
                     ),
-                  );
-                }
-
-                return ListView.separated(
-                  padding: AppSpacing.screenPadding,
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (context, i) => _buildInboxCard(items[i]),
+                  ),
                 );
-              },
-            ),
+              }
+
+              return ListView.separated(
+                padding: AppSpacing.screenPadding,
+                itemCount: items.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (context, i) => _buildInboxCard(items[i]),
+              );
+            },
           ),
-        ],
+        ),
       ),
     );
   }
@@ -489,20 +980,20 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       children: [
         Row(
           children: [
-            ChoiceChip(
-              label: const Text('Personal'),
+            _inboxChoiceChip(
+              label: 'Personal',
               selected: _personal,
-              onSelected: (_) => setState(() => _personal = true),
+              onSelected: () => setState(() => _personal = true),
             ),
             const SizedBox(width: 8),
-            ChoiceChip(
-              label: const Text('Team'),
+            _inboxChoiceChip(
+              label: 'Team',
               selected: !_personal,
-              onSelected: (_) => setState(() => _personal = false),
+              onSelected: () => setState(() => _personal = false),
             ),
             const Spacer(),
-            FilterChip(
-              label: const Text('Unread'),
+            _inboxFilterChip(
+              label: 'Unread',
               selected: _unreadOnly,
               onSelected: (v) => setState(() => _unreadOnly = v),
             ),
@@ -512,25 +1003,26 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         Wrap(
           spacing: 8,
           children: [
-            ChoiceChip(
-              label: const Text('All'),
+            _inboxChoiceChip(
+              label: 'All',
               selected: _typeFilter == null,
-              onSelected: (_) => setState(() => _typeFilter = null),
+              onSelected: () => setState(() => _typeFilter = null),
             ),
-            ChoiceChip(
-              label: const Text('Alerts'),
+            _inboxChoiceChip(
+              label: 'Alerts',
               selected: _typeFilter == 'alert',
-              onSelected: (_) => setState(() => _typeFilter = 'alert'),
+              onSelected: () => setState(() => _typeFilter = 'alert'),
             ),
-            ChoiceChip(
-              label: const Text('Nudges'),
+            _inboxChoiceChip(
+              label: 'Nudges',
               selected: _typeFilter == 'nudge',
-              onSelected: (_) => setState(() => _typeFilter = 'nudge'),
+              onSelected: () => setState(() => _typeFilter = 'nudge'),
             ),
-            ChoiceChip(
-              label: const Text('Approvals'),
+            _inboxChoiceChip(
+              label: 'Approvals',
               selected: _typeFilter == 'approval_request',
-              onSelected: (_) => setState(() => _typeFilter = 'approval_request'),
+              onSelected: () =>
+                  setState(() => _typeFilter = 'approval_request'),
             ),
           ],
         ),
@@ -542,40 +1034,62 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 onChanged: (v) => setState(() => _search = v),
                 decoration: InputDecoration(
                   hintText: 'Search...',
-                  prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                  ),
+                  filled: true,
+                  fillColor: _glassFieldColor,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.borderColor),
+                    borderSide: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.2),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: AppColors.activeColor),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.elevatedBackground,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.borderColor),
-              ),
+              decoration: _glassCardDecoration(radius: 8),
               child: DropdownButton<AlertPriority?>(
                 value: _priorityFilter,
                 underline: const SizedBox(),
-                hint: Text('Priority', style: AppTypography.bodyMedium.copyWith(color: AppColors.textSecondary)),
-                style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+                hint: Text(
+                  'Priority',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                dropdownColor: Colors.black.withValues(alpha: 0.9),
+                style: AppTypography.bodyMedium.copyWith(color: Colors.white),
                 onChanged: (p) => setState(() => _priorityFilter = p),
                 items: [
-                  const DropdownMenuItem<AlertPriority?>(value: null, child: Text('All Priorities')),
-                  ...AlertPriority.values.map((p) => DropdownMenuItem(value: p, child: Text(p.name.toUpperCase()))),
+                  const DropdownMenuItem<AlertPriority?>(
+                    value: null,
+                    child: Text('All Priorities'),
+                  ),
+                  ...AlertPriority.values.map(
+                    (p) => DropdownMenuItem(
+                      value: p,
+                      child: Text(p.name.toUpperCase()),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -587,17 +1101,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
   Widget _buildInboxCard(Alert alert) {
     final color = _getAlertColor(alert.priority);
-    final icon = _getAlertIcon(alert.type);
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: alert.isRead ? AppColors.borderColor : color.withValues(alpha: 0.3),
-          width: alert.isRead ? 1 : 2,
-        ),
+      decoration: _glassCardDecoration(
+        borderColor: alert.isRead
+            ? Colors.white.withValues(alpha: 0.15)
+            : color.withValues(alpha: 0.4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,10 +1117,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 16),
+                child: Image.asset(
+                  'assets/red_bell.png',
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -623,33 +1138,130 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
               ),
               if (!alert.isRead)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.activeColor,
-                    shape: BoxShape.circle,
-                  ),
+                Image.asset(
+                  'assets/Email_Notification/Notification_Red_White.png',
+                  width: 16,
+                  height: 16,
+                  fit: BoxFit.contain,
                 ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             alert.message,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodySmall.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
+              Text(
+                _getTimeAgo(alert.createdAt),
+                style: AppTypography.bodySmall.copyWith(color: Colors.white54),
+              ),
+              const SizedBox(width: 8),
               if (alert.type == AlertType.goalApprovalRequested)
                 TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),
                   icon: const Icon(Icons.visibility_outlined),
                   label: const Text('View Goal'),
                 )
+              else if (alert.type == AlertType.managerNudge &&
+                  alert.relatedGoalId != null &&
+                  alert.relatedGoalId!.isNotEmpty) ...[
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_portal',
+                      arguments: {
+                        'initialRoute': '/manager_review_team_dashboard',
+                        'goalId': alert.relatedGoalId,
+                      },
+                    );
+                  },
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('View Goal'),
+                ),
+              ]
+              else if (alert.type == AlertType.goalMilestoneCompleted ||
+                  alert.type == AlertType.goalCreated ||
+                  alert.type == AlertType.goalCompleted ||
+                  alert.type == AlertType.goalDueSoon ||
+                  alert.type == AlertType.goalOverdue)
+                TextButton.icon(
+                  onPressed: () {
+                    if (alert.relatedGoalId != null) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {
+                          'initialRoute': '/manager_review_team_dashboard',
+                          'goalId': alert.relatedGoalId,
+                        },
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.flag),
+                  label: const Text('View Goal'),
+                )
+              else if (alert.type == AlertType.badgeEarned ||
+                  alert.type == AlertType.achievementUnlocked)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/manager_portal',
+                      arguments: {'initialRoute': '/manager_badges_points'},
+                    );
+                  },
+                  icon: const Icon(Icons.emoji_events),
+                  label: const Text('View Badges'),
+                )
+              else if (alert.actionText != null && alert.actionRoute != null)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      alert.actionRoute!,
+                      arguments: alert.relatedGoalId != null
+                          ? {'goalId': alert.relatedGoalId}
+                          : null,
+                    );
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(alert.actionText!),
+                )
               else if (alert.actionText != null)
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // Try to navigate using common routes based on action text
+                    final actionLower = alert.actionText!.toLowerCase();
+                    if (actionLower.contains('badge') ||
+                        actionLower.contains('achievement')) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {'initialRoute': '/manager_badges_points'},
+                      );
+                    } else if (actionLower.contains('goal')) {
+                      if (alert.relatedGoalId != null) {
+                        Navigator.pushNamed(
+                          context,
+                          '/manager_portal',
+                          arguments: {
+                            'initialRoute': '/manager_review_team_dashboard',
+                            'goalId': alert.relatedGoalId,
+                          },
+                        );
+                      }
+                    } else if (actionLower.contains('leaderboard')) {
+                      Navigator.pushNamed(
+                        context,
+                        '/manager_portal',
+                        arguments: {'initialRoute': '/manager_leaderboard'},
+                      );
+                    }
+                  },
                   child: Text(alert.actionText!),
                 ),
               const Spacer(),
@@ -663,7 +1275,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 tooltip: 'Dismiss',
                 onPressed: () => AlertService.dismissAlert(alert.id),
                 icon: const Icon(Icons.close),
-                color: AppColors.textSecondary,
+                color: Colors.white,
               ),
             ],
           ),
@@ -671,6 +1283,152 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       ),
     );
   }
+
+  Widget _buildNudgeFeedbackCard(_NudgeFeedback fb) {
+    final isReaction = fb.activityType == 'nudge_reaction';
+    final chipLabel = isReaction ? 'Reaction' : 'Reply';
+    final chipColor =
+        isReaction ? AppColors.infoColor : AppColors.activeColor;
+    final cachedName = _employeeNameCache[fb.employeeId]?.trim() ?? '';
+    final resolvedName = fb.employeeName?.trim();
+    final title = (resolvedName?.isNotEmpty == true)
+        ? resolvedName!
+        : (cachedName.isNotEmpty
+            ? cachedName
+            : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}');
+    final message = isReaction
+        ? fb.reaction ?? 'Reaction'
+        : fb.response ?? 'Response';
+
+    return Container(
+      decoration: _glassCardDecoration(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: chipColor.withValues(alpha: 0.15),
+                child: Icon(
+                  isReaction ? Icons.emoji_emotions_outlined : Icons.reply,
+                  color: chipColor,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: chipColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: chipColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  chipLabel,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: chipColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                fb.timestamp != null ? _getTimeAgo(fb.timestamp!) : '',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (fb.alertId != null && fb.alertId!.isNotEmpty) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.tag, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '#${fb.alertId!.substring(0, fb.alertId!.length >= 6 ? 6 : fb.alertId!.length)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  ChoiceChip _inboxChoiceChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: AppColors.activeColor.withValues(alpha: 0.35),
+      backgroundColor: _glassFieldColor,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: selected ? Colors.white : AppColors.textSecondary,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      ),
+    );
+  }
+
+  FilterChip _inboxFilterChip({
+    required String label,
+    required bool selected,
+    required ValueChanged<bool> onSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: onSelected,
+      selectedColor: AppColors.warningColor.withValues(alpha: 0.3),
+      checkmarkColor: Colors.white,
+      backgroundColor: _glassFieldColor,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+      labelStyle: AppTypography.bodySmall.copyWith(
+        color: Colors.white,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+      ),
+    );
+  }
+
+  BoxDecoration _glassCardDecoration({double radius = 12, Color? borderColor}) {
+    return BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.15),
+      ),
+    );
+  }
+
+  Color get _glassFieldColor => Colors.black.withValues(alpha: 0.35);
 
   Color _getAlertColor(AlertPriority priority) {
     switch (priority) {
@@ -682,55 +1440,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         return AppColors.warningColor;
       case AlertPriority.urgent:
         return AppColors.dangerColor;
-    }
-  }
-
-  IconData _getAlertIcon(AlertType type) {
-    switch (type) {
-      case AlertType.goalCreated:
-        return Icons.flag_outlined;
-      case AlertType.goalCompleted:
-        return Icons.check_circle_outline;
-      case AlertType.goalDueSoon:
-        return Icons.schedule_outlined;
-      case AlertType.goalOverdue:
-        return Icons.priority_high_outlined;
-      case AlertType.inactivity:
-        return Icons.hourglass_empty_outlined;
-      case AlertType.milestoneRisk:
-        return Icons.warning_amber_outlined;
-      case AlertType.badgeEarned:
-        return Icons.emoji_events_outlined;
-      case AlertType.pointsEarned:
-        return Icons.star_border;
-      case AlertType.teamGoalAvailable:
-        return Icons.group_add_outlined;
-      case AlertType.employeeJoinedTeamGoal:
-        return Icons.group_outlined;
-      case AlertType.teamAssigned:
-        return Icons.group_outlined;
-      case AlertType.managerNudge:
-        return Icons.campaign_outlined;
-      case AlertType.achievementUnlocked:
-        return Icons.celebration_outlined;
-      case AlertType.levelUp:
-        return Icons.rocket_launch_outlined;
-      case AlertType.streakMilestone:
-        return Icons.whatshot_outlined;
-      case AlertType.deadlineReminder:
-        return Icons.alarm_outlined;
-      case AlertType.seasonJoined:
-        return Icons.event_available_outlined;
-      case AlertType.seasonCompleted:
-        return Icons.emoji_events_outlined;
-      case AlertType.seasonProgressUpdate:
-        return Icons.trending_up_outlined;
-      case AlertType.goalApprovalRequested:
-        return Icons.fact_check_outlined;
-      case AlertType.goalApprovalApproved:
-        return Icons.thumb_up_alt_outlined;
-      case AlertType.goalApprovalRejected:
-        return Icons.thumb_down_alt_outlined;
     }
   }
 }

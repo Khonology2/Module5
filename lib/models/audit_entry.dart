@@ -7,6 +7,8 @@ class AuditEntry {
   final String goalTitle;
   final DateTime completedDate;
   final DateTime submittedDate;
+  final DateTime? verifiedDate;
+  final DateTime? rejectedDate;
   final String status; // 'pending', 'verified', 'rejected'
   final List<String> evidence;
   final String? acknowledgedBy;
@@ -24,6 +26,8 @@ class AuditEntry {
     required this.goalTitle,
     required this.completedDate,
     required this.submittedDate,
+    this.verifiedDate,
+    this.rejectedDate,
     required this.status,
     required this.evidence,
     this.acknowledgedBy,
@@ -46,6 +50,8 @@ class AuditEntry {
           (data['completedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       submittedDate:
           (data['submittedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      verifiedDate: (data['verifiedDate'] as Timestamp?)?.toDate(),
+      rejectedDate: (data['rejectedDate'] as Timestamp?)?.toDate(),
       status: data['status'] ?? 'pending',
       evidence: List<String>.from(data['evidence'] ?? []),
       acknowledgedBy: data['acknowledgedBy'],
@@ -65,6 +71,12 @@ class AuditEntry {
       'goalTitle': goalTitle,
       'completedDate': Timestamp.fromDate(completedDate),
       'submittedDate': Timestamp.fromDate(submittedDate),
+      'verifiedDate': verifiedDate != null
+          ? Timestamp.fromDate(verifiedDate!)
+          : null,
+      'rejectedDate': rejectedDate != null
+          ? Timestamp.fromDate(rejectedDate!)
+          : null,
       'status': status,
       'evidence': evidence,
       'acknowledgedBy': acknowledgedBy,

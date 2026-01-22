@@ -3,11 +3,14 @@
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
 import 'package:flutter/foundation.dart';
+import 'package:web/web.dart' as web;
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/audit_entry.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdh/services/cloudinary_service.dart';
 // Drawer removed in favor of persistent sidebar
@@ -19,7 +22,79 @@ class MyPdpScreen extends StatefulWidget {
   State<MyPdpScreen> createState() => _MyPdpScreenState();
 }
 
-class _MyPdpScreenState extends State<MyPdpScreen> {
+Future<void> _showCenterNotice(BuildContext context, String message) async {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogContext) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF0E1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+        content: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.info_outline, color: Color(0xFFC10D00)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontFamily: 'Poppins',
+                ),
+              ),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.only(right: 8, bottom: 8),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK', style: TextStyle(color: Color(0xFFC10D00))),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+void _showLoadingDialog(BuildContext context, {String message = 'Loading...'}) {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF0E1A2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      content: Row(
+        children: [
+          const SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFC10D00)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'Poppins',
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _MyPdpScreenState extends State<MyPdpScreen>
+    with SingleTickerProviderStateMixin {
   // State for toggling expansion of sections
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
@@ -65,18 +140,42 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
   }
 
   Future<void> _quickIncrementSession(Goal goal) async {
-    final next = (goal.progress + 10).clamp(0, 100);
-    await DatabaseService.updateGoalProgress(goal.id, next);
+    try {
+      final next = (goal.progress + 10).clamp(0, 100);
+      await DatabaseService.updateGoalProgress(goal.id, next);
+      // Don't call setState - StreamBuilder will automatically update
+    } catch (e) {
+      if (!mounted) return;
+      final message = e.toString().contains('Goal is not approved yet')
+          ? 'You can only update progress once your manager has approved this goal.'
+          : 'We could not update your progress right now. Please try again, and contact your manager if this keeps happening.';
+      await _showCenterNotice(context, message);
+    }
   }
 
+  
   Future<void> _markModuleComplete(Goal goal) async {
-    final next = (goal.progress + 25).clamp(0, 100);
-    await DatabaseService.updateGoalProgress(goal.id, next);
+    try {
+      final next = (goal.progress + 25).clamp(0, 100);
+      await DatabaseService.updateGoalProgress(goal.id, next);
+      // Don't call setState - StreamBuilder will automatically update
+    } catch (e) {
+      if (!mounted) return;
+      final message = e.toString().contains('Goal is not approved yet')
+          ? 'You can only mark this module complete once your manager has approved the goal.'
+          : 'We could not update your progress right now. Please try again, and contact your manager if this keeps happening.';
+      await _showCenterNotice(context, message);
+    }
   }
 
-  Future<void> _attachEvidence(BuildContext context, Goal goal) async {
-    // If evidence already exists, show what's submitted with option to change
-    if (goal.evidence.isNotEmpty) {
+  Future<void> _attachEvidence(
+    BuildContext context,
+    Goal goal, {
+    bool bypassExisting = false,
+    bool replaceExisting = false,
+  }) async {
+    // If evidence already exists, show what's submitted with option to change unless bypassed
+    if (goal.evidence.isNotEmpty && !bypassExisting) {
       _showEvidenceManagementDialog(context, goal);
       return;
     }
@@ -118,11 +217,14 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                             final file = picked.files.first;
                             final bytes = file.bytes;
                             if (bytes != null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Uploading file...'),
-                                  duration: Duration(seconds: 2),
-                                ),
+                              // Close the Add Evidence dialog before starting upload
+                              if (ctx.mounted) {
+                                Navigator.of(ctx).pop();
+                              }
+                              // Show a blocking loading dialog while uploading
+                              _showLoadingDialog(
+                                context,
+                                message: 'Uploading file...',
                               );
                               try {
                                 final cloudinaryUrl =
@@ -132,52 +234,54 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                       goalId: goal.id,
                                     );
                                 final fileInfo =
-                                    '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB) - Uploaded to Cloudinary';
+                                    '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB)';
+                                if (replaceExisting) {
+                                  await DatabaseService.clearGoalEvidence(
+                                    goalId: goal.id,
+                                  );
+                                }
                                 await DatabaseService.attachGoalEvidence(
                                   goalId: goal.id,
                                   evidence: [fileInfo, cloudinaryUrl],
                                 );
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'File uploaded to Cloudinary!',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                    ),
+                                if (mounted) {
+                                  // Ensure loading dialog is fully closed (definite pop)
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pop();
+                                  // Don't call setState - StreamBuilder will automatically update
+                                  // Show success message
+                                  await _showCenterNotice(
+                                    context,
+                                    'File uploaded successfully',
                                   );
-                                  Navigator.of(ctx).pop('uploaded');
-                                  setState(() {});
                                 }
                               } catch (cloudErr) {
-                                // Do not save or mark evidence on failure; show error and keep dialog open
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Upload failed: $cloudErr'),
-                                      backgroundColor: Colors.red,
-                                    ),
+                                // Close loading and show error
+                                if (mounted) {
+                                  Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  ).pop();
+                                  await _showCenterNotice(
+                                    context,
+                                    'Upload failed: $cloudErr',
                                   );
                                 }
                               }
                             } else {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Error: No file data available',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
+                              await _showCenterNotice(
+                                ctx,
+                                'Error: No file data available',
                               );
                             }
                           }
                         } catch (e) {
                           if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(
-                                content: Text('Error picking file: $e'),
-                                backgroundColor: Colors.red,
-                              ),
+                            await _showCenterNotice(
+                              ctx,
+                              'Error picking file: $e',
                             );
                           }
                         }
@@ -205,16 +309,175 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
     if (result != null && result.isNotEmpty) {
       if (result != 'uploaded') {
+        if (replaceExisting) {
+          await DatabaseService.clearGoalEvidence(goalId: goal.id);
+        }
         await DatabaseService.attachGoalEvidence(
           goalId: goal.id,
           evidence: [result],
         );
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Evidence added')));
+        // Don't call setState - StreamBuilder will automatically update
+        await _showCenterNotice(context, 'Evidence added');
       }
+    }
+  }
+
+  void _openEvidenceFromPdp(String evidence) {
+    final isUrl =
+        evidence.startsWith('http://') || evidence.startsWith('https://');
+
+    if (isUrl) {
+      final lower = evidence.toLowerCase();
+      final isImage =
+          lower.endsWith('.png') ||
+          lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.gif') ||
+          lower.endsWith('.webp');
+      final isPdf = lower.endsWith('.pdf');
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: Text(
+            isImage
+                ? 'Evidence Image'
+                : isPdf
+                ? 'Evidence PDF'
+                : 'Evidence Details',
+            style: const TextStyle(color: Colors.white),
+          ),
+          content: isImage
+              ? SizedBox(
+                  width: 480,
+                  height: 360,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      evidence,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              color: Colors.white54,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Could not load image preview.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              evidence,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.lightBlueAccent,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isPdf)
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.redAccent,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'PDF evidence file',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (isPdf) const SizedBox(height: 8),
+                    SelectableText(
+                      evidence,
+                      style: const TextStyle(
+                        color: Colors.lightBlueAccent,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    if (isPdf) const SizedBox(height: 8),
+                    if (isPdf)
+                      const Text(
+                        'Use "Open PDF in new tab" to view this document in your browser.',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                  ],
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                try {
+                  web.window.open(evidence, '_blank');
+                } catch (_) {
+                  // On non-web platforms, just close the dialog
+                  Navigator.of(ctx).pop();
+                }
+              },
+              child: Text(
+                isPdf ? 'Open PDF in new tab' : 'Open in new tab',
+                style: const TextStyle(color: Colors.lightBlueAccent),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1F2840),
+          title: const Text(
+            'Evidence Details',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(
+              evidence,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -401,12 +664,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              // Clear existing evidence
-              await DatabaseService.clearGoalEvidence(goalId: goal.id);
-              // Refresh the screen
-              setState(() {});
-              // Open new evidence dialog
-              _attachEvidence(context, goal);
+              // Open add evidence dialog directly; existing evidence will be replaced on save
+              _attachEvidence(
+                context,
+                goal,
+                bypassExisting: true,
+                replaceExisting: true,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
@@ -419,14 +683,146 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
     );
   }
 
+  // Ensure user's department is set; otherwise block submission and prompt to update profile
+  Future<bool> _ensureDepartmentIsSet({int retryCount = 0}) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      // Add retry logic for Firestore internal assertion failures
+      if (retryCount > 0) {
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+
+      final userDoc = await DatabaseService.getUserProfile(user.uid);
+      final department = userDoc.department.trim();
+      final hasDept =
+          department.isNotEmpty && department.toLowerCase() != 'unknown';
+
+      if (!hasDept) {
+        if (!mounted) return false;
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0E1A2E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: const Text(
+              'Department Required',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: const Text(
+              'Your department information is missing. Please update your profile before submitting.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Navigate to settings where profile can be updated
+                  if (mounted) {
+                    Navigator.pushNamed(context, '/settings');
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC10D00),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Go to Settings'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+      return true;
+    } catch (e) {
+      // Retry up to 2 times for Firestore internal assertion failures
+      final errorString = e.toString();
+      if (errorString.contains('INTERNAL ASSERTION FAILED') && retryCount < 2) {
+        // Retry with exponential backoff
+        return _ensureDepartmentIsSet(retryCount: retryCount + 1);
+      }
+
+      // If we cannot validate after retries, show error and block submission
+      if (mounted) {
+        await _showCenterNotice(
+          context,
+          'Failed to load profile: $e\n\nPlease try again or contact support if this persists.',
+        );
+      }
+      return false;
+    }
+  }
 
   Future<void> _requestManagerAcknowledgement(Goal goal) async {
-    // Submit to audit with any existing evidence field if present; here we just let user add a note quickly
-    await AuditService.submitGoalForAudit(goal, const []);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Acknowledgement requested')),
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (mounted) {
+          await _showCenterNotice(
+            context,
+            'Please sign in to request acknowledgement',
+          );
+        }
+        return;
+      }
+
+      // Check if already submitted
+      final alreadySubmitted = await AuditService.hasGoalBeenSubmittedForAudit(
+        goal.id,
+        user.uid,
       );
+      if (alreadySubmitted) {
+        if (mounted) {
+          await _showCenterNotice(
+            context,
+            'This goal has already been submitted for acknowledgement',
+          );
+        }
+        return;
+      }
+
+      // Only allow acknowledgement for approved goals
+      if (goal.approvalStatus != GoalApprovalStatus.approved) {
+        if (mounted) {
+          await _showCenterNotice(
+            context,
+            'You can only request acknowledgement for approved goals',
+          );
+        }
+        return;
+      }
+
+      // Ensure the user has a department set before allowing submission
+      final proceed = await _ensureDepartmentIsSet();
+      if (!proceed) {
+        return; // User has been informed; do not proceed
+      }
+
+      // Submit to audit along with attached evidence so managers can review
+      await AuditService.submitGoalForAudit(goal, goal.evidence);
+      if (mounted) {
+        await _showCenterNotice(context, 'Acknowledgement requested');
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString().contains('already been submitted')
+            ? 'This goal has already been submitted for acknowledgement'
+            : 'Failed to request acknowledgement. Please try again.';
+        await _showCenterNotice(context, errorMessage);
+      }
     }
   }
 
@@ -442,32 +838,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
       child: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0), // Adjust padding as needed
+          padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back to portal button
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(
-                      context,
-                    ).pushReplacementNamed('/employee_dashboard');
-                  },
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  label: const Text(
-                    'Back to Portal',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
               Text(
                 'My Personal Development Plan',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: AppTypography.heading2.copyWith(color: Colors.white),
               ),
               const SizedBox(height: 20),
               _buildExcellenceArea(
@@ -562,7 +939,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
           );
         }
         return StreamBuilder<List<Goal>>(
-          stream: DatabaseService.getUserGoalsStream(user.uid),
+          stream: DatabaseService.getUserGoalsStream(user.uid).handleError((
+            error,
+          ) {
+            // Silently handle errors to prevent unmount errors
+            // The error will be caught by hasError check below
+            return;
+          }),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Padding(
@@ -570,6 +953,92 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                 child: CircularProgressIndicator(),
               );
             }
+
+            // Handle errors gracefully
+            if (snapshot.hasError) {
+              final error = snapshot.error;
+              final errorString = error.toString();
+
+              // Check if it's a Firestore internal assertion failure
+              if (errorString.contains('INTERNAL ASSERTION FAILED')) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.orange,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Temporary loading issue',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Please refresh the page or try again in a moment.',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Trigger a rebuild by calling setState
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // For other errors, show a generic error message
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Error loading goals',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please try refreshing the page.',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+
             final goals = (snapshot.data ?? [])
                 .where((g) => _mapGoalToExcellence(g) == excellence)
                 .toList();
@@ -610,7 +1079,7 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                 ),
                               ),
                             ),
-                            Text(
+                                                        Text(
                               '${goal.progress}%',
                               style: const TextStyle(color: Colors.white70),
                             ),
@@ -659,42 +1128,41 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                ...goal.evidence.map(
-                                  (evidence) => Padding(
+                                ...goal.evidence.map((evidence) {
+                                  final allEvidence = goal.evidence;
+                                  final isDirectUrl =
+                                      evidence.startsWith('http://') ||
+                                      evidence.startsWith('https://');
+                                  final isFileLabel = evidence.startsWith('📎');
+
+                                  String targetEvidence = evidence;
+                                  if (!isDirectUrl && isFileLabel) {
+                                    // Try to find a matching URL evidence in the list
+                                    final linkedUrl = allEvidence.firstWhere(
+                                      (e) =>
+                                          e.startsWith('http://') ||
+                                          e.startsWith('https://'),
+                                      orElse: () => evidence,
+                                    );
+                                    targetEvidence = linkedUrl;
+                                  }
+
+                                  final hasPreviewUrl =
+                                      targetEvidence.startsWith('http://') ||
+                                      targetEvidence.startsWith('https://');
+
+                                  return Padding(
                                     padding: const EdgeInsets.only(bottom: 4),
                                     child: InkWell(
-                                      onTap: () {
-                                        // If it's a Cloudinary URL, open it
-                                        if (evidence.startsWith(
-                                          'https://res.cloudinary.com/',
-                                        )) {
-                                          // You can implement opening the URL in a browser
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'File URL: $evidence',
-                                              ),
-                                              duration: const Duration(
-                                                seconds: 3,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
+                                      onTap: () =>
+                                          _openEvidenceFromPdp(targetEvidence),
                                       child: Row(
                                         children: [
                                           Icon(
-                                            evidence.startsWith(
-                                                  'https://res.cloudinary.com/',
-                                                )
+                                            hasPreviewUrl
                                                 ? Icons.cloud_upload
                                                 : Icons.description,
-                                            color:
-                                                evidence.startsWith(
-                                                  'https://res.cloudinary.com/',
-                                                )
+                                            color: hasPreviewUrl
                                                 ? Colors.blue
                                                 : Colors.white70,
                                             size: 14,
@@ -702,23 +1170,13 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              evidence.startsWith(
-                                                    'https://res.cloudinary.com/',
-                                                  )
-                                                  ? '📁 Cloudinary File (Click to view URL)'
-                                                  : evidence,
+                                              evidence,
                                               style: TextStyle(
-                                                color:
-                                                    evidence.startsWith(
-                                                      'https://res.cloudinary.com/',
-                                                    )
+                                                color: hasPreviewUrl
                                                     ? Colors.blue
                                                     : Colors.white70,
                                                 fontSize: 12,
-                                                decoration:
-                                                    evidence.startsWith(
-                                                      'https://res.cloudinary.com/',
-                                                    )
+                                                decoration: hasPreviewUrl
                                                     ? TextDecoration.underline
                                                     : null,
                                               ),
@@ -726,19 +1184,26 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if (evidence.startsWith(
-                                            'https://res.cloudinary.com/',
-                                          ))
-                                            const Icon(
-                                              Icons.open_in_new,
-                                              color: Colors.blue,
-                                              size: 12,
+                                          if (hasPreviewUrl)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.open_in_new,
+                                                color: Colors.blue,
+                                                size: 12,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              onPressed: () =>
+                                                  _openEvidenceFromPdp(
+                                                    targetEvidence,
+                                                  ),
                                             ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                ),
+                                  );
+                                }),
                               ],
                             ),
                           ),
@@ -770,36 +1235,129 @@ class _MyPdpScreenState extends State<MyPdpScreen> {
                                     )
                                   : null,
                             ),
-                            OutlinedButton.icon(
-                              onPressed: () => _attachEvidence(context, goal),
-                              icon: Icon(
-                                goal.evidence.isNotEmpty
-                                    ? Icons.check_circle
-                                    : Icons.attach_file,
-                                size: 18,
-                              ),
-                              label: Text(
-                                goal.evidence.isNotEmpty
-                                    ? 'Evidence submitted'
-                                    : 'Attach evidence',
-                              ),
-                              style: goal.evidence.isNotEmpty
-                                  ? OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.green.withValues(
-                                        alpha: 0.1,
+                            Builder(
+                              builder: (context) {
+                                bool isHovered = false;
+                                return StatefulBuilder(
+                                  builder: (context, localSetState) =>
+                                      MouseRegion(
+                                        onEnter: (_) {
+                                          if (goal.evidence.isNotEmpty) {
+                                            localSetState(() {
+                                              isHovered = true;
+                                            });
+                                          }
+                                        },
+                                        onExit: (_) {
+                                          if (goal.evidence.isNotEmpty) {
+                                            localSetState(() {
+                                              isHovered = false;
+                                            });
+                                          }
+                                        },
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              goal.evidence.isNotEmpty
+                                              ? _showChangeEvidenceDialog(
+                                                  context,
+                                                  goal,
+                                                )
+                                              : _attachEvidence(context, goal),
+                                          icon: Icon(
+                                            goal.evidence.isNotEmpty
+                                                ? Icons.check_circle
+                                                : Icons.attach_file,
+                                            size: 18,
+                                          ),
+                                          label: Text(
+                                            goal.evidence.isNotEmpty
+                                                ? (isHovered
+                                                      ? 'Change evidence'
+                                                      : 'Evidence submitted')
+                                                : 'Attach evidence',
+                                          ),
+                                          style: goal.evidence.isNotEmpty
+                                              ? OutlinedButton.styleFrom(
+                                                  backgroundColor: Colors.green
+                                                      .withValues(alpha: 0.1),
+                                                  foregroundColor: Colors.green,
+                                                  side: const BorderSide(
+                                                    color: Colors.green,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
                                       ),
-                                      foregroundColor: Colors.green,
-                                      side: const BorderSide(
-                                        color: Colors.green,
-                                      ),
-                                    )
-                                  : null,
+                                );
+                              },
                             ),
-                            OutlinedButton.icon(
-                              onPressed: () =>
-                                  _requestManagerAcknowledgement(goal),
-                              icon: const Icon(Icons.verified_user, size: 18),
-                              label: const Text('Request acknowledgement'),
+                            StreamBuilder<List<AuditEntry>>(
+                              stream: AuditService.getEmployeeAuditEntriesStream()
+                                  .handleError((error) {
+                                    // Silently handle errors to prevent unmount errors
+                                    return;
+                                  }),
+                              builder: (context, auditSnapshot) {
+                                final hasAuditEntry =
+                                    auditSnapshot.hasData &&
+                                    auditSnapshot.data!.any(
+                                      (entry) => entry.goalId == goal.id,
+                                    );
+                                final isApproved =
+                                    goal.approvalStatus ==
+                                    GoalApprovalStatus.approved;
+                                final canRequest = isApproved && !hasAuditEntry;
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: canRequest
+                                          ? () =>
+                                                _requestManagerAcknowledgement(
+                                                  goal,
+                                                )
+                                          : null,
+                                      icon: Icon(
+                                        hasAuditEntry
+                                            ? Icons.check_circle
+                                            : (isApproved
+                                                  ? Icons.verified_user
+                                                  : Icons.lock_clock),
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        hasAuditEntry
+                                            ? 'Acknowledgement requested'
+                                            : (isApproved
+                                                  ? 'Request acknowledgement'
+                                                  : 'Waiting for manager approval'),
+                                      ),
+                                      style: hasAuditEntry
+                                          ? OutlinedButton.styleFrom(
+                                              // ignore: deprecated_member_use
+                                              backgroundColor: Colors.orange
+                                                  .withValues(alpha: 0.1),
+                                              foregroundColor: Colors.orange,
+                                              side: const BorderSide(
+                                                color: Colors.orange,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
+                                    if (!hasAuditEntry && !isApproved)
+                                      const SizedBox(height: 4),
+                                    if (!hasAuditEntry && !isApproved)
+                                      const Text(
+                                        'You can request acknowledgement once your manager approves this goal.',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),

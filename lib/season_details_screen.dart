@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/season_celebration_screen.dart';
 
 class SeasonDetailsScreen extends StatefulWidget {
   final Season season;
@@ -17,6 +18,35 @@ class SeasonDetailsScreen extends StatefulWidget {
 class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -36,22 +66,34 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
       stream: SeasonService.getSeasonStream(widget.season.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: AppColors.cardBackground,
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildSeasonBackground(
+              child: const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.activeColor,
+                  ),
+                ),
+              ),
+            ),
           );
         }
         if (!snapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: AppColors.cardBackground,
-            body: Center(child: Text('Season not found')), 
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: _buildSeasonBackground(
+              child: const Center(
+                child: Text('Season not found', style: AppTypography.heading4),
+              ),
+            ),
           );
         }
 
         final season = snapshot.data!;
 
         return Scaffold(
-          backgroundColor: AppColors.cardBackground,
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
             title: Text(season.title),
             backgroundColor: AppColors.activeColor,
@@ -69,13 +111,15 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
               ],
             ),
           ),
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              _buildOverviewTab(season),
-              _buildChallengesTab(season),
-              _buildParticipantsTab(season),
-            ],
+          body: _buildSeasonBackground(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(season),
+                _buildChallengesTab(season),
+                _buildParticipantsTab(season),
+              ],
+            ),
           ),
         );
       },
@@ -83,19 +127,13 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }
 
   Widget _buildManagerActions(Season season, double challengeProgress) {
-    final now = DateTime.now();
-    final hasEnded = now.isAfter(season.endDate);
     final isCompleted = season.status == SeasonStatus.completed;
     final isPaused = (season.settings['paused'] == true);
     final canComplete = !isCompleted; // allow at any progress; confirm if <100%
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -111,7 +149,9 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             runSpacing: AppSpacing.sm.toDouble(),
             children: [
               ElevatedButton.icon(
-                onPressed: canComplete ? () => _onCompleteSeason(season, challengeProgress) : null,
+                onPressed: canComplete
+                    ? () => _onCompleteSeason(season, challengeProgress)
+                    : null,
                 icon: const Icon(Icons.flag, size: 18),
                 label: const Text('Complete Season'),
                 style: ElevatedButton.styleFrom(
@@ -119,7 +159,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                   foregroundColor: Colors.white,
                 ),
               ),
-              if (hasEnded && !isCompleted)
+              if (!isCompleted)
                 OutlinedButton.icon(
                   onPressed: () => _onExtendSeason(season),
                   icon: const Icon(Icons.event, size: 18),
@@ -138,6 +178,24 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                   side: BorderSide(color: AppColors.warningColor),
                 ),
               ),
+              OutlinedButton.icon(
+                onPressed: () => _onViewSeasonCelebration(season),
+                icon: const Icon(Icons.celebration, size: 18),
+                label: const Text('Celebrate'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.warningColor,
+                  side: BorderSide(color: AppColors.warningColor),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _onRecomputeMetrics(season),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Recompute'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.infoColor,
+                  side: BorderSide(color: AppColors.infoColor),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -154,7 +212,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
-  Future<void> _onCompleteSeason(Season season, double challengeProgress) async {
+  Future<void> _onCompleteSeason(
+    Season season,
+    double challengeProgress,
+  ) async {
     try {
       if (challengeProgress >= 1.0) {
         try {
@@ -221,76 +282,73 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
         );
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season completed successfully.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season completed successfully.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cannot complete season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Cannot complete season: $e');
     }
   }
 
   Future<void> _onExtendSeason(Season season) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: season.endDate.isAfter(DateTime.now()) ? season.endDate : DateTime.now().add(const Duration(days: 7)),
+      initialDate: season.endDate.isAfter(DateTime.now())
+          ? season.endDate
+          : DateTime.now().add(const Duration(days: 7)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked == null) return;
     try {
       await SeasonService.extendSeason(season.id, picked);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Season extended.'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season extended.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to extend season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to extend season: $e');
     }
   }
 
   Future<void> _onTogglePause(Season season, bool paused) async {
     try {
       await SeasonService.setSeasonPaused(season.id, paused);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(paused ? 'Season paused.' : 'Season resumed.'),
-            backgroundColor: AppColors.infoColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(
+        context,
+        paused ? 'Season paused.' : 'Season resumed.',
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update pause: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to update pause: $e');
+    }
+  }
+
+  
+  Future<void> _onViewSeasonCelebration(Season season) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SeasonCelebrationScreen(season: season),
+      ),
+    );
+  }
+
+  Future<void> _onRecomputeMetrics(Season season) async {
+    final navigator = Navigator.of(context);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      await SeasonService.recomputeSeasonMetrics(season.id);
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Season metrics recomputed');
+    } catch (e) {
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Failed to recompute metrics: $e');
+    } finally {
+      navigator.pop();
     }
   }
 
@@ -300,9 +358,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     final hasStarted = now.isAfter(season.startDate);
     final hasEnded = now.isAfter(season.endDate);
     final startsInDays = season.startDate.difference(now).inDays;
-    final totalDays = season.endDate
-        .difference(season.startDate)
-        .inDays;
+    final totalDays = season.endDate.difference(season.startDate).inDays;
     final daysElapsed = now.difference(season.startDate).inDays;
     final seasonProgress = totalDays > 0
         ? (daysElapsed / totalDays).clamp(0.0, 1.0)
@@ -312,7 +368,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     if (season.challenges.isNotEmpty) {
       double sum = 0.0;
       for (final challenge in season.challenges) {
-        final completions = season.metrics.challengeCompletions[challenge.type] ?? 0;
+        final completions =
+            season.metrics.challengeCompletions[challenge.type] ?? 0;
         final per = challenge.milestones.isNotEmpty
             ? (completions / challenge.milestones.length).clamp(0.0, 1.0)
             : 0.0;
@@ -330,19 +387,8 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.activeColor.withValues(alpha: 0.1),
-                  AppColors.successColor.withValues(alpha: 0.1),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.activeColor.withValues(alpha: 0.3),
-              ),
+            decoration: _glassBoxDecoration(
+              borderColor: AppColors.activeColor.withValues(alpha: 0.4),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -433,11 +479,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           const SizedBox(height: AppSpacing.md),
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
-            ),
+            decoration: _glassBoxDecoration(),
             child: Column(
               children: [
                 Row(
@@ -518,10 +560,14 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                     color: !hasStarted
                         ? AppColors.infoColor.withValues(alpha: 0.1)
                         : (!hasEnded
-                            ? AppColors.successColor.withValues(alpha: 0.1)
-                            : (season.status != SeasonStatus.completed
-                                ? AppColors.warningColor.withValues(alpha: 0.1)
-                                : AppColors.infoColor.withValues(alpha: 0.1))),
+                              ? AppColors.successColor.withValues(alpha: 0.1)
+                              : (season.status != SeasonStatus.completed
+                                    ? AppColors.warningColor.withValues(
+                                        alpha: 0.1,
+                                      )
+                                    : AppColors.infoColor.withValues(
+                                        alpha: 0.1,
+                                      ))),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -534,10 +580,10 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                         color: !hasStarted
                             ? AppColors.infoColor
                             : (!hasEnded
-                                ? AppColors.successColor
-                                : (season.status != SeasonStatus.completed
-                                    ? AppColors.warningColor
-                                    : AppColors.infoColor)),
+                                  ? AppColors.successColor
+                                  : (season.status != SeasonStatus.completed
+                                        ? AppColors.warningColor
+                                        : AppColors.infoColor)),
                         size: 16,
                       ),
                       const SizedBox(width: AppSpacing.xs),
@@ -545,18 +591,18 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                         !hasStarted
                             ? 'Starts in ${startsInDays.abs()} days'
                             : (!hasEnded
-                                ? '$daysLeft days remaining'
-                                : (season.status != SeasonStatus.completed
-                                    ? 'Awaiting manager completion'
-                                    : 'Season completed')),
+                                  ? '$daysLeft days remaining'
+                                  : (season.status != SeasonStatus.completed
+                                        ? 'Awaiting manager completion'
+                                        : 'Season completed')),
                         style: AppTypography.bodyMedium.copyWith(
                           color: !hasStarted
                               ? AppColors.infoColor
                               : (!hasEnded
-                                  ? AppColors.successColor
-                                  : (season.status != SeasonStatus.completed
-                                      ? AppColors.warningColor
-                                      : AppColors.infoColor)),
+                                    ? AppColors.successColor
+                                    : (season.status != SeasonStatus.completed
+                                          ? AppColors.warningColor
+                                          : AppColors.infoColor)),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -582,8 +628,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 child: _buildMetricCard(
                   title: 'Participants',
                   value: '${season.metrics.totalParticipants}',
-                  subtitle:
-                      '${season.metrics.activeParticipants} active',
+                  subtitle: '${season.metrics.activeParticipants} active',
                   icon: Icons.people,
                   color: AppColors.infoColor,
                 ),
@@ -636,11 +681,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
           const SizedBox(height: AppSpacing.md),
           Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderColor),
-            ),
+            decoration: _glassBoxDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -675,9 +716,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
                 const SizedBox(height: AppSpacing.md),
                 ...season.challenges.map((challenge) {
                   final challengeCompletions =
-                      season.metrics.challengeCompletions[challenge
-                          .type] ??
-                      0;
+                      season.metrics.challengeCompletions[challenge.type] ?? 0;
                   final challengeProgress = challenge.milestones.isNotEmpty
                       ? (challengeCompletions / challenge.milestones.length)
                             .clamp(0.0, 1.0)
@@ -776,11 +815,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
   }) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -828,11 +863,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -987,7 +1018,11 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
     );
   }
 
-  Widget _buildParticipantCard(Season season, SeasonParticipation participant, int rank) {
+  Widget _buildParticipantCard(
+    Season season,
+    SeasonParticipation participant,
+    int rank,
+  ) {
     final completedMilestones = participant.milestoneProgress.values
         .where((status) => status == MilestoneStatus.completed)
         .length;
@@ -1001,11 +1036,7 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
+      decoration: _glassBoxDecoration(),
       child: Row(
         children: [
           Container(
@@ -1079,6 +1110,40 @@ class _SeasonDetailsScreenState extends State<SeasonDetailsScreen>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonBackground({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [Color(0x880A0F1F), Color(0x88040610)],
+            stops: [0.0, 1.0],
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
+
+  BoxDecoration _glassBoxDecoration({double radius = 12, Color? borderColor}) {
+    return BoxDecoration(
+      color: _glassCardColor,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: borderColor ?? Colors.white.withValues(alpha: 0.2),
       ),
     );
   }

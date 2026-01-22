@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore
 import 'package:pdh/services/badge_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // Import Cloud Firestore - Removed as DatabaseService handles it
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
+import 'package:pdh/services/role_service.dart'; // Import RoleService
 import 'dart:async'; // Import for Timer
 
 // The registration screen widget.
@@ -25,6 +26,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String? _selectedRole;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   double _passwordStrength = 0.0;
   Color _passwordStrengthColor = Colors.grey;
@@ -42,7 +45,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    try { _hintTimer.cancel(); } catch (_) {}
+    try {
+      _hintTimer.cancel();
+    } catch (_) {}
     // Clean up the controllers when the widget is disposed.
     _fullNameController.dispose();
     _usernameController.dispose();
@@ -133,10 +138,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Colors.black.withOpacity(0.4),
                 BlendMode.darken,
               ),
-              child: Image.asset(
-                'assets/khono_bg.png',
-                fit: BoxFit.cover,
-              ),
+              child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
             ),
           ),
           Positioned.fill(
@@ -149,6 +151,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     height: 160,
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.high,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Centered back button image under logo
+                Center(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () {
+                      Navigator.pushReplacementNamed(context, '/sign_in');
+                    },
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Center(
+                        child: Image.asset(
+                          'assets/BackButton-Red.png',
+                          width: 24,
+                          height: 24,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -212,17 +237,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               hintText: 'Email',
                             ),
                             const SizedBox(height: 20),
-                            _buildTextField(
-                              controller: _passwordController,
-                              obscureText: true,
-                              validator: (value) {
-                                if (value == null || value.length < 8) {
-                                  return 'Password must be at least 8 characters long';
-                                }
-                                return null;
-                              },
-                              hintText: 'Password',
-                              onChanged: _updatePasswordStrength,
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 8.0,
+                                  sigmaY: 8.0,
+                                ),
+                                child: TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  decoration: _inputDecoration().copyWith(
+                                    hintText: 'Password',
+                                    suffixIcon: IconButton(
+                                      icon: Image.asset(
+                                        'assets/Concentration_Key_Focus/eye.png',
+                                        width: 22,
+                                        height: 22,
+                                        filterQuality: FilterQuality.high,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.length < 8) {
+                                      return 'Password must be at least 8 characters long';
+                                    }
+                                    return null;
+                                  },
+                                  onChanged: _updatePasswordStrength,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 6),
                             LinearProgressIndicator(
@@ -241,16 +295,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            _buildTextField(
-                              controller: _confirmPasswordController,
-                              obscureText: true,
-                              validator: (value) {
-                                if (value != _passwordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
-                              hintText: 'Confirm password',
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 8.0,
+                                  sigmaY: 8.0,
+                                ),
+                                child: TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _obscureConfirmPassword,
+                                  decoration: _inputDecoration().copyWith(
+                                    hintText: 'Confirm password',
+                                    suffixIcon: IconButton(
+                                      icon: Image.asset(
+                                        'assets/Concentration_Key_Focus/eye.png',
+                                        width: 22,
+                                        height: 22,
+                                        filterQuality: FilterQuality.high,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscureConfirmPassword =
+                                              !_obscureConfirmPassword;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontFamily: 'Poppins',
+                                  ),
+                                  validator: (value) {
+                                    if (value != _passwordController.text) {
+                                      return 'Passwords do not match';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 20),
                             _buildRoleDropdown(),
@@ -263,110 +347,161 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 color: const Color(0xFFC10D00),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFFC10D00).withOpacity(0.3),
+                                    color: const Color(
+                                      0xFFC10D00,
+                                    ).withOpacity(0.3),
                                     blurRadius: 8,
                                     offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
                               child: TextButton(
-                            onPressed: _isRegistering ? null : () async {
+                                onPressed: _isRegistering
+                                    ? null
+                                    : () async {
                               if (_fullNameController.text.isEmpty) {
-                                await _showCenterNotice('Please enter your full name.');
+                                          await _showCenterNotice(
+                                            'Please enter your full name.',
+                                          );
                                 return;
                               }
                               if (_usernameController.text.isEmpty) {
-                                await _showCenterNotice('Please enter a username.');
+                                          await _showCenterNotice(
+                                            'Please enter a username.',
+                                          );
                                 return;
                               }
                               if (_emailController.text.isEmpty) {
-                                await _showCenterNotice('Please enter your email.');
+                                          await _showCenterNotice(
+                                            'Please enter your email.',
+                                          );
                                 return;
                               }
                               if (!RegExp(
                                 r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
                               ).hasMatch(_emailController.text)) {
-                                await _showCenterNotice('Please enter a valid email address.');
+                                          await _showCenterNotice(
+                                            'Please enter a valid email address.',
+                                          );
                                 return;
                               }
-                              if (_passwordController.text.length < 8) {
-                                await _showCenterNotice('Password must be at least 8 characters long.');
+                                        if (_passwordController.text.length <
+                                            8) {
+                                          await _showCenterNotice(
+                                            'Password must be at least 8 characters long.',
+                                          );
                                 return;
                               }
                               if (_passwordController.text !=
                                   _confirmPasswordController.text) {
-                                await _showCenterNotice('Passwords do not match.');
+                                          await _showCenterNotice(
+                                            'Passwords do not match.',
+                                          );
                                 return;
                               }
                               if (_selectedRole == null) {
-                                await _showCenterNotice('Please select a role.');
+                                          await _showCenterNotice(
+                                            'Please select a role.',
+                                          );
                                 return;
                               }
 
-                              // Enforce domain rule: Only emails ending with @khonodemy or @khonodemy.com
-                              // can register as manager. Others must register as employee.
-                              final String emailLower = _emailController.text
-                                  .trim()
-                                  .toLowerCase();
-                              final bool isKhonodemyEmail =
-                                  emailLower.endsWith('@khonodemy') ||
-                                  emailLower.endsWith('@khonodemy.com');
-                              if (_selectedRole == 'manager' &&
-                                  !isKhonodemyEmail) {
-                                await _showManagerRestrictionDialog(context);
-                                return; // Stop submission; user must adjust role
-                              }
-
-                              setState(() { _isRegistering = true; });
+                                        setState(() {
+                                          _isRegistering = true;
+                                        });
                               _showLoadingDialog();
                               try {
-                                UserCredential userCredential =
-                                    await FirebaseAuth.instance
+                                          UserCredential
+                                          userCredential = await FirebaseAuth
+                                              .instance
                                         .createUserWithEmailAndPassword(
                                           email: _emailController.text,
-                                          password: _passwordController.text,
+                                                password:
+                                                    _passwordController.text,
                                         );
                                 // Post-auth blocklist check; if blocked, delete the just-created user and stop
                                 try {
-                                  final emailLower = _emailController.text.trim().toLowerCase();
-                                  final blocked = await FirebaseFirestore.instance
-                                      .collection('deleted_accounts')
-                                      .where('emailLower', isEqualTo: emailLower)
+                                            final emailLower = _emailController
+                                                .text
+                                                .trim()
+                                                .toLowerCase();
+                                            final blocked =
+                                                await FirebaseFirestore.instance
+                                                    .collection(
+                                                      'deleted_accounts',
+                                                    )
+                                                    .where(
+                                                      'emailLower',
+                                                      isEqualTo: emailLower,
+                                                    )
                                       .limit(1)
                                       .get();
                                   if (blocked.docs.isNotEmpty) {
-                                    try { await userCredential.user?.delete(); } catch (_) {}
-                                    try { await FirebaseAuth.instance.signOut(); } catch (_) {}
+                                              try {
+                                                await userCredential.user
+                                                    ?.delete();
+                                              } catch (_) {}
+                                              try {
+                                                await FirebaseAuth.instance
+                                                    .signOut();
+                                              } catch (_) {}
                                     if (!context.mounted) return;
-                                    await _showCenterNotice('This email was permanently deleted and cannot be used to register.');
+                                              await _showCenterNotice(
+                                                'This email was permanently deleted and cannot be used to register.',
+                                              );
                                     return;
                                   }
                                 } catch (_) {
                                   // Ignore errors here; inability to read blocklist should not break registration
                                 }
+                                // Clear RoleService cache before setting up new user
+                                RoleService.instance.clearCache();
+                                
+                                // Small delay to let Firestore settle after user creation
+                                await Future.delayed(const Duration(milliseconds: 300));
+                                
                                 // Store additional user data in Firestore
                                 // Removed direct Firestore set call; using DatabaseService.initializeUserData instead
-                                await DatabaseService.initializeUserData(
-                                  userCredential.user!.uid,
-                                  _fullNameController.text,
-                                  _emailController.text,
-                                  role: _selectedRole!, // Use the selected role
-                                );
+                                try {
+                                  await DatabaseService.initializeUserData(
+                                    userCredential.user!.uid,
+                                    _fullNameController.text,
+                                    _emailController.text,
+                                    role: _selectedRole!, // Use the selected role
+                                  );
+                                } catch (e) {
+                                  debugPrint('Error initializing user data: $e');
+                                  // Continue even if this fails - user is created
+                                }
 
                                 // Initialize default badges and run initial check
-                                await BadgeService.initializeUserBadges(
-                                  userCredential.user!.uid,
-                                );
-                                await BadgeService.checkAndAwardBadges(
-                                  userCredential.user!.uid,
-                                );
+                                try {
+                                  await BadgeService.initializeUserBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                  // Small delay between badge operations
+                                  await Future.delayed(const Duration(milliseconds: 200));
+                                  await BadgeService.checkAndAwardBadges(
+                                    userCredential.user!.uid,
+                                  );
+                                } catch (e) {
+                                  debugPrint('Error initializing badges: $e');
+                                  // Continue even if badges fail - registration should succeed
+                                }
 
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                Navigator.of(context, rootNavigator: true).maybePop();
-                                setState(() { _isRegistering = false; });
-                                await _showCenterNotice('Registration Successful!');
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).maybePop();
+                                          setState(() {
+                                            _isRegistering = false;
+                                          });
+                                          await _showCenterNotice(
+                                            'Registration Successful!',
+                                          );
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
@@ -379,26 +514,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (e.code == 'weak-password') {
                                   message =
                                       'The password provided is too weak.';
-                                } else if (e.code == 'email-already-in-use') {
+                                          } else if (e.code ==
+                                              'email-already-in-use') {
                                   message =
                                       'The account already exists for that email.';
                                 } else {
                                   message =
-                                      e.message ?? 'An unknown error occurred.';
+                                                e.message ??
+                                                'An unknown error occurred.';
                                 }
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                Navigator.of(context, rootNavigator: true).maybePop();
-                                setState(() { _isRegistering = false; });
+                                          Navigator.of(
+                                            context,
+                                            rootNavigator: true,
+                                          ).maybePop();
+                                          setState(() {
+                                            _isRegistering = false;
+                                          });
                                 await _showCenterNotice(message);
                               } catch (e) {
+                                // Catch all other errors including Firestore errors
+                                debugPrint('Registration error: $e');
                                 if (!context.mounted) {
                                   return; // Guard against context use after async gap
                                 }
-                                Navigator.of(context, rootNavigator: true).maybePop();
-                                setState(() { _isRegistering = false; });
-                                await _showCenterNotice('An unexpected error occurred: ${e.toString()}');
+                                Navigator.of(
+                                  context,
+                                  rootNavigator: true,
+                                ).maybePop();
+                                setState(() {
+                                  _isRegistering = false;
+                                });
+                                
+                                // Check if it's a Firestore internal error
+                                final errorString = e.toString();
+                                if (errorString.contains('FIRESTORE') && 
+                                    errorString.contains('INTERNAL ASSERTION FAILED')) {
+                                  // User is likely created, try to continue
+                                  await _showCenterNotice(
+                                    'Registration completed, but there was a temporary issue. Please try signing in.',
+                                  );
+                                  if (context.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/sign_in',
+                                    );
+                                  }
+                                } else {
+                                  await _showCenterNotice(
+                                    'An error occurred during registration. Please try again.',
+                                  );
+                                }
                               }
                             },
                                 child: _isRegistering
@@ -407,7 +575,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         width: 22,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
                                         ),
                                       )
                                     : const Text(
@@ -436,12 +607,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    Navigator.pushReplacementNamed(context, '/sign_in');
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/sign_in',
+                                    );
                                   },
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   child: const Text(
                                     'SIGN IN',
@@ -497,10 +672,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Color(0xFFC10D00),
-          width: 2.0,
-        ),
+        borderSide: const BorderSide(color: Color(0xFFC10D00), width: 2.0),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
@@ -521,9 +693,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: TextFormField(
           controller: controller,
           obscureText: obscureText,
-          decoration: _inputDecoration().copyWith(
-            hintText: hintText,
-          ),
+          decoration: _inputDecoration().copyWith(hintText: hintText),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -543,9 +713,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
         child: DropdownButtonFormField<String>(
           value: _selectedRole,
-          decoration: _inputDecoration().copyWith(
-            hintText: 'Select your role',
-          ),
+          decoration: _inputDecoration().copyWith(hintText: 'Select your role'),
           dropdownColor: const Color(
             0x880A0F1F,
           ), // Darker background for dropdown
@@ -578,58 +746,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           },
         ),
       ),
-    );
-  }
-
-  Future<void> _showManagerRestrictionDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0E1A2E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Row(
-            children: const [
-              Icon(Icons.lock_outline, color: Color(0xFFC10D00)),
-              SizedBox(width: 8),
-              Text('Access restricted', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-          content: const Text(
-            'Manager sign-up requires a verified company email.\n\nPlease continue as Employee to proceed.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text(
-                'Close',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ),
-              onPressed: () {
-                setState(() {
-                  _selectedRole = 'employee';
-                });
-                Navigator.of(dialogContext).pop();
-                _showCenterNotice(
-                  'Continuing as Employee. You can proceed to sign up.',
-                );
-              },
-              child: const Text('Continue as Employee'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -685,7 +801,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF0E1A2E),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           content: Row(
             children: const [
               SizedBox(
