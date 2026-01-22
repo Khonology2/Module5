@@ -1298,15 +1298,71 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     return;
                                   }),
                               builder: (context, auditSnapshot) {
-                                final hasAuditEntry =
-                                    auditSnapshot.hasData &&
-                                    auditSnapshot.data!.any(
-                                      (entry) => entry.goalId == goal.id,
-                                    );
+                                final auditEntries =
+                                    auditSnapshot.data ?? const <AuditEntry>[];
+                                AuditEntry? auditEntry;
+                                for (final entry in auditEntries) {
+                                  if (entry.goalId == goal.id) {
+                                    auditEntry = entry;
+                                    break;
+                                  }
+                                }
+                                final hasAuditEntry = auditEntry != null;
+                                final status = auditEntry?.status;
+                                final isVerified = status == 'verified';
+                                final isRejected = status == 'rejected';
                                 final isApproved =
                                     goal.approvalStatus ==
                                     GoalApprovalStatus.approved;
                                 final canRequest = isApproved && !hasAuditEntry;
+
+                                final label = isVerified
+                                    ? 'Acknowledged'
+                                    : isRejected
+                                    ? 'Changes requested'
+                                    : hasAuditEntry
+                                    ? 'Acknowledgement requested'
+                                    : (isApproved
+                                          ? 'Request acknowledgement'
+                                          : 'Waiting for manager approval');
+                                final icon = isVerified
+                                    ? Icons.verified
+                                    : isRejected
+                                    ? Icons.warning_amber_rounded
+                                    : hasAuditEntry
+                                    ? Icons.check_circle
+                                    : (isApproved
+                                          ? Icons.verified_user
+                                          : Icons.lock_clock);
+                                final style = isVerified
+                                    ? OutlinedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.green.withValues(alpha: 0.1),
+                                        foregroundColor: Colors.green,
+                                        side: const BorderSide(
+                                          color: Colors.green,
+                                        ),
+                                      )
+                                    : isRejected
+                                    ? OutlinedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.red.withValues(alpha: 0.1),
+                                        foregroundColor: Colors.red,
+                                        side: const BorderSide(
+                                          color: Colors.red,
+                                        ),
+                                      )
+                                    : hasAuditEntry
+                                    ? OutlinedButton.styleFrom(
+                                        // ignore: deprecated_member_use
+                                        backgroundColor:
+                                            Colors.orange.withValues(alpha: 0.1),
+                                        foregroundColor: Colors.orange,
+                                        side: const BorderSide(
+                                          color: Colors.orange,
+                                        ),
+                                      )
+                                    : null;
 
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1318,33 +1374,21 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                                   goal,
                                                 )
                                           : null,
-                                      icon: Icon(
-                                        hasAuditEntry
-                                            ? Icons.check_circle
-                                            : (isApproved
-                                                  ? Icons.verified_user
-                                                  : Icons.lock_clock),
-                                        size: 18,
-                                      ),
-                                      label: Text(
-                                        hasAuditEntry
-                                            ? 'Acknowledgement requested'
-                                            : (isApproved
-                                                  ? 'Request acknowledgement'
-                                                  : 'Waiting for manager approval'),
-                                      ),
-                                      style: hasAuditEntry
-                                          ? OutlinedButton.styleFrom(
-                                              // ignore: deprecated_member_use
-                                              backgroundColor: Colors.orange
-                                                  .withValues(alpha: 0.1),
-                                              foregroundColor: Colors.orange,
-                                              side: const BorderSide(
-                                                color: Colors.orange,
-                                              ),
-                                            )
-                                          : null,
+                                      icon: Icon(icon, size: 18),
+                                      label: Text(label),
+                                      style: style,
                                     ),
+                                    if (isVerified)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Acknowledged by ${auditEntry?.acknowledgedBy ?? 'Manager'}',
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ),
                                     if (!hasAuditEntry && !isApproved)
                                       const SizedBox(height: 4),
                                     if (!hasAuditEntry && !isApproved)

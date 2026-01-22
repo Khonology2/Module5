@@ -1225,13 +1225,12 @@ class ManagerRealtimeService {
       }).toList();
 
       final completedGoals = allEmployeeGoals
-          .where((g) => g.status == GoalStatus.completed)
+          .where((g) => _isGoalCompleted(g))
           .length;
       final overdueGoals = allEmployeeGoals
           .where(
             (g) =>
-                g.status != GoalStatus.completed &&
-                g.targetDate.isBefore(DateTime.now()),
+                !_isGoalCompleted(g) && g.targetDate.isBefore(DateTime.now()),
           )
           .length;
 
@@ -1314,9 +1313,7 @@ class ManagerRealtimeService {
       return EmployeeStatus.inactive;
     }
 
-    final activeGoals = goals
-        .where((g) => g.status != GoalStatus.completed)
-        .toList();
+    final activeGoals = goals.where((g) => !_isGoalCompleted(g)).toList();
 
     if (activeGoals.isEmpty) {
       return EmployeeStatus.onTrack;
@@ -1340,6 +1337,10 @@ class ManagerRealtimeService {
     } else {
       return EmployeeStatus.onTrack;
     }
+  }
+
+  static bool _isGoalCompleted(Goal goal) {
+    return goal.status == GoalStatus.completed || goal.progress >= 100;
   }
 
   // Calculate streak days from activity documents
