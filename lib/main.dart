@@ -53,6 +53,7 @@ import 'package:pdh/services/cache_service.dart'; // Import CacheService
 import 'package:pdh/services/backend_auth_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
+import 'package:pdh/widgets/version_control_overlay.dart'; // Import VersionControlOverlay
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>(); // Declare a global key for the Navigator
@@ -512,6 +513,10 @@ class _GlobalChatbotWrapperState extends State<_GlobalChatbotWrapper> {
               return TeamChatButton(currentRoute: currentRoute);
             },
           ),
+        ),
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: const VersionControlOverlay(),
         ),
       ],
     );

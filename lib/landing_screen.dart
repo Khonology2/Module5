@@ -346,6 +346,7 @@ class _PersonalDevelopmentHubScreenState
     }
   }
 
+
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String pdhRole) {
     if (!mounted) {
