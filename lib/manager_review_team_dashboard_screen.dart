@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
@@ -804,7 +805,7 @@ class _ManagerReviewTeamDashboardScreenState
                       .where(
                         (g) =>
                             g.approvalStatus == GoalApprovalStatus.approved &&
-                            g.status != GoalStatus.completed,
+                            !_isGoalCompleted(g),
                       )
                       .length
                       .toString(),
@@ -1031,7 +1032,7 @@ class _ManagerReviewTeamDashboardScreenState
     final next14Days = now.add(const Duration(days: 14));
 
     return employee.goals.where((goal) {
-      if (goal.status == GoalStatus.completed) return false;
+      if (_isGoalCompleted(goal)) return false;
       return goal.targetDate.isAfter(now) &&
           goal.targetDate.isBefore(next14Days);
     }).toList()..sort((a, b) => a.targetDate.compareTo(b.targetDate));
@@ -1114,9 +1115,7 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildCompletedGoalsReviewSection(EmployeeData employee) {
-    final completedGoals = employee.goals
-        .where((g) => g.status == GoalStatus.completed)
-        .toList();
+    final completedGoals = employee.goals.where(_isGoalCompleted).toList();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1172,9 +1171,7 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   void _reviewCompletedGoals(EmployeeData employee) {
-    final completedGoals = employee.goals
-        .where((g) => g.status == GoalStatus.completed)
-        .toList();
+    final completedGoals = employee.goals.where(_isGoalCompleted).toList();
 
     showDialog(
       context: context,
@@ -1355,8 +1352,20 @@ class _ManagerReviewTeamDashboardScreenState
 
   void _acknowledgeGoal(Goal goal, EmployeeData employee) async {
     try {
-      // TODO: Implement acknowledgement in database service
-      // For now, show a success message
+      if (!_isGoalCompleted(goal)) {
+        await _showCenterNotice(
+          context,
+          'Only completed goals can be acknowledged.',
+        );
+        return;
+      }
+
+      await AuditService.acknowledgeCompletedGoal(
+        goal: goal,
+        employeeId: employee.profile.uid,
+        employeeName: employee.profile.displayName,
+        employeeDepartment: employee.profile.department,
+      );
       Navigator.pop(context); // Close review dialog
       await _showCenterNotice(
         context,
@@ -1366,7 +1375,6 @@ class _ManagerReviewTeamDashboardScreenState
       await _showCenterNotice(context, 'Error acknowledging goal: $e');
     }
   }
-
 
   Widget _buildEmployeeMetricChip({
     required IconData icon,
@@ -1472,6 +1480,10 @@ class _ManagerReviewTeamDashboardScreenState
       case GoalPriority.low:
         return AppColors.successColor;
     }
+  }
+
+  bool _isGoalCompleted(Goal goal) {
+    return goal.status == GoalStatus.completed || goal.progress >= 100;
   }
 
   String _formatLastActivity(DateTime? lastActivity) {

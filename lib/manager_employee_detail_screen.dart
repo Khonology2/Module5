@@ -204,6 +204,7 @@ class _ManagerEmployeeDetailScreenState
   }
 
   Widget _goalTile(Goal g) {
+    final isCompleted = _isGoalCompleted(g);
     final normalizedToday = _normalizedToday();
     final normalizedTarget = DateTime(
       g.targetDate.year,
@@ -211,8 +212,8 @@ class _ManagerEmployeeDetailScreenState
       g.targetDate.day,
     );
     final deltaDays = normalizedTarget.difference(normalizedToday).inDays;
-    final isOverdue = deltaDays < 0;
-    final isDueSoon = deltaDays >= 0 && deltaDays <= 2;
+    final isOverdue = !isCompleted && deltaDays < 0;
+    final isDueSoon = !isCompleted && deltaDays >= 0 && deltaDays <= 2;
     final isUrgent = isOverdue || isDueSoon;
 
     return Container(
@@ -244,7 +245,17 @@ class _ManagerEmployeeDetailScreenState
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (isUrgent) ...[
+                    if (isCompleted) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Completed',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.successColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ] else if (isUrgent) ...[
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -302,7 +313,7 @@ class _ManagerEmployeeDetailScreenState
                   ],
                 ),
               ),
-              _statusChip(g.status),
+              _statusChip(isCompleted ? GoalStatus.completed : g.status),
             ],
           ),
           const SizedBox(height: 8),
@@ -372,15 +383,14 @@ class _ManagerEmployeeDetailScreenState
                   color: AppColors.infoColor,
                 ),
               ],
-              if (g.status != GoalStatus.completed &&
-                  g.status != GoalStatus.paused) ...[
+              if (!isCompleted && g.status != GoalStatus.paused) ...[
                 _buildGoalActionButton(
                   label: 'Pause',
                   icon: Icons.pause_circle_outline,
                   onPressed: () => _pauseGoal(g),
                   color: AppColors.warningColor,
                 ),
-              ] else if (g.status == GoalStatus.paused) ...[
+              ] else if (!isCompleted && g.status == GoalStatus.paused) ...[
                 _buildGoalActionButton(
                   label: 'Resume',
                   icon: Icons.play_arrow,
@@ -388,8 +398,7 @@ class _ManagerEmployeeDetailScreenState
                   color: AppColors.successColor,
                 ),
               ],
-              if (g.status != GoalStatus.completed &&
-                  g.status != GoalStatus.burnout) ...[
+              if (!isCompleted && g.status != GoalStatus.burnout) ...[
                 _buildGoalActionButton(
                   label: 'Mark Burnout',
                   icon: Icons.local_fire_department_outlined,
@@ -431,6 +440,10 @@ class _ManagerEmployeeDetailScreenState
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  bool _isGoalCompleted(Goal goal) {
+    return goal.status == GoalStatus.completed || goal.progress >= 100;
   }
 
   void _nudgeAboutGoal(Goal goal) {

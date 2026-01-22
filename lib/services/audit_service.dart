@@ -552,6 +552,132 @@ class AuditService {
     }
   }
 
+  // Manager acknowledgement for a completed goal (with or without a prior request)
+  static Future<void> acknowledgeCompletedGoal({
+    required Goal goal,
+    required String employeeId,
+    required String employeeName,
+    required String employeeDepartment,
+    double? score,
+    String? comments,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+      final managerName =
+          userData['displayName'] ?? user.displayName ?? 'Manager';
+
+      final existingEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: employeeId)
+          .where('goalId', isEqualTo: goal.id)
+          .limit(1)
+          .get();
+
+      if (existingEntries.docs.isNotEmpty) {
+        final entryDoc = existingEntries.docs.first;
+        final entry = AuditEntry.fromFirestore(entryDoc);
+
+        await _firestore.collection('audit_entries').doc(entryDoc.id).update({
+          'status': 'verified',
+          'score': score,
+          'comments': comments,
+          'acknowledgedBy': managerName,
+          'acknowledgedById': user.uid,
+          'verifiedDate': Timestamp.now(),
+          'rejectionReason': null,
+        });
+
+        final updatedEntry = AuditEntry(
+          id: entry.id,
+          userId: entry.userId,
+          goalId: entry.goalId,
+          goalTitle: entry.goalTitle,
+          completedDate: entry.completedDate,
+          submittedDate: entry.submittedDate,
+          status: 'verified',
+          evidence: entry.evidence,
+          acknowledgedBy: managerName,
+          acknowledgedById: user.uid,
+          score: score ?? entry.score,
+          comments: comments ?? entry.comments,
+          userDisplayName: entry.userDisplayName,
+          userDepartment: entry.userDepartment,
+          verifiedDate: DateTime.now(),
+        );
+
+        await RepositoryService.addVerifiedGoalToRepository(updatedEntry);
+
+        final event = TimelineService.buildEvent(
+          eventType: 'verification',
+          description: 'Goal acknowledged by manager',
+          actorIdOverride: user.uid,
+          actorNameOverride: managerName,
+        );
+        await TimelineService.logEvent(entryDoc.id, event);
+        return;
+      }
+
+      final now = DateTime.now();
+      final auditEntry = AuditEntry(
+        id: '',
+        userId: employeeId,
+        goalId: goal.id,
+        goalTitle: goal.title,
+        completedDate: now,
+        submittedDate: now,
+        verifiedDate: now,
+        status: 'verified',
+        evidence: goal.evidence,
+        acknowledgedBy: managerName,
+        acknowledgedById: user.uid,
+        score: score,
+        comments: comments,
+        userDisplayName: employeeName,
+        userDepartment:
+            employeeDepartment.isEmpty ? 'Unknown' : employeeDepartment,
+      );
+
+      final ref = await _firestore
+          .collection('audit_entries')
+          .add(auditEntry.toFirestore());
+
+      final storedEntry = AuditEntry(
+        id: ref.id,
+        userId: auditEntry.userId,
+        goalId: auditEntry.goalId,
+        goalTitle: auditEntry.goalTitle,
+        completedDate: auditEntry.completedDate,
+        submittedDate: auditEntry.submittedDate,
+        verifiedDate: auditEntry.verifiedDate,
+        status: auditEntry.status,
+        evidence: auditEntry.evidence,
+        acknowledgedBy: auditEntry.acknowledgedBy,
+        acknowledgedById: auditEntry.acknowledgedById,
+        score: auditEntry.score,
+        comments: auditEntry.comments,
+        userDisplayName: auditEntry.userDisplayName,
+        userDepartment: auditEntry.userDepartment,
+      );
+
+      await RepositoryService.addVerifiedGoalToRepository(storedEntry);
+
+      final event = TimelineService.buildEvent(
+        eventType: 'verification',
+        description: 'Goal acknowledged by manager',
+        actorIdOverride: user.uid,
+        actorNameOverride: managerName,
+      );
+      await TimelineService.logEvent(ref.id, event);
+    } catch (e) {
+      developer.log('Error acknowledging completed goal: $e');
+      rethrow;
+    }
+  }
+
   // Request changes for an audit entry (manager action)
   static Future<void> requestChanges(String entryId, String reason) async {
     try {
