@@ -23,6 +23,8 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
   late Animation<Offset> _slideAnimation;
 
   Map<String, dynamic>? celebrationData;
+  bool _isLoadingCelebration = true;
+  String? _celebrationError;
 
   @override
   void initState() {
@@ -58,12 +60,20 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
 
   Future<void> _loadCelebrationData() async {
     try {
-      final data = await SeasonService.getSeasonCelebration(widget.season.id);
+      final data =
+          await SeasonService.getOrCreateSeasonCelebrationDoc(widget.season.id);
+      if (!mounted) return;
       setState(() {
         celebrationData = data;
+        _isLoadingCelebration = false;
+        _celebrationError = null;
       });
     } catch (e) {
-      // Handle error
+      if (!mounted) return;
+      setState(() {
+        _celebrationError = e.toString();
+        _isLoadingCelebration = false;
+      });
     }
   }
 
@@ -78,6 +88,52 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingCelebration) {
+      return const Scaffold(
+        backgroundColor: AppColors.cardBackground,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+          ),
+        ),
+      );
+    }
+
+    if (_celebrationError != null || celebrationData == null) {
+      return Scaffold(
+        backgroundColor: AppColors.cardBackground,
+        body: Center(
+          child: Padding(
+            padding: AppSpacing.screenPadding,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: AppColors.dangerColor, size: 48),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Unable to load celebration',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                if (_celebrationError != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _celebrationError!,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.cardBackground,
       body: Container(
@@ -132,6 +188,42 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
     );
   }
 
+  Map<String, dynamic>? get _summary =>
+      celebrationData?['summary'] as Map<String, dynamic>?;
+
+  int _summaryInt(String key, int fallback) {
+    final value = _summary?[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return fallback;
+  }
+
+  String get _seasonTitle =>
+      celebrationData?['title'] as String? ?? widget.season.title;
+
+  String get _seasonTheme =>
+      celebrationData?['theme'] as String? ?? widget.season.theme;
+
+  List<Map<String, dynamic>> get _topPerformersData {
+    final list = celebrationData?['topPerformers'] as List<dynamic>? ?? [];
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Map<String, dynamic> get _challengeBreakdownData {
+    final map =
+        celebrationData?['challengeBreakdown'] as Map<String, dynamic>? ?? {};
+    return Map<String, dynamic>.from(map);
+  }
+
+  int get _badgesAwardedFallback {
+    return widget.season.participations.values
+        .map((p) => p.badgesEarned.length)
+        .fold(0, (sum, count) => sum + count);
+  }
+
   Widget _buildCelebrationHeader() {
     return Column(
       children: [
@@ -178,7 +270,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
         ScaleTransition(
           scale: _celebrationAnimation,
           child: Text(
-            widget.season.title,
+            _seasonTitle,
             style: AppTypography.heading2.copyWith(
               color: AppColors.activeColor,
               fontWeight: FontWeight.bold,
@@ -190,7 +282,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
         ScaleTransition(
           scale: _celebrationAnimation,
           child: Text(
-            '${widget.season.theme.toUpperCase()} SEASON',
+            '${_seasonTheme.toUpperCase()} SEASON',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
@@ -204,6 +296,25 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
   }
 
   Widget _buildSeasonSummary() {
+    final totalParticipants = _summaryInt(
+      'totalParticipants',
+      widget.season.metrics.totalParticipants,
+    );
+    final completedChallenges = _summaryInt(
+      'completedChallenges',
+      widget.season.metrics.completedChallenges,
+    );
+    final totalChallenges = _summaryInt(
+      'totalChallenges',
+      widget.season.metrics.totalChallenges,
+    );
+    final totalPoints = _summaryInt(
+      'totalPointsEarned',
+      widget.season.metrics.totalPointsEarned,
+    );
+    final badgesAwarded =
+        _summaryInt('badgesAwarded', _badgesAwardedFallback);
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -240,7 +351,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Participants',
-                  value: '${widget.season.metrics.totalParticipants}',
+                  value: '$totalParticipants',
                   icon: Icons.people,
                   color: AppColors.infoColor,
                 ),
@@ -249,8 +360,8 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Challenges',
-                  value: '${widget.season.metrics.completedChallenges}',
-                  subtitle: 'of ${widget.season.metrics.totalChallenges}',
+                  value: '$completedChallenges',
+                  subtitle: 'of $totalChallenges',
                   icon: Icons.emoji_events,
                   color: AppColors.warningColor,
                 ),
@@ -263,7 +374,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Points Earned',
-                  value: '${widget.season.metrics.totalPointsEarned}',
+                  value: '$totalPoints',
                   icon: Icons.stars,
                   color: AppColors.successColor,
                 ),
@@ -272,7 +383,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
               Expanded(
                 child: _buildSummaryCard(
                   title: 'Badges Awarded',
-                  value: '${_getTotalBadgesAwarded()}',
+                  value: '$badgesAwarded',
                   icon: Icons.military_tech,
                   color: AppColors.dangerColor,
                 ),
@@ -285,6 +396,19 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
   }
 
   Widget _buildAchievementsSection() {
+    final totalParticipants = _summaryInt(
+      'totalParticipants',
+      widget.season.metrics.totalParticipants,
+    );
+    final totalPoints = _summaryInt(
+      'totalPointsEarned',
+      widget.season.metrics.totalPointsEarned,
+    );
+    final completedChallenges = _summaryInt(
+      'completedChallenges',
+      widget.season.metrics.completedChallenges,
+    );
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
@@ -313,7 +437,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
             icon: '🏆',
             title: 'Season Champions',
             description:
-                '${widget.season.metrics.totalParticipants} team members participated',
+                '$totalParticipants team members participated',
             color: AppColors.warningColor,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -321,7 +445,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
             icon: '⭐',
             title: 'Point Masters',
             description:
-                '${widget.season.metrics.totalPointsEarned} total points earned',
+                '$totalPoints total points earned',
             color: AppColors.successColor,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -329,14 +453,14 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
             icon: '🎯',
             title: 'Challenge Conquerors',
             description:
-                '${widget.season.metrics.completedChallenges} challenges completed',
+                '$completedChallenges challenges completed',
             color: AppColors.activeColor,
           ),
           const SizedBox(height: AppSpacing.md),
           _buildAchievementItem(
             icon: '🏅',
             title: 'Badge Collectors',
-            description: '${_getTotalBadgesAwarded()} badges awarded',
+            description: '${_summaryInt('badgesAwarded', _badgesAwardedFallback)} badges awarded',
             color: AppColors.dangerColor,
           ),
         ],
@@ -345,7 +469,7 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
   }
 
   Widget _buildTopPerformersSection() {
-    final topPerformers = _getTopPerformers();
+    final topPerformers = _topPerformersData;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -420,8 +544,12 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
           ),
           const SizedBox(height: AppSpacing.lg),
           ...widget.season.challenges.map((challenge) {
-            final completions =
-                widget.season.metrics.challengeCompletions[challenge.type] ?? 0;
+            final docValue = _challengeBreakdownData[challenge.type.name];
+            final completions = docValue is num
+                ? docValue.toInt()
+                : widget
+                        .season.metrics.challengeCompletions[challenge.type] ??
+                    0;
             final progress = challenge.milestones.isNotEmpty
                 ? (completions / challenge.milestones.length).clamp(0.0, 1.0)
                 : 0.0;
@@ -694,29 +822,6 @@ class _SeasonCelebrationScreenState extends State<SeasonCelebrationScreen>
         ],
       ),
     );
-  }
-
-  int _getTotalBadgesAwarded() {
-    return widget.season.participations.values
-        .map((p) => p.badgesEarned.length)
-        .fold(0, (sum, count) => sum + count);
-  }
-
-  List<Map<String, dynamic>> _getTopPerformers() {
-    final participants = widget.season.participations.values.toList();
-    participants.sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
-
-    return participants
-        .take(5)
-        .map(
-          (p) => {
-            'userId': p.userId,
-            'userName': p.userName,
-            'totalPoints': p.totalPoints,
-            'badgesEarned': p.badgesEarned.length,
-          },
-        )
-        .toList();
   }
 
   Color _getRankColor(int rank) {

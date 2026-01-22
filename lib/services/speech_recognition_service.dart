@@ -1,22 +1,15 @@
+// ignore_for_file: prefer_function_declarations_over_variables
+
 import 'dart:async';
-import 'dart:js_interop';
-import 'package:web/web.dart' as web;
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'dart:js' as js; // Use dart:js for JS interop
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
-@JSExport()
-extension type _WindowInterop(JSObject _) implements JSObject {
-  external JSAny? operator [](String key);
-  external void operator []=(String key, JSAny? value);
-}
-
-extension type _SpeechCommandFunction(JSFunction _) implements JSFunction {
-  external void callAsFunction([JSAny? arg]);
-}
-
 class SpeechRecognitionService {
-  static final SpeechRecognitionService _instance = SpeechRecognitionService._internal();
+  static final SpeechRecognitionService _instance =
+      SpeechRecognitionService._internal();
 
   factory SpeechRecognitionService() {
     return _instance;
@@ -24,15 +17,26 @@ class SpeechRecognitionService {
 
   SpeechRecognitionService._internal() {
     if (kIsWeb) {
-      // Expose Dart function to JavaScript using js_interop
-      final windowInterop = _WindowInterop(web.window as JSObject);
-      windowInterop['flutterSpeechCommand'] = _handleSpeechCommand.toJS;
-    }
-  }
+      // Use dart:js to expose a Dart function to JavaScript
+      // Create a wrapper function that JavaScript can call
+      js.context.callMethod('eval', [
+        '''
+        window.flutterSpeechCommand = function(command) {
+          // This will be handled by the Dart callback
+          if (window._dartSpeechCallback) {
+            window._dartSpeechCallback(command);
+          }
+        };
+        ''',
+      ]);
 
-  @JSExport('flutterSpeechCommand')
-  static void _handleSpeechCommand(JSString command) {
-    _instance._commandController.add(command.toDart);
+      // Store the Dart callback that will be called from JavaScript
+      // Using JsObject to set the property
+      final callback = (String command) {
+        _commandController.add(command);
+      };
+      js.context['_dartSpeechCallback'] = callback;
+    }
   }
 
   final _commandController = StreamController<String>.broadcast();
@@ -40,21 +44,15 @@ class SpeechRecognitionService {
 
   void startSpeechRecognition() {
     if (kIsWeb) {
-      final windowInterop = _WindowInterop(web.window as JSObject);
-      final startFn = windowInterop['startSpeechRecognition'];
-      if (startFn != null && startFn.isA<JSFunction>()) {
-        _SpeechCommandFunction(startFn as JSFunction).callAsFunction();
-      }
+      // Call JavaScript function using dart:js
+      js.context.callMethod('startSpeechRecognition', []);
     }
   }
 
   void stopSpeechRecognition() {
     if (kIsWeb) {
-      final windowInterop = _WindowInterop(web.window as JSObject);
-      final stopFn = windowInterop['stopSpeechRecognition'];
-      if (stopFn != null && stopFn.isA<JSFunction>()) {
-        _SpeechCommandFunction(stopFn as JSFunction).callAsFunction();
-      }
+      // Call JavaScript function using dart:js
+      js.context.callMethod('stopSpeechRecognition', []);
     }
   }
 
@@ -67,7 +65,6 @@ class SpeechRecognitionService {
     "khonopal open settings": "/settings",
     "khonopal go back": "back",
     "khonopal go to dashboard": "/dashboard", // context-aware
-
     // Employee Role
     "khonopal show my plan": "/my_pdp",
     "khonopal view my goals": "/my_goal_workspace",
@@ -118,5 +115,3 @@ class SpeechRecognitionService {
     _commandController.add(command);
   }
 }
-
-

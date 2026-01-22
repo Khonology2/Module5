@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -11,16 +12,15 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/activity_service.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/role_service.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/alert.dart';
 
 class GoalDetailScreen extends StatefulWidget {
   final Goal goal;
 
-  const GoalDetailScreen({
-    super.key,
-    required this.goal,
-  });
+  const GoalDetailScreen({super.key, required this.goal});
 
   @override
   State<GoalDetailScreen> createState() => _GoalDetailScreenState();
@@ -31,7 +31,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   bool isLoading = false;
   StreamSubscription<DocumentSnapshot>? _goalSub;
   bool _submittingApproval = false;
+  bool _isSeasonGoal = false;
 
+  
   @override
   void initState() {
     super.initState();
@@ -41,20 +43,34 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         .collection('goals')
         .doc(widget.goal.id)
         .snapshots()
-        .listen((doc) {
-      if (!mounted) return;
-      try {
-        final updated = Goal.fromFirestore(doc);
-        setState(() {
-          currentGoal = updated;
-        });
-      } catch (_) {}
-    });
+        .handleError((error) {
+          // Silently handle errors to prevent unmount errors
+          developer.log('Error in goal detail stream: $error');
+        })
+        .listen(
+          (doc) {
+            if (!mounted) return;
+            try {
+              final updated = Goal.fromFirestore(doc);
+              setState(() {
+                currentGoal = updated;
+                final data = doc.data();
+                _isSeasonGoal = (data?['isSeasonGoal'] == true);
+              });
+            } catch (_) {}
+          },
+          onError: (error) {
+            // Additional error handling for listen
+            developer.log('Error in goal detail listener: $error');
+          },
+        );
   }
 
   Future<void> _submitForApproval() async {
     if (_submittingApproval) return;
-    setState(() { _submittingApproval = true; });
+    setState(() {
+      _submittingApproval = true;
+    });
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('Not signed in');
@@ -65,7 +81,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       );
       if (mounted) {
         setState(() {
-          currentGoal = currentGoal.copyWith(approvalRequestedAt: DateTime.now());
+          currentGoal = currentGoal.copyWith(
+            approvalRequestedAt: DateTime.now(),
+          );
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Submitted for manager approval')),
@@ -78,13 +96,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() { _submittingApproval = false; });
+      if (mounted) {
+        setState(() {
+          _submittingApproval = false;
+        });
+      }
     }
   }
 
   Widget _buildKpaSelector() {
-    final List<String> options = ['Operational', 'Customer', 'Financial'];
-    final String? current = currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty
+    final String? formattedKpa =
+        (currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
         ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
         : null;
 
@@ -99,104 +121,47 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          initialValue: current,
-          dropdownColor: AppColors.elevatedBackground,
-          style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Select Key Performance Area',
-            hintStyle: AppTypography.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            filled: true,
-            fillColor: AppColors.elevatedBackground,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.borderColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: AppColors.activeColor),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.elevatedBackground,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.borderColor),
           ),
-          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-          items: options.map((o) => DropdownMenuItem<String>(
-            value: o,
-            child: Text(o, style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary)),
-          )).toList(),
-          onChanged: (val) async {
-            if (val == null) return;
-            final newKpa = val.toLowerCase();
-            try {
-              setState(() { isLoading = true; });
-              final updated = currentGoal.copyWith(kpa: newKpa);
-              await DatabaseService.updateGoal(updated);
-              if (mounted) {
-                setState(() { currentGoal = updated; });
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('KPA updated')),
-                );
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to update KPA: $e')),
-                );
-              }
-            } finally {
-              if (mounted) setState(() { isLoading = false; });
-            }
-          },
+          child: Row(
+            children: [
+              Icon(
+                Icons.workspace_premium_outlined,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  formattedKpa ?? 'Not assigned',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: formattedKpa != null
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'KPA is set when the goal is created. Contact your manager if it needs to change.',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
   }
 
-  Future<void> _confirmAndDeleteGoal() async {
-    if (isLoading) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Goal'),
-        content: const Text('Are you sure you want to permanently delete this goal? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.dangerColor, foregroundColor: Colors.white),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    setState(() { isLoading = true; });
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('Not signed in');
-      await DatabaseService.deleteGoal(goalId: currentGoal.id, requesterId: user.uid);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Goal deleted'), backgroundColor: Colors.green),
-      );
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete goal: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() { isLoading = false; });
-      }
-    }
-  }
 
   Future<void> _startGoal() async {
     if (isLoading) return;
@@ -216,7 +181,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           activityType: 'goal_started',
           description: 'Started goal',
         );
-        
+
         await AlertService.createPointsAlert(
           userId: user.uid,
           pointsEarned: 20,
@@ -256,7 +221,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _completeGoal() async {
     if (isLoading) return;
-    
+
     // Guard: ensure started and at 100% before attempting to complete
     if (currentGoal.status != GoalStatus.inProgress) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -276,7 +241,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       );
       return;
     }
-    
+
     setState(() {
       isLoading = true;
     });
@@ -292,7 +257,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           activityType: 'goal_completed',
           description: 'Completed goal',
         );
-        
+
         // Create completion alerts
         await AlertService.createGoalAlert(
           userId: user.uid,
@@ -302,7 +267,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           ),
           type: AlertType.goalCompleted,
         );
-        
+
         await AlertService.createPointsAlert(
           userId: user.uid,
           pointsEarned: 100,
@@ -349,7 +314,26 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Future<void> _updateProgress(int newProgress) async {
     if (isLoading) return;
-    
+
+    // Block updates on paused/burnout/completed goals at UI level for clarity
+    if (currentGoal.status == GoalStatus.paused ||
+        currentGoal.status == GoalStatus.burnout ||
+        currentGoal.status == GoalStatus.completed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              currentGoal.status == GoalStatus.paused
+                  ? 'This goal is paused. Ask your manager to resume it before updating progress.'
+                  : 'Cannot update progress on this goal.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       isLoading = true;
     });
@@ -368,14 +352,18 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       } catch (_) {
         // Swallow activity write errors so progress UX isn't interrupted
       }
-      
+
       if (mounted) {
         setState(() {
           // If progress moves above 0 and we were not started, reflect auto-transition to inProgress
-          final nextStatus = (newProgress > 0 && currentGoal.status == GoalStatus.notStarted)
+          final nextStatus =
+              (newProgress > 0 && currentGoal.status == GoalStatus.notStarted)
               ? GoalStatus.inProgress
               : currentGoal.status;
-          currentGoal = currentGoal.copyWith(progress: newProgress, status: nextStatus);
+          currentGoal = currentGoal.copyWith(
+            progress: newProgress,
+            status: nextStatus,
+          );
         });
 
         // Award points for progress milestones (backend handles 50% with +20 and motivational alert)
@@ -425,54 +413,63 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Goal Details',
-      showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/goal_detail',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        await AuthService().signOut();
-        if (!context.mounted) return;
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/sign_in',
-          (route) => false,
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        return AppScaffold(
+          title: 'Goal Details',
+          showAppBar: false,
+          items: items,
+          currentRouteName: '/goal_detail',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            await AuthService().signOut();
+            if (!context.mounted) return;
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          },
+          content: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/khono_bg.png'),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: AppSpacing.screenPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildApprovalNotice(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildGoalInfo(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildProgressSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildActionButtons(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildGoalMilestonesSection(),
+                  const SizedBox(height: AppSpacing.xl),
+                  _buildMilestoneTracker(),
+                ],
+              ),
+            ),
+          ),
         );
       },
-      content: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/khono_bg.png'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: AppSpacing.screenPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildApprovalNotice(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildGoalInfo(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildProgressSection(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildActionButtons(),
-              const SizedBox(height: AppSpacing.xl),
-              _buildMilestoneTracker(),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -483,7 +480,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   }
 
   Widget _buildApprovalNotice() {
-    if (currentGoal.approvalStatus == GoalApprovalStatus.approved) {
+    if (_isSeasonGoal ||
+        currentGoal.approvalStatus == GoalApprovalStatus.approved) {
       return const SizedBox.shrink();
     }
     final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
@@ -506,7 +504,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           Expanded(
             child: Text(
               text,
-              style: AppTypography.bodyMedium.copyWith(color: AppColors.textPrimary),
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],
@@ -519,10 +519,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       children: [
         IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(
-            Icons.arrow_back,
-            color: AppColors.textPrimary,
-          ),
+          icon: Icon(Icons.arrow_back, color: AppColors.textPrimary),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -532,11 +529,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               color: AppColors.textPrimary,
             ),
           ),
-        ),
-        IconButton(
-          tooltip: 'Delete Goal',
-          onPressed: isLoading ? null : _confirmAndDeleteGoal,
-          icon: Icon(Icons.delete_outline, color: AppColors.dangerColor),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -559,7 +551,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Widget _buildGoalInfo() {
     final daysLeft = currentGoal.targetDate.difference(DateTime.now()).inDays;
-    
+    final createdText = _fmtDateTime(currentGoal.createdAt);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -634,6 +627,20 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInfoItem(
+                  'Created',
+                  createdText,
+                  Icons.access_time,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(child: SizedBox.shrink()),
+            ],
+          ),
+          const SizedBox(height: 16),
           _buildKpaSelector(),
         ],
       ),
@@ -643,11 +650,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   Widget _buildInfoItem(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.textSecondary,
-        ),
+        Icon(icon, size: 16, color: AppColors.textSecondary),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -710,7 +713,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             minHeight: 8,
           ),
           const SizedBox(height: 16),
-          if (currentGoal.status != GoalStatus.completed && currentGoal.approvalStatus == GoalApprovalStatus.approved) ...[
+          if (currentGoal.status != GoalStatus.completed &&
+              (currentGoal.approvalStatus == GoalApprovalStatus.approved ||
+                  _isSeasonGoal)) ...[
             Text(
               'Update Progress',
               style: AppTypography.bodyMedium.copyWith(
@@ -722,21 +727,33 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               spacing: 8,
               runSpacing: 8,
               children: List.generate(10, (i) => (i + 1) * 10).map((progress) {
-                final isDisabled = progress <= currentGoal.progress;
+                final bool overEvidenceCap =
+                    (!_isSeasonGoal &&
+                    currentGoal.evidence.isEmpty &&
+                    progress > 90);
+                final isDisabled =
+                    progress <= currentGoal.progress || overEvidenceCap;
                 return ElevatedButton(
-                  onPressed: isDisabled ? null : () => _updateProgress(progress),
+                  onPressed: isDisabled
+                      ? null
+                      : () => _updateProgress(progress),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDisabled 
-                        ? AppColors.borderColor 
+                    backgroundColor: isDisabled
+                        ? AppColors.borderColor
                         : AppColors.activeColor,
                     foregroundColor: AppColors.textPrimary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                   child: Text('$progress%'),
                 );
               }).toList(),
             ),
-            if (currentGoal.progress >= 90 && currentGoal.progress < 100) ...[
+            if (currentGoal.progress >= 90 &&
+                currentGoal.progress < 100 &&
+                (_isSeasonGoal || currentGoal.evidence.isNotEmpty)) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerLeft,
@@ -747,8 +764,23 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textPrimary,
                     side: BorderSide(color: AppColors.activeColor),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
+                ),
+              ),
+            ],
+            if (!_isSeasonGoal &&
+                currentGoal.progress >= 90 &&
+                currentGoal.progress < 100 &&
+                currentGoal.evidence.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Submit evidence to unlock the final 10% and complete.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
@@ -765,15 +797,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         decoration: BoxDecoration(
           color: AppColors.successColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.successColor.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: AppColors.successColor.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
-            Icon(
-              Icons.check_circle,
-              color: AppColors.successColor,
-              size: 24,
-            ),
+            Icon(Icons.check_circle, color: AppColors.successColor, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -790,10 +820,14 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     }
 
     // If not approved yet, either allow submission or show status banner
-    if (currentGoal.approvalStatus != GoalApprovalStatus.approved) {
-      final isPending = currentGoal.approvalStatus == GoalApprovalStatus.pending;
+    if (!_isSeasonGoal &&
+        currentGoal.approvalStatus != GoalApprovalStatus.approved) {
+      final isPending =
+          currentGoal.approvalStatus == GoalApprovalStatus.pending;
       final hasRequested = currentGoal.approvalRequestedAt != null;
-      if (isPending && !hasRequested) {
+      // Permanently hide the submit-for-approval UI (auto-request happens on create)
+      final bool showSubmitForApproval = UniqueKey() == UniqueKey();
+      if (showSubmitForApproval && isPending && !hasRequested) {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -814,7 +848,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
               const SizedBox(height: 8),
               Text(
                 'Your goal needs manager approval before you can start updating progress.',
-                style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 12),
               SizedBox(
@@ -822,9 +858,22 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _submittingApproval ? null : _submitForApproval,
                   icon: _submittingApproval
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
                       : const Icon(Icons.send),
-                  label: Text(_submittingApproval ? 'Submitting...' : 'Submit for Approval'),
+                  label: Text(
+                    _submittingApproval
+                        ? 'Submitting...'
+                        : 'Submit for Approval',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.activeColor,
                     foregroundColor: AppColors.textPrimary,
@@ -841,9 +890,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.1),
+          color: (isPending ? AppColors.warningColor : AppColors.dangerColor)
+              .withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: (isPending ? AppColors.warningColor : AppColors.dangerColor).withValues(alpha: 0.3)),
+          border: Border.all(
+            color: (isPending ? AppColors.warningColor : AppColors.dangerColor)
+                .withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
@@ -875,7 +928,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           Expanded(
             child: ElevatedButton.icon(
               onPressed: isLoading ? null : _startGoal,
-              icon: isLoading 
+              icon: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -896,8 +949,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         ] else if (currentGoal.status == GoalStatus.inProgress) ...[
           Expanded(
             child: ElevatedButton.icon(
-              onPressed: (isLoading || currentGoal.progress < 90) ? null : _completeGoal,
-              icon: isLoading 
+              onPressed:
+                  (isLoading ||
+                      currentGoal.progress < 100 ||
+                      (!_isSeasonGoal && currentGoal.evidence.isEmpty))
+                  ? null
+                  : _completeGoal,
+              icon: isLoading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -907,7 +965,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       ),
                     )
                   : const Icon(Icons.check_circle),
-              label: Text(isLoading ? 'Completing...' : 'Complete Goal (+100 pts)'),
+              label: Text(
+                isLoading ? 'Completing...' : 'Complete Goal (+100 pts)',
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.successColor,
                 foregroundColor: AppColors.textPrimary,
@@ -927,16 +987,20 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       50: 20, // halfway bonus
       100: 100, // completion
     };
-    final milestones = steps.map((p) => {
-      'progress': p,
-      'label': p == 0 ? 'Started' : '$p% Complete',
-      'points': pointsByStep[p] ?? 0,
-      'icon': p == 0
-          ? Icons.play_arrow
-          : p == 100
-              ? Icons.check_circle
-              : Icons.trending_up,
-    }).toList();
+    final milestones = steps
+        .map(
+          (p) => {
+            'progress': p,
+            'label': p == 0 ? 'Started' : '$p% Complete',
+            'points': pointsByStep[p] ?? 0,
+            'icon': p == 0
+                ? Icons.play_arrow
+                : p == 100
+                ? Icons.check_circle
+                : Icons.trending_up,
+          },
+        )
+        .toList();
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -957,11 +1021,17 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
           const SizedBox(height: 16),
           ...milestones.map((milestone) {
             final progress = milestone['progress'] as int;
-            final isCompleted = (currentGoal.status == GoalStatus.inProgress && progress == 0) ||
-                               currentGoal.progress >= progress;
-            final isCurrent = currentGoal.progress >= progress && 
-                             (milestones.indexOf(milestone) == milestones.length - 1 || 
-                              currentGoal.progress < (milestones[milestones.indexOf(milestone) + 1]['progress'] as int));
+            final isCompleted =
+                (currentGoal.status == GoalStatus.inProgress &&
+                    progress == 0) ||
+                currentGoal.progress >= progress;
+            final isCurrent =
+                currentGoal.progress >= progress &&
+                (milestones.indexOf(milestone) == milestones.length - 1 ||
+                    currentGoal.progress <
+                        (milestones[milestones.indexOf(milestone) +
+                                1]['progress']
+                            as int));
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -971,27 +1041,27 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: isCompleted 
+                      color: isCompleted
                           ? AppColors.successColor.withValues(alpha: 0.2)
                           : isCurrent
-                              ? AppColors.activeColor.withValues(alpha: 0.2)
-                              : AppColors.borderColor.withValues(alpha: 0.2),
+                          ? AppColors.activeColor.withValues(alpha: 0.2)
+                          : AppColors.borderColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isCompleted 
+                        color: isCompleted
                             ? AppColors.successColor
                             : isCurrent
-                                ? AppColors.activeColor
-                                : AppColors.borderColor,
+                            ? AppColors.activeColor
+                            : AppColors.borderColor,
                       ),
                     ),
                     child: Icon(
                       milestone['icon'] as IconData,
-                      color: isCompleted 
+                      color: isCompleted
                           ? AppColors.successColor
                           : isCurrent
-                              ? AppColors.activeColor
-                              : AppColors.textSecondary,
+                          ? AppColors.activeColor
+                          : AppColors.textSecondary,
                       size: 20,
                     ),
                   ),
@@ -1003,10 +1073,12 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         Text(
                           milestone['label'] as String,
                           style: AppTypography.bodyMedium.copyWith(
-                            color: isCompleted 
+                            color: isCompleted
                                 ? AppColors.textPrimary
                                 : AppColors.textSecondary,
-                            fontWeight: isCompleted ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isCompleted
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                         if ((milestone['points'] as int) > 0)
@@ -1020,11 +1092,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     ),
                   ),
                   if (isCompleted)
-                    Icon(
-                      Icons.check,
-                      color: AppColors.successColor,
-                      size: 20,
-                    ),
+                    Icon(Icons.check, color: AppColors.successColor, size: 20),
                 ],
               ),
             );
@@ -1061,6 +1129,680 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return 'PAUSED';
       case GoalStatus.burnout:
         return 'BURNOUT';
+    }
+  }
+
+  String _fmtDateTime(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '${dt.day}/${dt.month}/${dt.year} $h:$m';
+  }
+
+  Widget _buildGoalMilestonesSection() {
+    if (_isSeasonGoal) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.elevatedBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Season Challenge Milestones',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This goal is linked to a Season Challenge. Milestones are predefined by your manager. '
+              'Use the Season Challenges → My Seasons screen to update milestone progress.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    final bool isOwner = user?.uid == currentGoal.userId;
+    final bool isGoalCompleted = currentGoal.status == GoalStatus.completed;
+    final bool canAddMilestones = isOwner && !isGoalCompleted;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.elevatedBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Goal Milestones',
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isOwner
+                          ? 'Break this goal into concrete steps with target dates.'
+                          : 'View the employee-defined checkpoints for this goal.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    if (isGoalCompleted)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Completed milestones are locked because this goal is closed.',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (canAddMilestones)
+                TextButton.icon(
+                  onPressed: () => _showMilestoneDialog(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.activeColor,
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Milestone'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          StreamBuilder<List<GoalMilestone>>(
+            stream: DatabaseService.getGoalMilestonesStream(currentGoal.id),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+              final milestones = snapshot.data ?? const [];
+              if (milestones.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Text(
+                    canAddMilestones
+                        ? 'No milestones yet. Use “Add Milestone” to map the steps for this goal.'
+                        : 'Milestones will appear here once the employee adds them.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: milestones
+                    .map(
+                      (milestone) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _GoalMilestoneTile(
+                          milestone: milestone,
+                          canEdit:
+                              isOwner &&
+                              !(isGoalCompleted &&
+                                  milestone.status ==
+                                      GoalMilestoneStatus.completed),
+                          isLocked:
+                              isGoalCompleted &&
+                              milestone.status == GoalMilestoneStatus.completed,
+                          onEdit: () =>
+                              _showMilestoneDialog(milestone: milestone),
+                          onUpdateStatus: (status) =>
+                              _updateMilestoneStatus(milestone, status),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMilestoneDialog({GoalMilestone? milestone}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be signed in to manage milestones.'),
+        ),
+      );
+      return;
+    }
+    if (milestone == null && currentGoal.status == GoalStatus.completed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Completed goals can no longer accept new milestones.'),
+        ),
+      );
+      return;
+    }
+    final titleController = TextEditingController(text: milestone?.title ?? '');
+    final descController = TextEditingController(
+      text: milestone?.description ?? '',
+    );
+    DateTime? dueDate =
+        milestone?.dueDate ?? DateTime.now().add(const Duration(days: 7));
+    GoalMilestoneStatus status =
+        milestone?.status ?? GoalMilestoneStatus.notStarted;
+    bool saving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickDueDate() async {
+              final now = DateTime.now();
+              // Restrict milestone due date to be after the goal's start date (createdAt)
+              // or after today if goal was created today
+              final goalStartDate = currentGoal.createdAt;
+              final minDate = goalStartDate.isBefore(now)
+                  ? now
+                  : DateTime(
+                      goalStartDate.year,
+                      goalStartDate.month,
+                      goalStartDate.day,
+                    ).add(const Duration(days: 1));
+
+              final selected = await showDatePicker(
+                context: context,
+                initialDate: dueDate ?? (minDate.isBefore(now) ? now : minDate),
+                firstDate: minDate,
+                lastDate: DateTime(now.year + 5),
+              );
+              if (selected != null) {
+                setDialogState(() {
+                  dueDate = DateTime(
+                    selected.year,
+                    selected.month,
+                    selected.day,
+                  );
+                });
+              }
+            }
+
+            Future<void> submit() async {
+              final trimmedTitle = titleController.text.trim();
+              final trimmedDesc = descController.text.trim();
+              if (trimmedTitle.isEmpty) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Title is required.')),
+                );
+                return;
+              }
+              if (dueDate == null) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Select a due date.')),
+                );
+                return;
+              }
+
+              setDialogState(() => saving = true);
+              try {
+                if (milestone == null) {
+                  await DatabaseService.addGoalMilestone(
+                    goalId: currentGoal.id,
+                    title: trimmedTitle,
+                    description: trimmedDesc,
+                    dueDate: dueDate!,
+                    createdBy: user.uid,
+                    createdByName: user.displayName ?? user.email ?? 'You',
+                    status: status,
+                  );
+                } else {
+                  await DatabaseService.updateGoalMilestone(
+                    goalId: currentGoal.id,
+                    milestoneId: milestone.id,
+                    title: trimmedTitle,
+                    description: trimmedDesc,
+                    dueDate: dueDate!,
+                    status: status,
+                  );
+                }
+                // Try to close dialog and show success message
+                // Use try-catch to handle if dialog context is no longer valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  Navigator.of(dialogContext).pop();
+                  // Use dialogContext for ScaffoldMessenger since we're in dialog scope
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        milestone == null
+                            ? 'Milestone created.'
+                            : 'Milestone updated.',
+                      ),
+                    ),
+                  );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
+                }
+              } catch (e) {
+                setDialogState(() => saving = false);
+                // Try to show error message if dialog context is still valid
+                try {
+                  // ignore: use_build_context_synchronously
+                  // dialogContext is from dialog builder, checked with try-catch
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(content: Text('Failed to save milestone: $e')),
+                  );
+                } catch (_) {
+                  // Dialog context is no longer valid, ignore
+                }
+              }
+            }
+
+            return AlertDialog(
+              title: Text(
+                milestone == null ? 'Add Milestone' : 'Edit Milestone',
+                style: AppTypography.heading4,
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Milestone title',
+                        hintText: 'e.g., Complete basics course',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Description (optional)',
+                        hintText:
+                            'Add more context or link to learning resources.',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      onTap: pickDueDate,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(
+                        dueDate != null
+                            ? _formatShortDate(dueDate!)
+                            : 'Select due date',
+                      ),
+                      subtitle: const Text('Tap to choose deadline'),
+                      trailing: TextButton(
+                        onPressed: pickDueDate,
+                        child: const Text('Change'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<GoalMilestoneStatus>(
+                      initialValue: status,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: GoalMilestoneStatus.values
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(_milestoneStatusLabel(value)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => status = value);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: saving ? null : submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.activeColor,
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          milestone == null
+                              ? 'Create Milestone'
+                              : 'Save Changes',
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _updateMilestoneStatus(
+    GoalMilestone milestone,
+    GoalMilestoneStatus status,
+  ) async {
+    try {
+      await DatabaseService.updateGoalMilestone(
+        goalId: currentGoal.id,
+        milestoneId: milestone.id,
+        status: status,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Marked as ${_milestoneStatusLabel(status)}.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update milestone: $e')),
+        );
+      }
+    }
+  }
+
+
+  String _milestoneStatusLabel(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return 'Not Started';
+      case GoalMilestoneStatus.inProgress:
+        return 'In Progress';
+      case GoalMilestoneStatus.completed:
+        return 'Completed';
+      case GoalMilestoneStatus.blocked:
+        return 'Blocked';
+    }
+  }
+
+  String _formatShortDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+}
+
+class _GoalMilestoneTile extends StatelessWidget {
+  final GoalMilestone milestone;
+  final bool canEdit;
+  final bool isLocked;
+  final VoidCallback onEdit;
+  final Future<void> Function(GoalMilestoneStatus status) onUpdateStatus;
+
+  const _GoalMilestoneTile({
+    required this.milestone,
+    required this.canEdit,
+    required this.isLocked,
+    required this.onEdit,
+    required this.onUpdateStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isOverdue =
+        milestone.status != GoalMilestoneStatus.completed &&
+        milestone.dueDate.isBefore(DateTime.now());
+    final Color statusColor = _statusColor(milestone.status);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOverdue
+              ? AppColors.dangerColor
+              : Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      milestone.title,
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatShortDate(milestone.dueDate),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: isOverdue
+                                ? AppColors.dangerColor
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _statusLabel(milestone.status),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (canEdit)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_horiz),
+                  onSelected: (value) async { // Added async
+                    switch (value) {
+                      case 'edit':
+                        onEdit();
+                        break;
+                      case 'start':
+                        await onUpdateStatus(GoalMilestoneStatus.notStarted);
+                        break;
+                      case 'progress':
+                        await onUpdateStatus(GoalMilestoneStatus.inProgress);
+                        break;
+                      case 'blocked':
+                        await onUpdateStatus(GoalMilestoneStatus.blocked);
+                        break;
+                      case 'complete':
+                        await onUpdateStatus(GoalMilestoneStatus.completed);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit details'),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'start',
+                      child: Text('Mark Not Started'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'progress',
+                      child: Text('Mark In Progress'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'blocked',
+                      child: Text('Mark Blocked'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'complete',
+                      child: Text('Mark Completed'),
+                    ),
+                  ],
+                ),
+              if (!canEdit && isLocked)
+                Tooltip(
+                  message:
+                      'This milestone is locked because the goal is completed.',
+                  child: Icon(
+                    Icons.lock_outline,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+          if (milestone.description.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              milestone.description,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.person, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              Text(
+                milestone.createdByName ?? 'Employee',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (milestone.completedAt != null) ...[
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.check_circle,
+                  size: 16,
+                  color: AppColors.successColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Completed ${_formatShortDate(milestone.completedAt!)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.successColor,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatShortDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
+  String _statusLabel(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return 'Not Started';
+      case GoalMilestoneStatus.inProgress:
+        return 'In Progress';
+      case GoalMilestoneStatus.completed:
+        return 'Completed';
+      case GoalMilestoneStatus.blocked:
+        return 'Blocked';
+    }
+  }
+
+  Color _statusColor(GoalMilestoneStatus status) {
+    switch (status) {
+      case GoalMilestoneStatus.notStarted:
+        return AppColors.textSecondary;
+      case GoalMilestoneStatus.inProgress:
+        return AppColors.activeColor;
+      case GoalMilestoneStatus.completed:
+        return AppColors.successColor;
+      case GoalMilestoneStatus.blocked:
+        return AppColors.warningColor;
     }
   }
 }

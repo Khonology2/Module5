@@ -9,7 +9,6 @@ import 'package:pdh/services/database_service.dart';
 // ignore: unused_import
 import 'package:pdh/firebase_options.dart';
 import 'dart:ui';
-import 'package:video_player/video_player.dart';
 import 'package:pdh/context_maps/khonopal_context.dart'; // Import the new KhonoPalContext
 import 'package:shared_preferences/shared_preferences.dart'; // Import for shared preferences
 import 'dart:convert'; // Import for JSON encoding/decoding
@@ -20,20 +19,28 @@ class AiChatbotScreen extends StatefulWidget {
   final String? prompt; // Optional initial prompt
   final Function(String)?
   onResult; // Callback for when a result is generated and should be returned
-  const AiChatbotScreen({super.key, this.prompt, this.onResult});
+  final bool embedded;
+  const AiChatbotScreen({
+    super.key,
+    this.prompt,
+    this.onResult,
+    this.embedded = false,
+  });
 
   @override
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
 }
 
-class _AiChatbotScreenState extends State<AiChatbotScreen> {
+class _AiChatbotScreenState extends State<AiChatbotScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
   late GenerativeModel _model;
   final ScrollController _scrollController = ScrollController();
-  late VideoPlayerController _videoController;
   String _selectedMode = 'General Chat'; // New state variable for selected mode
   bool _isThinking = false; // Re-introduce thinking state
+  late AnimationController _avatarAnimationController;
+  late Animation<double> _avatarAnimation;
   late FlutterTts flutterTts;
   String? _lastAiResponse; // To store the last AI response
   bool _isSpeaking = false; // To track if TTS is active
@@ -101,15 +108,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void initState() {
     super.initState();
     _initializeGenerativeModel();
-    _videoController =
-        VideoPlayerController.asset(
-            'assets/videos/chat_bot_animation-vmake.mp4',
-          )
-          ..initialize().then((_) {
-            _videoController.setLooping(true);
-            _videoController.play();
-            setState(() {});
-          });
+    // Avatar is now a GIF, no need for video controller
+
+    // Initialize avatar flashing animation
+    _avatarAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _avatarAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _avatarAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     // Corrected order: Load chat history before setting greeting
     _loadChatHistory(); // Load chat history when the screen initializes
     _loadUserProfileAndSetGreeting();
@@ -214,8 +226,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       SnackBar(
         content: Text(
           _isSummarizeMode
-              ? 'Summarize mode enabled!'
-              : 'Summarize mode disabled!',
+              ? 'Summary mode enabled! AI will respond in 2 lines.'
+              : 'Summary mode disabled!',
         ),
       ),
     );
@@ -276,7 +288,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _videoController.dispose();
+    _avatarAnimationController.dispose(); // Dispose animation controller
     _messageController.dispose(); // Dispose controller
     flutterTts.stop(); // Stop any ongoing speech
     flutterTts.awaitSpeakCompletion(true); // Ensure all speech is stopped
@@ -291,26 +303,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       model: 'gemini-2.5-flash',
       // systemInstruction will be set dynamically in _sendMessage
     );
-  }
-
-  void _startTypewriterAnimation(ChatMessage message) async {
-    final fullText = message.fullText ?? '';
-    setState(() {
-      message.text = ''; // Start with empty text
-    });
-
-    for (int i = 0; i < fullText.length; i++) {
-      await Future.delayed(
-        const Duration(microseconds: 100),
-      ); // Adjusted to be much faster
-      if (!mounted)
-        // ignore: curly_braces_in_flow_control_structures
-        return; // Check if widget is still mounted before calling setState
-      setState(() {
-        message.text = fullText.substring(0, i + 1);
-      });
-      _scrollToBottom(); // Scroll to bottom with each character
-    }
   }
 
   void _scrollToBottom() {
@@ -328,14 +320,19 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     String? messageContent,
     String? selectedModeOverride,
   }) async {
-    String text =
-        messageContent ??
-        _messageController.text
-            .trim(); // Use messageContent if provided, otherwise controller text
+    final bool isInitialPrompt =
+        initialPrompt != null && initialPrompt.trim().isNotEmpty;
+
+    String text;
+    if (isInitialPrompt) {
+      text = initialPrompt.trim();
+    } else {
+      text = (messageContent ?? _messageController.text).trim();
+    }
     if (text.isEmpty) return;
 
     // Input validation for text length
-    if (text.length > 256) {
+    if (!isInitialPrompt && text.length > 256) {
       // Approximate token limit
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -348,17 +345,28 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
 
     setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
+      if (!isInitialPrompt) {
+        _messages.add(ChatMessage(text: text, isUser: true));
+      } else {
+        _showQuickActions = false;
+      }
       _messageController.clear();
       _isThinking = true; // Set thinking state to true
     });
+    // Start avatar flashing animation
+    _avatarAnimationController.repeat(reverse: true);
     _scrollToBottom(); // Scroll to bottom after adding user message
     _saveChatHistory(); // Save chat after adding user message
 
     String textToSendToGemini = text;
 
-    String pdpSystemInstruction =
-        "You are an AI assistant specialized in creating personal development plans. Generate a comprehensive and actionable development plan based on the user's input. The plan should include specific goals, recommended resources (e.g., courses, books, certifications, mentors), and actionable steps with timelines. Focus on career aspirations and skill development.";
+    const String pdpSystemInstruction =
+        '''You are KhonoPal's leadership development copilot. Collaborate with managers to co-create personalized development plans anchored in the context you receive (skills, growth areas, projects, aspirations, learning preferences). Always:
+1) Confirm understanding and ask for any missing details before prescribing steps.
+2) Break guidance into focus areas with SMART outcomes, resources (courses, mentors, rituals, templates), and checkpoints (30/60/90 day or 12-week arcs) plus success metrics.
+3) Suggest how to secure support or accountability partners and call out potential obstacles.
+4) Close with concrete next micro-actions and invite the manager to iterate with you.
+Keep the tone strengths-based, specific, and action-oriented, and format responses with clear headings or bullet lists.''';
 
     try {
       // Dynamically set system instruction based on _selectedMode, selectedModeOverride or if it's a PDP request
@@ -395,13 +403,22 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       }
 
       // Add summarization instruction if _isSummarizeMode is true
+      // When summary mode is enabled, AI must respond in exactly 2 lines
       if (_isSummarizeMode) {
+        const summaryInstruction =
+            "\n\nIMPORTANT: You must respond in EXACTLY 2 lines. "
+            "Do not exceed 2 lines. Be concise and direct. "
+            "Each line should be a complete thought or sentence. "
+            "Do not use more than 2 lines under any circumstances.";
+
         if (currentSystemInstruction != null) {
-          currentSystemInstruction +=
-              "\n\nPlease summarize the response to 3-4 lines.";
+          currentSystemInstruction += summaryInstruction;
         } else {
           currentSystemInstruction =
-              "Summarize the following response to 3-4 lines.";
+              "You are a helpful AI assistant. When responding, you must provide your answer in EXACTLY 2 lines. "
+              "Do not exceed 2 lines. Be concise and direct. "
+              "Each line should be a complete thought or sentence. "
+              "Do not use more than 2 lines under any circumstances.";
         }
       }
 
@@ -418,7 +435,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       String cleanedResponseText =
           response.text?.replaceAll('*', '') ?? 'No response';
       final aiMessage = ChatMessage(
-        text: '',
+        text:
+            cleanedResponseText, // Set text directly instead of using typewriter
         isUser: false,
         fullText: cleanedResponseText,
       );
@@ -428,9 +446,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             false; // Set thinking state to false after response is received
         _lastAiResponse = cleanedResponseText; // Store the last AI response
       });
+      // Stop avatar flashing animation
+      _avatarAnimationController.stop();
+      _avatarAnimationController.reset();
       _scrollToBottom(); // Scroll to bottom after adding new message container
-      _startTypewriterAnimation(aiMessage);
-      _videoController.play(); // Ensure video keeps playing
+      // Typewriter animation removed - response appears immediately
       _saveChatHistory(); // Save chat after AI response
 
       // If there's an onResult callback and a PDP was generated, send it back
@@ -444,75 +464,153 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _messages.add(ChatMessage(text: 'Error: $e', isUser: false));
         _isThinking = false; // Set thinking state to false on error
       });
+      // Stop avatar flashing animation on error
+      _avatarAnimationController.stop();
+      _avatarAnimationController.reset();
     }
+  }
+
+  Widget _buildChatSurface() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Image.asset('assets/khono_bg.png', fit: BoxFit.cover),
+        ),
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF0A0F1F),
+                Color(0x001F2840),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: _messages.length + (_isThinking ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _messages.length && _isThinking) {
+                      return const _ThinkingIndicator();
+                    }
+                    final message = _messages[index];
+                    return ChatBubble(
+                      message: message,
+                      avatarAnimation: _isThinking ? _avatarAnimation : null,
+                    );
+                  },
+                ),
+              ),
+              if (_showQuickActions) _buildQuickActions(),
+              _buildMessageInput(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmbeddedHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 12, 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF040610),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 56,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Development Plan Copilot',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Co-create a plan without leaving your profile.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white70),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final chatSurface = _buildChatSurface();
+
+    if (widget.embedded) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            color: const Color(0xFF040610),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  _buildEmbeddedHeader(),
+                  Expanded(child: chatSurface),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        // title: const Text('KhonoPal AI', style: TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        toolbarHeight: 70.0, // Increased toolbar height
-        leadingWidth: 70.0, // Adjust leading width
+        toolbarHeight: 70.0,
+        leadingWidth: 70.0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pushReplacementNamed(context, '/employee_dashboard');
           },
         ),
       ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/20250919_1708_Futuristic Red Tech Design_remix_01k5h86tdef65aerhqpqthxd5d.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF0A0F1F),
-                  Color(0x001F2840),
-                ], // Slightly transparent gradient over image
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount:
-                        _messages.length +
-                        (_isThinking ? 1 : 0), // Adjust itemCount
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _isThinking) {
-                        return _ThinkingIndicator();
-                      }
-                      final message = _messages[index];
-                      return ChatBubble(
-                        message: message,
-                        videoController: _videoController,
-                      );
-                    },
-                  ),
-                ),
-                // Conditionally display quick actions
-                if (_showQuickActions) _buildQuickActions(),
-                _buildMessageInput(),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body: chatSurface,
     );
   }
 
@@ -623,14 +721,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             // Moved Text-to-speech button (AI Voice Playback) outside TextField
             IconButton(
               icon: Image.asset(
-                'assets/1.Audio Sound.png', // Updated to use the new asset
+                'assets/Audio_Sound.png',
                 width: 62.0, // Increased size to match Plus_Addition icon
                 height: 62.0, // Increased size to match Plus_Addition icon
-                color: _isSpeaking
-                    ? const Color(0xFFC10D00)
-                    : ((_lastAiResponse != null && !_isThinking)
-                          ? Colors.white70
-                          : Colors.grey),
               ),
               onPressed: (_lastAiResponse != null && !_isThinking)
                   ? () {
@@ -647,7 +740,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               onPressed: () => _sendMessage(),
               backgroundColor: const Color(0xFFC10D00),
               child: Image.asset(
-                'assets/Send_Paper Plane/Send_Plane_Red Badge_White.png',
+                'assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png',
                 width: 62.0, // Adjust width as needed
                 height: 62.0, // Adjust height as needed
               ),
@@ -966,8 +1059,8 @@ class ChatMessage {
 
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
-  final VideoPlayerController? videoController;
-  const ChatBubble({super.key, required this.message, this.videoController});
+  final Animation<double>? avatarAnimation;
+  const ChatBubble({super.key, required this.message, this.avatarAnimation});
 
   @override
   Widget build(BuildContext context) {
@@ -979,22 +1072,26 @@ class ChatBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!message.isUser &&
-              videoController != null &&
-              videoController!.value.isInitialized) ...[
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.transparent,
-              child: ClipOval(
-                child: SizedBox(
-                  width: 40, // Adjust as needed
-                  height: 40, // Adjust as needed
-                  child: AspectRatio(
-                    aspectRatio: videoController!.value.aspectRatio,
-                    child: VideoPlayer(videoController!),
+          if (!message.isUser) ...[
+            AnimatedBuilder(
+              animation: avatarAnimation ?? const AlwaysStoppedAnimation(1.0),
+              builder: (context, child) {
+                return Opacity(
+                  opacity: avatarAnimation?.value ?? 1.0,
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.transparent,
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/videos/Ai_Avatar.gif',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
             const SizedBox(width: 8),
           ],

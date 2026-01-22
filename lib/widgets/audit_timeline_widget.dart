@@ -56,7 +56,7 @@ class AuditTimelineWidget extends StatelessWidget {
             final icon = _iconForType(event.eventType);
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.15),
+                backgroundColor: color.withValues(alpha:0.15),
                 child: Icon(icon, color: color),
               ),
               title: Text(event.description),

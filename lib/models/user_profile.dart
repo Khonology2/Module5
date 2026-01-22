@@ -61,10 +61,12 @@ class UserProfile {
   // Factory constructor to create a UserProfile from a Firestore DocumentSnapshot
   factory UserProfile.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
+    final dn = (data?['displayName']?.toString() ?? '').trim();
+    final fn = (data?['fullName']?.toString() ?? '').trim();
     return UserProfile(
       uid: doc.id,
       email: data?['email'] ?? '',
-      displayName: data?['displayName'] ?? '',
+      displayName: dn.isNotEmpty ? dn : fn,
       totalPoints: (data?['totalPoints'] ?? 0) as int,
       level: (data?['level'] ?? 1) as int,
       badges: List<String>.from(data?['badges'] ?? const []),
@@ -87,7 +89,10 @@ class UserProfile {
       longGoals: data?['longGoals'] ?? '',
       notificationFrequency: data?['notificationFrequency'] ?? 'daily',
       goalVisibility: data?['goalVisibility'] ?? 'private',
-      leaderboardOptin: data?['leaderboardOptin'] ?? false,
+      leaderboardOptin:
+          data?['leaderboardOptin'] ??
+          data?['leaderboardParticipation'] ??
+          false,
       badgeName: data?['badgeName'] ?? '',
       celebrationConsent: data?['celebrationConsent'] ?? 'private',
       lastLoginAt: data?['lastLoginAt'] is Timestamp
@@ -120,9 +125,12 @@ class UserProfile {
       'notificationFrequency': notificationFrequency,
       'goalVisibility': goalVisibility,
       'leaderboardOptin': leaderboardOptin,
+      'leaderboardParticipation': leaderboardOptin,
       'badgeName': badgeName,
       'celebrationConsent': celebrationConsent,
-      'lastLoginAt': lastLoginAt != null ? Timestamp.fromDate(lastLoginAt!) : null,
+      'lastLoginAt': lastLoginAt != null
+          ? Timestamp.fromDate(lastLoginAt!)
+          : null,
     };
   }
 
@@ -210,7 +218,8 @@ class UserProfile {
       longGoals: map['longGoals'] ?? '',
       notificationFrequency: map['notificationFrequency'] ?? 'daily',
       goalVisibility: map['goalVisibility'] ?? 'private',
-      leaderboardOptin: map['leaderboardOptin'] ?? false,
+      leaderboardOptin:
+          map['leaderboardOptin'] ?? map['leaderboardParticipation'] ?? false,
       badgeName: map['badgeName'] ?? '',
       celebrationConsent: map['celebrationConsent'] ?? 'private',
       lastLoginAt: map['lastLoginAt'] is Timestamp

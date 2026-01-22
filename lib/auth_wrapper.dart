@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdh/sign_in_screen.dart'; // Import LoginScreen which is the actual sign-in screen
-// Uncomment these imports when re-enabling authentication flow:
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:pdh/services/database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/services/role_service.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -14,31 +13,56 @@ class AuthWrapper extends StatefulWidget {
 class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
-    // For development/testing: Always navigate to the LoginScreen
-    // To re-enable authentication flow, uncomment the StreamBuilder code below
-    return const LoginScreen();
-
-    /*
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final user = snapshot.data;
 
-        if (user != null) {
-          // User is signed in, initialize data if needed and navigate to appropriate screen
-          DatabaseService.initializeUserData(user.uid, user.displayName, user.email);
-          // Navigate to dashboard based on user role - this would need role checking logic
-          return const LoginScreen(); // Placeholder - implement role-based navigation
-        } else {
-          // User is signed out, show SignInScreen
-          return const LoginScreen(); // Use the actual LoginScreen from sign_in_screen.dart
+        // If no authenticated user, show the normal login screen
+        if (user == null) {
+          return const LoginScreen();
         }
+
+        // User is signed in: determine their role and route them
+        return FutureBuilder<String?>(
+          future: () async {
+            await RoleService.instance.ensureRoleLoaded();
+            // ensureRoleLoaded caches the role; return cached value
+            return RoleService.instance.cachedRole;
+          }(),
+          builder: (context, roleSnapshot) {
+            final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
+
+            // While role is unknown, keep a loading screen to avoid misrouting
+            if (role == null || roleSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final targetRoute = role == 'manager'
+                ? '/manager_portal'
+                : '/employee_dashboard';
+
+            // Navigate after the current frame to avoid build-time navigation
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, targetRoute);
+            });
+
+            // Temporary placeholder while navigation happens
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          },
+        );
       },
     );
-    */
   }
 }

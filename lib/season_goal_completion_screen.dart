@@ -3,8 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/models/season.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/widgets/season_milestone_progress_card.dart';
 
 class SeasonGoalCompletionScreen extends StatefulWidget {
   final String seasonId;
@@ -27,6 +29,35 @@ class _SeasonGoalCompletionScreenState
   final TextEditingController _evidenceController = TextEditingController();
   String? _currentUserId;
   bool _isLoading = false;
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -72,7 +103,6 @@ class _SeasonGoalCompletionScreenState
           .where('userId', isEqualTo: _currentUserId)
           .where('seasonId', isEqualTo: widget.seasonId)
           .where('isSeasonGoal', isEqualTo: true)
-          .where('status', isNotEqualTo: 'completed')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -83,11 +113,21 @@ class _SeasonGoalCompletionScreenState
           return _buildErrorState('Error loading goals: ${snapshot.error}');
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData) {
           return _buildEmptyState();
         }
 
-        final goals = snapshot.data!.docs;
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>? ?? {};
+          final status = (data['status'] ?? 'notStarted').toString();
+          return status != 'completed';
+        }).toList();
+
+        if (docs.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        final goals = docs;
         final targetGoal = widget.goalId != null
             ? goals.firstWhere(
                 (doc) => doc.id == widget.goalId,
@@ -181,6 +221,9 @@ class _SeasonGoalCompletionScreenState
                   ),
                 ),
               ),
+              const SizedBox(height: AppSpacing.md),
+
+              _buildMilestoneProgressCard(targetGoal),
               const SizedBox(height: AppSpacing.md),
 
               // Evidence Submission
@@ -462,23 +505,13 @@ class _SeasonGoalCompletionScreenState
             : null,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Goal completed successfully! 🎉'),
-            backgroundColor: AppColors.successColor,
-          ),
-        );
-        Navigator.of(context).pop();
-      }
+      if (!mounted) return;
+      await _showCenterNotice(context, 'Goal completed successfully! 🎉');
+      if (!mounted) return;
+      Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error completing goal: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error completing goal: $e');
       }
     } finally {
       if (mounted) {
@@ -487,5 +520,62 @@ class _SeasonGoalCompletionScreenState
         });
       }
     }
+  }
+
+  Widget _buildMilestoneProgressCard(QueryDocumentSnapshot targetGoal) {
+    final goalData = targetGoal.data() as Map<String, dynamic>;
+    final String? challengeId = goalData['challengeId'] as String?;
+    if (challengeId == null || _currentUserId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<Season>(
+      stream: SeasonService.getSeasonStream(widget.seasonId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Text(
+                'Milestone progress will appear once the season syncs.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          );
+        }
+
+        final season = snapshot.data!;
+        SeasonChallenge? challengeMatch;
+        for (final c in season.challenges) {
+          if (c.id == challengeId) {
+            challengeMatch = c;
+            break;
+          }
+        }
+
+        if (challengeMatch == null) {
+          return const SizedBox.shrink();
+        }
+
+        final challenge = challengeMatch;
+        return SeasonMilestoneProgressCard(
+          season: season,
+          challenge: challenge,
+          userId: _currentUserId!,
+          participation: season.participations[_currentUserId!],
+        );
+      },
+    );
   }
 }

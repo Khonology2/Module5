@@ -35,6 +35,11 @@ dependencies:
   path: ^1.9.0
   cloudinary_flutter: ^1.3.0 # For Cloudinary file uploads
   http: ^1.1.0 # For HTTP requests to Cloudinary
+  showcaseview: ^3.0.0 # For tutorial overlay system
+  pdf: ^3.11.0 # For generating PDF exports
+  flutter_localizations:
+    sdk: flutter
+  intl: 0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -43,32 +48,64 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true
   assets:
     - assets/
     - assets/Account_User_Profile/
-    - assets/Data_Approval/
-    - assets/Innovation_Brainstorm/
+    - assets/1.Audio_Sound.png
     - assets/Approved_Tick/
-    - assets/Brand/
-    - assets/fonts/poppins/
-    - assets/videos/
-    - assets/1.Audio_Sound.png 
-    - assets/Goal_Target/ 
     - assets/Approved_Tick/Approved_White_Badge_Red.png
-    - assets/Process_Flows_Automation/
+    - assets/Brand/
     - assets/Business_Growth_Development/
-    - assets/Email_Notification/
-    - assets/Task_Management/
     - assets/Calendar_Date_Picker/
+    - assets/Concentration_Key_Focus/
+    - assets/Data_Approval/
+    - assets/Deadline Notification_Reminder/
+    - assets/Email_Notification/
+    - assets/fonts/poppins/
+    - assets/Goal_Target/
+    - "assets/Graphic_Image Placeholder/"
     - assets/Information_Detail/
-    - assets/Project_Direction_Acceleration/
-    - assets/Like_Thumbs_Up/
-    - assets/Office_Workplace/
+    - assets/Innovation_Brainstorm/
     - assets/Internet_Web_Browser/
     - assets/Khonodemy Icons/
-    - assets/Send_Paper_Plane/
-    - "assets/Graphic_Image Placeholder/"
+    - assets/Like_Thumbs_Up/
+    - assets/Office_Workplace/
     - "assets/Project Management/"
+    - assets/Process_Flows_Automation/
+    - assets/Project_Direction_Acceleration/
+    - assets/Send_Paper_Plane/
+    - assets/Task_Management/
+    - assets/Team_Meeting/
+    - assets/Time_Allocation_Approval/
+    - assets/videos/
+    - assets/Audio_Sound.png
+    - assets/Send_Paper_Plane/Send_Plane_Red_Badge_White.png
+    - assets/videos/Ai_Avatar.gif
+    - assets/khono_bg.png
+    - assets/Approved_Tick/Approve_2.png 
+    - "assets/Data_Approval/Approval_Red Badge_White.png"
+    - assets/Information_Detail/Information_White Badge_Red.png
+    - assets/Information_Detail/Information_Red_Badge_White.png
+    - assets/Time_Allocation_Approval/Allocation_Red Badge_White.png
+    - assets/Team_Meeting/Meeting_Red Badge_White.png
+    - assets/Project Management/Project_Red Badge_White.png
+    - assets/red_bell.png
+    - assets/Approved_Tick/Approved_White_Badge_Red.png
+    - assets/Deadline Notification_Reminder/deadline.png
+    - assets/plus.png
+    - assets/Email_Notification/Notification_Red_White.png
+
+
+
+
+
+
+
+
+
+
+
 
   fonts:
     - family: Poppins
@@ -112,5 +149,4 @@ flutter:
           style: italic
         - asset: assets/fonts/poppins/Poppins-BlackItalic.ttf
           weight: 900
-          style: italic 
-    
+          style: italic

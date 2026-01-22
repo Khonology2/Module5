@@ -4,11 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
+import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
+import 'package:pdh/services/role_service.dart';
 
 class UpcomingGoalsListScreen extends StatelessWidget {
   const UpcomingGoalsListScreen({super.key});
@@ -22,106 +24,125 @@ class UpcomingGoalsListScreen extends StatelessWidget {
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-      final goals = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'personal'),
-            orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-            (e) => e.name == (data['priority'] ?? 'medium'),
-            orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-            (e) => e.name == (data['status'] ?? 'notStarted'),
-            orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt:
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate:
-              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-      }).where((g) => g.status != GoalStatus.completed && g.progress < 100).toList();
+          final goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .where(
+                (g) =>
+                    g.approvalStatus == GoalApprovalStatus.approved &&
+                    g.status != GoalStatus.completed &&
+                    g.progress < 100,
+              )
+              .toList();
 
-      goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-      return goals;
-    });
+          goals.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+          return goals;
+        });
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Upcoming Goals',
-      showAppBar: false,
-      items: SidebarConfig.employeeItems,
-      currentRouteName: '/upcoming_goals_list',
-      onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      onLogout: () async {
-        final navigator = Navigator.of(context);
-        await AuthService().signOut();
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
-      },
-      content: StreamBuilder<List<Goal>>(
-        stream: _getUpcomingGoalsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-              ),
-            );
-          }
-          final goals = snapshot.data ?? const <Goal>[];
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.backgroundColor,
-                  AppColors.backgroundColor.withValues(alpha: 0.9),
-                ],
-              ),
-            ),
-            child: ListView.builder(
-              padding: AppSpacing.screenPadding,
-              itemCount: goals.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                    child: Text(
-                      'All Upcoming Goals',
-                      style: AppTypography.heading2.copyWith(
-                        color: AppColors.textPrimary,
-                      ),
+    return StreamBuilder<String?>(
+      stream: RoleService.instance.roleStream(),
+      builder: (context, roleSnapshot) {
+        final role =
+            roleSnapshot.data ?? RoleService.instance.cachedRole ?? 'employee';
+        final items = SidebarConfig.getItemsForRole(role);
+        return AppScaffold(
+          title: 'Upcoming Goals',
+          showAppBar: false,
+          items: items,
+          currentRouteName: '/upcoming_goals_list',
+          onNavigate: (route) {
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) {
+              Navigator.pushNamed(context, route);
+            }
+          },
+          onLogout: () async {
+            final navigator = Navigator.of(context);
+            await AuthService().signOut();
+            navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          },
+          content: StreamBuilder<List<Goal>>(
+            stream: _getUpcomingGoalsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
                     ),
-                  );
-                }
-                final goal = goals[index - 1];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _GoalListItem(goal: goal),
+                  ),
                 );
-              },
-            ),
-          );
-        },
-      ),
+              }
+              final goals = snapshot.data ?? const <Goal>[];
+              return AppComponents.backgroundWithImage(
+                imagePath: 'assets/khono_bg.png',
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: AppSpacing.md),
+                      Center(
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(24),
+                          onTap: () {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/employee_dashboard',
+                            );
+                          },
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Center(
+                              child: Image.asset(
+                                'assets/BackButton-Red.png',
+                                width: 24,
+                                height: 24,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: AppSpacing.screenPadding,
+                          itemCount: goals.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.lg,
+                                ),
+                                child: Text(
+                                  'All Upcoming Goals',
+                                  style: AppTypography.heading2.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            }
+                            final goal = goals[index - 1];
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
+                              child: _GoalListItem(goal: goal),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -129,6 +150,35 @@ class UpcomingGoalsListScreen extends StatelessWidget {
 class _GoalListItem extends StatelessWidget {
   final Goal goal;
   const _GoalListItem({required this.goal});
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Color _priorityColor(GoalPriority priority) {
     switch (priority) {
@@ -150,7 +200,8 @@ class _GoalListItem extends StatelessWidget {
     Color deadlineColor = AppColors.textSecondary;
 
     if (isOverdue) {
-      deadlineText = 'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
+      deadlineText =
+          'Overdue by ${(-daysUntilDeadline)} day${(-daysUntilDeadline) == 1 ? '' : 's'}';
       deadlineColor = AppColors.dangerColor;
     } else if (daysUntilDeadline == 0) {
       deadlineText = 'Due today';
@@ -166,21 +217,23 @@ class _GoalListItem extends StatelessWidget {
     }
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
+        if (goal.approvalStatus != GoalApprovalStatus.approved) {
+          await _showCenterNotice(context, 'Awaiting manager approval.');
+          return;
+        }
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => GoalDetailScreen(goal: goal),
-          ),
+          MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
         );
       },
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.elevatedBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderColor),
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,12 +250,17 @@ class _GoalListItem extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: _priorityColor(goal.priority).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _priorityColor(goal.priority).withValues(alpha: 0.3),
+                      color: _priorityColor(
+                        goal.priority,
+                      ).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
@@ -231,7 +289,9 @@ class _GoalListItem extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${goal.progress}% Complete',
-              style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),

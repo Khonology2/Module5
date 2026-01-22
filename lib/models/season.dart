@@ -245,6 +245,7 @@ class SeasonParticipation {
   final Map<String, dynamic> customGoals;
   final int totalPoints;
   final List<String> badgesEarned;
+  final int completedChallenges;
   final DateTime? lastActivity;
 
   const SeasonParticipation({
@@ -255,6 +256,7 @@ class SeasonParticipation {
     required this.customGoals,
     required this.totalPoints,
     required this.badgesEarned,
+    this.completedChallenges = 0,
     this.lastActivity,
   });
 
@@ -277,6 +279,7 @@ class SeasonParticipation {
       customGoals: Map<String, dynamic>.from(map['customGoals'] ?? {}),
       totalPoints: map['totalPoints'] ?? 0,
       badgesEarned: List<String>.from(map['badgesEarned'] ?? []),
+      completedChallenges: map['completedChallenges'] ?? 0,
       lastActivity: (map['lastActivity'] as Timestamp?)?.toDate(),
     );
   }
@@ -292,6 +295,7 @@ class SeasonParticipation {
       'customGoals': customGoals,
       'totalPoints': totalPoints,
       'badgesEarned': badgesEarned,
+      'completedChallenges': completedChallenges,
       'lastActivity': lastActivity != null
           ? Timestamp.fromDate(lastActivity!)
           : null,
@@ -311,6 +315,7 @@ class SeasonMetrics {
   final int totalTeamPoints;
   final int completedTeamChallenges;
   final List<String> managerBadgesEarned;
+  final int managerPointsEarned;
 
   const SeasonMetrics({
     required this.totalParticipants,
@@ -324,6 +329,7 @@ class SeasonMetrics {
     this.totalTeamPoints = 0,
     this.completedTeamChallenges = 0,
     this.managerBadgesEarned = const [],
+    this.managerPointsEarned = 0,
   });
 
   factory SeasonMetrics.fromMap(Map<String, dynamic> map) {
@@ -350,6 +356,7 @@ class SeasonMetrics {
       totalTeamPoints: map['totalTeamPoints'] ?? 0,
       completedTeamChallenges: map['completedTeamChallenges'] ?? 0,
       managerBadgesEarned: List<String>.from(map['managerBadgesEarned'] ?? []),
+      managerPointsEarned: map['managerPointsEarned'] ?? 0,
     );
   }
 
@@ -368,6 +375,7 @@ class SeasonMetrics {
       'totalTeamPoints': totalTeamPoints,
       'completedTeamChallenges': completedTeamChallenges,
       'managerBadgesEarned': managerBadgesEarned,
+      'managerPointsEarned': managerPointsEarned,
     };
   }
 }

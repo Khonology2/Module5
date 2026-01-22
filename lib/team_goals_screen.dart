@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -16,15 +17,48 @@ class TeamGoalsScreen extends StatefulWidget {
 class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.cardBackground,
       appBar: AppBar(
-        title: const Text('Team Goals'),
+        title: Text(
+          'Team Goals',
+          style: AppTypography.heading2.copyWith(color: Colors.white),
+        ),
         backgroundColor: AppColors.activeColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        centerTitle: false,
       ),
       body: Padding(
         padding: AppSpacing.screenPadding,
@@ -58,7 +92,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            
+
             Text(
               'Available Team Goals',
               style: AppTypography.heading3.copyWith(
@@ -66,19 +100,25 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            
+
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _firestore
                     .collection('team_goals')
                     .where('status', isEqualTo: 'active')
                     .orderBy('createdAt', descending: true)
-                    .snapshots(),
+                    .snapshots()
+                    .handleError((error) {
+                      // Silently handle errors to prevent unmount errors
+                      developer.log('Error in team_goals stream: $error');
+                    }),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.activeColor,
+                        ),
                       ),
                     );
                   }
@@ -162,13 +202,16 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
   Widget _buildTeamGoalCard(QueryDocumentSnapshot teamGoalDoc) {
     final data = teamGoalDoc.data() as Map<String, dynamic>;
     final title = data['title'] as String? ?? 'Untitled Goal';
-    final description = data['description'] as String? ?? 'No description available';
+    final description =
+        data['description'] as String? ?? 'No description available';
     final points = data['points'] as int? ?? 0;
-    final deadline = (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final deadline =
+        (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now();
     final managerName = data['managerName'] as String? ?? 'Manager';
     final participantCount = data['participantCount'] as int? ?? 0;
     // final status = data['status'] as String? ?? 'active'; // Unused variable removed
-    final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final createdAt =
+        (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
 
     final now = DateTime.now();
     final daysLeft = deadline.difference(now).inDays;
@@ -205,11 +248,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.group_work,
-                color: AppColors.activeColor,
-                size: 24,
-              ),
+              Icon(Icons.group_work, color: AppColors.activeColor, size: 24),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -244,11 +283,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      statusIcon,
-                      color: statusColor,
-                      size: 16,
-                    ),
+                    Icon(statusIcon, color: statusColor, size: 16),
                     const SizedBox(width: 4),
                     Text(
                       statusText,
@@ -263,7 +298,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           Row(
             children: [
               _buildInfoChip(
@@ -289,7 +324,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           Row(
             children: [
               Icon(
@@ -314,7 +349,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -322,7 +357,9 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
               icon: const Icon(Icons.group_add, size: 16),
               label: Text(isExpired ? 'Goal Expired' : 'Join Team Goal'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isExpired ? AppColors.textSecondary : AppColors.activeColor,
+                backgroundColor: isExpired
+                    ? AppColors.textSecondary
+                    : AppColors.activeColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               ),
@@ -352,11 +389,7 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 14,
-          ),
+          Icon(icon, color: color, size: 14),
           const SizedBox(width: 4),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,7 +443,10 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
     if (confirmed == true) {
       try {
         // Get team goal details first
-        final teamGoalDoc = await _firestore.collection('team_goals').doc(teamGoalId).get();
+        final teamGoalDoc = await _firestore
+            .collection('team_goals')
+            .doc(teamGoalId)
+            .get();
         final teamGoalData = teamGoalDoc.data();
         final teamGoalTitle = teamGoalData?['title'] as String? ?? 'Team Goal';
         final managerId = teamGoalData?['managerId'] as String? ?? '';
@@ -437,39 +473,32 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
             'teamGoalId': teamGoalId, // Link to the team goal
           });
 
-        // Create activity record
-        await _firestore.collection('activities').add({
-          'userId': currentUser.uid,
-          'activityType': 'team_goal_joined',
-          'description': 'Joined a team goal in the collaboration hub',
-          'metadata': {'teamGoalId': teamGoalId},
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+          // Create activity record
+          await _firestore.collection('activities').add({
+            'userId': currentUser.uid,
+            'activityType': 'team_goal_joined',
+            'description': 'Joined a team goal in the collaboration hub',
+            'metadata': {'teamGoalId': teamGoalId},
+            'timestamp': FieldValue.serverTimestamp(),
+          });
 
-        // Notify the manager that someone joined their team goal
-        await AlertService.createEmployeeJoinedTeamGoalAlert(
-          managerId: managerId,
-          employeeName: currentUser.displayName ?? 'Employee',
-          teamGoalTitle: teamGoalTitle,
-          teamGoalId: teamGoalId,
-        );
+          // Notify the manager that someone joined their team goal
+          await AlertService.createEmployeeJoinedTeamGoalAlert(
+            managerId: managerId,
+            employeeName: currentUser.displayName ?? 'Employee',
+            teamGoalTitle: teamGoalTitle,
+            teamGoalId: teamGoalId,
+          );
 
-        if (!mounted) return; // Add this line here
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully joined the team goal!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          if (!mounted) return; // Add this line here
+          await _showCenterNotice(
+            context,
+            'Successfully joined the team goal!',
+          );
         } // Close currentUser null check
       } catch (e) {
         if (!mounted) return; // Add this line
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error joining team goal: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        await _showCenterNotice(context, 'Error joining team goal: $e');
       }
     }
   }

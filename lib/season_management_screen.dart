@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/models/season.dart';
 import 'package:pdh/auth_service.dart';
+import 'package:pdh/season_celebration_screen.dart';
 
 class SeasonManagementScreen extends StatefulWidget {
   final Season? season;
@@ -23,6 +24,35 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   String? _currentUserId;
   bool _isLoading = false;
   Season? _season;
+
+  Future<void> _showCenterNotice(BuildContext context, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          content: Text(
+            message,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'OK',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -66,19 +96,25 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   Widget build(BuildContext context) {
     if (_season == null) {
       return Scaffold(
-        backgroundColor: AppColors.backgroundColor,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Season Management'),
           backgroundColor: AppColors.activeColor,
           foregroundColor: Colors.white,
           elevation: 0,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: _buildSeasonBackground(
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+            ),
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text('Manage ${_season!.title}'),
         backgroundColor: AppColors.activeColor,
@@ -96,13 +132,37 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildOverviewTab(),
-          _buildParticipantsTab(),
-          _buildActionsTab(),
-        ],
+      body: _buildSeasonBackground(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildOverviewTab(),
+            _buildParticipantsTab(),
+            _buildActionsTab(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeasonBackground({required Widget child}) {
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/khono_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [Color(0x880A0F1F), Color(0x88040610)],
+            stops: [0.0, 1.0],
+          ),
+        ),
+        child: child,
       ),
     );
   }
@@ -115,6 +175,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
         children: [
           // Season Status Card
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -288,6 +351,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
             final isCompleted = progress >= 1.0;
 
             return Card(
+              color: _glassCardColor,
+              elevation: 0,
+              shape: _glassCardShape(),
               margin: const EdgeInsets.only(bottom: AppSpacing.md),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
@@ -435,6 +501,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
 
           // Complete Season Action
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -494,6 +563,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
 
           // Extend Season Action
           Card(
+            color: _glassCardColor,
+            elevation: 0,
+            shape: _glassCardShape(),
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
@@ -545,6 +617,9 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           // View Celebration Action
           if (_season!.status == SeasonStatus.completed)
             Card(
+              color: _glassCardColor,
+              elevation: 0,
+              shape: _glassCardShape(),
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Column(
@@ -602,7 +677,11 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
     required IconData icon,
     required Color color,
   }) {
+    final cardColor = _glassCardColor;
     return Card(
+      color: cardColor,
+      elevation: 0,
+      shape: _glassCardShape(radius: 14),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
@@ -633,6 +712,15 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Color get _glassCardColor => Colors.black.withValues(alpha: 0.45);
+
+  ShapeBorder _glassCardShape({double radius = 16}) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
     );
   }
 
@@ -709,21 +797,14 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Season "${_season!.title}" completed successfully!'),
-            backgroundColor: AppColors.successColor,
-          ),
+        await _showCenterNotice(
+          context,
+          'Season "${_season!.title}" completed successfully!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error completing season: $e'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
+        await _showCenterNotice(context, 'Error completing season: $e');
       }
     } finally {
       if (mounted) {
@@ -735,20 +816,15 @@ class _SeasonManagementScreenState extends State<SeasonManagementScreen>
   }
 
   void _extendSeason() {
-   
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Season extension feature coming soon!'),
-        backgroundColor: AppColors.warningColor,
-      ),
-    );
+    _showCenterNotice(context, 'Season extension feature coming soon!');
   }
 
   void _viewCelebration() {
-    Navigator.pushNamed(
+    Navigator.push(
       context,
-      '/season_celebration',
-      arguments: {'seasonId': _season!.id},
+      MaterialPageRoute(
+        builder: (context) => SeasonCelebrationScreen(season: _season!),
+      ),
     );
   }
 }
