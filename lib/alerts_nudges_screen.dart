@@ -20,6 +20,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'dart:developer' as developer;
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -270,6 +271,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     stream: AlertService.getUserAlertsStream(user.uid),
                     initialData: _cachedAlerts,
                     builder: (context, alertsSnapshot) {
+                      // Debug logging
+                      developer.log('Alerts snapshot state: ${alertsSnapshot.connectionState}');
+                      if (alertsSnapshot.hasError) {
+                        developer.log('Alerts stream error: ${alertsSnapshot.error}');
+                      }
+                      
                       final streamedAlerts = alertsSnapshot.data;
                       // Update cache when fresh data arrives
                       if (streamedAlerts != null &&
@@ -971,6 +978,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         return;
                       }
 
+                      if (alert.type == AlertType.goalOverdue) {
+                        await _showRescheduleWizard(alert);
+                        return;
+                      }
+
                       await _handleAlertNavigation(alert);
                     },
                     style: ElevatedButton.styleFrom(
@@ -1007,6 +1019,228 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _showRescheduleWizard(Alert alert) async {
+    final goalId = alert.relatedGoalId;
+    if (goalId == null || goalId.isEmpty) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      if (!mounted) return;
+      if (!doc.exists) return;
+
+      final goal = Goal.fromFirestore(doc);
+      DateTime? newTargetDate;
+      String? selectedOption;
+      bool isLoading = false;
+
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(
+              'Reschedule Goal',
+              style: AppTypography.heading3.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '"${goal.title}" is overdue by ${DateTime.now().difference(goal.targetDate).inDays} days.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Quick options
+                  Text(
+                    'Quick Options:',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  ...[
+                    ('Extend by 1 week', '1week'),
+                    ('Extend by 2 weeks', '2weeks'),
+                    ('Extend by 1 month', '1month'),
+                    ('Adjust scope', 'scope'),
+                    ('Add milestones', 'milestones'),
+                  ].map((option) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setDialogState(() {
+                          selectedOption = option.$2;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: selectedOption == option.$2
+                            ? AppColors.activeColor
+                            : Colors.grey.withValues(alpha: 0.2),
+                        foregroundColor: selectedOption == option.$2
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                      ),
+                      child: Text(option.$1),
+                    ),
+                  )),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Custom date picker
+                  Text(
+                    'Or choose new date:',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: goal.targetDate.add(const Duration(days: 7)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() {
+                          newTargetDate = date;
+                          selectedOption = 'custom';
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.calendar_today),
+                    label: Text(
+                      newTargetDate != null
+                          ? '${newTargetDate!.day}/${newTargetDate!.month}/${newTargetDate!.year}'
+                          : 'Select Date',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: selectedOption == 'custom'
+                          ? AppColors.activeColor
+                          : Colors.grey.withValues(alpha: 0.2),
+                      foregroundColor: selectedOption == 'custom'
+                          ? Colors.white
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selectedOption == null || isLoading
+                    ? null
+                    : () async {
+                        setDialogState(() => isLoading = true);
+                        
+                        try {
+                          DateTime finalDate;
+                          String actionMessage;
+                          
+                          switch (selectedOption) {
+                            case '1week':
+                              finalDate = goal.targetDate.add(const Duration(days: 7));
+                              actionMessage = 'Extended deadline by 1 week';
+                              break;
+                            case '2weeks':
+                              finalDate = goal.targetDate.add(const Duration(days: 14));
+                              actionMessage = 'Extended deadline by 2 weeks';
+                              break;
+                            case '1month':
+                              finalDate = goal.targetDate.add(const Duration(days: 30));
+                              actionMessage = 'Extended deadline by 1 month';
+                              break;
+                            case 'custom':
+                              if (newTargetDate == null) return;
+                              finalDate = newTargetDate!;
+                              actionMessage = 'Rescheduled to new date';
+                              break;
+                            case 'scope':
+                            case 'milestones':
+                              // Navigate to goal detail with special mode
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => GoalDetailScreen(
+                                    goal: goal,
+                                    initialMode: selectedOption == 'scope' 
+                                        ? GoalDetailMode.adjustScope 
+                                        : GoalDetailMode.addMilestones,
+                                  ),
+                                ),
+                              );
+                              return;
+                            default:
+                              return;
+                          }
+                          
+                          // Update goal
+                          await FirebaseFirestore.instance
+                              .collection('goals')
+                              .doc(goalId)
+                              .update({
+                                'targetDate': Timestamp.fromDate(finalDate),
+                              });
+                          
+                          Navigator.pop(context);
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(actionMessage),
+                              backgroundColor: AppColors.successColor,
+                            ),
+                          );
+                        } catch (e) {
+                          setDialogState(() => isLoading = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to reschedule goal'),
+                              backgroundColor: AppColors.dangerColor,
+                            ),
+                          );
+                        }
+                      },
+                child: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Reschedule'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading goal details'),
+            backgroundColor: AppColors.dangerColor,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _handleAlertNavigation(Alert alert) async {

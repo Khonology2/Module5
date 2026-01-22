@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
@@ -8,6 +9,185 @@ import 'package:pdh/services/email_notification_service.dart';
 
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  /// Calculate goal-specific effort window based on category and priority
+  static int _getGoalSpecificEffortWindow(Goal goal) {
+    // Base days by category - different goal types need different lead times
+    final categoryBaseDays = {
+      GoalCategory.learning: 35,    // 5 weeks for courses/certifications
+      GoalCategory.work: 14,        // 2 weeks for work projects
+      GoalCategory.health: 7,       // 1 week for health goals
+      GoalCategory.personal: 10,   // 1.5 weeks for personal goals
+    };
+
+    // Priority multipliers - high priority needs more warning time
+    final priorityMultiplier = {
+      GoalPriority.low: 0.7,      // 30% less warning time
+      GoalPriority.medium: 1.0,    // Standard warning time
+      GoalPriority.high: 1.5,      // 50% more warning time
+    };
+
+    final baseDays = categoryBaseDays[goal.category] ?? 14;
+    final multiplier = priorityMultiplier[goal.priority] ?? 1.0;
+    
+    // Season goals get extra buffer time
+    final seasonBonus = goal.isSeasonGoal ? 7 : 0;
+    
+    return ((baseDays * multiplier) + seasonBonus).round();
+  }
+
+  /// Generate contextual inactivity message using AI
+  static Future<String> _generateContextualInactivityMessage(Goal goal) async {
+    try {
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in personal development and goal achievement. '
+          'Generate a personalized, encouraging message for someone who hasn\'t made progress on their goal recently. '
+          'The message should be specific to the goal type and suggest a concrete next step. '
+          'Keep it concise (under 150 characters) and motivational. '
+          'Focus on actionable next steps, not generic encouragement.'
+        ),
+      );
+
+      final prompt = Content.text(
+        'Goal: "${goal.title}"\n'
+        'Category: ${goal.category.name}\n'
+        'Progress: ${goal.progress}%\n'
+        'Priority: ${goal.priority.name}\n'
+        'Description: ${goal.description}\n\n'
+        'Generate a specific, actionable next step message. Examples:\n'
+        '- For courses: "Book capstone assessment" or "Complete Module 3 quiz"\n'
+        '- For work projects: "Schedule team meeting" or "Submit draft for review"\n'
+        '- For health goals: "Schedule workout session" or "Log today\'s progress"\n'
+        '- For personal goals: "Set up reminder system" or "Complete first small task"\n\n'
+        'Make it specific to this goal and encouraging.'
+      );
+
+      final response = await model.generateContent([prompt]);
+      final aiMessage = response.text?.trim() ?? 
+          'No progress on "${goal.title}" recently. Try the next step to get moving again.';
+      
+      // Fallback to generic message if AI fails
+      if (aiMessage.isEmpty || aiMessage.length > 150) {
+        return 'No progress on "${goal.title}" recently. Try the next step to get moving again.';
+      }
+      
+      return aiMessage;
+    } catch (e) {
+      developer.log('Error generating contextual inactivity message: $e');
+      // Fallback to generic message
+      return 'No progress on "${goal.title}" recently. Try next step to get moving again.';
+    }
+  }
+
+  /// Generate dependency risk message with propagation analysis
+  static Future<String> _generateDependencyRiskMessage(Goal goal) async {
+    try {
+      // Get related goals that might be affected
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return 'A dependency changed and may impact "${goal.title}". Review the plan.';
+      
+      final relatedGoals = await _firestore
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', whereIn: ['notStarted', 'inProgress'])
+          .get();
+
+      // Analyze potential impact using AI
+      final model = FirebaseAI.googleAI().generativeModel(
+        model: 'gemini-2.5-flash',
+        systemInstruction: Content.text(
+          'You are an AI assistant specialized in project dependency analysis. '
+          'Analyze goal changes and identify potential cascading impacts on related goals. '
+          'Generate a concise message explaining the risk and affected areas. '
+          'Focus on actionable insights and specific dependencies.'
+        ),
+      );
+
+      final relatedGoalsData = relatedGoals.docs
+          .where((doc) => doc.id != goal.id)
+          .map((doc) => 'Related: ${doc.data()['title']} (Progress: ${doc.data()['progress']}%)')
+          .join('\n');
+
+      final prompt = Content.text(
+        'Primary Goal: "${goal.title}"\n'
+        'Progress: ${goal.progress}%\n'
+        'Status: ${goal.status.name}\n'
+        'Category: ${goal.category.name}\n\n'
+        'Related Goals:\n$relatedGoalsData\n\n'
+        'Analyze potential dependency impacts and generate a risk message that:\n'
+        '1. Identifies specific areas at risk\n'
+        '2. Mentions cascading effects if any\n'
+        '3. Suggests immediate action\n'
+        'Keep it under 200 characters and actionable.'
+      );
+
+      final response = await model.generateContent([prompt]);
+      final aiMessage = response.text?.trim() ?? 
+          'A dependency changed and may impact "${goal.title}". Review the plan.';
+      
+      // Fallback if AI fails
+      if (aiMessage.isEmpty || aiMessage.length > 200) {
+        return 'A dependency changed and may impact "${goal.title}". Review the plan.';
+      }
+      
+      // Propagate alerts to dependent goals
+      await _propagateDependencyAlerts(goal, relatedGoals.docs);
+      
+      return aiMessage;
+    } catch (e) {
+      developer.log('Error generating dependency risk message: $e');
+      return 'A dependency changed and may impact "${goal.title}". Review the plan.';
+    }
+  }
+
+  /// Propagate dependency alerts to related goals
+  static Future<void> _propagateDependencyAlerts(
+    Goal sourceGoal, 
+    List<QueryDocumentSnapshot> relatedGoals
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      for (final doc in relatedGoals) {
+        final relatedGoalId = doc.id;
+        final relatedGoalData = doc.data() as Map<String, dynamic>;
+        
+        // Check if dependency alert already exists
+        final existingAlert = await _firestore
+            .collection('alerts')
+            .where('userId', isEqualTo: user.uid)
+            .where('type', isEqualTo: AlertType.milestoneRisk.name)
+            .where('relatedGoalId', isEqualTo: relatedGoalId)
+            .where('isDismissed', isEqualTo: false)
+            .get();
+
+        if (existingAlert.docs.isEmpty) {
+          final relatedGoalTitle = relatedGoalData['title'] ?? 'Related goal';
+          
+          final alert = Alert(
+            id: '',
+            userId: user.uid,
+            type: AlertType.milestoneRisk,
+            priority: AlertPriority.high,
+            title: 'Dependency Risk',
+            message: '"${sourceGoal.title}" changes may affect "$relatedGoalTitle".',
+            actionText: 'Review Dependencies',
+            actionRoute: '/my_goal_workspace',
+            createdAt: DateTime.now(),
+            relatedGoalId: relatedGoalId,
+            expiresAt: DateTime.now().add(const Duration(days: 7)),
+          );
+
+          await _createAlert(alert);
+        }
+      }
+    } catch (e) {
+      developer.log('Error propagating dependency alerts: $e');
+    }
+  }
 
   // Create different types of alerts
   static Future<void> createGoalAlert({
@@ -58,16 +238,14 @@ class AlertService {
         break;
       case AlertType.inactivity:
         title = 'We\'re here to help';
-        message =
-            'No progress on "${goal.title}" recently. Try the next step to get moving again.';
+        message = 'No progress on "${goal.title}" recently. Try the next step to get moving again.';
         actionText = 'Next Step';
         actionRoute = '/my_goal_workspace';
         priority = AlertPriority.medium; // Calm, informational
         break;
       case AlertType.milestoneRisk:
         title = 'Milestone at Risk';
-        message =
-            'A dependency changed and may impact "${goal.title}". Review the plan.';
+        message = 'A dependency changed and may impact "${goal.title}". Review the plan.';
         actionText = 'Review Plan';
         actionRoute = '/my_goal_workspace';
         priority = AlertPriority.high; // Amber emphasis
@@ -190,38 +368,74 @@ class AlertService {
           .get();
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
       final dept = userDoc.data()?['department'] as String?;
-
-      Query mgrQuery = _firestore
+      
+      // Notify all managers in the department
+      final mgrs = await _firestore
           .collection('users')
-          .where('role', isEqualTo: 'manager');
-      if (dept != null && dept.isNotEmpty) {
-        mgrQuery = mgrQuery.where('department', isEqualTo: dept);
+          .where('role', isEqualTo: 'manager')
+          .where('department', isEqualTo: dept)
+          .get();
+
+      if (mgrs.docs.isEmpty) {
+        developer.log('WARNING: No managers found in department $dept to notify for milestone');
+        return;
       }
-      final mgrs = await mgrQuery.get();
-      if (mgrs.docs.isEmpty) return;
 
       for (final mgr in mgrs.docs) {
-        await _firestore.collection('alerts').add({
-          'userId': mgr.id,
-          'type': AlertType.goalMilestoneCompleted.name,
-          'priority': AlertPriority.medium.name,
-          'title': 'Milestone Completed',
-          'message':
-              '$employeeName finished "$milestoneTitle" for goal "${goal.title}".',
-          'actionText': 'Review Goal',
-          'actionRoute': '/manager_portal',
-          'actionData': {'initialRoute': '/manager_review_team_dashboard'},
-          'relatedGoalId': goal.id,
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-          'isDismissed': false,
-          'expiresAt': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 7)),
-          ),
-        });
+        final alert = Alert(
+          id: '',
+          userId: mgr.id,
+          type: AlertType.goalMilestoneCompleted,
+          priority: AlertPriority.medium,
+          title: 'Milestone Completed! 🎯',
+          message: '$employeeName completed milestone: "$milestoneTitle" for goal "${goal.title}"',
+          actionText: 'View Progress',
+          actionRoute: '/manager_review_team_dashboard',
+          createdAt: DateTime.now(),
+          relatedGoalId: goal.id,
+          expiresAt: DateTime.now().add(const Duration(days: 7)),
+        );
+        await _createAlert(alert);
       }
     } catch (e) {
       developer.log('Error creating manager milestone alert: $e');
+    }
+  }
+
+  /// Check goals and create appropriate alerts
+  static Future<void> checkAndCreateGoalAlerts() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final goalsSnapshot = await _firestore
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .where('status', whereIn: ['notStarted', 'inProgress'])
+          .get();
+
+      for (final doc in goalsSnapshot.docs) {
+        final goal = Goal.fromFirestore(doc);
+        
+        // Check for overdue goals
+        if (goal.targetDate.isBefore(DateTime.now())) {
+          await createGoalAlert(
+            userId: user.uid,
+            goal: goal,
+            type: AlertType.goalOverdue,
+          );
+        }
+        // Check for goals due soon (within 3 days)
+        else if (goal.targetDate.difference(DateTime.now()).inDays <= 3) {
+          await createGoalAlert(
+            userId: user.uid,
+            goal: goal,
+            type: AlertType.goalDueSoon,
+          );
+        }
+      }
+    } catch (e) {
+      developer.log('Error checking and creating goal alerts: $e');
     }
   }
 
@@ -840,190 +1054,6 @@ class AlertService {
     }
   }
 
-  // Auto-generate alerts based on goal events
-  static Future<void> checkAndCreateGoalAlerts() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      // Get user's goals
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      for (final doc in goalsSnapshot.docs) {
-        final data = doc.data();
-        final goal = Goal(
-          id: doc.id,
-          userId: data['userId'] ?? user.uid,
-          title: data['title'] ?? '',
-          description: data['description'] ?? '',
-          category: GoalCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'personal'),
-            orElse: () => GoalCategory.personal,
-          ),
-          priority: GoalPriority.values.firstWhere(
-            (e) => e.name == (data['priority'] ?? 'medium'),
-            orElse: () => GoalPriority.medium,
-          ),
-          status: GoalStatus.values.firstWhere(
-            (e) => e.name == (data['status'] ?? 'notStarted'),
-            orElse: () => GoalStatus.notStarted,
-          ),
-          progress: (data['progress'] ?? 0) as int,
-          createdAt:
-              (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          targetDate:
-              (data['targetDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          points: (data['points'] ?? 0) as int,
-        );
-
-        // Upsert today's daily progress snapshot for burndown/burnup
-        try {
-          final today = DateTime.now();
-          final dayKey =
-              '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-          final progressDocId = '${doc.id}__$dayKey';
-          await _firestore
-              .collection('goal_daily_progress')
-              .doc(progressDocId)
-              .set({
-                'id': progressDocId,
-                'goalId': doc.id,
-                'userId': user.uid,
-                'date': dayKey,
-                'progress': goal.progress,
-                'remaining': (100 - goal.progress).clamp(0, 100),
-                'createdAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-        } catch (e) {
-          // Non-critical, ignore failures
-        }
-
-        // Due Soon: within typical effort window; using 7 days as illustrative
-        final daysUntilDue = goal.targetDate.difference(DateTime.now()).inDays;
-        if (daysUntilDue <= 7 &&
-            daysUntilDue > 0 &&
-            goal.status != GoalStatus.completed) {
-          // Check if alert already exists
-          final existingAlert = await _firestore
-              .collection('alerts')
-              .where('userId', isEqualTo: user.uid)
-              .where('type', isEqualTo: AlertType.goalDueSoon.name)
-              .where('relatedGoalId', isEqualTo: goal.id)
-              .where('isDismissed', isEqualTo: false)
-              .get();
-
-          if (existingAlert.docs.isEmpty) {
-            await createGoalAlert(
-              userId: user.uid,
-              goal: goal,
-              type: AlertType.goalDueSoon,
-            );
-          }
-        }
-
-        // Overdue alerts (employee) and notify manager when 1 day overdue
-        if (daysUntilDue < 0 && goal.status != GoalStatus.completed) {
-          final existingAlert = await _firestore
-              .collection('alerts')
-              .where('userId', isEqualTo: user.uid)
-              .where('type', isEqualTo: AlertType.goalOverdue.name)
-              .where('relatedGoalId', isEqualTo: goal.id)
-              .where('isDismissed', isEqualTo: false)
-              .get();
-
-          if (existingAlert.docs.isEmpty) {
-            await createGoalAlert(
-              userId: user.uid,
-              goal: goal,
-              type: AlertType.goalOverdue,
-            );
-          }
-
-          // If exactly 1 day overdue, notify manager(s)
-          if (daysUntilDue == -1) {
-            try {
-              final userDoc = await _firestore
-                  .collection('users')
-                  .doc(user.uid)
-                  .get();
-              final dept = userDoc.data()?['department'] as String?;
-              Query mgrQuery = _firestore
-                  .collection('users')
-                  .where('role', isEqualTo: 'manager');
-              if (dept != null && dept.isNotEmpty) {
-                mgrQuery = mgrQuery.where('department', isEqualTo: dept);
-              }
-              final mgrs = await mgrQuery.get();
-              for (final mgr in mgrs.docs) {
-                await _firestore.collection('alerts').add({
-                  'userId': mgr.id,
-                  'type': AlertType.goalOverdue.name,
-                  'priority': AlertPriority.high.name,
-                  'title': 'Employee Goal Overdue',
-                  'message':
-                      '${userDoc.data()?['displayName'] ?? 'An employee'}\'s goal "${goal.title}" is 1 day overdue. Review and decide next step.',
-                  'actionText': 'Review Goal',
-                  'actionRoute': '/manager_alerts_nudges',
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'relatedGoalId': goal.id,
-                  'isRead': false,
-                  'isDismissed': false,
-                  'expiresAt': Timestamp.fromDate(
-                    DateTime.now().add(const Duration(days: 7)),
-                  ),
-                });
-              }
-            } catch (_) {
-              // Soft-fail on manager notification
-            }
-          }
-        }
-
-        // Inactivity: no progress for N days while in active period
-        if (goal.status == GoalStatus.inProgress) {
-          final lastActivityDoc = await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('daily_activities')
-              .orderBy('date', descending: true)
-              .limit(1)
-              .get();
-          final lastActivityDate = lastActivityDoc.docs.isNotEmpty
-              ? (lastActivityDoc.docs.first.data()['date'] as Timestamp)
-                    .toDate()
-              : null;
-          final daysSinceActivity = lastActivityDate != null
-              ? DateTime.now().difference(lastActivityDate).inDays
-              : 999;
-          if (daysSinceActivity >= 5) {
-            // Avoid creating duplicate inactivity alerts for the same goal
-            final existingInactivity = await _firestore
-                .collection('alerts')
-                .where('userId', isEqualTo: user.uid)
-                .where('type', isEqualTo: AlertType.inactivity.name)
-                .where('relatedGoalId', isEqualTo: goal.id)
-                .where('isDismissed', isEqualTo: false)
-                .get();
-
-            if (existingInactivity.docs.isEmpty) {
-              await createGoalAlert(
-                userId: user.uid,
-                goal: goal,
-                type: AlertType.inactivity,
-              );
-            }
-          }
-        }
-      }
-    } catch (e) {
-      developer.log('Error checking goal alerts: $e');
-    }
-  }
-
-  // Get alert statistics
   static Future<Map<String, int>> getAlertStats(String userId) async {
     final alerts = await _firestore
         .collection('alerts')
