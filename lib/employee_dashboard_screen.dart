@@ -40,6 +40,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String? error;
   int currentStreak = 0;
   bool hasActivityToday = false;
+  Future<String?>? _onboardingNameFuture;
 
   // Hover states for the six KPI cards
   bool _isHoveringActiveGoals = false;
@@ -71,6 +72,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     // Check if tutorial should be shown
     _checkTutorial();
+
+    // Cache onboarding name lookups to avoid repeated Firestore reads on rebuilds (esp. on web).
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser != null) {
+      _onboardingNameFuture = DatabaseService.getUserNameFromOnboarding(
+        userId: authUser.uid,
+        email: authUser.email,
+      );
+    }
   }
 
   @override
@@ -714,10 +724,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     // Try to get name from onboarding collection first, then fallback to other sources
     if (user != null) {
       return FutureBuilder<String?>(
-        future: DatabaseService.getUserNameFromOnboarding(
-          userId: user.uid,
-          email: user.email,
-        ),
+        future:
+            _onboardingNameFuture ??
+            DatabaseService.getUserNameFromOnboarding(
+              userId: user.uid,
+              email: user.email,
+            ),
         builder: (context, snapshot) {
           // Determine userName with priority: onboarding fullName > userProfile > Firebase Auth > email
           if (snapshot.hasData &&
@@ -1446,10 +1458,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<String?>(
       future: user != null
-          ? DatabaseService.getUserNameFromOnboarding(
-              userId: user.uid,
-              email: user.email,
-            )
+          ? (_onboardingNameFuture ??
+              DatabaseService.getUserNameFromOnboarding(
+                userId: user.uid,
+                email: user.email,
+              ))
           : Future.value(null),
       builder: (context, nameSnapshot) {
         String userName = 'User';

@@ -9,6 +9,7 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/onboarding_service.dart';
 
 enum TimeFilter { today, week, month, quarter, year }
@@ -745,7 +746,7 @@ class ManagerRealtimeService {
 
   // Stream real-time team data based on current manager
   static const int _initialEmployeeLimit =
-      1000; // Increased limit to show all employees for managers
+      10000; // Show all employees for managers (avoid silently dropping users)
 
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
@@ -771,7 +772,8 @@ class ManagerRealtimeService {
         String norm(String? s) => (s ?? '').trim().toLowerCase();
 
         bool includeEmployeeProfile(UserProfile p) {
-          final role = (p.role).trim().toLowerCase();
+          // Treat missing/blank role as employee (many parts of the app default this way)
+          final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
           if (role != 'employee') return false;
           if (explicitDepartment == null) return true;
           return norm(p.department) == norm(explicitDepartment);
@@ -1575,6 +1577,11 @@ class ManagerRealtimeService {
           'nudgeType': nudgeType.name,
         },
       );
+
+      // Best-effort: refresh manager badges after a nudge is sent
+      try {
+        await ManagerBadgeEvaluator.evaluate(currentUser.uid);
+      } catch (_) {}
 
       developer.log(
         'Enhanced nudge sent to employee $employeeId for goal $goalId',

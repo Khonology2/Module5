@@ -211,19 +211,36 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
   }
 
   Widget _buildApprovalsTab(List<EmployeeData> employees) {
-    // Build a view-only list of approved/rejected goals across the team
+    final managerId = FirebaseAuth.instance.currentUser?.uid;
+    if (managerId == null || managerId.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: AppSpacing.screenPadding,
+          child: Text(
+            'Sign in to view approvals.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Build a view-only list of approved/rejected goals that were decided by THIS manager
     final items = <Map<String, dynamic>>[];
     for (final emp in employees) {
       for (final g in emp.goals) {
-        if (g.approvalStatus == GoalApprovalStatus.approved ||
-            g.approvalStatus == GoalApprovalStatus.rejected) {
+        final decided = g.approvalStatus == GoalApprovalStatus.approved ||
+            g.approvalStatus == GoalApprovalStatus.rejected;
+        final decidedByMe = (g.approvedByUserId ?? '') == managerId;
+        if (decided && decidedByMe) {
           items.add({'employee': emp, 'goal': g});
         }
       }
     }
     items.sort((a, b) {
-      final ga = (a['goal'] as Goal).targetDate;
-      final gb = (b['goal'] as Goal).targetDate;
+      final ga = (a['goal'] as Goal).approvedAt ?? (a['goal'] as Goal).targetDate;
+      final gb = (b['goal'] as Goal).approvedAt ?? (b['goal'] as Goal).targetDate;
       return gb.compareTo(ga);
     });
 
@@ -232,7 +249,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
         child: Padding(
           padding: AppSpacing.screenPadding,
           child: Text(
-            'No approved or rejected goals',
+            'No approvals yet',
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -258,6 +275,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                   ? AppColors.successColor
                   : AppColors.dangerColor;
               final statusLabel = isApproved ? 'Approved' : 'Rejected';
+              final decisionDate = g.approvedAt ?? g.targetDate;
               return Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.4),
@@ -283,7 +301,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                     ),
                   ),
                   subtitle: Text(
-                    '${emp.profile.displayName} • ${_fmtDate(g.targetDate)}',
+                    '${emp.profile.displayName} • ${_fmtDate(decisionDate)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.bodySmall.copyWith(
