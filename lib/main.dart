@@ -71,6 +71,39 @@ final ValueNotifier<String?> speechRecognitionStatusNotifier =
 // Global notifier used by Settings screen to trigger locale changes
 final ValueNotifier<Locale?> appLocaleNotifier = ValueNotifier<Locale?>(null);
 
+/// Clears Firestore local cache (IndexedDB/SQLite) on startup to reduce
+/// corrupted client state that can trigger internal assertion errors.
+Future<void> _clearFirestoreCache() async {
+  final fs = FirebaseFirestore.instance;
+  // On web, persistence is disabled above and terminate() can leave the client
+  // irrecoverable; just attempt a cache clear and move on.
+  if (kIsWeb) {
+    try {
+      await fs.clearPersistence();
+      debugPrint('Firestore cache cleared on startup (web)');
+    } catch (e) {
+      debugPrint('Firestore cache clear skipped/failed on web: $e');
+    }
+    return;
+  }
+
+  try {
+    await fs.terminate(); // stop active clients
+    await fs.clearPersistence();
+    debugPrint('Firestore cache cleared on startup');
+  } catch (e) {
+    // If persistence is disabled or the client was already terminated, just log it.
+    debugPrint('Firestore cache clear skipped/failed: $e');
+  } finally {
+    // Always try to bring the client back online so later calls do not see a terminated client.
+    try {
+      await fs.enableNetwork();
+    } catch (e) {
+      debugPrint('Firestore enableNetwork after cache clear failed: $e');
+    }
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -93,9 +126,10 @@ void main() async {
       );
     } catch (_) {}
   }
-  // Start periodic cache cleanup for optimal performance
-  CacheService.startPeriodicCleanup();
-  BackendAuthService.instance.warmUpBackend();
+
+  // Clear cached Firestore state before the app mounts any listeners.
+  await _clearFirestoreCache();
+
   // Global error handling: prevent web inspector from crashing on Diagnostics
   // and show a simple fallback widget instead of a blank white screen.
   FlutterError.onError = (FlutterErrorDetails details) {

@@ -86,6 +86,16 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     
     // Fallback based on known manager badge IDs
     switch (b.id) {
+      case 'mgr_timely_approver_1':
+        return 2;
+      case 'mgr_timely_approver_2':
+        return 3;
+      case 'mgr_meeting_steward_1':
+        return 3;
+      case 'mgr_meeting_steward_2':
+        return 4;
+      case 'mgr_replan_closer_2':
+        return 4;
       case 'mgr_active_coach':
         return 1;
       case 'mgr_feedback_champion':
@@ -818,21 +828,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              _chip('Approvals', m.approvalsCount.toString()),
-              const SizedBox(width: 8),
-              _chip('Nudges', m.nudgesSent.toString()),
-              const SizedBox(width: 8),
-              _chip(
-                'Completion',
-                '${(m.teamCompletionRate * 100).toStringAsFixed(0)}%',
-              ),
-              const SizedBox(width: 8),
-              _chip('Engagement', '${m.teamEngagement.toStringAsFixed(0)}%'),
-            ],
-          ),
-          const SizedBox(height: 10),
           Text(
             info.description,
             style: AppTypography.bodySmall.copyWith(
@@ -843,37 +838,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       ),
     );
   }
-
-  Widget _chip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.elevatedBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
 
   // Stream aggregator for manager metrics and points
   Stream<_ManagerMetrics> _buildManagerMetricsStream(String managerId) async* {

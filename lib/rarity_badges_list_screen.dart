@@ -205,8 +205,16 @@ class RarityBadgesListScreen extends StatelessWidget {
                         }
                         final all = (snapshot.data ?? <badge_model.Badge>[])
                           ..removeWhere((b) => b.id == 'init');
+                        final visible = isManager
+                            ? all
+                            : all
+                                .where(
+                                  (b) => !BadgeService.isManagerBadge(b),
+                                )
+                                .toList();
                         final filtered =
-                            all.where((b) => b.rarity == rarity).toList()..sort((
+                            visible.where((b) => b.rarity == rarity).toList()
+                              ..sort((
                               a,
                               b,
                             ) {
