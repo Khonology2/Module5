@@ -15,6 +15,12 @@ class RoleService {
 
   String? get cachedRole => _cachedRole;
 
+  String? _normalizeRole(dynamic role) {
+    final r = role?.toString().trim().toLowerCase();
+    if (r == null || r.isEmpty) return null;
+    return r;
+  }
+
   Future<String?> getRole({bool refresh = false}) async {
     if (!refresh && _cachedRole != null) return _cachedRole;
     final user = FirebaseAuth.instance.currentUser;
@@ -36,18 +42,18 @@ class RoleService {
 
       // Document exists - get the role
       final roleData = snap.data();
-      String? role = roleData?['role'] as String?;
+      final role = _normalizeRole(roleData?['role']);
 
       // Only set default role if role is truly missing (null or empty string)
       // NEVER overwrite an existing role, even if it's empty string
       // Empty string might indicate a role is being set elsewhere
-      if (role == null || role.isEmpty) {
+      if (role == null) {
         // Double-check: read the document again to make sure we have the latest data
         // This prevents race conditions where role might have been set between reads
         final retrySnap = await ref.get();
-        final retryRole = retrySnap.data()?['role'] as String?;
+        final retryRole = _normalizeRole(retrySnap.data()?['role']);
 
-        if (retryRole != null && retryRole.isNotEmpty) {
+        if (retryRole != null) {
           // Role was set between reads, use it
           _cachedRole = retryRole;
           return _cachedRole;
@@ -111,7 +117,7 @@ class RoleService {
         _roleBroadcast = firestoreStream
             .map((doc) {
               try {
-                final role = doc.data()?['role'] as String?;
+                final role = _normalizeRole(doc.data()?['role']);
                 _cachedRole = role;
                 return role;
               } catch (e) {

@@ -32,12 +32,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         Icon(Icons.trending_up_outlined, color: AppColors.textSecondary),
         SizedBox(height: 8),
         Text(
-          'No opted-in employees found',
+          'No employees found',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         SizedBox(height: 4),
         Text(
-          'Ask your team to enable Leaderboard Participation',
+          'If some employees are missing, verify their user profiles exist in Firestore `users` and their role is set to employee.',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
       ],
@@ -109,11 +109,17 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
         team.sort((a, b) {
           switch (_metric) {
             case LeaderboardMetric.points:
-              return b.totalPoints.compareTo(a.totalPoints);
+              final byPoints = b.totalPoints.compareTo(a.totalPoints);
+              if (byPoints != 0) return byPoints;
+              return a.profile.displayName.compareTo(b.profile.displayName);
             case LeaderboardMetric.streaks:
-              return b.streakDays.compareTo(a.streakDays);
+              final byStreak = b.streakDays.compareTo(a.streakDays);
+              if (byStreak != 0) return byStreak;
+              return a.profile.displayName.compareTo(b.profile.displayName);
             case LeaderboardMetric.progress:
-              return b.avgProgress.compareTo(a.avgProgress);
+              final byProgress = b.avgProgress.compareTo(a.avgProgress);
+              if (byProgress != 0) return byProgress;
+              return a.profile.displayName.compareTo(b.profile.displayName);
           }
         });
 
@@ -156,7 +162,12 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
             const SizedBox(height: 16),
             if (top.isNotEmpty) _buildPodium(top),
             const SizedBox(height: 16),
-            ...rest.map((e) => _buildListItem(e)),
+            ...rest.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final e = entry.value;
+              final rank = idx + 4; // top 3 are ranks 1..3
+              return _buildListItem(e, rank: rank);
+            }),
           ],
         );
       },
@@ -366,7 +377,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
     );
   }
 
-  Widget _buildListItem(EmployeeData e) {
+  Widget _buildListItem(EmployeeData e, {required int rank}) {
     String rightText = '';
     switch (_metric) {
       case LeaderboardMetric.points:
@@ -390,6 +401,25 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       ),
       child: Row(
         children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.elevatedBackground,
+              borderRadius: BorderRadius.circular(17),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Center(
+              child: Text(
+                '$rank',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           CircleAvatar(
             radius: 18,
             backgroundColor: AppColors.activeColor,
