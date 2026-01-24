@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/web_storage_stub.dart'
     if (dart.library.html) 'package:pdh/utils/web_storage_web.dart';
+import 'package:pdh/utils/web_reload_stub.dart'
+    if (dart.library.html) 'package:pdh/utils/web_reload_web.dart';
 
 /// Firestore Web SDK sometimes enters an unrecoverable internal state
 /// ("INTERNAL ASSERTION FAILED: Unexpected state") and will spam the console.
@@ -11,7 +12,8 @@ import 'package:pdh/utils/web_storage_stub.dart'
 class FirestoreWebCircuitBreaker {
   static bool _triggered = false;
   static bool isBroken = false;
-  static bool enableAutoReload = false;
+  // Default to true on web; guarded to reload once per session.
+  static bool enableAutoReload = true;
   static const String _reloadFlagKey = 'pdh_fs_reload_attempted';
 
   static bool isFirestoreInternalUnexpectedState(Object error) {
@@ -32,17 +34,21 @@ class FirestoreWebCircuitBreaker {
           _reloadFlagKey,
           DateTime.now().millisecondsSinceEpoch.toString(),
         );
+        // Force a full reload; this is the only known reliable recovery for
+        // Firestore Web "Unexpected state" internal assertion failures.
+        reloadPage();
       } catch (_) {
         // If storage is blocked, skip reload and mark broken.
       }
     }
-    // Mark Firestore as broken to avoid loops and disable the network.
+    // Mark Firestore as broken to avoid loops.
+    //
+    // IMPORTANT: Do NOT disable the Firestore network here.
+    // Disabling the network makes the app permanently "offline" for the session
+    // and breaks settings toggles/writes even when Firestore would otherwise
+    // recover. We only want to surface the state (and optionally reload), not
+    // hard-disable functionality.
     isBroken = true;
-    try {
-      FirebaseFirestore.instance.disableNetwork();
-    } catch (_) {
-      // ignore
-    }
   }
 }
 

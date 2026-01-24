@@ -7,7 +7,6 @@ import 'dart:developer' as developer;
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
@@ -16,7 +15,6 @@ import 'package:pdh/main.dart' show appLocaleNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -30,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _hasInitialLoadAttempted = false;
   DateTime? _loadStartTime;
   static const String _localSettingsKey = 'cached_user_settings_v1';
+  final Set<String> _pendingKeys = <String>{};
 
   @override
   void initState() {
@@ -189,15 +188,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
 
               final streamed = settingsSnapshot.data;
-              final settings = streamed ?? _currentSettings;
-              if (streamed != null && _currentSettings != streamed && mounted) {
+              // Prefer local state so switches can update optimistically without
+              // being immediately overwritten by the last streamed snapshot.
+              final settings = _currentSettings ?? streamed;
+              if (streamed != null && mounted) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
+                  if (!mounted) return;
+
+                  // If we have optimistic pending keys, keep them pending until
+                  // the stream catches up to the same values.
+                  if (_pendingKeys.isNotEmpty && _currentSettings != null) {
+                    final stillPending = <String>{};
+                    for (final k in _pendingKeys) {
+                      final localVal = _getSettingValue(_currentSettings!, k);
+                      final streamVal = _getSettingValue(streamed, k);
+                      if (localVal != streamVal) {
+                        stillPending.add(k);
+                      }
+                    }
+                    if (stillPending.length != _pendingKeys.length) {
+                      setState(() {
+                        _pendingKeys
+                          ..clear()
+                          ..addAll(stillPending);
+                      });
+                    }
+                  }
+
+                  // Only adopt streamed snapshots when they won't overwrite
+                  // optimistic local changes that haven't been observed yet.
+                  if (_pendingKeys.isEmpty && _currentSettings != streamed) {
                     setState(() {
                       _currentSettings = streamed;
                     });
+                    _persistLocalSettings(streamed);
                   }
-                  _persistLocalSettings(streamed);
                 });
               }
 
@@ -368,61 +393,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildPrivacySection(UserSettings? settings) {
     if (settings == null) return const SizedBox.shrink();
-    final isFirestoreBroken = FirestoreWebCircuitBreaker.isBroken;
 
     return _buildSectionCard(
       title: 'Privacy Controls',
       icon: Icons.privacy_tip_outlined,
       children: [
-        if (isFirestoreBroken)
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppColors.warningColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: AppColors.warningColor.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  color: AppColors.warningColor,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Firestore is temporarily unavailable in Chrome. Reload the page to restore settings updates.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         _buildSwitchTile(
           title: 'Private Goals',
           subtitle: 'Hide your goals from other team members',
           value: settings.privateGoals,
           onChanged: (value) => _updateSetting('privateGoals', value),
-          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Manager Only Visibility',
           subtitle: 'Only managers can see your goals and progress',
           value: settings.managerOnly,
           onChanged: (value) => _updateSetting('managerOnly', value),
-          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Team Sharing',
           subtitle: 'Allow team members to see your completed goals',
           value: settings.teamShare,
           onChanged: (value) => _updateSetting('teamShare', value),
-          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Leaderboard Participation',
@@ -430,14 +422,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           value: settings.leaderboardParticipation,
           onChanged: (value) =>
               _updateSetting('leaderboardParticipation', value),
-          enabled: !isFirestoreBroken,
         ),
         _buildSwitchTile(
           title: 'Profile Visibility',
           subtitle: 'Make your profile visible to other users',
           value: settings.profileVisible,
           onChanged: (value) => _updateSetting('profileVisible', value),
-          enabled: !isFirestoreBroken,
         ),
         const SizedBox(height: 16),
         StreamBuilder<String?>(
@@ -946,17 +936,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Action methods
 
   Future<void> _updateSetting(String key, dynamic value) async {
-    if (FirestoreWebCircuitBreaker.isBroken) {
-      if (mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _showCenterOverlay(
-              'Firestore is temporarily unavailable in Chrome. Reload the page to restore settings updates.',
-            );
-          }
+    // Optimistic UI update: immediately update local state so switches feel responsive
+    final previous = _currentSettings;
+    _pendingKeys.add(key);
+    if (previous != null && mounted) {
+      final next = _applySettingToUserSettings(previous, key, value);
+      if (next != null) {
+        setState(() {
+          _currentSettings = next;
         });
+        _persistLocalSettings(next);
       }
-      return;
     }
     try {
       await SettingsService.updateSetting(key, value);
@@ -988,6 +978,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'pushNotifications',
                     false,
                   );
+                  // Also revert optimistic local state
+                  if (mounted) {
+                    setState(() {
+                      _currentSettings = _currentSettings?.copyWith(
+                        pushNotifications: false,
+                      );
+                      _pendingKeys.remove('pushNotifications');
+                    });
+                    if (_currentSettings != null) {
+                      _persistLocalSettings(_currentSettings!);
+                    }
+                  }
                   _showCenterOverlay(
                     'Notification permission was denied. Push notifications remain off.',
                   );
@@ -1004,15 +1006,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     } catch (e) {
+      // Revert optimistic local state on failure
+      _pendingKeys.remove(key);
+      if (mounted && previous != null) {
+        setState(() {
+          _currentSettings = previous;
+        });
+        _persistLocalSettings(previous);
+      }
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            _showCenterOverlay('Error updating ${_getSettingName(key)}: $e');
+            // Hide low-signal internal Firestore errors from the UI; show a friendly message instead.
+            final msg = e.toString();
+            final isTransient = msg.toLowerCase().contains('unavailable') ||
+                msg.toLowerCase().contains('offline') ||
+                msg.toLowerCase().contains('network') ||
+                msg.toLowerCase().contains('failed-precondition') ||
+                msg.toLowerCase().contains('permission-denied') ||
+                msg.toLowerCase().contains('internal assertion failed') ||
+                msg.toLowerCase().contains('unexpected state');
+            _showCenterOverlay(
+              isTransient
+                  ? 'Could not save ${_getSettingName(key)}. Please check your connection and try again.'
+                  : 'Error updating ${_getSettingName(key)}: $e',
+            );
           }
         });
       }
     } finally {
       // no-op, already handled above to prevent double setState around dialogs
+    }
+  }
+
+  UserSettings? _applySettingToUserSettings(
+    UserSettings current,
+    String key,
+    dynamic value,
+  ) {
+    // Only support the keys we use in this screen. Returning null means "don't change local state".
+    if (value is! bool && value is! String && value is! int) return null;
+    switch (key) {
+      case 'privateGoals':
+        return current.copyWith(privateGoals: value as bool);
+      case 'managerOnly':
+        return current.copyWith(managerOnly: value as bool);
+      case 'teamShare':
+        return current.copyWith(teamShare: value as bool);
+      case 'leaderboardParticipation':
+        return current.copyWith(leaderboardParticipation: value as bool);
+      case 'profileVisible':
+        return current.copyWith(profileVisible: value as bool);
+      case 'pushNotifications':
+        return current.copyWith(pushNotifications: value as bool);
+      case 'emailNotifications':
+        return current.copyWith(emailNotifications: value as bool);
+      case 'soundAlerts':
+        return current.copyWith(soundAlerts: value as bool);
+      case 'goalReminders':
+        return current.copyWith(goalReminders: value as bool);
+      case 'weeklyReports':
+        return current.copyWith(weeklyReports: value as bool);
+      case 'speechRecognitionEnabled':
+        return current.copyWith(speechRecognitionEnabled: value as bool);
+      case 'celebrationFeed':
+        return current.copyWith(celebrationFeed: value as bool);
+      case 'autoSync':
+        return current.copyWith(autoSync: value as bool);
+      case 'tutorialEnabled':
+        return current.copyWith(tutorialEnabled: value as bool);
+      case 'twoFactorAuth':
+        return current.copyWith(twoFactorAuth: value as bool);
+      case 'sessionTimeout':
+        return current.copyWith(sessionTimeout: value as bool);
+      case 'language':
+        return current.copyWith(language: value as String);
+      case 'sessionTimeoutMinutes':
+        return current.copyWith(sessionTimeoutMinutes: value as int);
+      default:
+        return null;
+    }
+  }
+
+  Object? _getSettingValue(UserSettings s, String key) {
+    switch (key) {
+      case 'privateGoals':
+        return s.privateGoals;
+      case 'managerOnly':
+        return s.managerOnly;
+      case 'teamShare':
+        return s.teamShare;
+      case 'leaderboardParticipation':
+        return s.leaderboardParticipation;
+      case 'profileVisible':
+        return s.profileVisible;
+      case 'pushNotifications':
+        return s.pushNotifications;
+      case 'emailNotifications':
+        return s.emailNotifications;
+      case 'soundAlerts':
+        return s.soundAlerts;
+      case 'goalReminders':
+        return s.goalReminders;
+      case 'weeklyReports':
+        return s.weeklyReports;
+      case 'darkMode':
+        return s.darkMode;
+      case 'speechRecognitionEnabled':
+        return s.speechRecognitionEnabled;
+      case 'celebrationFeed':
+        return s.celebrationFeed;
+      case 'autoSync':
+        return s.autoSync;
+      case 'language':
+        return s.language;
+      case 'timeZone':
+        return s.timeZone;
+      case 'tutorialEnabled':
+        return s.tutorialEnabled;
+      case 'twoFactorAuth':
+        return s.twoFactorAuth;
+      case 'sessionTimeout':
+        return s.sessionTimeout;
+      case 'sessionTimeoutMinutes':
+        return s.sessionTimeoutMinutes;
+      case 'biometricAuth':
+        return s.biometricAuth;
+      default:
+        return null;
     }
   }
 
