@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -19,6 +20,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastTeam = const [];
   late final Stream<List<EmployeeData>> _teamStream;
+  Future<List<EmployeeData>>? _teamFuture;
 
   @override
   void initState() {
@@ -30,6 +32,13 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
       department: null,
       timeFilter: TimeFilter.month,
     );
+    // On web, prefer one-time fetches to avoid Firestore Web listener instability.
+    if (kIsWeb) {
+      _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+        department: null,
+        timeFilter: TimeFilter.month,
+      );
+    }
   }
 
   Widget _buildEmptyState() {
@@ -77,9 +86,150 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final content = StreamBuilder<List<EmployeeData>>(
-      stream: _teamStream,
-      builder: (context, snapshot) {
+    Widget content;
+
+    if (kIsWeb) {
+      content = FutureBuilder<List<EmployeeData>>(
+        future: _teamFuture,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: AppColors.dangerColor),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Failed to load leaderboard',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${snapshot.error}',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
+                      });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.activeColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final raw = snapshot.data ?? _lastTeam;
+          final team = raw.where((e) => e.profile.leaderboardOptin).toList();
+
+          // Sort by metric
+          team.sort((a, b) {
+            switch (_metric) {
+              case LeaderboardMetric.points:
+                final byPoints = b.totalPoints.compareTo(a.totalPoints);
+                if (byPoints != 0) return byPoints;
+                return a.profile.displayName.compareTo(b.profile.displayName);
+              case LeaderboardMetric.streaks:
+                final byStreak = b.streakDays.compareTo(a.streakDays);
+                if (byStreak != 0) return byStreak;
+                return a.profile.displayName.compareTo(b.profile.displayName);
+              case LeaderboardMetric.progress:
+                final byProgress = b.avgProgress.compareTo(a.avgProgress);
+                if (byProgress != 0) return byProgress;
+                return a.profile.displayName.compareTo(b.profile.displayName);
+            }
+          });
+
+          if (team.isNotEmpty) _lastTeam = team;
+
+          if (team.isEmpty) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: _buildHeaderWithFilters()),
+                    IconButton(
+                      tooltip: 'Refresh',
+                      onPressed: () {
+                        setState(() {
+                          _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                            department: null,
+                            timeFilter: TimeFilter.month,
+                          );
+                        });
+                      },
+                      icon: const Icon(
+                        Icons.refresh,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildEmptyState(),
+              ],
+            );
+          }
+
+          // Build podium for top 3
+          final top = team.take(3).toList();
+          final rest = team.skip(3).toList();
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _buildHeaderWithFilters()),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: () {
+                      setState(() {
+                        _teamFuture = ManagerRealtimeService.getTeamDataOnce(
+                          department: null,
+                          timeFilter: TimeFilter.month,
+                        );
+                      });
+                    },
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (top.isNotEmpty) _buildPodium(top),
+              const SizedBox(height: 16),
+              ...rest.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final e = entry.value;
+                final rank = idx + 4; // top 3 are ranks 1..3
+                return _buildListItem(e, rank: rank);
+              }),
+            ],
+          );
+        },
+      );
+    } else {
+      content = StreamBuilder<List<EmployeeData>>(
+        stream: _teamStream,
+        builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
             child: Column(
@@ -175,7 +325,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
           ],
         );
       },
-    );
+      );
+    }
 
     if (widget.embedded) {
       return content;

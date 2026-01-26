@@ -49,8 +49,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
   List<Map<String, dynamic>> _lastLeaderboardData = [];
-  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedUsersStream;
-  String _cachedUsersStreamKey = '';
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedUserDocs = const [];
+  bool _hasFetchedUsers = false;
+  Future<void>? _fetchUsersFuture;
+  List<Map<String, dynamic>> _cachedOnboardingUsers = const [];
+  bool _hasFetchedOnboarding = false;
+  Future<void>? _fetchOnboardingFuture;
 
   @override
   void initState() {
@@ -78,6 +82,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         if (mounted) {
           setState(() {
             _currentUser = userProfile;
+            // Department-based queries depend on current user; refetch when profile arrives.
+            _hasFetchedUsers = false;
+            _fetchUsersFuture = null;
           });
         }
       } catch (e) {
@@ -104,6 +111,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           _selectedFilters.remove(LeaderboardFilter.points);
         }
         _selectedFilters.add(filter);
+      }
+
+      // Only the team filter affects the Firestore query; refetch docs when toggled.
+      if (filter == LeaderboardFilter.myTeam) {
+        _hasFetchedUsers = false;
+        _fetchUsersFuture = null;
       }
     });
   }
@@ -138,21 +151,56 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return query.limit(10000);
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _usersStream() {
-    // Key based on query parameters only (avoid recreating streams on every build).
-    final dept =
-        (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
-                _currentUser != null &&
-                _currentUser!.department.isNotEmpty)
-            ? _currentUser!.department
-            : '';
-    final key = 'dept:$dept';
-
-    if (_cachedUsersStream == null || _cachedUsersStreamKey != key) {
-      _cachedUsersStreamKey = key;
-      _cachedUsersStream = FirestoreSafe.stream(_buildQuery().snapshots());
+  Future<void> _ensureUsersFetched({bool force = false}) {
+    // Avoid repeated network reads on rebuild/animation.
+    if (!force && _hasFetchedUsers) {
+      return Future.value();
     }
-    return _cachedUsersStream!;
+    final existing = _fetchUsersFuture;
+    if (!force && existing != null) return existing;
+
+    final fut = () async {
+      try {
+        final snap = await FirestoreSafe.getQuery(_buildQuery());
+        _cachedUserDocs = snap.docs;
+        _hasFetchedUsers = true;
+      } catch (e) {
+        developer.log('Leaderboard fetch users failed: $e');
+        // Keep previous cached docs if any
+      }
+    }();
+
+    _fetchUsersFuture = fut;
+    return fut;
+  }
+
+  Future<void> _ensureOnboardingFetched({bool force = false}) {
+    if (!force && _hasFetchedOnboarding) {
+      return Future.value();
+    }
+    final existing = _fetchOnboardingFuture;
+    if (!force && existing != null) return existing;
+
+    final fut = () async {
+      try {
+        _cachedOnboardingUsers = await _fetchOnboardingUsers();
+        _hasFetchedOnboarding = true;
+      } catch (e) {
+        developer.log('Leaderboard fetch onboarding failed: $e');
+      }
+    }();
+
+    _fetchOnboardingFuture = fut;
+    return fut;
+  }
+
+  Future<List<Map<String, dynamic>>> _computeLeaderboardFromCache() async {
+    await _ensureOnboardingFetched();
+    final onboardingDocs = _cachedOnboardingUsers.map((userData) {
+      return _OnboardingUserDoc(userData);
+    }).toList();
+    final allDocs = <dynamic>[..._cachedUserDocs, ...onboardingDocs];
+    return _processLeaderboardData(allDocs);
   }
 
   /// Fetch onboarding users and convert them to a list of maps compatible with user format
@@ -233,25 +281,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       developer.log('Error calculating monthly points: $e');
       return 0;
     }
-  }
-
-  Future<List<Map<String, dynamic>>> _processLeaderboardDataWithOnboarding(
-    List<QueryDocumentSnapshot> docs, {
-    String? userRole,
-  }) async {
-    // Fetch onboarding users
-    final onboardingUsers = await _fetchOnboardingUsers();
-
-    // Convert onboarding users to a format that can be processed like regular docs
-    final onboardingDocs = onboardingUsers.map((userData) {
-      // Create a mock document-like structure
-      return _OnboardingUserDoc(userData);
-    }).toList();
-
-    // Combine regular docs with onboarding docs
-    final allDocs = <dynamic>[...docs, ...onboardingDocs];
-
-    return _processLeaderboardData(allDocs, userRole: userRole);
   }
 
   List<Map<String, dynamic>> _processLeaderboardData(
@@ -520,70 +549,87 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     // Render as a plain widget so it works inside MainLayout
     return Container(
       color: Colors.transparent,
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _usersStream(),
-        builder: (context, leaderboardSnapshot) {
-          if (leaderboardSnapshot.hasError) {
-            developer.log('Leaderboard error: ${leaderboardSnapshot.error}');
-            developer.log(
-              'Error details: ${leaderboardSnapshot.error.toString()}',
-            );
+      child: FutureBuilder<void>(
+        future: _ensureUsersFetched(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
             return _buildErrorState();
           }
 
           return FutureBuilder<List<Map<String, dynamic>>>(
             future: () async {
               try {
-                final docs = leaderboardSnapshot.hasData
-                    ? leaderboardSnapshot.data!.docs.toList()
-                    : const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-                if (docs.isNotEmpty) {
-                  return await _processLeaderboardDataWithOnboarding(docs);
-                } else {
-                  return _lastLeaderboardData;
+                if (_cachedUserDocs.isNotEmpty) {
+                  return await _computeLeaderboardFromCache();
                 }
+                return _lastLeaderboardData;
               } catch (e) {
                 developer.log('Error processing leaderboard data: $e');
                 return _lastLeaderboardData;
               }
             }(),
-            builder: (context, snapshot) {
+            builder: (context, dataSnapshot) {
               List<Map<String, dynamic>> leaderboardData;
-              if (snapshot.hasData) {
-                leaderboardData = snapshot.data!;
+              if (dataSnapshot.hasData) {
+                leaderboardData = dataSnapshot.data!;
                 _lastLeaderboardData = leaderboardData;
-              } else if (snapshot.hasError) {
-                developer.log('Error in FutureBuilder: ${snapshot.error}');
+              } else if (dataSnapshot.hasError) {
                 return _buildErrorState();
               } else {
                 leaderboardData = _lastLeaderboardData;
               }
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: 20),
-                    _buildFiltersBar(isManager: isManager),
-                    const SizedBox(height: 16),
-                    leaderboardData.isEmpty
-                        ? _buildEmptyState()
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildPodium(leaderboardData),
-                              const SizedBox(height: 20),
-                              _buildLeaderList(
-                                leaderboardData,
-                                isManager: isManager,
-                              ),
-                            ],
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await _ensureUsersFetched(force: true);
+                  await _ensureOnboardingFetched(force: true);
+                  if (mounted) setState(() {});
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: _buildHeader()),
+                          const SizedBox(width: 12),
+                          IconButton(
+                            tooltip: 'Refresh',
+                            onPressed: () async {
+                              await _ensureUsersFetched(force: true);
+                              await _ensureOnboardingFetched(force: true);
+                              if (mounted) setState(() {});
+                            },
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildFiltersBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      leaderboardData.isEmpty
+                          ? _buildEmptyState()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildPodium(leaderboardData),
+                                const SizedBox(height: 20),
+                                _buildLeaderList(
+                                  leaderboardData,
+                                  isManager: isManager,
+                                ),
+                              ],
+                            ),
+                    ],
+                  ),
                 ),
               );
             },
