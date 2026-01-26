@@ -753,6 +753,205 @@ class ManagerRealtimeService {
   static const int _initialEmployeeLimit =
       10000; // Show all employees for managers (avoid silently dropping users)
 
+  /// One-time fetch equivalent of [getTeamDataStream] (no Firestore live listeners).
+  ///
+  /// This is useful on Flutter Web to avoid Firestore Web SDK instability
+  /// ("INTERNAL ASSERTION FAILED: Unexpected state") when many listeners
+  /// attach/detach during rebuilds/navigation.
+  static Future<List<EmployeeData>> getTeamDataOnce({
+    String? department,
+    TimeFilter timeFilter = TimeFilter.month,
+  }) async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return <EmployeeData>[];
+
+      // TEMP: allow managers to view all employees regardless of department unless explicitly filtered
+      final String? explicitDepartment =
+          (department != null && department.trim().isNotEmpty)
+              ? department.trim()
+              : null;
+
+      String norm(String? s) => (s ?? '').trim().toLowerCase();
+
+      bool includeEmployeeProfile(UserProfile p) {
+        // Treat missing/blank role as employee (many parts of the app default this way)
+        final role = norm(p.role).isEmpty ? 'employee' : norm(p.role);
+        if (role != 'employee') return false;
+        if (explicitDepartment == null) return true;
+        return norm(p.department) == norm(explicitDepartment);
+      }
+
+      final Query<Map<String, dynamic>> usersQuery =
+          _firestore.collection('users').limit(_initialEmployeeLimit);
+      final usersSnapshot = await FirestoreSafe.getQuery(usersQuery);
+
+      // Fetch onboarding users with employee persona and convert to UserProfile
+      final onboardingProfiles =
+          await ManagerRealtimeService._fetchOnboardingEmployees(department);
+
+      // Filter regular users to employees (and department if specified)
+      final regularEmployeeDocs = usersSnapshot.docs.where((doc) {
+        final profile = UserProfile.fromFirestore(doc);
+        return includeEmployeeProfile(profile);
+      }).toList();
+
+      // Get regular employee IDs
+      final regularEmployeeIds = regularEmployeeDocs.map((doc) => doc.id).toList();
+
+      // Get onboarding employee IDs
+      final onboardingEmployeeIds =
+          onboardingProfiles.map((profile) => profile.uid).toList();
+
+      // Combine all employee IDs
+      final allEmployeeIds = <String>[...regularEmployeeIds, ...onboardingEmployeeIds];
+
+      if (allEmployeeIds.isEmpty) {
+        return <EmployeeData>[];
+      }
+
+      // Firestore whereIn supports up to 10 values. Fetch in batches.
+      final startDate = _getStartDateForFilter(timeFilter);
+
+      Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchInBatches(
+        String collection,
+      ) async {
+        final results = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        for (int i = 0; i < allEmployeeIds.length; i += 10) {
+          final batch = allEmployeeIds.sublist(
+            i,
+            i + 10 > allEmployeeIds.length ? allEmployeeIds.length : i + 10,
+          );
+          Query<Map<String, dynamic>> base =
+              _firestore.collection(collection).where('userId', whereIn: batch);
+
+          // Apply collection-specific filters to minimize data
+          try {
+            if (collection == 'activities') {
+              final thirtyDaysAgo =
+                  DateTime.now().subtract(const Duration(days: 30));
+              base = base
+                  .where(
+                    'timestamp',
+                    isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                  )
+                  .orderBy('timestamp', descending: true)
+                  .limit(200);
+            } else if (collection == 'alerts') {
+              final thirtyDaysAgo =
+                  DateTime.now().subtract(const Duration(days: 30));
+              base = base
+                  .where('isDismissed', isEqualTo: false)
+                  .where(
+                    'createdAt',
+                    isGreaterThan: Timestamp.fromDate(thirtyDaysAgo),
+                  )
+                  .orderBy('createdAt', descending: true)
+                  .limit(200);
+            } else if (collection == 'goals') {
+              base = base
+                  .where(
+                    'createdAt',
+                    isGreaterThan: Timestamp.fromDate(startDate),
+                  )
+                  .limit(500);
+            }
+
+            final snap = await FirestoreSafe.getQuery(base);
+            results.addAll(snap.docs);
+          } on FirebaseException {
+            // Fallback if index missing: fetch without extra filters
+            final snap = await FirestoreSafe.getQuery(
+              _firestore.collection(collection).where('userId', whereIn: batch),
+            );
+            results.addAll(snap.docs);
+          }
+        }
+        return results;
+      }
+
+      final results =
+          await Future.wait<List<QueryDocumentSnapshot<Map<String, dynamic>>>>([
+        fetchInBatches('goals'),
+        fetchInBatches('activities'),
+        fetchInBatches('alerts'),
+      ]);
+
+      final goalsDocs = results[0];
+      final activitiesDocs = results[1];
+      final alertsDocs = results[2];
+
+      final goalsByEmployee = <String, List<Goal>>{};
+      for (final doc in goalsDocs) {
+        final goal = Goal.fromFirestore(doc);
+        goalsByEmployee.putIfAbsent(goal.userId, () => []).add(goal);
+      }
+
+      final activitiesByEmployee = <String, List<EmployeeActivity>>{};
+      for (final doc in activitiesDocs) {
+        final activity = EmployeeActivity.fromFirestore(doc);
+        activitiesByEmployee.putIfAbsent(activity.userId, () => []).add(activity);
+      }
+
+      final alertsByEmployee = <String, List<Alert>>{};
+      for (final doc in alertsDocs) {
+        final alert = Alert.fromFirestore(doc);
+        alertsByEmployee.putIfAbsent(alert.userId, () => []).add(alert);
+      }
+
+      final now = DateTime.now();
+      final employeeDataList = <EmployeeData>[];
+
+      for (final userDoc in regularEmployeeDocs) {
+        final userProfile = UserProfile.fromFirestore(userDoc);
+        final rawAlerts = alertsByEmployee[userDoc.id] ?? [];
+        final activeAlerts = rawAlerts.where((a) {
+          if (a.isDismissed) return false;
+          if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+          return true;
+        }).toList();
+        final employeeData = await _buildEmployeeData(
+          userProfile,
+          timeFilter,
+          goalsByEmployee[userDoc.id] ?? [],
+          activitiesByEmployee[userDoc.id] ?? [],
+          activeAlerts,
+        );
+        employeeDataList.add(employeeData);
+      }
+
+      for (final userProfile in onboardingProfiles) {
+        final rawAlerts = alertsByEmployee[userProfile.uid] ?? [];
+        final activeAlerts = rawAlerts.where((a) {
+          if (a.isDismissed) return false;
+          if (a.expiresAt != null && a.expiresAt!.isBefore(now)) return false;
+          return true;
+        }).toList();
+        final employeeData = await _buildEmployeeData(
+          userProfile,
+          timeFilter,
+          goalsByEmployee[userProfile.uid] ?? [],
+          activitiesByEmployee[userProfile.uid] ?? [],
+          activeAlerts,
+        );
+        employeeDataList.add(employeeData);
+      }
+
+      employeeDataList.sort((a, b) {
+        final aRisk = _getRiskScore(a);
+        final bRisk = _getRiskScore(b);
+        if (aRisk != bRisk) return bRisk.compareTo(aRisk);
+        return b.totalPoints.compareTo(a.totalPoints);
+      });
+
+      return employeeDataList;
+    } catch (e) {
+      developer.log('getTeamDataOnce error: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
+      return <EmployeeData>[];
+    }
+  }
+
   static Stream<List<EmployeeData>> getTeamDataStream({
     String? department,
     TimeFilter timeFilter = TimeFilter.month,
