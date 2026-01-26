@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
+import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/streak_service.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // No longer used for authentication
 // import 'package:logger/logger.dart'; // Commented out to reduce logging overhead
 
@@ -43,9 +45,14 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    final uid = _auth.currentUser?.uid;
     // Clear all caches before signing out to prevent stream conflicts
     RoleService.instance.clearCache();
     SettingsService.clearCache();
+    if (uid != null && uid.isNotEmpty) {
+      BadgeService.stopRealtimeTracking(uid);
+      StreakService.stopRealtimeTracking(uid);
+    }
     await _auth.signOut();
     // _logger.i("User signed out"); // Commented out
   }

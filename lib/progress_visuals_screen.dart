@@ -23,6 +23,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -104,11 +105,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
 
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
           if (!doc.exists) return null;
           return UserProfile.fromFirestore(doc);
         });
@@ -699,18 +698,20 @@ class _ManagerProgressVisualsContentState
     if (user == null) return Stream.value([]);
 
     // Merge top-level and nested user goals (same pattern as manager_employee_detail_screen)
-    final topLevel = FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+    final topLevel = FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .snapshots(),
+    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
 
-    final nested = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('goals')
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+    final nested = FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('goals')
+          .snapshots(),
+    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
 
     return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
       final seen = <String>{};
@@ -2974,11 +2975,12 @@ class _EmployeeProgressVisualsContentState
     if (user == null) return Stream.value([]);
 
     // Use Goal.fromFirestore to properly parse all fields including approvalStatus
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .snapshots()
-        .map((snapshot) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .snapshots(),
+    ).map((snapshot) {
           final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
           // Sort goals by createdAt descending (newest first)
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -4765,13 +4767,15 @@ class GoalTrendDialog extends StatelessWidget {
       content: SizedBox(
         width: dialogWidth,
         child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('goal_daily_progress')
-              .where('goalId', isEqualTo: goalId)
-              .where('date', isGreaterThanOrEqualTo: sinceKey)
-              .orderBy('date')
-              .limit(90)
-              .snapshots(),
+          stream: FirestoreSafe.stream(
+            FirebaseFirestore.instance
+                .collection('goal_daily_progress')
+                .where('goalId', isEqualTo: goalId)
+                .where('date', isGreaterThanOrEqualTo: sinceKey)
+                .orderBy('date')
+                .limit(90)
+                .snapshots(),
+          ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
@@ -4784,7 +4788,7 @@ class GoalTrendDialog extends StatelessWidget {
                 height: 260,
                 child: Center(
                   child: Text(
-                    'Could not load trend data.\n${snapshot.error}',
+                    'Could not load trend data. Please try again.',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textSecondary,
                     ),

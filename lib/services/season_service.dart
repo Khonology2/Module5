@@ -7,6 +7,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_metrics_job.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class SeasonService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -485,11 +486,9 @@ class SeasonService {
   // Get a stream for a single season
   static Stream<Season> getSeasonStream(String seasonId) {
     try {
-      return _firestore
-          .collection('seasons')
-          .doc(seasonId)
-          .snapshots()
-          .map((doc) => Season.fromFirestore(doc));
+      return FirestoreSafe.stream(
+        _firestore.collection('seasons').doc(seasonId).snapshots(),
+      ).map((doc) => Season.fromFirestore(doc));
     } catch (e) {
       developer.log('Error getting season stream: $e');
       return const Stream.empty();
@@ -502,11 +501,12 @@ class SeasonService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) return const Stream.empty();
 
-      return _firestore
-          .collection('seasons')
-          .where('createdBy', isEqualTo: currentUser.uid)
-          .snapshots()
-          .map((snapshot) {
+      return FirestoreSafe.stream(
+        _firestore
+            .collection('seasons')
+            .where('createdBy', isEqualTo: currentUser.uid)
+            .snapshots(),
+      ).map((snapshot) {
             final seasons = snapshot.docs
                 .map((doc) => Season.fromFirestore(doc))
                 .toList();
@@ -529,11 +529,12 @@ class SeasonService {
   static Stream<List<Season>> getParticipantSeasonsStream(String participantId) {
     try {
       if (participantId.trim().isEmpty) return const Stream.empty();
-      return _firestore
-          .collection('seasons')
-          .where('participantIds', arrayContains: participantId)
-          .snapshots()
-          .map((snapshot) {
+      return FirestoreSafe.stream(
+        _firestore
+            .collection('seasons')
+            .where('participantIds', arrayContains: participantId)
+            .snapshots(),
+      ).map((snapshot) {
         final seasons =
             snapshot.docs.map((doc) => Season.fromFirestore(doc)).toList();
         // Sort newest first. Prefer endDate if present, else createdAt.
@@ -557,11 +558,12 @@ class SeasonService {
   // Get active seasons for employees
   static Stream<List<Season>> getActiveSeasonsStream({String? department}) {
     try {
-      return _firestore
-          .collection('seasons')
-          .where('status', isEqualTo: SeasonStatus.active.name)
-          .snapshots()
-          .map((snapshot) {
+      return FirestoreSafe.stream(
+        _firestore
+            .collection('seasons')
+            .where('status', isEqualTo: SeasonStatus.active.name)
+            .snapshots(),
+      ).map((snapshot) {
             final seasons = snapshot.docs
                 .map((doc) => Season.fromFirestore(doc))
                 .toList();
@@ -1973,11 +1975,9 @@ class SeasonService {
   static Stream<Map<String, dynamic>?> watchSeasonCelebrationDocument(
     String seasonId,
   ) {
-    return _firestore
-        .collection('season_celebrations')
-        .doc(seasonId)
-        .snapshots()
-        .map((doc) {
+    return FirestoreSafe.stream(
+      _firestore.collection('season_celebrations').doc(seasonId).snapshots(),
+    ).map((doc) {
           if (!doc.exists) return null;
           final data = doc.data();
           if (data == null) return null;

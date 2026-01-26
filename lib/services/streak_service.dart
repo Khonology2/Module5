@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class StreakService {
   // Lazily access Firestore to ensure web settings are applied first
@@ -194,14 +195,15 @@ class StreakService {
     _cancelledByUser[userId] = false;
 
     // Listen to most recent daily activity to recompute streak
-    final activitiesSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('daily_activities')
-        .orderBy('date', descending: true)
-        .limit(1)
-        .snapshots()
-        .listen(
+    final activitiesSub = FirestoreSafe.stream(
+      _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('daily_activities')
+          .orderBy('date', descending: true)
+          .limit(1)
+          .snapshots(),
+    ).listen(
           (_) {
             if (!(_cancelledByUser[userId] ?? false)) {
               _updateStreak(userId).catchError((e) {
@@ -209,26 +211,14 @@ class StreakService {
               });
             }
           },
-          onError: (e) {
-            if (!(_cancelledByUser[userId] ?? false)) {
-              developer.log('Error in activities stream: $e');
-            }
-          },
           cancelOnError: false,
         );
 
     // Also listen to user doc changes that might affect streak display
-    final userDocSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .snapshots()
-        .listen(
+    final userDocSub = FirestoreSafe.stream(
+      _firestore.collection('users').doc(userId).snapshots(),
+    ).listen(
           (_) {},
-          onError: (e) {
-            if (!(_cancelledByUser[userId] ?? false)) {
-              developer.log('Error in user doc stream: $e');
-            }
-          },
           cancelOnError: false,
         );
 

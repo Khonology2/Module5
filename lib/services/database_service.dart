@@ -15,6 +15,7 @@ import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -32,10 +33,9 @@ class DatabaseService {
   // Privacy enforcement helpers
   static Future<String> _getUserRole(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc = await FirestoreSafe.getDoc(
+        FirebaseFirestore.instance.collection('users').doc(uid),
+      );
       return (doc.data()?['role'] ?? 'employee') as String;
     } catch (_) {
       return 'employee';
@@ -46,10 +46,9 @@ class DatabaseService {
     String uid,
   ) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc = await FirestoreSafe.getDoc(
+        FirebaseFirestore.instance.collection('users').doc(uid),
+      );
       final data = doc.data() ?? <String, dynamic>{};
       return {
         'privateGoals': data['privateGoals'] == true,
@@ -97,11 +96,12 @@ class DatabaseService {
     }
 
     // Fetch goals with optimized query
-    final snapshot = await FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: targetUserId)
-        .orderBy('createdAt', descending: true)
-        .get();
+    final snapshot = await FirestoreSafe.getQuery(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: targetUserId)
+          .orderBy('createdAt', descending: true),
+    );
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
     // Removed in-memory sort - using Firestore orderBy instead
 
@@ -134,17 +134,18 @@ class DatabaseService {
       }
     }
 
-    yield* FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: targetUserId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          // Return empty list on error to prevent crashes
-          developer.log('Error in getUserGoalsStream: $error');
-        })
-        .map((snapshot) {
+    yield* FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: targetUserId)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+    ).handleError((error) {
+      developer.log('Error in getUserGoalsStream: $error');
+      if (error is Object) {
+        FirestoreWebCircuitBreaker.maybeReload(error);
+      }
+    }).map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();

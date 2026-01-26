@@ -10,6 +10,7 @@ import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -136,9 +137,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   /// Fetch onboarding users and convert them to a list of maps compatible with user format
   Future<List<Map<String, dynamic>>> _fetchOnboardingUsers() async {
     try {
-      final onboardingSnapshot = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .get();
+      final onboardingSnapshot = await FirestoreSafe.getQuery(
+        FirebaseFirestore.instance.collection('onboarding'),
+      );
 
       // Filter onboarding users to only include those with 'employee' persona for PDH
       final employeeOnboardingUsers = onboardingSnapshot.docs.where((doc) {
@@ -510,12 +511,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           final isManager = role == 'manager';
 
           return StreamBuilder<QuerySnapshot>(
-            stream: _buildQuery(userRole: role).snapshots().handleError((
-              error,
-            ) {
-              // Silently handle errors to prevent unmount errors
-              developer.log('Error in leaderboard stream: $error');
-            }),
+            stream: FirestoreSafe.stream(_buildQuery(userRole: role).snapshots()),
             builder:
                 (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
                   if (leaderboardSnapshot.hasError) {

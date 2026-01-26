@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
@@ -664,11 +665,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   Stream<UserProfile?> _getManagerProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
           if (!doc.exists) return null;
           final profile = UserProfile.fromFirestore(doc);
           _currentProfilePhotoUrl =

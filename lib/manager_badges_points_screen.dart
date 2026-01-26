@@ -15,6 +15,7 @@ import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -633,10 +634,12 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           ),
         ),
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(manager.uid)
-              .snapshots(),
+          stream: FirestoreSafe.stream(
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(manager.uid)
+                .snapshots(),
+          ),
           builder: (context, userSnap) {
             final userData = userSnap.data?.data() ?? {};
             final totalPointsRaw = userData['totalPoints'];

@@ -24,6 +24,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -463,15 +464,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in getUserProfileStream: $error');
-        })
-        .map((doc) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
           if (!doc.exists) return null;
           return UserProfile.fromFirestore(doc);
         });
@@ -480,16 +475,13 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in getUserGoalsStream: $error');
-        })
-        .map((snapshot) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+    ).map((snapshot) {
           final goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
@@ -501,14 +493,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<int> _getEarnedBadgesCountStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(0);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('badges')
-        .where('isEarned', isEqualTo: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length)
-        .handleError((_) => 0);
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('badges')
+          .where('isEarned', isEqualTo: true)
+          .snapshots(),
+    ).map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length);
   }
 
   String _getTimeBasedGreeting() {
