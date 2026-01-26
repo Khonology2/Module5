@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/services/onboarding_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class TeamManagementScreen extends StatefulWidget {
   final String teamGoalId;
@@ -173,13 +174,17 @@ class _TeamManagementScreenState extends State<TeamManagementScreen> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'employee')
-                  .snapshots(),
+              stream: FirestoreSafe.stream(
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .where('role', isEqualTo: 'employee')
+                    .snapshots(),
+              ),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return const Center(
+                    child: Text('Unable to load employees. Please try again.'),
+                  );
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

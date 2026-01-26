@@ -15,6 +15,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 @immutable
 class _NudgeFeedback {
@@ -178,14 +179,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('goals')
-                    .doc(goalId)
-                    .snapshots()
-                    .handleError((error) {
-                      // Silently handle errors to prevent unmount errors
-                      developer.log('Error in goal stream: $error');
-                    }),
+                stream: FirestoreSafe.stream(
+                  FirebaseFirestore.instance
+                      .collection('goals')
+                      .doc(goalId)
+                      .snapshots(),
+                ),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && snap.data!.exists) {

@@ -11,6 +11,7 @@ import 'package:pdh/auth_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class UpcomingGoalsListScreen extends StatelessWidget {
   const UpcomingGoalsListScreen({super.key});
@@ -19,11 +20,12 @@ class UpcomingGoalsListScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const Stream.empty();
 
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .snapshots()
-        .map((snapshot) {
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .snapshots(),
+    ).map((snapshot) {
           final goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .where(

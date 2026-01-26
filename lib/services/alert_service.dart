@@ -5,6 +5,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/email_notification_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -562,7 +563,10 @@ class AlertService {
   // Core alert management
   static Future<void> _createAlert(Alert alert) async {
     try {
-      await _firestore.collection('alerts').add(alert.toFirestore());
+      await FirestoreSafe.addDoc<Map<String, dynamic>>(
+        _firestore.collection('alerts'),
+        alert.toFirestore(),
+      );
 
       // Send email notification via free Vercel API (no billing required)
       try {
@@ -586,16 +590,13 @@ class AlertService {
   }
 
   static Stream<List<Alert>> getUserAlertsStream(String userId) {
-    return _firestore
-        .collection('alerts')
-        .where('userId', isEqualTo: userId)
-        .where('isDismissed', isEqualTo: false)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in getUserAlertsStream: $error');
-        })
-        .map((snapshot) {
+    return FirestoreSafe.stream(
+      _firestore
+          .collection('alerts')
+          .where('userId', isEqualTo: userId)
+          .where('isDismissed', isEqualTo: false)
+          .snapshots(),
+    ).map((snapshot) {
           try {
             final alerts = snapshot.docs
                 .map((doc) => Alert.fromFirestore(doc))
@@ -645,10 +646,6 @@ class AlertService {
             developer.log('Error processing alerts: $e');
             return <Alert>[];
           }
-        })
-        .handleError((error) {
-          developer.log('Error loading alerts: $error');
-          return <Alert>[];
         });
   }
 
