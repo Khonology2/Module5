@@ -18,11 +18,18 @@ class ManagerLeaderboardScreen extends StatefulWidget {
 class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   LeaderboardMetric _metric = LeaderboardMetric.points;
   List<EmployeeData> _lastTeam = const [];
+  late final Stream<List<EmployeeData>> _teamStream;
 
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
+    // IMPORTANT: Cache the stream instance so StreamBuilder doesn't resubscribe
+    // on every rebuild (which can destabilize Firestore listeners on web).
+    _teamStream = ManagerRealtimeService.getTeamDataStream(
+      department: null,
+      timeFilter: TimeFilter.month,
+    );
   }
 
   Widget _buildEmptyState() {
@@ -71,10 +78,7 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
   @override
   Widget build(BuildContext context) {
     final content = StreamBuilder<List<EmployeeData>>(
-      stream: ManagerRealtimeService.getTeamDataStream(
-        department: null,
-        timeFilter: TimeFilter.month,
-      ),
+      stream: _teamStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
