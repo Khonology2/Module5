@@ -50,5 +50,13 @@ class FirestoreWebCircuitBreaker {
     // hard-disable functionality.
     isBroken = true;
   }
+
+  /// Manual recovery button for when auto-reload is blocked.
+  static void forceReload() {
+    if (!kIsWeb) return;
+    try {
+      reloadPage();
+    } catch (_) {}
+  }
 }
 
