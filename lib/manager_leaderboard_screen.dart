@@ -102,8 +102,8 @@ class _ManagerLeaderboardScreenState extends State<ManagerLeaderboardScreen> {
 
         // Prefer live data, otherwise show last cached team to avoid spinners
         final raw = snapshot.data ?? _lastTeam;
-        // Managers see all employees, not just those who opted in
-        var team = raw.toList();
+        // Only show employees who opted in to leaderboard participation
+        final team = raw.where((e) => e.profile.leaderboardOptin).toList();
 
         // Sort by metric
         team.sort((a, b) {

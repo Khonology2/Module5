@@ -1,16 +1,17 @@
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ai/firebase_ai.dart';
-import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -48,6 +49,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
   List<Map<String, dynamic>> _lastLeaderboardData = [];
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedUsersStream;
+  String _cachedUsersStreamKey = '';
 
   @override
   void initState() {
@@ -113,13 +116,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   // Removed unused _getOrderByField to satisfy linter
 
-  Query<Map<String, dynamic>> _buildQuery({String? userRole}) {
+  Query<Map<String, dynamic>> _buildQuery() {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
       'users',
     );
 
-    // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
-    query = query.where('role', isEqualTo: 'employee');
+    // NOTE: We intentionally do NOT filter by `role` at the query level.
+    // Some user docs may be missing the `role` field; we treat missing role as "employee"
+    // and filter to employees in-memory during processing.
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
@@ -132,6 +136,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     // We'll handle sorting in the processing step
     // Increased limit to 10000 to show all employees in Full Leaderboard
     return query.limit(10000);
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _usersStream() {
+    // Key based on query parameters only (avoid recreating streams on every build).
+    final dept =
+        (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
+                _currentUser != null &&
+                _currentUser!.department.isNotEmpty)
+            ? _currentUser!.department
+            : '';
+    final key = 'dept:$dept';
+
+    if (_cachedUsersStream == null || _cachedUsersStreamKey != key) {
+      _cachedUsersStreamKey = key;
+      _cachedUsersStream = FirestoreSafe.stream(_buildQuery().snapshots());
+    }
+    return _cachedUsersStream!;
   }
 
   /// Fetch onboarding users and convert them to a list of maps compatible with user format
@@ -288,19 +309,11 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               return false; // Exclude managers and any other non-employee roles
             }
 
-            // Check opt-in status (onboarding users don't have opt-in, so include them)
+            // Check opt-in status (support both new + legacy fields)
             final optIn = data['leaderboardOptin'];
             final legacyOptIn = data['leaderboardParticipation'];
-            final fromOnboarding = data['fromOnboarding'] == true;
-
-            // Managers can see all employees regardless of opt-in, employees only see opted-in
-            // Onboarding users are always included
-            if (isManager || fromOnboarding) {
-              return true; // Managers see all employees, onboarding users always visible
-            } else {
-              return optIn == true ||
-                  legacyOptIn == true; // Employees only see opted-in
-            }
+            // Only show users who opted in to the leaderboard (for both employees and managers)
+            return optIn == true || legacyOptIn == true;
           }
           return false;
         } catch (e) {
@@ -497,104 +510,127 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    // If Firestore Web entered an unrecoverable internal state, don't keep subscribing.
+    if (kIsWeb && FirestoreWebCircuitBreaker.isBroken) {
+      return _buildFirestoreBrokenState();
+    }
+
+    final isManager = _currentUser?.role == 'manager';
+
     // Render as a plain widget so it works inside MainLayout
     return Container(
       color: Colors.transparent,
-      child: StreamBuilder<String?>(
-        stream: RoleService.instance.roleStream(),
-        builder: (context, roleSnapshot) {
-          final role =
-              roleSnapshot.data ??
-              RoleService.instance.cachedRole ??
-              'employee';
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _usersStream(),
+        builder: (context, leaderboardSnapshot) {
+          if (leaderboardSnapshot.hasError) {
+            developer.log('Leaderboard error: ${leaderboardSnapshot.error}');
+            developer.log(
+              'Error details: ${leaderboardSnapshot.error.toString()}',
+            );
+            return _buildErrorState();
+          }
 
-          final isManager = role == 'manager';
+          return FutureBuilder<List<Map<String, dynamic>>>(
+            future: () async {
+              try {
+                final docs = leaderboardSnapshot.hasData
+                    ? leaderboardSnapshot.data!.docs.toList()
+                    : const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                if (docs.isNotEmpty) {
+                  return await _processLeaderboardDataWithOnboarding(docs);
+                } else {
+                  return _lastLeaderboardData;
+                }
+              } catch (e) {
+                developer.log('Error processing leaderboard data: $e');
+                return _lastLeaderboardData;
+              }
+            }(),
+            builder: (context, snapshot) {
+              List<Map<String, dynamic>> leaderboardData;
+              if (snapshot.hasData) {
+                leaderboardData = snapshot.data!;
+                _lastLeaderboardData = leaderboardData;
+              } else if (snapshot.hasError) {
+                developer.log('Error in FutureBuilder: ${snapshot.error}');
+                return _buildErrorState();
+              } else {
+                leaderboardData = _lastLeaderboardData;
+              }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: FirestoreSafe.stream(_buildQuery(userRole: role).snapshots()),
-            builder:
-                (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
-                  if (leaderboardSnapshot.hasError) {
-                    developer.log(
-                      'Leaderboard error: ${leaderboardSnapshot.error}',
-                    );
-                    developer.log(
-                      'Error details: ${leaderboardSnapshot.error.toString()}',
-                    );
-                    return _buildErrorState();
-                  }
-
-                  return FutureBuilder<List<Map<String, dynamic>>>(
-                    future: () async {
-                      try {
-                        final docs = leaderboardSnapshot.hasData
-                            ? leaderboardSnapshot.data!.docs.toList()
-                            : const <QueryDocumentSnapshot>[];
-                        if (docs.isNotEmpty) {
-                          return await _processLeaderboardDataWithOnboarding(
-                            docs,
-                            userRole: role,
-                          );
-                        } else {
-                          return _lastLeaderboardData;
-                        }
-                      } catch (e) {
-                        developer.log('Error processing leaderboard data: $e');
-                        return _lastLeaderboardData;
-                      }
-                    }(),
-                    builder: (context, snapshot) {
-                      List<Map<String, dynamic>> leaderboardData;
-                      if (snapshot.hasData) {
-                        leaderboardData = snapshot.data!;
-                        _lastLeaderboardData = leaderboardData;
-                      } else if (snapshot.hasError) {
-                        developer.log(
-                          'Error in FutureBuilder: ${snapshot.error}',
-                        );
-                        return _buildErrorState();
-                      } else {
-                        leaderboardData = _lastLeaderboardData;
-                      }
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(
-                          24.0,
-                          32.0,
-                          24.0,
-                          24.0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildHeader(),
-                            const SizedBox(height: 20),
-                            _buildFiltersBar(isManager: isManager),
-                            const SizedBox(height: 16),
-                            leaderboardData.isEmpty
-                                ? _buildEmptyState()
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildPodium(leaderboardData),
-                                      const SizedBox(height: 20),
-                                      _buildLeaderList(
-                                        leaderboardData,
-                                        isManager: isManager,
-                                      ),
-                                    ],
-                                  ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildHeader(),
+                    const SizedBox(height: 20),
+                    _buildFiltersBar(isManager: isManager),
+                    const SizedBox(height: 16),
+                    leaderboardData.isEmpty
+                        ? _buildEmptyState()
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildPodium(leaderboardData),
+                              const SizedBox(height: 20),
+                              _buildLeaderList(
+                                leaderboardData,
+                                isManager: isManager,
+                              ),
+                            ],
+                          ),
+                  ],
+                ),
+              );
+            },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildFirestoreBrokenState() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.refresh, color: AppColors.warningColor, size: 40),
+            const SizedBox(height: 12),
+            const Text(
+              'Live data temporarily unavailable',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'A Firestore web issue was detected. Please reload the page to recover.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: FirestoreWebCircuitBreaker.forceReload,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reload'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -624,6 +660,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 child: Image.asset(
                   'assets/Internet_Web_Browser/Live.png', // Corrected asset path
                   fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
                 ),
               ), // Replaced Icon with Image.asset
               const SizedBox(width: 8),
@@ -1222,8 +1260,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Process_Flows_Automation/Points.png',
+                          'assets/Process_Flows_Automation/Points.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1235,8 +1275,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Business_Growth_Development/Growth_Development_Red.png',
+                          'assets/Business_Growth_Development/Growth_Development_Red.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1248,8 +1290,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+                          'assets/Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1263,8 +1307,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           width: 12,
                           height: 12,
                           child: Image.asset(
-                            'Office_Workplace/Offices.png',
+                          'assets/Office_Workplace/Offices.png',
                             fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                           ),
                         ),
                       ),
