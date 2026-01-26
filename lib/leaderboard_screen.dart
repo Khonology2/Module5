@@ -41,7 +41,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     with SingleTickerProviderStateMixin {
   // Initialize with concrete values to prevent initialization errors
   final Set<LeaderboardFilter> _selectedFilters = <LeaderboardFilter>{
-    LeaderboardFilter.thisMonth,
+    // Default to all-time because totalPoints is authoritative across the app.
+    // Monthly points rely on `metrics.points.daily`, which may not be updated by all point-awarding flows.
+    LeaderboardFilter.allTime,
     LeaderboardFilter.points,
   };
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
@@ -283,6 +285,19 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     }
   }
 
+  int _coerceInt(dynamic value, [int fallback = 0]) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value == null) return fallback;
+    return int.tryParse(value.toString()) ?? fallback;
+  }
+
+  num _coerceNum(dynamic value, [num fallback = 0]) {
+    if (value is num) return value;
+    if (value == null) return fallback;
+    return num.tryParse(value.toString()) ?? fallback;
+  }
+
   List<Map<String, dynamic>> _processLeaderboardData(
     List<dynamic> docs, {
     String? userRole,
@@ -333,12 +348,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
           if (data != null) {
             // ALWAYS exclude managers from leaderboard
-            final role = data['role']?.toString() ?? 'employee';
+            var role = (data['role'] ?? 'employee').toString().trim();
+            role = role.isEmpty ? 'employee' : role.toLowerCase();
             if (role != 'employee') {
               return false; // Exclude managers and any other non-employee roles
             }
 
-            // Check opt-in status (support both new + legacy fields)
+            // Show all employees EXCEPT those who did not opt in
+            // (support both new + legacy fields)
             final optIn = data['leaderboardOptin'];
             final legacyOptIn = data['leaderboardParticipation'];
             // Only show users who opted in to the leaderboard (for both employees and managers)
@@ -387,18 +404,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             badgeCount = badgesField.length;
           } else if (badgesField is num) {
             badgeCount = badgesField.toInt();
+          } else if (badgesField is String) {
+            badgeCount = int.tryParse(badgesField) ?? 0;
           }
 
           if (badgeCount == 0) {
             final earnedBadgesCount = data['earnedBadgesCount'];
             if (earnedBadgesCount is num) {
               badgeCount = earnedBadgesCount.toInt();
+            } else if (earnedBadgesCount is String) {
+              badgeCount = int.tryParse(earnedBadgesCount) ?? 0;
             } else {
               final badgeSummary = data['badgeSummary'];
               if (badgeSummary is Map<String, dynamic>) {
                 final earned = badgeSummary['earned'];
                 if (earned is num) {
                   badgeCount = earned.toInt();
+                } else if (earned is String) {
+                  badgeCount = int.tryParse(earned) ?? 0;
                 }
               }
             }
@@ -414,13 +437,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Calculate points based on time filter
         num points = 0;
         if (useThisMonth) {
+          // Monthly points require metrics.points.daily to be present.
+          // If not present (or not used by some point-award flows), fall back to 0 for month view.
           points = _calculateMonthlyPoints(data);
         } else {
           // All time - use totalPoints
           try {
-            if (data['totalPoints'] is num) {
-              points = data['totalPoints'] as num;
-            }
+            points = _coerceNum(data['totalPoints'], 0);
           } catch (e) {
             developer.log('Error processing points for user $docId: $e');
           }
@@ -428,9 +451,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
         num level = 1;
         try {
-          if (data['level'] is num) {
-            level = data['level'] as num;
-          }
+          level = _coerceNum(data['level'], 1);
         } catch (e) {
           developer.log('Error processing level for user $docId: $e');
         }
@@ -439,16 +460,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         int currentStreak = 0;
         int longestStreak = 0;
         try {
-          currentStreak = (data['currentStreak'] is num)
-              ? (data['currentStreak'] as num).toInt()
-              : (data['currentStreak'] is int
-                    ? data['currentStreak'] as int
-                    : 0);
-          longestStreak = (data['longestStreak'] is num)
-              ? (data['longestStreak'] as num).toInt()
-              : (data['longestStreak'] is int
-                    ? data['longestStreak'] as int
-                    : 0);
+          currentStreak = _coerceInt(data['currentStreak'], 0);
+          longestStreak = _coerceInt(data['longestStreak'], 0);
         } catch (e) {
           developer.log('Error processing streaks for user $docId: $e');
         }
@@ -456,8 +469,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         return {
           'userId': docId,
           'name': data['displayName']?.toString() ?? 'Anonymous',
-          'points': points,
-          'level': level,
+          // Use ints for display consistency.
+          'points': _coerceInt(points, 0),
+          'level': _coerceInt(level, 1),
           'badges': badgeCount,
           'currentStreak': currentStreak,
           'longestStreak': longestStreak,
@@ -1152,7 +1166,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       return {};
     }
 
-    final bool isManager = _currentUser!.role == 'manager';
+    final bool isManager = _currentUser!.role.trim().toLowerCase() == 'manager';
     final bool optedIn = _currentUser!.leaderboardOptin;
     if (!isManager && !optedIn) {
       // Employees who opted out shouldn't be surfaced anywhere on the leaderboard
