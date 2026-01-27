@@ -5,9 +5,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
+import 'package:pdh/services/database_service.dart';
+import 'package:pdh/widgets/manager_milestone_review_widget.dart';
+// Conditional web import
+import 'dart:html' as web show window;
 
 class ManagerEmployeeDetailScreen extends StatefulWidget {
   final EmployeeData employee;
@@ -352,6 +357,12 @@ class _ManagerEmployeeDetailScreenState
             spacing: 8,
             runSpacing: 8,
             children: [
+              _buildGoalActionButton(
+                label: 'View Milestones',
+                icon: Icons.list_alt,
+                onPressed: () => _showMilestoneReviewDialog(g),
+                color: AppColors.infoColor,
+              ),
               _buildGoalActionButton(
                 label: 'Nudge',
                 icon: Icons.send,
@@ -738,6 +749,282 @@ class _ManagerEmployeeDetailScreenState
     }
   }
 
+  // NEW: Show milestone review dialog
+  Future<void> _showMilestoneReviewDialog(Goal goal) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be logged in to review milestones'),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Milestone Review',
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Goal: ${goal.title}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Milestones List
+              Expanded(
+                child: StreamBuilder<List<GoalMilestone>>(
+                  stream: DatabaseService.getGoalMilestonesStream(goal.id),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final milestones = snapshot.data ?? [];
+                    if (milestones.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No milestones found for this goal',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: milestones.length,
+                      itemBuilder: (context, index) {
+                        final milestone = milestones[index];
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color:
+                                  milestone.status ==
+                                      GoalMilestoneStatus.pendingManagerReview
+                                  ? Colors.orange.withValues(alpha: 0.5)
+                                  : milestone.status ==
+                                        GoalMilestoneStatus
+                                            .completedAcknowledged
+                                  ? Colors.purple.withValues(alpha: 0.5)
+                                  : Colors.white.withValues(alpha: 0.2),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      milestone.title,
+                                      style: AppTypography.bodyMedium.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          milestone.status ==
+                                              GoalMilestoneStatus
+                                                  .pendingManagerReview
+                                          ? Colors.orange.withValues(
+                                              alpha: 0.15,
+                                            )
+                                          : milestone.status ==
+                                                GoalMilestoneStatus
+                                                    .completedAcknowledged
+                                          ? Colors.purple.withValues(
+                                              alpha: 0.15,
+                                            )
+                                          : Colors.grey.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      milestone.status ==
+                                              GoalMilestoneStatus
+                                                  .pendingManagerReview
+                                          ? 'Needs Review'
+                                          : milestone.status ==
+                                                GoalMilestoneStatus
+                                                    .completedAcknowledged
+                                          ? 'Acknowledged'
+                                          : milestone.status.name,
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color:
+                                            milestone.status ==
+                                                GoalMilestoneStatus
+                                                    .pendingManagerReview
+                                            ? Colors.orange
+                                            : milestone.status ==
+                                                  GoalMilestoneStatus
+                                                      .completedAcknowledged
+                                            ? Colors.purple
+                                            : Colors.grey,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (milestone.description.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  milestone.description,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+
+                              // Show evidence if available
+                              if (milestone.evidence.isNotEmpty) ...[
+                                Text(
+                                  'Submitted Evidence:',
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                ...milestone.evidence.map(
+                                  (evidence) => Container(
+                                    margin: const EdgeInsets.only(bottom: 4),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: Colors.blue.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          evidence.fileType == 'text'
+                                              ? Icons.description
+                                              : Icons.attach_file,
+                                          color: Colors.blue,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            evidence.fileName,
+                                            style: AppTypography.bodySmall
+                                                .copyWith(color: Colors.blue),
+                                          ),
+                                        ),
+                                        if (evidence.fileUrl.isNotEmpty)
+                                          IconButton(
+                                            onPressed: () =>
+                                                _previewEvidence(evidence),
+                                            icon: const Icon(
+                                              Icons.visibility,
+                                              size: 16,
+                                            ),
+                                            tooltip: 'Preview',
+                                            padding: const EdgeInsets.all(4),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+
+                              if (milestone.status ==
+                                  GoalMilestoneStatus.pendingManagerReview)
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(dialogContext).pop();
+                                    _showMilestoneAcknowledgementDialog(
+                                      goal,
+                                      milestone,
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                  ),
+                                  child: Text(
+                                    'Review & Acknowledge',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NEW: Show milestone acknowledgement dialog
+  Future<void> _showMilestoneAcknowledgementDialog(
+    Goal goal,
+    GoalMilestone milestone,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ManagerMilestoneReviewWidget(
+          goalId: goal.id,
+          employeeId: widget.employee.profile.uid,
+          milestone: milestone,
+        ),
+      ),
+    );
+  }
+
   void _addStretchObjective() {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
@@ -950,6 +1237,130 @@ class _ManagerEmployeeDetailScreenState
           fontWeight: FontWeight.w600,
           fontSize: 10,
         ),
+      ),
+    );
+  }
+
+  // NEW: Preview evidence file for manager
+  void _previewEvidence(MilestoneEvidence evidence) {
+    if (evidence.fileUrl.isEmpty) return;
+
+    final isUrl =
+        evidence.fileUrl.startsWith('http://') ||
+        evidence.fileUrl.startsWith('https://');
+    final isImage =
+        evidence.fileType.toLowerCase().endsWith('png') ||
+        evidence.fileType.toLowerCase().endsWith('jpg') ||
+        evidence.fileType.toLowerCase().endsWith('jpeg') ||
+        evidence.fileType.toLowerCase().endsWith('gif');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2840),
+        title: Text(
+          isImage ? 'Evidence Image' : 'Evidence Details',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: isImage
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  evidence.fileUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.broken_image,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Failed to load image',
+                          style: TextStyle(color: Colors.red.shade300),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'File Name:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.fileName,
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'File Type:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.fileType,
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'File Size:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      '${(evidence.fileSize / 1024).toStringAsFixed(1)} KB',
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Uploaded By:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.uploadedByName ?? 'User',
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Upload Date:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      _formatDate(evidence.uploadedAt),
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    if (isUrl) ...[
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          try {
+                            // For web, open in new tab
+                            // ignore: undefined_prefixed_name
+                            web.window.open(evidence.fileUrl, '_blank');
+                          } catch (_) {
+                            // On non-web platforms, just close the dialog
+                            Navigator.of(ctx).pop();
+                          }
+                        },
+                        child: const Text('Open in Browser'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }
@@ -1192,29 +1603,31 @@ class _NudgeDialogState extends State<_NudgeDialog> {
   }
 }
 
-extension _Rx on Stream<List<Goal>> {
-  Stream<R> combineLatest<T, R>(
-    Stream<T> other,
-    R Function(List<Goal>, T) combiner,
-  ) {
-    late List<Goal> aCache;
-    late T bCache;
+// NEW: Extension to add combineLatest functionality to Stream
+extension StreamCombineLatest<T> on Stream<T> {
+  Stream<R> combineLatest<S, R>(Stream<S> other, R Function(T, S) combiner) {
+    late T cacheA;
+    late S cacheB;
     bool hasA = false, hasB = false;
     final controller = StreamController<R>();
+
     final subA = listen((a) {
       hasA = true;
-      aCache = a;
-      if (hasB) controller.add(combiner(aCache, bCache));
+      cacheA = a;
+      if (hasB) controller.add(combiner(cacheA, cacheB));
     });
+
     final subB = other.listen((b) {
       hasB = true;
-      bCache = b;
-      if (hasA) controller.add(combiner(aCache, bCache));
+      cacheB = b;
+      if (hasA) controller.add(combiner(cacheA, cacheB));
     });
+
     controller.onCancel = () {
       subA.cancel();
       subB.cancel();
     };
+
     return controller.stream;
   }
 }

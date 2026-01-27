@@ -118,7 +118,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   Widget build(BuildContext context) {
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
-      initialData: _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
+      initialData:
+          _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
       builder: (context, profileSnapshot) {
         final streamedProfile = profileSnapshot.data;
         if (streamedProfile != null && streamedProfile != _cachedProfile) {
@@ -159,7 +160,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        final effectiveProfile = streamedProfile ?? _cachedProfile ?? userProfile;
+        final effectiveProfile =
+            streamedProfile ?? _cachedProfile ?? userProfile;
 
         // Only show loading if we truly don't have any data
         if (profileSnapshot.connectionState == ConnectionState.waiting &&
@@ -372,7 +374,11 @@ class _ManagerProgressVisualsContentState
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: AppColors.activeColor, size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.activeColor,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -397,7 +403,10 @@ class _ManagerProgressVisualsContentState
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/manager_review_team_dashboard');
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/manager_review_team_dashboard',
+                      );
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.activeColor,
@@ -464,7 +473,9 @@ class _ManagerProgressVisualsContentState
     );
   }
 
-  Widget _buildRecentManagerActionsCollapsible(List<ManagerActivity> activities) {
+  Widget _buildRecentManagerActionsCollapsible(
+    List<ManagerActivity> activities,
+  ) {
     final visible = activities.take(8).toList();
     final remaining = (activities.length - visible.length).clamp(0, 999999);
 
@@ -689,9 +700,7 @@ class _ManagerProgressVisualsContentState
     final criteria = badge.criteria;
     final source = criteria['source'];
     final hasManagerLevel = criteria.containsKey('managerLevel');
-    return badge.id.startsWith('mgr_') ||
-        source == 'season' ||
-        hasManagerLevel;
+    return badge.id.startsWith('mgr_') || source == 'season' || hasManagerLevel;
   }
 
   Stream<List<Goal>> _getManagerGoalsStream() {
@@ -850,9 +859,7 @@ class _ManagerProgressVisualsContentState
       children: [
         Text(
           'Milestone Analytics',
-          style: AppTypography.heading3.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.md),
         ...goals
@@ -878,11 +885,7 @@ class _ManagerProgressVisualsContentState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.flag_outlined,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.flag_outlined, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No Goals Yet',
@@ -1006,13 +1009,15 @@ class _ManagerProgressVisualsContentState
         // Fetch approvals from goals (ONLY goals approved by *this* manager).
         // Include both top-level goals and nested user goals, with index-safe fallbacks.
         List<QueryDocumentSnapshot<Map<String, dynamic>>> approvalDocs = [];
-        Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> fetchApprovalDocsFrom(
-          Query<Map<String, dynamic>> q,
-        ) async {
+        Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+        fetchApprovalDocsFrom(Query<Map<String, dynamic>> q) async {
           try {
             final snap = await q
                 .where('approvedByUserId', isEqualTo: user.uid)
-                .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
+                .where(
+                  'approvalStatus',
+                  isEqualTo: GoalApprovalStatus.approved.name,
+                )
                 .orderBy('approvedAt', descending: true)
                 .limit(50)
                 .get();
@@ -1023,7 +1028,10 @@ class _ManagerProgressVisualsContentState
             try {
               final snap = await q
                   .where('approvedByUserId', isEqualTo: user.uid)
-                  .where('approvalStatus', isEqualTo: GoalApprovalStatus.approved.name)
+                  .where(
+                    'approvalStatus',
+                    isEqualTo: GoalApprovalStatus.approved.name,
+                  )
                   .limit(100)
                   .get();
               final docs = snap.docs.toList()
@@ -1075,7 +1083,8 @@ class _ManagerProgressVisualsContentState
           final goalTitle = (data['title'] ?? 'Approved a goal').toString();
 
           // Build a stable dedupe key across collections
-          final approvalKey = '${employeeId ?? ''}|$goalTitle|${approvedAt.millisecondsSinceEpoch}';
+          final approvalKey =
+              '${employeeId ?? ''}|$goalTitle|${approvedAt.millisecondsSinceEpoch}';
           if (seenApprovalKeys.contains(approvalKey)) continue;
           seenApprovalKeys.add(approvalKey);
 
@@ -1766,7 +1775,6 @@ class _ManagerProgressVisualsContentState
       lastUpdated: DateTime.now(),
     );
   }
-
 
   Widget _buildTeamMetricsCards(TeamMetrics metrics) {
     return Column(
@@ -2979,7 +2987,9 @@ class _EmployeeProgressVisualsContentState
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          final goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .toList();
           // Sort goals by createdAt descending (newest first)
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
@@ -4649,6 +4659,10 @@ $progressDetails
         return AppColors.dangerColor;
       case GoalMilestoneStatus.notStarted:
         return AppColors.textSecondary;
+      case GoalMilestoneStatus.pendingManagerReview:
+        return Colors.orange; // Orange for pending review
+      case GoalMilestoneStatus.completedAcknowledged:
+        return Colors.purple; // Purple for acknowledged
     }
   }
 
@@ -4662,6 +4676,10 @@ $progressDetails
         return Icons.block;
       case GoalMilestoneStatus.notStarted:
         return Icons.radio_button_unchecked;
+      case GoalMilestoneStatus.pendingManagerReview:
+        return Icons.pending_actions; // Icon for pending review
+      case GoalMilestoneStatus.completedAcknowledged:
+        return Icons.verified; // Icon for acknowledged
     }
   }
 
