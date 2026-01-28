@@ -60,7 +60,7 @@ class SidebarConfig {
     itemWithAssets(
       white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
       red: 'assets/Khonodemy Icons/GoalWorkspace_Red.png',
-      label: 'MyPdp',
+      label: 'My PDP',
       route: '/my_goal_workspace',
     ),
     itemWithAssets(

@@ -409,10 +409,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
               const SizedBox(height: AppSpacing.lg),
-              const Align(
-                alignment: Alignment.center,
-                child: VersionBadge(),
-              ),
+              const Align(alignment: Alignment.center, child: VersionBadge()),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -476,11 +473,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           const Positioned(
             left: 0,
             bottom: 0,
-            child: SafeArea(
-              left: true,
-              bottom: true,
-              child: VersionBadge(),
-            ),
+            child: SafeArea(left: true, bottom: true, child: VersionBadge()),
           ),
         ],
       ),
@@ -989,6 +982,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  // Check-in functionality removed
   Widget _buildSeasonProgressAlerts() {
     return _card(
       child: Column(

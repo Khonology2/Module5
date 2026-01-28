@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/email_notification_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
@@ -123,11 +124,15 @@ class AlertService {
 
       if (mgrs.docs.isEmpty) {
         developer.log('WARNING: No managers found to notify for goal approval');
-        developer.log('Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle');
+        developer.log(
+          'Employee ID: $employeeId, Goal ID: $goalId, Goal Title: $goalTitle',
+        );
         return;
       }
 
-      developer.log('Found ${mgrs.docs.length} manager(s) to notify for goal approval');
+      developer.log(
+        'Found ${mgrs.docs.length} manager(s) to notify for goal approval',
+      );
 
       for (final mgr in mgrs.docs) {
         final alert = Alert(
@@ -190,6 +195,7 @@ class AlertService {
   static Future<void> createManagerMilestoneAlert({
     required Goal goal,
     required String milestoneTitle,
+    String? milestoneId, // NEW: Optional milestone ID for evidence checking
   }) async {
     try {
       final userDoc = await _firestore
@@ -198,6 +204,23 @@ class AlertService {
           .get();
       final employeeName = userDoc.data()?['displayName'] ?? 'An employee';
       final dept = userDoc.data()?['department'] as String?;
+
+      // NEW: Check for evidence if milestone ID provided (additive extension)
+      String evidenceInfo = '';
+      if (milestoneId != null) {
+        try {
+          final evidence = await MilestoneEvidenceService.getMilestoneEvidence(
+            goalId: goal.id,
+            milestoneId: milestoneId,
+          );
+          if (evidence.isNotEmpty) {
+            evidenceInfo =
+                ' (${evidence.length} evidence file${evidence.length == 1 ? '' : 's'} submitted)';
+          }
+        } catch (e) {
+          developer.log('Error checking milestone evidence: $e');
+        }
+      }
 
       Query mgrQuery = _firestore
           .collection('users')
@@ -215,10 +238,15 @@ class AlertService {
           'priority': AlertPriority.medium.name,
           'title': 'Milestone Completed',
           'message':
-              '$employeeName finished "$milestoneTitle" for goal "${goal.title}".',
+              '$employeeName finished "$milestoneTitle"$evidenceInfo for goal "${goal.title}".',
           'actionText': 'Review Goal',
           'actionRoute': '/manager_portal',
-          'actionData': {'initialRoute': '/manager_review_team_dashboard'},
+          'actionData': {
+            'initialRoute': '/manager_review_team_dashboard',
+            'goalId': goal.id,
+            'milestoneId':
+                milestoneId, // NEW: Include milestone ID for direct access
+          },
           'relatedGoalId': goal.id,
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
@@ -392,6 +420,130 @@ class AlertService {
     await _createAlert(alert);
   }
 
+  // NEW: Helper method to get managers for an employee
+  static Future<List<DocumentSnapshot>> _getManagersForEmployee(
+    String employeeId,
+  ) async {
+    try {
+      // Get employee's department
+      final employeeDoc = await _firestore
+          .collection('users')
+          .doc(employeeId)
+          .get();
+      final department = employeeDoc.data()?['department'] as String?;
+
+      // Find managers in the same department (or all managers if no department)
+      Query managerQuery = _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'manager');
+      if (department != null && department.isNotEmpty) {
+        managerQuery = managerQuery.where('department', isEqualTo: department);
+      }
+
+      final managerSnapshot = await managerQuery.get();
+      return managerSnapshot.docs;
+    } catch (e) {
+      developer.log('Error getting managers for employee: $e');
+      return [];
+    }
+  }
+
+  // NEW: Create alert for milestone evidence submission
+  static Future<void> createMilestoneEvidenceSubmittedAlert({
+    required String employeeId,
+    required String goalId,
+    required String milestoneId,
+    required String milestoneTitle,
+    required int evidenceCount,
+  }) async {
+    try {
+      // Get employee details
+      final employeeDoc = await _firestore
+          .collection('users')
+          .doc(employeeId)
+          .get();
+      final employeeName =
+          employeeDoc.data()?['displayName'] ??
+          employeeDoc.data()?['name'] ??
+          'Employee';
+
+      // Get goal details
+      final goalDoc = await _firestore.collection('goals').doc(goalId).get();
+      final goalTitle = goalDoc.data()?['title'] ?? 'Goal';
+
+      // Find managers based on employee's department
+      final managers = await _getManagersForEmployee(employeeId);
+
+      // Create alerts for all managers
+      final alerts = managers
+          .map(
+            (manager) => {
+              'userId': manager.id,
+              'type':
+                  AlertType.goalMilestoneCompleted.name, // Reuse existing type
+              'priority': AlertPriority.high.name,
+              'title': 'Milestone Evidence Submitted',
+              'message':
+                  '$employeeName submitted evidence for milestone "$milestoneTitle" in goal "$goalTitle". ($evidenceCount evidence file(s))',
+              'createdAt': Timestamp.now(),
+              'isRead': false,
+              'actionRoute': '/my_pdp',
+              'actionData': {
+                'goalId': goalId,
+                'milestoneId': milestoneId,
+                'employeeId': employeeId,
+                'evidenceCount': evidenceCount,
+              },
+            },
+          )
+          .toList();
+
+      // Batch write alerts
+      final batch = _firestore.batch();
+      for (final alertData in alerts) {
+        final alertRef = _firestore.collection('alerts').doc();
+        batch.set(alertRef, alertData);
+      }
+      await batch.commit();
+    } catch (e) {
+      developer.log('Error creating milestone evidence submitted alert: $e');
+      rethrow;
+    }
+  }
+
+  // NEW: Create alert for milestone acknowledgement
+  static Future<void> createMilestoneAcknowledgedAlert({
+    required String employeeId,
+    required String goalId,
+    required String milestoneId,
+    required String milestoneTitle,
+    required String managerName,
+    String? checkInNotes,
+  }) async {
+    try {
+      final alert = Alert(
+        id: '',
+        userId: employeeId,
+        type: AlertType.goalApprovalApproved, // Reuse existing type
+        priority: AlertPriority.high,
+        title: 'Milestone Acknowledged! ✅',
+        message:
+            '$managerName has acknowledged your milestone "$milestoneTitle".${checkInNotes != null && checkInNotes.isNotEmpty ? '\n\nManager notes: $checkInNotes' : ''}',
+        actionText: 'View Progress',
+        actionRoute: '/employee_dashboard',
+        actionData: {'goalId': goalId},
+        createdAt: DateTime.now(),
+        relatedGoalId: goalId,
+        expiresAt: DateTime.now().add(const Duration(days: 7)),
+      );
+
+      await _createAlert(alert);
+    } catch (e) {
+      developer.log('Error creating milestone acknowledged alert: $e');
+      rethrow;
+    }
+  }
+
   /// Helper to create alerts for managers, often used for approval requests or notifications
   static Future<void> createManagerAlert({
     required String goalId,
@@ -399,7 +551,8 @@ class AlertService {
     required String ownerId,
     required String ownerName,
     required String managerId,
-    required String type, // e.g., 'milestoneDeletionRequest', 'milestoneDeleted', 'milestoneDeletionRejected'
+    required String
+    type, // e.g., 'milestoneDeletionRequest', 'milestoneDeleted', 'milestoneDeletionRejected'
     String? message,
   }) async {
     try {
@@ -410,22 +563,28 @@ class AlertService {
       switch (type) {
         case 'milestoneDeletionRequest':
           alertTitle = 'Milestone Deletion Request';
-          alertMessage = '$ownerName has requested to delete a milestone from goal "$goalTitle". Please review.';
+          alertMessage =
+              '$ownerName has requested to delete a milestone from goal "$goalTitle". Please review.';
           alertType = AlertType.milestoneDeletionRequest;
           break;
         case 'milestoneDeleted':
           alertTitle = 'Milestone Deleted';
-          alertMessage = message ?? 'A milestone from goal "$goalTitle" has been deleted.';
+          alertMessage =
+              message ?? 'A milestone from goal "$goalTitle" has been deleted.';
           alertType = AlertType.milestoneDeleted;
           break;
         case 'milestoneDeletionRejected':
           alertTitle = 'Milestone Deletion Rejected';
-          alertMessage = message ?? 'The request to delete a milestone from goal "$goalTitle" has been rejected.';
+          alertMessage =
+              message ??
+              'The request to delete a milestone from goal "$goalTitle" has been rejected.';
           alertType = AlertType.milestoneDeletionRejected;
           break;
         default:
           alertTitle = 'Manager Alert';
-          alertMessage = message ?? 'An action requires your attention regarding goal "$goalTitle".';
+          alertMessage =
+              message ??
+              'An action requires your attention regarding goal "$goalTitle".';
           alertType = AlertType.managerGeneral;
       }
 
@@ -447,7 +606,9 @@ class AlertService {
       );
 
       await _createAlert(alert);
-      developer.log('Created manager alert of type $type for manager $managerId');
+      developer.log(
+        'Created manager alert of type $type for manager $managerId',
+      );
     } catch (e) {
       developer.log('Error creating manager alert: $e');
       rethrow;
@@ -901,7 +1062,8 @@ class AlertService {
                   'type': AlertType.goalOverdue.name,
                   'priority': AlertPriority.high.name,
                   'title': 'Employee Goal Overdue',
-                  'message': "${userDoc.data()?['displayName'] ?? 'An employee'}'s goal \"${goal.title}\" is 1 day overdue. Review and decide next step.",
+                  'message':
+                      "${userDoc.data()?['displayName'] ?? 'An employee'}'s goal \"${goal.title}\" is 1 day overdue. Review and decide next step.",
                   'actionText': 'Review Goal',
                   'actionRoute': '/manager_alerts_nudges',
                   'createdAt': FieldValue.serverTimestamp(),
