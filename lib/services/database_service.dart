@@ -33,9 +33,10 @@ class DatabaseService {
   // Privacy enforcement helpers
   static Future<String> _getUserRole(String uid) async {
     try {
-      final doc = await FirestoreSafe.getDoc(
-        FirebaseFirestore.instance.collection('users').doc(uid),
-      );
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       return (doc.data()?['role'] ?? 'employee') as String;
     } catch (_) {
       return 'employee';
@@ -46,22 +47,21 @@ class DatabaseService {
     String uid,
   ) async {
     try {
-      final doc = await FirestoreSafe.getDoc(
-        FirebaseFirestore.instance.collection('users').doc(uid),
-      );
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final data = doc.data() ?? <String, dynamic>{};
       return {
         'privateGoals': data['privateGoals'] == true,
-        'managerOnly': data['managerOnly'] == true,
-        'teamShare': data['teamShare'] != false, // default true
-        'profileVisible': data['profileVisible'] != false, // default true
+        'privateMilestones': data['privateMilestones'] == true,
+        'privateProgress': data['privateProgress'] == true,
       };
     } catch (_) {
       return {
         'privateGoals': false,
-        'managerOnly': false,
-        'teamShare': true,
-        'profileVisible': true,
+        'privateMilestones': false,
+        'privateProgress': false,
       };
     }
   }
@@ -96,12 +96,11 @@ class DatabaseService {
     }
 
     // Fetch goals with optimized query
-    final snapshot = await FirestoreSafe.getQuery(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: targetUserId)
-          .orderBy('createdAt', descending: true),
-    );
+    final snapshot = await FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: targetUserId)
+        .orderBy('createdAt', descending: true)
+        .get();
     var goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
     // Removed in-memory sort - using Firestore orderBy instead
 
@@ -134,18 +133,18 @@ class DatabaseService {
       }
     }
 
-    yield* FirestoreSafe.stream(
-      FirebaseFirestore.instance
-          .collection('goals')
-          .where('userId', isEqualTo: targetUserId)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-    ).handleError((error) {
-      developer.log('Error in getUserGoalsStream: $error');
-      if (error is Object) {
-        FirestoreWebCircuitBreaker.maybeReload(error);
-      }
-    }).map((snapshot) {
+    yield* FirebaseFirestore.instance
+        .collection('goals')
+        .where('userId', isEqualTo: targetUserId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .handleError((error) {
+          developer.log('Error in getUserGoalsStream: $error');
+          if (error is Object) {
+            FirestoreWebCircuitBreaker.maybeReload(error);
+          }
+        })
+        .map((snapshot) {
           var goals = snapshot.docs
               .map((doc) => Goal.fromFirestore(doc))
               .toList();
