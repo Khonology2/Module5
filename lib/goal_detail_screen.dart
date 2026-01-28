@@ -1827,6 +1827,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         return;
                       }
 
+                      // Capture BEFORE any async gaps to avoid using BuildContext
+                      // across awaits (use_build_context_synchronously).
+                      final navigator = Navigator.of(dialogContext);
+                      final messenger = ScaffoldMessenger.of(dialogContext);
+
                       setDialogState(() => uploading = true);
                       try {
                         // Create evidence for each attached file
@@ -1907,6 +1912,9 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           evidenceList.add(textEvidence);
                         }
 
+                      // Capture the context we want to use later BEFORE the async gap.
+                      final appContext = context;
+
                         // Submit all evidence in a single batch operation
                         await DatabaseService.submitMultipleMilestoneEvidence(
                           goalId: currentGoal.id,
@@ -1914,14 +1922,13 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           evidenceList: evidenceList,
                         );
 
-                        Navigator.pop(dialogContext);
-                        if (mounted) {
-                          // Store context reference for async usage
-                          final appContext = context;
-                          // Show centered success dialog instead of SnackBar
-                          showDialog(
-                            context: appContext,
-                            builder: (ctx) => AlertDialog(
+                      if (!mounted || !appContext.mounted) return;
+                        navigator.pop();
+
+                        // Show centered success dialog instead of SnackBar
+                        showDialog(
+                        context: appContext,
+                          builder: (ctx) => AlertDialog(
                               backgroundColor: const Color(0xFF1F2840),
                               title: Row(
                                 children: [
@@ -1957,7 +1964,6 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                               ],
                             ),
                           );
-                        }
                       } catch (e) {
                         setDialogState(() => uploading = false);
 
@@ -1985,7 +1991,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           errorMessage = 'Submission failed: ${e.toString()}';
                         }
 
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(errorMessage),
                             backgroundColor: Colors.red,
@@ -2295,6 +2301,10 @@ class _GoalMilestoneTile extends StatelessWidget {
                           return;
                         }
 
+                        // Capture BEFORE async gap to avoid using BuildContext after awaits.
+                        final navigator = Navigator.of(dialogContext);
+                        final messenger = ScaffoldMessenger.of(dialogContext);
+
                         setDialogState(() => uploading = true);
                         try {
                           await MilestoneEvidenceService.uploadEvidence(
@@ -2306,19 +2316,15 @@ class _GoalMilestoneTile extends StatelessWidget {
                             fileSize: 1024, // Default for demo
                           );
 
-                          // Store context reference for async usage
-                          final dialogContextRef = dialogContext;
-                          Navigator.pop(dialogContext);
-                          ScaffoldMessenger.of(dialogContextRef).showSnackBar(
+                          navigator.pop();
+                          messenger.showSnackBar(
                             const SnackBar(
                               content: Text('Evidence uploaded successfully'),
                             ),
                           );
                         } catch (e) {
                           setDialogState(() => uploading = false);
-                          // Store context reference for async usage
-                          final dialogContextRef = dialogContext;
-                          ScaffoldMessenger.of(dialogContextRef).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(content: Text('Upload failed: $e')),
                           );
                         }

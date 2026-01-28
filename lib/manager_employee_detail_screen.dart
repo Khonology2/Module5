@@ -1219,7 +1219,7 @@ class _ManagerEmployeeDetailScreenState
                 return;
               }
 
-              // TODO: Implement stretch objective creation in database service
+
               Navigator.pop(context);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(

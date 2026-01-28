@@ -81,6 +81,11 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
+  // Keep a stable stream + last good value to prevent reaction flicker when
+  // parent widgets rebuild (filters, alert stream updates, etc.).
+  Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
+  String? _nudgeFeedbackStreamUserId;
+  List<Map<String, dynamic>> _lastNudgeFeedbackMaps = const <Map<String, dynamic>>[];
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -150,6 +155,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   void initState() {
     super.initState();
     _redirectIfManager();
+  }
+
+  void _ensureNudgeFeedbackStream({
+    required String managerId,
+    String? managerName,
+    int limit = 200,
+  }) {
+    if (_nudgeFeedbackStream != null && _nudgeFeedbackStreamUserId == managerId) {
+      return;
+    }
+    _nudgeFeedbackStreamUserId = managerId;
+    _nudgeFeedbackStream = ManagerRealtimeService.getNudgeFeedbackStream(
+      managerId: managerId,
+      managerName: managerName,
+      limit: limit,
+    );
   }
 
   void _showGoalReviewSheet(Alert alert) {
@@ -823,14 +844,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               }
 
               if (_typeFilter == 'nudge') {
+                _ensureNudgeFeedbackStream(
+                  managerId: user.uid,
+                  managerName: user.displayName,
+                  limit: 200,
+                );
                 return StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: ManagerRealtimeService.getNudgeFeedbackStream(
-                    managerId: user.uid,
-                    managerName: user.displayName,
-                    limit: 200,
-                  ),
+                  stream: _nudgeFeedbackStream,
+                  initialData: _lastNudgeFeedbackMaps,
                   builder: (context, fbSnap) {
-                    final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
+                    final feedbackMaps =
+                        fbSnap.data ?? const <Map<String, dynamic>>[];
+                    if (fbSnap.hasData) {
+                      // Cache last good value so we don't flash empty UI during
+                      // transient reconnects / stream resubscriptions.
+                      _lastNudgeFeedbackMaps = feedbackMaps;
+                    }
                     final rawFeedback = feedbackMaps
                         .map(_NudgeFeedback.fromMap)
                         .toList();
