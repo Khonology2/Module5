@@ -67,8 +67,9 @@ class MilestoneEvidence {
   }
 
   static MilestoneEvidenceStatus _evidenceStatusFromString(String? value) {
-    if (value == null)
+    if (value == null) {
       return MilestoneEvidenceStatus.pendingReview; // UPDATED: New default
+    }
     return MilestoneEvidenceStatus.values.firstWhere(
       (e) => e.name == value,
       orElse: () =>
