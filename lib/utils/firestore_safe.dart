@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+//import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 /// Centralized Firestore resilience for Web-first apps.
