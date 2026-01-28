@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:html' as web show window;
+import 'package:web/web.dart' as web;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1916,9 +1916,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
                         Navigator.pop(dialogContext);
                         if (mounted) {
+                          // Store context reference for async usage
+                          final appContext = context;
                           // Show centered success dialog instead of SnackBar
                           showDialog(
-                            context: context,
+                            context: appContext,
                             builder: (ctx) => AlertDialog(
                               backgroundColor: const Color(0xFF1F2840),
                               title: Row(
@@ -2237,7 +2239,7 @@ class _GoalMilestoneTile extends StatelessWidget {
     final Color statusColor = _statusColor(milestone.status);
 
     // NEW: Evidence dialog method
-    void _showEvidenceDialog(GoalMilestone milestone) {
+    void showEvidenceDialog(GoalMilestone milestone) {
       final TextEditingController fileNameController = TextEditingController();
       final TextEditingController fileUrlController = TextEditingController();
       bool uploading = false;
@@ -2304,15 +2306,19 @@ class _GoalMilestoneTile extends StatelessWidget {
                             fileSize: 1024, // Default for demo
                           );
 
+                          // Store context reference for async usage
+                          final dialogContextRef = dialogContext;
                           Navigator.pop(dialogContext);
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          ScaffoldMessenger.of(dialogContextRef).showSnackBar(
                             const SnackBar(
                               content: Text('Evidence uploaded successfully'),
                             ),
                           );
                         } catch (e) {
                           setDialogState(() => uploading = false);
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          // Store context reference for async usage
+                          final dialogContextRef = dialogContext;
+                          ScaffoldMessenger.of(dialogContextRef).showSnackBar(
                             SnackBar(content: Text('Upload failed: $e')),
                           );
                         }
@@ -2522,7 +2528,7 @@ class _GoalMilestoneTile extends StatelessWidget {
                           milestone.status !=
                               GoalMilestoneStatus.pendingManagerReview)
                         TextButton(
-                          onPressed: () => _showEvidenceDialog(milestone),
+                          onPressed: () => showEvidenceDialog(milestone),
                           child: Text(
                             'Add Evidence',
                             style: AppTypography.bodySmall.copyWith(

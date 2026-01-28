@@ -1,10 +1,9 @@
-import 'dart:html' as html;
+import 'package:web/web.dart' as web;
 
 String? readWebStorage(String key) {
-  return html.window.localStorage[key];
+  return web.window.localStorage[key];
 }
 
 void writeWebStorage(String key, String value) {
-  html.window.localStorage[key] = value;
+  web.window.localStorage[key] = value;
 }
-

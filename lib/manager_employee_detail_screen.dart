@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'package:web/web.dart' as web;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -12,8 +13,6 @@ import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/widgets/manager_milestone_review_widget.dart';
-// Conditional web import
-import 'dart:html' as web show window;
 
 class ManagerEmployeeDetailScreen extends StatefulWidget {
   final EmployeeData employee;
