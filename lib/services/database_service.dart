@@ -16,6 +16,7 @@ import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class DatabaseService {
   // Caps configuration
