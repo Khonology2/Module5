@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/design_system/app_colors.dart';
@@ -802,6 +803,37 @@ class _ManagerEmployeeDetailScreenState
                 child: StreamBuilder<List<GoalMilestone>>(
                   stream: DatabaseService.getGoalMilestonesStream(goal.id),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      developer.log(
+                        'Error in milestone stream: ${snapshot.error}',
+                      );
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Error loading milestones',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(),
+                              child: const Text('Close'),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }

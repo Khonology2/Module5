@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:html' as web show window;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1334,6 +1335,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     GoalMilestoneStatus status =
         milestone?.status ?? GoalMilestoneStatus.notStarted;
     bool saving = false;
+    String? successMessage;
 
     await showDialog<void>(
       context: context,
@@ -1409,29 +1411,19 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     status: status,
                   );
                 }
-                // Try to close dialog and show success message
-                // Use try-catch to handle if dialog context is no longer valid
-                try {
-                  // ignore: use_build_context_synchronously
-                  // dialogContext is from dialog builder, checked with try-catch
-                  // ignore: use_build_context_synchronously
-                  Navigator.of(dialogContext).pop();
-                  // Use dialogContext for ScaffoldMessenger since we're in dialog scope
-                  // ignore: use_build_context_synchronously
-                  // dialogContext is from dialog builder, checked with try-catch
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        milestone == null
-                            ? 'Milestone created.'
-                            : 'Milestone updated.',
-                      ),
-                    ),
-                  );
-                } catch (_) {
-                  // Dialog context is no longer valid, ignore
-                }
+                // Show success message in the center of the dialog
+                setDialogState(() {
+                  successMessage = milestone == null
+                      ? 'Milestone created successfully!'
+                      : 'Milestone updated successfully!';
+                });
+
+                // Auto-close dialog after a short delay to show success message
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (mounted && dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                });
               } catch (e) {
                 setDialogState(() => saving = false);
                 // Try to show error message if dialog context is still valid
@@ -1510,6 +1502,41 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                         }
                       },
                     ),
+                    const SizedBox(height: 12),
+                    // Success message display
+                    if (successMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              color: Colors.green.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                successMessage!,
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ],
                 ),
               ),
@@ -1889,19 +1916,87 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
                         Navigator.pop(dialogContext);
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Evidence submitted! Milestone is now pending manager review.',
+                          // Show centered success dialog instead of SnackBar
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1F2840),
+                              title: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.orange.shade400,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Evidence Submitted!',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade400,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              backgroundColor: Colors.orange,
+                              content: Text(
+                                'Your evidence has been submitted successfully. The milestone is now pending manager review.',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: Text(
+                                    'OK',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade400,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         }
                       } catch (e) {
                         setDialogState(() => uploading = false);
+
+                        // Handle different types of errors with user-friendly messages
+                        String errorMessage = 'Submission failed';
+                        if (e.toString().contains('permission-denied') ||
+                            e.toString().contains('permission denied') ||
+                            e.toString().contains('insufficient permissions')) {
+                          errorMessage =
+                              'You do not have permission to submit evidence for this milestone. Please contact your manager.';
+                        } else if (e.toString().contains('not-found') ||
+                            e.toString().contains('could not be found')) {
+                          errorMessage =
+                              'The milestone could not be found. It may have been deleted. Please refresh the page.';
+                        } else if (e.toString().contains(
+                          'INTERNAL ASSERTION FAILED',
+                        )) {
+                          errorMessage =
+                              'A temporary error occurred. Please try again in a moment.';
+                        } else if (e.toString().contains('network') ||
+                            e.toString().contains('connection')) {
+                          errorMessage =
+                              'Network error. Please check your connection and try again.';
+                        } else {
+                          errorMessage = 'Submission failed: ${e.toString()}';
+                        }
+
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text('Submission failed: $e')),
+                          SnackBar(
+                            content: Text(errorMessage),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 5),
+                            action: SnackBarAction(
+                              label: 'Retry',
+                              textColor: Colors.white,
+                              onPressed: () {
+                                // Allow retry by keeping dialog open
+                                setDialogState(() => uploading = false);
+                              },
+                            ),
+                          ),
                         );
                       }
                     },
@@ -2491,6 +2586,18 @@ class _GoalMilestoneTile extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                    if (e.fileUrl.isNotEmpty)
+                                      IconButton(
+                                        onPressed: () =>
+                                            _previewEvidence(e, context),
+                                        icon: const Icon(
+                                          Icons.visibility,
+                                          size: 16,
+                                        ),
+                                        tooltip: 'Preview Evidence',
+                                        padding: const EdgeInsets.all(4),
+                                        constraints: const BoxConstraints(),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -2574,5 +2681,142 @@ class _GoalMilestoneTile extends StatelessWidget {
       case GoalMilestoneStatus.blocked:
         return AppColors.warningColor;
     }
+  }
+
+  // NEW: Preview evidence method for employees
+  void _previewEvidence(MilestoneEvidence evidence, BuildContext context) {
+    if (evidence.fileUrl.isEmpty) return;
+
+    final isUrl =
+        evidence.fileUrl.startsWith('http://') ||
+        evidence.fileUrl.startsWith('https://');
+    final isImage =
+        evidence.fileType.toLowerCase().endsWith('png') ||
+        evidence.fileType.toLowerCase().endsWith('jpg') ||
+        evidence.fileType.toLowerCase().endsWith('jpeg') ||
+        evidence.fileType.toLowerCase().endsWith('gif');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1F2840),
+        title: Text(
+          isImage ? 'Evidence Preview' : 'Evidence Details',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: isImage
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  evidence.fileUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.broken_image,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Failed to load image',
+                          style: TextStyle(color: Colors.red.shade300),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'File Name:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.fileName,
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'File Type:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.fileType,
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'File Size:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      '${(evidence.fileSize / 1024).toStringAsFixed(1)} KB',
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Status:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      evidence.status.name,
+                      style: TextStyle(
+                        color:
+                            evidence.status == MilestoneEvidenceStatus.approved
+                            ? Colors.green
+                            : evidence.status ==
+                                  MilestoneEvidenceStatus.rejected
+                            ? Colors.red
+                            : Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Upload Date:',
+                      style: TextStyle(color: Colors.grey.shade400),
+                    ),
+                    Text(
+                      _formatDate(evidence.uploadedAt),
+                      style: const TextStyle(color: Colors.lightBlueAccent),
+                    ),
+                    if (isUrl) ...[
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          try {
+                            // For web, open in new tab
+                            // ignore: undefined_prefixed_name
+                            web.window.open(evidence.fileUrl, '_blank');
+                          } catch (_) {
+                            // On non-web platforms, just close the dialog
+                            Navigator.of(ctx).pop();
+                          }
+                        },
+                        child: const Text('Open in Browser'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for formatting dates
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
 }
