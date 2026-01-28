@@ -1658,6 +1658,7 @@ class ManagerRealtimeService {
   }) async {
     try {
       final batch = _firestore.batch();
+      final now = Timestamp.fromDate(DateTime.now());
 
       // Add activity record
       final activityRef = _firestore.collection('activities').doc();
@@ -1666,7 +1667,11 @@ class ManagerRealtimeService {
         'activityType': activityType,
         'description': description,
         'metadata': metadata ?? {},
-        'timestamp': FieldValue.serverTimestamp(),
+        // Use a stable, client-side timestamp so queries ordered by `timestamp`
+        // don't temporarily drop/reorder documents while serverTimestamp resolves.
+        // Keep `serverTimestamp` for auditing / server-accurate time if needed.
+        'timestamp': now,
+        'serverTimestamp': FieldValue.serverTimestamp(),
       });
 
       // Update user's last activity timestamp
