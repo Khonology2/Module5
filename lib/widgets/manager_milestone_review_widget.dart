@@ -178,8 +178,38 @@ class _ManagerMilestoneReviewWidgetState
       }
     } catch (e) {
       if (mounted) {
+        // Handle different types of errors with user-friendly messages
+        String errorMessage = 'Failed to acknowledge milestone';
+        if (e.toString().contains('permission') ||
+            e.toString().contains('access rights')) {
+          errorMessage =
+              'You do not have permission to acknowledge this milestone. Please check your access rights.';
+        } else if (e.toString().contains('not found') ||
+            e.toString().contains('deleted')) {
+          errorMessage =
+              'The milestone could not be found. It may have been deleted. Please refresh the page.';
+        } else if (e.toString().contains('temporary error') ||
+            e.toString().contains('try again')) {
+          errorMessage =
+              'A temporary error occurred. Please try again in a moment.';
+        } else {
+          errorMessage = 'Failed to acknowledge milestone: ${e.toString()}';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to acknowledge milestone: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                // Allow retry by resetting the acknowledging state
+                setState(() => _isAcknowledging = false);
+              },
+            ),
+          ),
         );
       }
     } finally {

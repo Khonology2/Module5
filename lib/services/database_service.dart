@@ -674,7 +674,11 @@ class DatabaseService {
     // Send notification to manager
     final milestoneDoc = await milestoneRef.get();
     final milestone = GoalMilestone.fromFirestore(milestoneDoc);
-    await _handleMilestoneEvidenceSubmission(goalId, milestone, evidence);
+    await _handleMilestoneEvidenceSubmission(
+      goalId: goalId,
+      milestone: milestone,
+      evidenceList: [evidence], // Create list with single evidence
+    );
   }
 
   // NEW: Submit multiple milestone evidence files - simplified to avoid Firestore race conditions
@@ -696,16 +700,57 @@ class DatabaseService {
           'status': GoalMilestoneStatus.pendingManagerReview.name,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+
+        developer.log(
+          'Successfully submitted evidence for milestone: $milestoneId',
+        );
+
+        // Send notification to manager (non-critical)
+        try {
+          final milestoneDoc = await milestoneRef.get();
+          if (milestoneDoc.exists) {
+            final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+            await _handleMilestoneEvidenceSubmission(
+              goalId: goalId,
+              milestone: milestone,
+              evidenceList: evidenceList,
+            );
+          }
+        } catch (notificationError) {
+          developer.log(
+            'Error sending evidence submission notification: $notificationError',
+          );
+          // Don't fail the whole operation if notification fails
+        }
       } catch (e) {
-        if (_isFirestoreInternalAssertion(e) && attemptCount < 2) {
+        developer.log('Error submitting milestone evidence: $e');
+
+        // Handle different types of Firestore errors
+        if (_isPermissionDeniedError(e)) {
+          developer.log(
+            'Permission denied for milestone evidence submission - user may not have rights',
+          );
+          throw Exception(
+            'You do not have permission to submit evidence for this milestone. Please contact your manager.',
+          );
+        } else if (_isFirestoreInternalAssertion(e) && attemptCount < 2) {
           final delayMs = 200 * (attemptCount + 1);
           developer.log(
             'Retrying milestone evidence submission after transient Firestore error (attempt ${attemptCount + 1})',
           );
           await Future.delayed(Duration(milliseconds: delayMs));
           return attempt(attemptCount + 1);
+        } else if (_isDocumentNotFoundError(e)) {
+          developer.log('Milestone document not found: $milestoneId');
+          throw Exception(
+            'The milestone could not be found. It may have been deleted.',
+          );
+        } else {
+          developer.log(
+            'Unexpected error in milestone evidence submission: $e',
+          );
+          throw Exception('Failed to submit evidence. Please try again later.');
         }
-        rethrow;
       }
     }
 
@@ -715,12 +760,27 @@ class DatabaseService {
     // The core functionality (evidence submission) works consistently this way
   }
 
-  // NEW: Handle evidence submission and notify manager
-  static Future<void> _handleMilestoneEvidenceSubmission(
-    String goalId,
-    GoalMilestone milestone,
-    MilestoneEvidence evidence, {
-    int evidenceCount = 1,
+  // Helper methods for error detection
+  static bool _isPermissionDeniedError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('permission-denied') ||
+        errorString.contains('permission denied') ||
+        errorString.contains('missing or insufficient permissions') ||
+        errorString.contains('firestore: permission-denied');
+  }
+
+  static bool _isDocumentNotFoundError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('not-found') ||
+        errorString.contains('not found') ||
+        errorString.contains('firestore: not-found');
+  }
+
+  // NEW: Handle milestone evidence submission notifications
+  static Future<void> _handleMilestoneEvidenceSubmission({
+    required String goalId,
+    required GoalMilestone milestone,
+    required List<MilestoneEvidence> evidenceList,
   }) async {
     try {
       // Get goal details for notification
@@ -730,13 +790,13 @@ class DatabaseService {
           .get();
       final goal = Goal.fromFirestore(goalDoc);
 
-      // Send notification to manager
+      // Send notification to manager with correct evidence count
       await AlertService.createMilestoneEvidenceSubmittedAlert(
         employeeId: goal.userId,
         goalId: goalId,
         milestoneId: milestone.id,
         milestoneTitle: milestone.title,
-        evidenceCount: evidenceCount,
+        evidenceCount: evidenceList.length, // Use actual list length
       );
     } catch (e) {
       developer.log('Error sending evidence submission notification: $e');
@@ -758,6 +818,11 @@ class DatabaseService {
       final milestoneDoc = await _goalMilestonesRef(
         goalId,
       ).doc(milestoneId).get();
+
+      if (!milestoneDoc.exists) {
+        throw Exception('Milestone not found. It may have been deleted.');
+      }
+
       final milestone = GoalMilestone.fromFirestore(milestoneDoc);
 
       // Update milestone status to completedAcknowledged
@@ -770,19 +835,42 @@ class DatabaseService {
         'checkInNotes': checkInNotes ?? '',
       });
 
-      // Send notification to employee
-      await _sendMilestoneAcknowledgedNotification(
-        goalId: goalId,
-        milestone: milestone,
-        managerId: managerId,
-        managerName: managerName,
-        checkInNotes: checkInNotes,
-      );
+      // Send notification to employee (non-critical)
+      try {
+        await _sendMilestoneAcknowledgedNotification(
+          goalId: goalId,
+          milestone: milestone,
+          managerId: managerId,
+          managerName: managerName,
+          checkInNotes: checkInNotes,
+        );
+      } catch (notificationError) {
+        developer.log(
+          'Error sending acknowledgement notification: $notificationError',
+        );
+        // Don't fail the whole operation if notification fails
+      }
 
       developer.log('Milestone acknowledged: $milestoneId by $managerName');
     } catch (e) {
       developer.log('Error acknowledging milestone: $e');
-      rethrow;
+
+      // Handle different types of errors with specific messages
+      if (_isPermissionDeniedError(e)) {
+        throw Exception(
+          'You do not have permission to acknowledge this milestone. Please check your access rights.',
+        );
+      } else if (_isDocumentNotFoundError(e)) {
+        throw Exception(
+          'The milestone could not be found. It may have been deleted. Please refresh the page.',
+        );
+      } else if (e.toString().contains('INTERNAL ASSERTION FAILED')) {
+        throw Exception(
+          'A temporary error occurred. Please try again in a moment.',
+        );
+      } else {
+        throw Exception('Failed to acknowledge milestone: ${e.toString()}');
+      }
     }
   }
 
@@ -843,11 +931,21 @@ class DatabaseService {
     return _goalMilestonesRef(goalId)
         .orderBy('dueDate')
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => GoalMilestone.fromFirestore(doc))
-              .toList(),
-        );
+        .handleError((error) {
+          developer.log('Error in milestones stream: $error');
+          // Return empty list on error to prevent UI crashes
+          return <GoalMilestone>[];
+        })
+        .map((snapshot) {
+          try {
+            return snapshot.docs
+                .map((doc) => GoalMilestone.fromFirestore(doc))
+                .toList();
+          } catch (e) {
+            developer.log('Error parsing milestone documents: $e');
+            return <GoalMilestone>[];
+          }
+        });
   }
 
   static Future<String> addGoalMilestone({
