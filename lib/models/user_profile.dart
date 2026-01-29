@@ -28,6 +28,7 @@ class UserProfile {
   final String badgeName;
   final String celebrationConsent;
   final DateTime? lastLoginAt;
+  final DateTime? lastActivityAt;
 
   const UserProfile({
     required this.uid,
@@ -56,6 +57,7 @@ class UserProfile {
     this.badgeName = '',
     this.celebrationConsent = 'private',
     this.lastLoginAt,
+    this.lastActivityAt,
   });
 
   // Factory constructor to create a UserProfile from a Firestore DocumentSnapshot
@@ -63,6 +65,26 @@ class UserProfile {
     final data = doc.data() as Map<String, dynamic>?;
     final dn = (data?['displayName']?.toString() ?? '').trim();
     final fn = (data?['fullName']?.toString() ?? '').trim();
+
+    DateTime? readDate(dynamic v) {
+      if (v == null) return null;
+      if (v is DateTime) return v;
+      if (v is Timestamp) return v.toDate();
+      if (v is int) {
+        // Accept both seconds and milliseconds.
+        if (v > 1000000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(v);
+        }
+        if (v > 1000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(v * 1000);
+        }
+      }
+      if (v is String) {
+        return DateTime.tryParse(v);
+      }
+      return null;
+    }
+
     return UserProfile(
       uid: doc.id,
       email: data?['email'] ?? '',
@@ -95,9 +117,8 @@ class UserProfile {
           false,
       badgeName: data?['badgeName'] ?? '',
       celebrationConsent: data?['celebrationConsent'] ?? 'private',
-      lastLoginAt: data?['lastLoginAt'] is Timestamp
-          ? (data?['lastLoginAt'] as Timestamp).toDate()
-          : null,
+      lastLoginAt: readDate(data?['lastLoginAt']),
+      lastActivityAt: readDate(data?['lastActivityAt']),
     );
   }
 
@@ -131,6 +152,9 @@ class UserProfile {
       'lastLoginAt': lastLoginAt != null
           ? Timestamp.fromDate(lastLoginAt!)
           : null,
+      'lastActivityAt': lastActivityAt != null
+          ? Timestamp.fromDate(lastActivityAt!)
+          : null,
     };
   }
 
@@ -161,6 +185,7 @@ class UserProfile {
     String? badgeName,
     String? celebrationConsent,
     DateTime? lastLoginAt,
+    DateTime? lastActivityAt,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -190,6 +215,7 @@ class UserProfile {
       badgeName: badgeName ?? this.badgeName,
       celebrationConsent: celebrationConsent ?? this.celebrationConsent,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
+      lastActivityAt: lastActivityAt ?? this.lastActivityAt,
     );
   }
 
@@ -224,6 +250,9 @@ class UserProfile {
       celebrationConsent: map['celebrationConsent'] ?? 'private',
       lastLoginAt: map['lastLoginAt'] is Timestamp
           ? (map['lastLoginAt'] as Timestamp).toDate()
+          : null,
+      lastActivityAt: map['lastActivityAt'] is Timestamp
+          ? (map['lastActivityAt'] as Timestamp).toDate()
           : null,
     );
   }

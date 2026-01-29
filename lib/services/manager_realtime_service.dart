@@ -43,7 +43,8 @@ class EmployeeActivity {
       description: (data != null ? data['description'] : '') ?? '',
       timestamp: (data != null && data['timestamp'] is Timestamp)
           ? (data['timestamp'] as Timestamp).toDate()
-          : DateTime.now(),
+          // IMPORTANT: don't default missing timestamps to "now" (it breaks "Last active")
+          : DateTime.fromMillisecondsSinceEpoch(0),
       metadata: Map<String, dynamic>.from(
         (data != null ? data['metadata'] : {}) ?? {},
       ),
@@ -61,7 +62,8 @@ class EmployeeActivity {
           : (map['timestamp'] is Timestamp
                 ? (map['timestamp'] as Timestamp).toDate()
                 : DateTime.tryParse(map['timestamp']?.toString() ?? '') ??
-                      DateTime.now()),
+                      // IMPORTANT: don't default missing timestamps to "now"
+                      DateTime.fromMillisecondsSinceEpoch(0)),
       metadata: Map<String, dynamic>.from(map['metadata'] ?? {}),
     );
   }
@@ -82,6 +84,9 @@ class EmployeeData {
   final int weeklyActivityCount;
   final double engagementScore;
   final String motivationLevel;
+  // When true, this item was emitted as a fast placeholder while full team data
+  // (goals/activities/alerts) is still being fetched/enriched.
+  final bool isPlaceholder;
 
   const EmployeeData({
     required this.profile,
@@ -98,6 +103,7 @@ class EmployeeData {
     required this.weeklyActivityCount,
     required this.engagementScore,
     required this.motivationLevel,
+    this.isPlaceholder = false,
   });
 
   static EmployeeData fromMap(Map<String, dynamic> map, {String? id}) {
@@ -145,6 +151,7 @@ class EmployeeData {
           ? (map['engagementScore'] as num).toDouble()
           : 0.0,
       motivationLevel: map['motivationLevel'] ?? 'Unknown',
+      isPlaceholder: map['isPlaceholder'] == true,
     );
   }
 }
@@ -1191,11 +1198,15 @@ class ManagerRealtimeService {
 
             // Emit a lightweight team list immediately to transition UI out of 'waiting'
             try {
-              final now = DateTime.now();
               final minimal = snapshot.docs
                   .map((d) => UserProfile.fromFirestore(d))
                   .where(includeEmployeeProfile)
                   .map((profile) {
+                    final lastActive =
+                        profile.lastActivityAt ??
+                        profile.lastLoginAt ??
+                        // Unknown/invalid until we enrich from activities.
+                        DateTime.fromMillisecondsSinceEpoch(0);
                     return EmployeeData(
                       profile: profile,
                       goals: const [],
@@ -1204,15 +1215,14 @@ class ManagerRealtimeService {
                       completedGoalsCount: 0,
                       overdueGoalsCount: 0,
                       totalPoints: profile.totalPoints,
-                      lastActivity:
-                          profile.lastLoginAt ??
-                          now.subtract(const Duration(days: 30)),
+                      lastActivity: lastActive,
                       avgProgress: 0.0,
                       streakDays: 0,
                       status: EmployeeStatus.onTrack,
                       weeklyActivityCount: 0,
                       engagementScore: 0.0,
                       motivationLevel: 'N/A',
+                      isPlaceholder: true,
                     );
                   })
                   .toList();
@@ -1450,14 +1460,50 @@ class ManagerRealtimeService {
 
       allEmployeeActivities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-      final lastActivity = allEmployeeActivities.isNotEmpty
-          ? allEmployeeActivities.first.timestamp
-          : (profile.lastLoginAt ??
-                DateTime.now().subtract(const Duration(days: 30)));
+      final now = DateTime.now();
+      bool isValidActivityTimestamp(DateTime ts) {
+        // Guard against bad/missing timestamps becoming "now" and incorrectly
+        // marking an employee as active.
+        if (ts.year < 2000) return false;
+        // Allow small clock skew between server and device.
+        if (ts.isAfter(now.add(const Duration(minutes: 10)))) return false;
+        return true;
+      }
+
+      // "Last active" should come from the most recent of:
+      // - the newest activity record we have
+      // - users.lastActivityAt (updated by recordEmployeeActivity and other actions)
+      // - users.lastLoginAt
+      DateTime? mostRecent;
+      if (allEmployeeActivities.isNotEmpty) {
+        for (final act in allEmployeeActivities) {
+          if (isValidActivityTimestamp(act.timestamp)) {
+            mostRecent = act.timestamp;
+            break;
+          }
+        }
+      }
+      final profileLastActivityAt = profile.lastActivityAt;
+      if (profileLastActivityAt != null &&
+          (mostRecent == null || profileLastActivityAt.isAfter(mostRecent))) {
+        mostRecent = profileLastActivityAt;
+      }
+      final profileLastLoginAt = profile.lastLoginAt;
+      if (profileLastLoginAt != null &&
+          (mostRecent == null || profileLastLoginAt.isAfter(mostRecent))) {
+        mostRecent = profileLastLoginAt;
+      }
+
+      final lastActivity =
+          mostRecent ?? now.subtract(const Duration(days: 30));
 
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
       final recentDocs = allEmployeeActivities
-          .where((act) => act.timestamp.isAfter(thirtyDaysAgo))
+          .where(
+            (act) =>
+                act.timestamp.isAfter(thirtyDaysAgo) &&
+                isValidActivityTimestamp(act.timestamp),
+          )
           .toList();
 
       final streakDays = _calculateStreakDaysFromActivities(recentDocs);
@@ -1465,7 +1511,11 @@ class ManagerRealtimeService {
 
       final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
       final weeklyActivityCount = allEmployeeActivities
-          .where((act) => act.timestamp.isAfter(sevenDaysAgo))
+          .where(
+            (act) =>
+                act.timestamp.isAfter(sevenDaysAgo) &&
+                isValidActivityTimestamp(act.timestamp),
+          )
           .length;
 
       final engagementScore = (weeklyActivityCount / 7) * 100.0;
@@ -1736,6 +1786,7 @@ class ManagerRealtimeService {
       _firestore
           .collection('activities')
           .where('userId', isEqualTo: employeeId)
+          .orderBy('timestamp', descending: true)
           .limit(limit)
           .snapshots(),
     ).map((snapshot) {

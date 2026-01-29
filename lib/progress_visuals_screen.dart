@@ -39,6 +39,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   bool isLoading = true;
   String? error;
   UserProfile? _cachedProfile;
+  static UserProfile? _globalCachedProfile;
 
   @override
   void initState() {
@@ -49,7 +50,40 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     // This was previously only triggered on Alerts & Nudges screen load.
     AlertService.checkAndCreateGoalAlerts();
     _redirectIfManagerStandalone();
+    _seedFastProfile();
     _loadUserData();
+  }
+
+  void _seedFastProfile() {
+    // Render instantly using an in-memory or auth-based profile placeholder.
+    // The Firestore stream + DatabaseService load will replace this shortly.
+    if (_cachedProfile != null || userProfile != null) return;
+    if (_globalCachedProfile != null) {
+      _cachedProfile = _globalCachedProfile;
+      userProfile = _globalCachedProfile;
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final role = RoleService.instance.cachedRole ?? 'employee';
+    final email = (user.email ?? '').trim();
+    final displayName =
+        (user.displayName ?? '').trim().isNotEmpty
+            ? user.displayName!.trim()
+            : (email.isNotEmpty ? email.split('@').first : 'User');
+
+    final placeholder = UserProfile(
+      uid: user.uid,
+      email: email,
+      displayName: displayName,
+      totalPoints: 0,
+      level: 1,
+      badges: const [],
+      role: role,
+    );
+    _cachedProfile = placeholder;
+    userProfile = placeholder;
   }
 
   Future<void> _redirectIfManagerStandalone() async {
@@ -76,10 +110,13 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      setState(() {
-        isLoading = true;
-        error = null;
-      });
+      // Only trigger the full-screen "loading" state if we truly have nothing to render yet.
+      if (mounted && _cachedProfile == null && userProfile == null) {
+        setState(() {
+          isLoading = true;
+          error = null;
+        });
+      }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -88,6 +125,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         setState(() {
           userProfile = profile;
           _cachedProfile = profile;
+          _globalCachedProfile = profile;
           isLoading = false;
         });
       }
@@ -268,6 +306,14 @@ class _ManagerProgressVisualsContentState
   DateTime? _lastBadgeEval;
   static const Duration _badgeEvalCooldown = Duration(minutes: 5);
   late final Stream<List<ManagerActivity>> _managerActivitiesStream;
+  late Stream<List<EmployeeData>> _teamStream;
+  String _teamStreamKey = '';
+  List<EmployeeData> _lastEnrichedTeamEmployees = const [];
+
+  // In-memory caches to avoid an entry-time "blank loading" state.
+  static List<ManagerActivity> _cachedManagerActivities = const [];
+  static String _cachedTeamKey = '';
+  static List<EmployeeData> _cachedTeamEmployees = const [];
 
   @override
   void initState() {
@@ -275,6 +321,7 @@ class _ManagerProgressVisualsContentState
     _ensureDefaultManagerView();
     // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
     _managerActivitiesStream = _getManagerActivitiesStream();
+    _rebuildTeamStream();
   }
 
   @override
@@ -295,6 +342,26 @@ class _ManagerProgressVisualsContentState
     if (_hasAppliedDefaultView) return;
     currentViewType = ProgressViewType.myProgress;
     _hasAppliedDefaultView = true;
+  }
+
+  String _makeTeamStreamKey({
+    String? department,
+    TimeFilter? timeFilter,
+  }) {
+    final dept = (department ?? '').trim().toLowerCase();
+    final tf = (timeFilter ?? currentTimeFilter).name;
+    return '$dept|$tf';
+  }
+
+  void _rebuildTeamStream() {
+    _teamStreamKey = _makeTeamStreamKey(
+      department: selectedDepartment,
+      timeFilter: currentTimeFilter,
+    );
+    _teamStream = ManagerRealtimeService.getTeamDataStream(
+      department: selectedDepartment,
+      timeFilter: currentTimeFilter,
+    );
   }
 
   @override
@@ -333,26 +400,43 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildTeamProgressView() {
     return StreamBuilder<List<EmployeeData>>(
-      stream: ManagerRealtimeService.getTeamDataStream(
-        department: selectedDepartment,
-        timeFilter: currentTimeFilter,
-      ),
+      stream: _teamStream,
+      initialData:
+          (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
       builder: (context, teamSnapshot) {
-        if (teamSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+        final incoming = teamSnapshot.data;
+        final hasPlaceholderBatch =
+            incoming != null &&
+            incoming.isNotEmpty &&
+            incoming.every((e) => e.isPlaceholder);
+
+        // Only treat non-placeholder emissions as "real" (placeholders have no goals/metrics).
+        if (incoming != null && incoming.isNotEmpty && !hasPlaceholderBatch) {
+          _lastEnrichedTeamEmployees = incoming;
+          _cachedTeamKey = _teamStreamKey;
+          _cachedTeamEmployees = incoming;
         }
 
         if (teamSnapshot.hasError) {
           return _buildErrorState(teamSnapshot.error.toString());
         }
 
-        final employees = teamSnapshot.data ?? [];
-        if (employees.isEmpty) {
-          return _buildNoDataState();
+        final employees =
+            (!hasPlaceholderBatch && incoming != null)
+                ? incoming
+                : (_lastEnrichedTeamEmployees.isNotEmpty
+                      ? _lastEnrichedTeamEmployees
+                      : (_cachedTeamKey == _teamStreamKey
+                            ? _cachedTeamEmployees
+                            : (incoming ?? const [])));
+
+        // If we're still warming up (or only have placeholders), show a lightweight skeleton
+        // instead of a full-screen spinner.
+        final noEnrichedCache =
+            _lastEnrichedTeamEmployees.isEmpty &&
+            (_cachedTeamKey != _teamStreamKey || _cachedTeamEmployees.isEmpty);
+        if (employees.isEmpty || (hasPlaceholderBatch && noEnrichedCache)) {
+          return _buildTeamProgressSkeleton();
         }
 
         final metrics = _calculateTeamMetrics(employees);
@@ -424,20 +508,37 @@ class _ManagerProgressVisualsContentState
   Widget _buildMyProgressView() {
     return StreamBuilder<List<ManagerActivity>>(
       stream: _managerActivitiesStream,
+      initialData: _cachedManagerActivities.isNotEmpty
+          ? _cachedManagerActivities
+          : null,
       builder: (context, activitySnapshot) {
-        if (activitySnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
-        }
-
         if (activitySnapshot.hasError) {
           return _buildErrorState(activitySnapshot.error.toString());
         }
 
         final activities = activitySnapshot.data ?? [];
+        if (activities.isNotEmpty) {
+          _cachedManagerActivities = activities;
+        }
+
+        // If we don't have any cached activities yet, show skeleton cards rather than
+        // blocking the entire screen with a spinner.
+        final isStillLoading =
+            (activitySnapshot.connectionState == ConnectionState.waiting ||
+                activitySnapshot.connectionState == ConnectionState.none) &&
+            _cachedManagerActivities.isEmpty &&
+            activities.isEmpty;
+        if (isStillLoading) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildManagerProgressMetricsLoading(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildManagerBadgesSummary(),
+            ],
+          );
+        }
+
         if (activities.isEmpty) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,6 +570,99 @@ class _ManagerProgressVisualsContentState
           ],
         );
       },
+    );
+  }
+
+  Widget _buildManagerProgressMetricsLoading() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Total Activities',
+                value: '...',
+                icon: Icons.work_outline,
+                color: AppColors.activeColor,
+                subtitle: 'Loading',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Nudges Sent',
+                value: '...',
+                icon: Icons.send,
+                color: AppColors.infoColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Approvals',
+                value: '...',
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Loading',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Replans',
+                value: '...',
+                icon: Icons.update,
+                color: AppColors.warningColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamProgressSkeleton() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Team Progress',
+                value: '...',
+                icon: Icons.trending_up,
+                color: AppColors.activeColor,
+                subtitle: 'Loading metrics',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Goals Completed',
+                value: '...',
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _buildMetricCard(
+          title: 'Active Employees',
+          value: '...',
+          icon: Icons.online_prediction,
+          color: AppColors.infoColor,
+          subtitle: 'Loading',
+          fullWidth: true,
+        ),
+      ],
     );
   }
 

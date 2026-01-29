@@ -351,10 +351,20 @@ class _ManagerReviewTeamDashboardScreenState
                     child: StreamBuilder<List<EmployeeData>>(
                       stream: _employeesStream,
                       builder: (context, employeesSnapshot) {
+                        final incoming = employeesSnapshot.data;
+                        final hasPlaceholderBatch =
+                            incoming != null &&
+                            incoming.isNotEmpty &&
+                            incoming.every((e) => e.isPlaceholder);
+
                         // Keep last known-good list so the UI doesn't "flash empty"
                         // when the stream re-emits (or rebuilds) during first entry.
+                        //
+                        // Also: ignore the initial placeholder emission (employees with
+                        // empty goals/metrics) and wait for the enriched payload.
                         if (employeesSnapshot.hasData &&
-                            (employeesSnapshot.data?.isNotEmpty ?? false)) {
+                            (employeesSnapshot.data?.isNotEmpty ?? false) &&
+                            !hasPlaceholderBatch) {
                           _lastEmployees = employeesSnapshot.data!;
                         }
 
@@ -363,8 +373,12 @@ class _ManagerReviewTeamDashboardScreenState
                           return _buildErrorState(employeesSnapshot.error!);
                         }
 
-                        final employees =
-                            employeesSnapshot.data ?? _lastEmployees;
+                        // If we only have placeholders and no enriched cache yet,
+                        // still show employees immediately (for "Last active"),
+                        // but render goal/metrics sections as "Loading..." in each card.
+                        final employees = hasPlaceholderBatch
+                            ? incoming
+                            : (employeesSnapshot.data ?? _lastEmployees);
 
                         if (employees.isEmpty) {
                           if (employeesSnapshot.connectionState ==
@@ -374,7 +388,8 @@ class _ManagerReviewTeamDashboardScreenState
                           return _buildEmptyState();
                         }
 
-                        final insights = _computeInsights(employees);
+                        final insights =
+                            hasPlaceholderBatch ? const <TeamInsight>[] : _computeInsights(employees);
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,7 +410,10 @@ class _ManagerReviewTeamDashboardScreenState
                               _buildNoSearchResults(),
 
                             const SizedBox(height: 20),
-                            _buildAIManagerInsights(insights),
+                            _buildAIManagerInsights(
+                              insights,
+                              isLoading: hasPlaceholderBatch,
+                            ),
                             const SizedBox(height: 24),
                           ],
                         );
@@ -415,7 +433,10 @@ class _ManagerReviewTeamDashboardScreenState
     return const SizedBox.shrink();
   }
 
-  Widget _buildAIManagerInsights(List<TeamInsight> insights) {
+  Widget _buildAIManagerInsights(
+    List<TeamInsight> insights, {
+    bool isLoading = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -441,7 +462,9 @@ class _ManagerReviewTeamDashboardScreenState
             ],
           ),
           const SizedBox(height: 15),
-          if (insights.isEmpty)
+          if (isLoading)
+            _buildInsightBullet('Analyzing team performance and goals...')
+          else if (insights.isEmpty)
             _buildInsightBullet(
               'All team members are performing well. No immediate action needed.',
             )
@@ -457,19 +480,20 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                 ),
           const SizedBox(height: 15),
-          GestureDetector(
-            onTap: () {
-              _showFullInsights(insights);
-            },
-            child: const Text(
-              'View Full Analysis',
-              style: TextStyle(
-                color: Color(0xFFC10D00),
-                decoration: TextDecoration.underline,
-                fontSize: 14,
+          if (!isLoading)
+            GestureDetector(
+              onTap: () {
+                _showFullInsights(insights);
+              },
+              child: const Text(
+                'View Full Analysis',
+                style: TextStyle(
+                  color: Color(0xFFC10D00),
+                  decoration: TextDecoration.underline,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -654,8 +678,11 @@ class _ManagerReviewTeamDashboardScreenState
     final today = DateTime(now.year, now.month, now.day);
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
 
-    bool isActiveToday = employee.lastActivity.isAfter(today);
-    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+    // Avoid misleading "activity" chips while we're still showing placeholders.
+    bool isActiveToday =
+        !employee.isPlaceholder && employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek =
+        !employee.isPlaceholder && employee.lastActivity.isAfter(sevenDaysAgo);
 
     Color activeStatusColor;
     IconData activeStatusIcon;
@@ -801,14 +828,17 @@ class _ManagerReviewTeamDashboardScreenState
                     AssetImage('assets/Approved_Tick/Approved_White.png'),
                   ),
                   label: 'Active Goals',
-                  value: employee.goals
-                      .where(
-                        (g) =>
-                            g.approvalStatus == GoalApprovalStatus.approved &&
-                            !_isGoalCompleted(g),
-                      )
-                      .length
-                      .toString(),
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : employee.goals
+                            .where(
+                              (g) =>
+                                  g.approvalStatus ==
+                                      GoalApprovalStatus.approved &&
+                                  !_isGoalCompleted(g),
+                            )
+                            .length
+                            .toString(),
                   color: AppColors.activeColor,
                 ),
               ),
@@ -820,7 +850,9 @@ class _ManagerReviewTeamDashboardScreenState
                     AssetImage('assets/Process_Flows_Automation/points2.png'),
                   ),
                   label: 'Completed',
-                  value: employee.completedGoalsCount.toString(),
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : employee.completedGoalsCount.toString(),
                   color: AppColors.successColor,
                 ),
               ),
@@ -834,7 +866,9 @@ class _ManagerReviewTeamDashboardScreenState
                     ),
                   ),
                   label: 'Progress',
-                  value: '${employee.avgProgress.toStringAsFixed(1)}%',
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : '${employee.avgProgress.toStringAsFixed(1)}%',
                   color: employee.avgProgress >= 70
                       ? AppColors.successColor
                       : employee.avgProgress >= 40
@@ -858,7 +892,7 @@ class _ManagerReviewTeamDashboardScreenState
                 Icon(Icons.schedule, color: AppColors.textSecondary, size: 14),
                 const SizedBox(width: 6),
                 Text(
-                  'Last active: ${_formatLastActivity(employee.lastActivity)}',
+                  'Last active: ${employee.isPlaceholder ? 'Loading...' : _formatLastActivity(employee.lastActivity)}',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -903,6 +937,30 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                 ),
               ),
+          ] else if (employee.isPlaceholder) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.hourglass_top,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Loading goals...',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ] else ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -1493,7 +1551,12 @@ class _ManagerReviewTeamDashboardScreenState
       final now = DateTime.now();
 
       // Check if the date is valid (not in the future or too far in the past)
-      if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
+      if (lastActivity.year < 2000) return 'Unknown';
+      if (lastActivity.isAfter(now)) {
+        // Allow small clock skew (server timestamp slightly ahead of device).
+        if (lastActivity.difference(now) <= const Duration(minutes: 10)) {
+          return 'Just now';
+        }
         return 'Unknown';
       }
 
