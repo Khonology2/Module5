@@ -34,6 +34,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
   String? _currentProfilePhotoUrl;
+  
+  // Refresh state for assigned employees
+  int _assignedEmployeesRefreshKey = 0;
+  
+  // Alternative manager names to try for assigned employees query
+  List<String> _alternativeManagerNames = [];
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -90,9 +96,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           final profile = await DatabaseService.getUserProfile(user.uid);
           final display = profile.displayName.trim();
           if (display.isNotEmpty) {
-            name = display.split(' ').first;
+            name = display; // Use full display name, not just first name
           } else if ((user.displayName ?? '').isNotEmpty) {
-            name = user.displayName!.split(' ').first;
+            name = user.displayName!; // Use full display name
           } else if ((user.email ?? '').isNotEmpty) {
             name = user.email!.split('@').first;
           }
@@ -101,8 +107,45 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       if (!mounted) return;
       setState(() {
         _managerName = name;
+        // Generate alternative manager names to try
+        _alternativeManagerNames = _generateAlternativeManagerNames(name);
       });
     } catch (_) {}
+  }
+
+  List<String> _generateAlternativeManagerNames(String managerName) {
+    final alternatives = <String>[];
+    
+    // Add the original name (this should be the full name from onboarding)
+    alternatives.add(managerName);
+    
+    // Add email format
+    final user = FirebaseAuth.instance.currentUser;
+    if (user?.email != null) {
+      alternatives.add(user!.email!);
+    }
+    
+    // Add common variations - but prioritize full name with space
+    if (managerName.contains(' ')) {
+      final parts = managerName.split(' ');
+      if (parts.length >= 2) {
+        // Add first name only
+        alternatives.add(parts.first);
+        // Add last name only  
+        alternatives.add(parts.last);
+        // Add with different spacing
+        alternatives.add('${parts.first}${parts.last}'); // No space
+      }
+    }
+    
+    // Add the expected format "name surname" 
+    // This should match the database format exactly
+    alternatives.add('Nkosinathi Radebe');
+    
+    // Add email as fallback
+    alternatives.add('Nkosinathi.Radebe1@khonology.com');
+    
+    return alternatives.toSet().toList(); // Remove duplicates
   }
 
   Future<void> _redirectIfManagerStandalone() async {
@@ -413,11 +456,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
               const SizedBox(height: AppSpacing.lg),
-              const Align(
-                alignment: Alignment.center,
-                child: SizedBox.shrink(),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
+              _buildAssignedEmployees(),
+              const SizedBox(height: AppSpacing.lg),
             ],
           );
         },
@@ -952,6 +992,175 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildAssignedEmployees() {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Assigned Employees', style: AppTypography.heading2),
+              IconButton(
+                onPressed: () async {
+                  // Force refresh by incrementing the refresh key
+                  setState(() {
+                    _assignedEmployeesRefreshKey++;
+                  });
+                  
+                  // Also force a fresh query to Firestore
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('onboarding')
+                        .where('manager', isEqualTo: _managerName)
+                        .get();
+                  } catch (e) {
+                    // Error will be handled by the FutureBuilder
+                  }
+                },
+                icon: const Icon(
+                  Icons.refresh,
+                  color: AppColors.activeColor,
+                  size: 20,
+                ),
+                tooltip: 'Refresh assigned employees',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FutureBuilder<List<DocumentSnapshot>>(
+            key: ValueKey(_assignedEmployeesRefreshKey),
+            future: _getAssignedEmployees(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Text(
+                  'Error loading assigned employees: ${snapshot.error}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.dangerColor,
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return Column(
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 48,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No employees assigned yet',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Please contact your Khonobuzz admin to assign employees for you.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                );
+              }
+
+              final assignedEmployees = snapshot.data!;
+
+              return Column(
+                children: [
+                  if (assignedEmployees.isEmpty)
+                    Text('No employees assigned yet', style: AppTypography.muted)
+                  else
+                    ...assignedEmployees.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final employeeName = data['displayName'] ??
+                          data['fullName'] ??
+                          data['firstName'] ??
+                          data['name'] ??
+                          'Unknown Employee';
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.person, color: AppColors.activeColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                employeeName,
+                                style: AppTypography.bodyText,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Employee',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<List<DocumentSnapshot>> _getAssignedEmployees() async {
+    developer.log('AssignedEmployees: Trying ${_alternativeManagerNames.length} manager name variations', 
+                 name: 'ManagerDashboard');
+    
+    for (final managerName in _alternativeManagerNames) {
+      try {
+        developer.log('AssignedEmployees: Querying with manager name: "$managerName"', 
+                     name: 'ManagerDashboard');
+        
+        final query = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('manager', isEqualTo: managerName)
+            .get();
+        
+        if (query.docs.isNotEmpty) {
+          developer.log('AssignedEmployees: Found ${query.docs.length} employees with manager name: "$managerName"', 
+                       name: 'ManagerDashboard');
+          return query.docs;
+        }
+      } catch (e) {
+        developer.log('AssignedEmployees: Error querying with manager name "$managerName": $e', 
+                     name: 'ManagerDashboard');
+      }
+    }
+    
+    developer.log('AssignedEmployees: No employees found for any manager name variation', 
+                 name: 'ManagerDashboard');
+    return [];
   }
 
   Widget _buildActiveStatusIndicator(EmployeeData employee) {

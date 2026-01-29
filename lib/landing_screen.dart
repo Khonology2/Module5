@@ -49,6 +49,7 @@ class _PersonalDevelopmentHubScreenState
   bool _isProcessingButton = false;
   bool _isSlowNetwork = false;
   bool _isRedirecting = false;
+  final TextEditingController _tokenController = TextEditingController();
 
   @override
   void initState() {
@@ -106,7 +107,7 @@ class _PersonalDevelopmentHubScreenState
 
   /// Check for token in URL, validate with backend API, and auto-login
   /// This method uses the backend API for all token validation
-  Future<void> _checkTokenAndAutoLogin() async {
+  Future<void> _checkTokenAndAutoLogin({String? manualToken}) async {
     try {
       setState(() {
         _isCheckingToken = true;
@@ -123,29 +124,34 @@ class _PersonalDevelopmentHubScreenState
 
       debugPrint('Landing screen: Starting token check...');
 
-      // Step A: Extract token from URL
-      final token = await TokenAuthService.extractTokenFromUrl();
+      // Step A: Extract token from URL or use manual token
+      final token = manualToken ?? await TokenAuthService.extractTokenFromUrl();
 
       if (token == null || token.isEmpty) {
         debugPrint('Landing screen: No token found in URL');
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          final role = await RoleService.instance.getRole(refresh: true);
-          if (mounted) {
-            setState(() {
-              _isCheckingToken = true;
-              _isProcessingButton = false;
-              _isSlowNetwork = false;
-              _isRedirecting = true;
-            });
-            if (role == 'manager') {
-              Navigator.pushReplacementNamed(context, '/manager_dashboard');
-            } else {
-              Navigator.pushReplacementNamed(context, '/employee_dashboard');
+        
+        // Only check for existing user if we're not doing manual token login
+        if (manualToken == null) {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final role = await RoleService.instance.getRole(refresh: true);
+            if (mounted) {
+              setState(() {
+                _isCheckingToken = true;
+                _isProcessingButton = false;
+                _isSlowNetwork = false;
+                _isRedirecting = true;
+              });
+              if (role == 'manager') {
+                Navigator.pushReplacementNamed(context, '/manager_dashboard');
+              } else {
+                Navigator.pushReplacementNamed(context, '/employee_dashboard');
+              }
             }
+            return;
           }
-          return;
         }
+        
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -346,6 +352,26 @@ class _PersonalDevelopmentHubScreenState
     }
   }
 
+  /// Handle manual token login when user clicks login button
+  Future<void> _handleManualTokenLogin() async {
+    final token = _tokenController.text.trim();
+    
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a token'),
+          backgroundColor: Color(0xFFC10D00),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessingButton = true;
+    });
+
+    await _checkTokenAndAutoLogin(manualToken: token);
+  }
 
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String pdhRole) {
@@ -404,6 +430,7 @@ class _PersonalDevelopmentHubScreenState
   @override
   void dispose() {
     _timer.cancel();
+    _tokenController.dispose();
     super.dispose();
   }
 
@@ -491,6 +518,87 @@ class _PersonalDevelopmentHubScreenState
                       ),
                     ),
                     const SizedBox(height: 48),
+                    // Token input field and login button
+                    if (!_isCheckingToken) ...[
+                      // Token input field
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: TextField(
+                          controller: _tokenController,
+                          decoration: InputDecoration(
+                            hintText: 'Enter your authentication token',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withAlpha(128),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white.withAlpha(26),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.white.withAlpha(51),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.white.withAlpha(51),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFC10D00),
+                                width: 2,
+                              ),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.vpn_key,
+                              color: Colors.white.withAlpha(179),
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          obscureText: false,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Login button
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: ElevatedButton(
+                          onPressed: _isProcessingButton ? null : _handleManualTokenLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFC10D00),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: _isProcessingButton
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                     // Show subtle loading indicator when checking token
                     if (_isCheckingToken) ...[
                       const CircularProgressIndicator(
