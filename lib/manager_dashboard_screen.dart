@@ -661,15 +661,15 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return FirestoreSafe.stream(
       FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
     ).map((doc) {
-          if (!doc.exists) return null;
-          final profile = UserProfile.fromFirestore(doc);
-          _currentProfilePhotoUrl =
-              (profile.profilePhotoUrl != null &&
-                  profile.profilePhotoUrl!.isNotEmpty)
-              ? profile.profilePhotoUrl
-              : null;
-          return profile;
-        });
+      if (!doc.exists) return null;
+      final profile = UserProfile.fromFirestore(doc);
+      _currentProfilePhotoUrl =
+          (profile.profilePhotoUrl != null &&
+              profile.profilePhotoUrl!.isNotEmpty)
+          ? profile.profilePhotoUrl
+          : null;
+      return profile;
+    });
   }
 
   String _resolveManagerName() {

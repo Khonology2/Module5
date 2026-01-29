@@ -56,9 +56,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       debugPrint('Dashboard: Loading employee data for manager: $managerId');
 
-      // Get the stream and take the first value
+      // The team data stream may emit a fast placeholder list first (no goals/metrics)
+      // while the enrichment fetch runs. Wait for the first non-placeholder payload
+      // (or accept an empty list).
       final stream = ManagerRealtimeService.getTeamDataStream();
-      await for (final employees in stream.take(1)) {
+      final firstReal = stream.where((employees) {
+        if (employees.isEmpty) return true;
+        return !employees.every((e) => e.isPlaceholder);
+      }).take(1);
+
+      await for (final employees in firstReal) {
         debugPrint('Dashboard: Loaded ${employees.length} employees');
 
         debugPrint('Dashboard: All employees (${employees.length}):');
