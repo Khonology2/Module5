@@ -467,9 +467,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     return FirestoreSafe.stream(
       FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
     ).map((doc) {
-          if (!doc.exists) return null;
-          return UserProfile.fromFirestore(doc);
-        });
+      if (!doc.exists) return null;
+      return UserProfile.fromFirestore(doc);
+    });
   }
 
   Stream<List<Goal>> _getUserGoalsStream() {
@@ -482,12 +482,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           .orderBy('createdAt', descending: true)
           .snapshots(),
     ).map((snapshot) {
-          final goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
-              .toList();
-          // Removed in-memory sort - using Firestore orderBy instead
-          return goals;
-        });
+      final goals = snapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
+      // Removed in-memory sort - using Firestore orderBy instead
+      return goals;
+    });
   }
 
   Stream<int> _getEarnedBadgesCountStream() {
@@ -1160,6 +1160,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   iconColor = AppColors.successColor;
                   actionText = 'Completed';
                   break;
+                case GoalStatus.acknowledged:
+                  iconColor = AppColors.successColor;
+                  actionText = 'Acknowledged';
+                  break;
                 case GoalStatus.inProgress:
                   iconColor = AppColors.activeColor;
                   actionText = 'Started working on';
@@ -1451,10 +1455,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     return FutureBuilder<String?>(
       future: user != null
           ? (_onboardingNameFuture ??
-              DatabaseService.getUserNameFromOnboarding(
-                userId: user.uid,
-                email: user.email,
-              ))
+                DatabaseService.getUserNameFromOnboarding(
+                  userId: user.uid,
+                  email: user.email,
+                ))
           : Future.value(null),
       builder: (context, nameSnapshot) {
         String userName = 'User';

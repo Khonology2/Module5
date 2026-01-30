@@ -1112,6 +1112,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return AppColors.activeColor;
       case GoalStatus.completed:
         return AppColors.successColor;
+      case GoalStatus.acknowledged:
+        return AppColors.successColor;
       case GoalStatus.paused:
         return AppColors.textSecondary;
       case GoalStatus.burnout:
@@ -1127,6 +1129,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return 'IN PROGRESS';
       case GoalStatus.completed:
         return 'COMPLETED';
+      case GoalStatus.acknowledged:
+        return 'ACKNOWLEDGED';
       case GoalStatus.paused:
         return 'PAUSED';
       case GoalStatus.burnout:
@@ -1834,7 +1838,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
                       setDialogState(() => uploading = true);
                       try {
-                        // Create evidence for each attached file
+                        // Create a single evidence entry combining file and description
                         final List<MilestoneEvidence> evidenceList = [];
 
                         for (final file in attachedFiles) {
@@ -1864,13 +1868,19 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                                 file.path ?? 'uploaded_file_${file.name}';
                           }
 
+                          // Use description as file name if provided, otherwise use actual file name
+                          final displayName =
+                              descriptionController.text.trim().isNotEmpty
+                              ? descriptionController.text.trim()
+                              : file.name;
+
                           final evidence = MilestoneEvidence(
                             id: FirebaseFirestore.instance
                                 .collection('milestone_evidence')
                                 .doc()
                                 .id,
                             fileUrl: cloudinaryUrl,
-                            fileName: file.name,
+                            fileName: displayName,
                             fileType: file.extension ?? 'unknown',
                             fileSize: file.size,
                             uploadedBy: FirebaseAuth.instance.currentUser!.uid,
@@ -1886,17 +1896,16 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           evidenceList.add(evidence);
                         }
 
-                        // Also create text evidence if description is provided
-                        if (descriptionController.text.trim().isNotEmpty) {
+                        // If only text evidence (no files), create single text entry
+                        if (attachedFiles.isEmpty &&
+                            descriptionController.text.trim().isNotEmpty) {
                           final textEvidence = MilestoneEvidence(
                             id: FirebaseFirestore.instance
                                 .collection('milestone_evidence')
                                 .doc()
                                 .id,
                             fileUrl: '',
-                            fileName: fileNameController.text.trim().isEmpty
-                                ? 'Text Evidence'
-                                : fileNameController.text.trim(),
+                            fileName: descriptionController.text.trim(),
                             fileType: 'text',
                             fileSize: descriptionController.text.length,
                             uploadedBy: FirebaseAuth.instance.currentUser!.uid,
@@ -1912,8 +1921,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           evidenceList.add(textEvidence);
                         }
 
-                      // Capture the context we want to use later BEFORE the async gap.
-                      final appContext = context;
+                        // Capture the context we want to use later BEFORE the async gap.
+                        final appContext = context;
 
                         // Submit all evidence in a single batch operation
                         await DatabaseService.submitMultipleMilestoneEvidence(
@@ -1922,48 +1931,48 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                           evidenceList: evidenceList,
                         );
 
-                      if (!mounted || !appContext.mounted) return;
+                        if (!mounted || !appContext.mounted) return;
                         navigator.pop();
 
                         // Show centered success dialog instead of SnackBar
                         showDialog(
-                        context: appContext,
+                          context: appContext,
                           builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1F2840),
-                              title: Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
+                            backgroundColor: const Color(0xFF1F2840),
+                            title: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.orange.shade400,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Evidence Submitted!',
+                                  style: TextStyle(
                                     color: Colors.orange.shade400,
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Evidence Submitted!',
-                                    style: TextStyle(
-                                      color: Colors.orange.shade400,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              content: Text(
-                                'Your evidence has been submitted successfully. The milestone is now pending manager review.',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: Text(
-                                    'OK',
-                                    style: TextStyle(
-                                      color: Colors.orange.shade400,
-                                    ),
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                          );
+                            content: Text(
+                              'Your evidence has been submitted successfully. The milestone is now pending manager review.',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: Text(
+                                  'OK',
+                                  style: TextStyle(
+                                    color: Colors.orange.shade400,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
                       } catch (e) {
                         setDialogState(() => uploading = false);
 
@@ -2565,10 +2574,20 @@ class _GoalMilestoneTile extends StatelessWidget {
                       }
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: evidence
+                        children: _deduplicateEvidence(evidence)
                             .map(
-                              (e) => Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
+                              (e) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                  horizontal: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.grey.withValues(alpha: 0.2),
+                                  ),
+                                ),
                                 child: Row(
                                   children: [
                                     Icon(
@@ -2579,7 +2598,7 @@ class _GoalMilestoneTile extends StatelessWidget {
                                                 MilestoneEvidenceStatus.rejected
                                           ? Icons.cancel
                                           : Icons.pending,
-                                      size: 14,
+                                      size: 16,
                                       color:
                                           e.status ==
                                               MilestoneEvidenceStatus.approved
@@ -2589,12 +2608,13 @@ class _GoalMilestoneTile extends StatelessWidget {
                                           ? Colors.red
                                           : Colors.orange,
                                     ),
-                                    const SizedBox(width: 4),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        '${e.fileName} (${e.status.name})',
+                                        e.fileName,
                                         style: AppTypography.bodySmall.copyWith(
                                           color: AppColors.textSecondary,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ),
@@ -2604,7 +2624,7 @@ class _GoalMilestoneTile extends StatelessWidget {
                                             _previewEvidence(e, context),
                                         icon: const Icon(
                                           Icons.visibility,
-                                          size: 16,
+                                          size: 18,
                                         ),
                                         tooltip: 'Preview Evidence',
                                         padding: const EdgeInsets.all(4),
@@ -2830,5 +2850,24 @@ class _GoalMilestoneTile extends StatelessWidget {
   // Helper method for formatting dates
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // Helper method to deduplicate evidence entries
+  List<MilestoneEvidence> _deduplicateEvidence(
+    List<MilestoneEvidence> evidence,
+  ) {
+    final seen = <String>{};
+    final deduplicated = <MilestoneEvidence>[];
+
+    for (final e in evidence) {
+      // Create a unique key based on file name and file URL
+      final key = '${e.fileName}_${e.fileUrl}';
+      if (!seen.contains(key)) {
+        seen.add(key);
+        deduplicated.add(e);
+      }
+    }
+
+    return deduplicated;
   }
 }
