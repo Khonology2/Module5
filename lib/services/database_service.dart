@@ -14,9 +14,9 @@ import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/points_service.dart';
+import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:pdh/utils/firestore_safe.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -834,6 +834,24 @@ class DatabaseService {
         'acknowledgedByName': managerName,
         'checkInNotes': checkInNotes ?? '',
       });
+
+      // Log manager acknowledgment in audit timeline
+      try {
+        final auditEvent = TimelineService.buildEvent(
+          eventType: 'milestone_acknowledged',
+          description:
+              'Manager acknowledged milestone: "${milestone.title}"${checkInNotes != null && checkInNotes.isNotEmpty ? ' with notes: "$checkInNotes"' : ''}',
+          actorIdOverride: managerId,
+          actorNameOverride: managerName,
+        );
+
+        await TimelineService.logEvent(goalId, auditEvent);
+      } catch (auditError) {
+        developer.log(
+          'Error logging milestone acknowledgment in audit timeline: $auditError',
+        );
+        // Don't fail the whole operation if audit logging fails
+      }
 
       // Send notification to employee (non-critical)
       try {

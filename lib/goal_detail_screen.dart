@@ -1112,6 +1112,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return AppColors.activeColor;
       case GoalStatus.completed:
         return AppColors.successColor;
+      case GoalStatus.acknowledged:
+        return AppColors.successColor;
       case GoalStatus.paused:
         return AppColors.textSecondary;
       case GoalStatus.burnout:
@@ -1127,6 +1129,8 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
         return 'IN PROGRESS';
       case GoalStatus.completed:
         return 'COMPLETED';
+      case GoalStatus.acknowledged:
+        return 'ACKNOWLEDGED';
       case GoalStatus.paused:
         return 'PAUSED';
       case GoalStatus.burnout:
