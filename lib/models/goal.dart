@@ -4,7 +4,14 @@ enum GoalCategory { personal, work, health, learning }
 
 enum GoalPriority { low, medium, high }
 
-enum GoalStatus { notStarted, inProgress, completed, paused, burnout }
+enum GoalStatus {
+  notStarted,
+  inProgress,
+  completed,
+  acknowledged,
+  paused,
+  burnout,
+}
 
 enum GoalApprovalStatus { pending, approved, rejected }
 
@@ -22,7 +29,8 @@ class Goal {
   final int points;
   final bool isSeasonGoal;
   // Key Performance Area tag for persistent excellence grouping
-  final String? kpa; // expected values: 'operational' | 'customer' | 'financial'
+  final String?
+  kpa; // expected values: 'operational' | 'customer' | 'financial'
   final List<String> evidence; // List of evidence attachments
   final GoalApprovalStatus approvalStatus;
   final String? approvedByUserId;
@@ -56,10 +64,18 @@ class Goal {
 
   factory Goal.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>?;
-    final rawCategory = (data?['category'] ?? 'personal').toString().toLowerCase();
-    final rawPriority = (data?['priority'] ?? 'medium').toString().toLowerCase();
-    final rawStatus = (data?['status'] ?? 'notStarted').toString().toLowerCase();
-    final rawApproval = (data?['approvalStatus'] ?? 'approved').toString().toLowerCase();
+    final rawCategory = (data?['category'] ?? 'personal')
+        .toString()
+        .toLowerCase();
+    final rawPriority = (data?['priority'] ?? 'medium')
+        .toString()
+        .toLowerCase();
+    final rawStatus = (data?['status'] ?? 'notStarted')
+        .toString()
+        .toLowerCase();
+    final rawApproval = (data?['approvalStatus'] ?? 'approved')
+        .toString()
+        .toLowerCase();
 
     DateTime parseDate(dynamic v) {
       if (v is Timestamp) return v.toDate();
@@ -70,7 +86,10 @@ class Goal {
 
     List<String> parseEvidence(dynamic v) {
       if (v is List) {
-        return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+        return v
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
       }
       return const <String>[];
     }
@@ -81,23 +100,24 @@ class Goal {
       title: data?['title'] ?? '',
       description: data?['description'] ?? '',
       category: GoalCategory.values.firstWhere(
-          (e) => e.name.toLowerCase() == rawCategory,
-          orElse: () => GoalCategory.personal,
+        (e) => e.name.toLowerCase() == rawCategory,
+        orElse: () => GoalCategory.personal,
       ),
       priority: GoalPriority.values.firstWhere(
-          (e) => e.name.toLowerCase() == rawPriority,
-          orElse: () => GoalPriority.medium,
+        (e) => e.name.toLowerCase() == rawPriority,
+        orElse: () => GoalPriority.medium,
       ),
       status: GoalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawStatus ||
-                // tolerate common alternative spellings/cases
-                (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
-                (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
+        (e) =>
+            e.name.toLowerCase() == rawStatus ||
+            // tolerate common alternative spellings/cases
+            (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
+            (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
         orElse: () => rawStatus == 'paused'
             ? GoalStatus.paused
             : rawStatus == 'burnout'
-                ? GoalStatus.burnout
-                : GoalStatus.notStarted,
+            ? GoalStatus.burnout
+            : GoalStatus.notStarted,
       ),
       // Coerce numeric values safely to int (Firestore may store as double)
       progress: (() {
@@ -124,7 +144,9 @@ class Goal {
       ),
       approvedByUserId: data?['approvedByUserId']?.toString(),
       approvedByName: data?['approvedByName']?.toString(),
-      approvedAt: data?['approvedAt'] != null ? parseDate(data?['approvedAt']) : null,
+      approvedAt: data?['approvedAt'] != null
+          ? parseDate(data?['approvedAt'])
+          : null,
       approvalRequestedAt: data?['approvalRequestedAt'] != null
           ? parseDate(data?['approvalRequestedAt'])
           : null,
@@ -133,10 +155,14 @@ class Goal {
   }
 
   static Goal fromMap(Map<String, dynamic> map, {String? id}) {
-    final rawCategory = (map['category'] ?? 'personal').toString().toLowerCase();
+    final rawCategory = (map['category'] ?? 'personal')
+        .toString()
+        .toLowerCase();
     final rawPriority = (map['priority'] ?? 'medium').toString().toLowerCase();
     final rawStatus = (map['status'] ?? 'notStarted').toString().toLowerCase();
-    final rawApproval = (map['approvalStatus'] ?? 'pending').toString().toLowerCase();
+    final rawApproval = (map['approvalStatus'] ?? 'pending')
+        .toString()
+        .toLowerCase();
 
     DateTime parseDate(dynamic v) {
       if (v is Timestamp) return v.toDate();
@@ -147,7 +173,10 @@ class Goal {
 
     List<String> parseEvidence(dynamic v) {
       if (v is List) {
-        return v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+        return v
+            .map((e) => e?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
       }
       return const <String>[];
     }
@@ -166,7 +195,8 @@ class Goal {
         orElse: () => GoalPriority.medium,
       ),
       status: GoalStatus.values.firstWhere(
-        (e) => e.name.toLowerCase() == rawStatus ||
+        (e) =>
+            e.name.toLowerCase() == rawStatus ||
             (rawStatus == 'in_progress' && e == GoalStatus.inProgress) ||
             (rawStatus == 'notstarted' && e == GoalStatus.notStarted),
         orElse: () => GoalStatus.notStarted,
@@ -189,8 +219,12 @@ class Goal {
       ),
       approvedByUserId: map['approvedByUserId']?.toString(),
       approvedByName: map['approvedByName']?.toString(),
-      approvedAt: map['approvedAt'] != null ? parseDate(map['approvedAt']) : null,
-      approvalRequestedAt: map['approvalRequestedAt'] != null ? parseDate(map['approvalRequestedAt']) : null,
+      approvedAt: map['approvedAt'] != null
+          ? parseDate(map['approvedAt'])
+          : null,
+      approvalRequestedAt: map['approvalRequestedAt'] != null
+          ? parseDate(map['approvalRequestedAt'])
+          : null,
       rejectionReason: map['rejectionReason']?.toString(),
     );
   }
@@ -241,5 +275,3 @@ class Goal {
     );
   }
 }
-
-

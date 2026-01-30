@@ -146,9 +146,9 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     return FirestoreSafe.stream(
       FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
     ).map((doc) {
-          if (!doc.exists) return null;
-          return UserProfile.fromFirestore(doc);
-        });
+      if (!doc.exists) return null;
+      return UserProfile.fromFirestore(doc);
+    });
   }
 
   @override
@@ -4424,6 +4424,10 @@ $progressDetails
         return 'on-hold';
       case GoalStatus.burnout:
         return 'recovery';
+      case GoalStatus.acknowledged:
+        return 'acknowledged';
+      case GoalStatus.completed:
+        return 'completed';
       default:
         return 'active';
     }

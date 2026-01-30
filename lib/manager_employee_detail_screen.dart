@@ -454,7 +454,9 @@ class _ManagerEmployeeDetailScreenState
   }
 
   bool _isGoalCompleted(Goal goal) {
-    return goal.status == GoalStatus.completed || goal.progress >= 100;
+    return goal.status == GoalStatus.completed ||
+        goal.status == GoalStatus.acknowledged ||
+        goal.progress >= 100;
   }
 
   void _nudgeAboutGoal(Goal goal) {
@@ -1219,7 +1221,6 @@ class _ManagerEmployeeDetailScreenState
                 return;
               }
 
-
               Navigator.pop(context);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1249,6 +1250,10 @@ class _ManagerEmployeeDetailScreenState
       case GoalStatus.completed:
         c = AppColors.successColor;
         t = 'Completed';
+        break;
+      case GoalStatus.acknowledged:
+        c = AppColors.successColor;
+        t = 'Acknowledged';
         break;
       case GoalStatus.inProgress:
         c = AppColors.activeColor;

@@ -55,8 +55,7 @@ class AuditService {
       final userData = userDoc.data() ?? {};
 
       final rawDepartment = (userData['department'] as String?)?.trim() ?? '';
-      final department =
-          rawDepartment.isEmpty ? 'Unknown' : rawDepartment;
+      final department = rawDepartment.isEmpty ? 'Unknown' : rawDepartment;
 
       final auditEntry = AuditEntry(
         id: '', // Will be set by Firestore
@@ -115,57 +114,62 @@ class AuditService {
 
       query = query.orderBy('submittedDate', descending: true).limit(200);
 
-      return query.snapshots().map((snapshot) {
-        try {
-          List<AuditEntry> entries = snapshot.docs
-              .map((doc) {
-                try {
-                  return AuditEntry.fromFirestore(doc);
-                } catch (e) {
-                  developer.log(
-                    'Error parsing audit entry ${doc.id}: $e',
-                    name: 'AuditService',
-                  );
-                  return null;
-                }
-              })
-              .where((entry) => entry != null)
-              .cast<AuditEntry>()
-              .toList();
+      return query
+          .snapshots()
+          .map((snapshot) {
+            try {
+              List<AuditEntry> entries = snapshot.docs
+                  .map((doc) {
+                    try {
+                      return AuditEntry.fromFirestore(doc);
+                    } catch (e) {
+                      developer.log(
+                        'Error parsing audit entry ${doc.id}: $e',
+                        name: 'AuditService',
+                      );
+                      return null;
+                    }
+                  })
+                  .where((entry) => entry != null)
+                  .cast<AuditEntry>()
+                  .toList();
 
-          if (searchQuery != null && searchQuery.isNotEmpty) {
-            final lowercaseQuery = searchQuery.toLowerCase();
-            entries = entries.where((entry) {
-              return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                  entry.userDisplayName
-                      .toLowerCase()
-                      .contains(lowercaseQuery) ||
-                  entry.userDepartment
-                      .toLowerCase()
-                      .contains(lowercaseQuery) ||
-                  entry.evidence.any(
-                    (evidence) =>
-                        evidence.toLowerCase().contains(lowercaseQuery),
-                  );
-            }).toList();
-          }
+              if (searchQuery != null && searchQuery.isNotEmpty) {
+                final lowercaseQuery = searchQuery.toLowerCase();
+                entries = entries.where((entry) {
+                  return entry.goalTitle.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.userDisplayName.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.userDepartment.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.evidence.any(
+                        (evidence) =>
+                            evidence.toLowerCase().contains(lowercaseQuery),
+                      );
+                }).toList();
+              }
 
-          return entries;
-        } catch (e) {
-          developer.log(
-            'Error processing manager audit entries: $e',
-            name: 'AuditService',
-          );
-          return <AuditEntry>[];
-        }
-      }).handleError((error, stackTrace) {
-        developer.log(
-          'Manager audit entries stream error: $error',
-          name: 'AuditService',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      });
+              return entries;
+            } catch (e) {
+              developer.log(
+                'Error processing manager audit entries: $e',
+                name: 'AuditService',
+              );
+              return <AuditEntry>[];
+            }
+          })
+          .handleError((error, stackTrace) {
+            developer.log(
+              'Manager audit entries stream error: $error',
+              name: 'AuditService',
+              error: error,
+              stackTrace: stackTrace,
+            );
+          });
     } catch (e) {
       developer.log(
         'Error building manager audit entries stream: $e',
@@ -581,6 +585,7 @@ class AuditService {
         final entryDoc = existingEntries.docs.first;
         final entry = AuditEntry.fromFirestore(entryDoc);
 
+        // Update audit entry status
         await _firestore.collection('audit_entries').doc(entryDoc.id).update({
           'status': 'verified',
           'score': score,
@@ -589,6 +594,14 @@ class AuditService {
           'acknowledgedById': user.uid,
           'verifiedDate': Timestamp.now(),
           'rejectionReason': null,
+        });
+
+        // Also update the goal status to acknowledged
+        await _firestore.collection('goals').doc(goal.id).update({
+          'status': 'acknowledged',
+          'acknowledgedAt': Timestamp.now(),
+          'acknowledgedBy': managerName,
+          'acknowledgedById': user.uid,
         });
 
         final updatedEntry = AuditEntry(
@@ -637,8 +650,9 @@ class AuditService {
         score: score,
         comments: comments,
         userDisplayName: employeeName,
-        userDepartment:
-            employeeDepartment.isEmpty ? 'Unknown' : employeeDepartment,
+        userDepartment: employeeDepartment.isEmpty
+            ? 'Unknown'
+            : employeeDepartment,
       );
 
       final ref = await _firestore
