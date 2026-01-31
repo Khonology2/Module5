@@ -5,6 +5,7 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/widgets/version_badge.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/utils/firestore_safe.dart';
@@ -35,10 +36,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
   String? _currentProfilePhotoUrl;
-  
-  // Refresh state for assigned employees
-  int _assignedEmployeesRefreshKey = 0;
-  
+
   // Alternative manager names to try for assigned employees query
   List<String> _alternativeManagerNames = [];
 
@@ -88,14 +86,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       String name = 'Manager';
-      
-      developer.log('AssignedEmployees DEBUG: Starting manager name loading', 
-                   name: 'ManagerDashboard');
-      
+
+      developer.log(
+        'AssignedEmployees DEBUG: Starting manager name loading',
+        name: 'ManagerDashboard',
+      );
+
       if (user != null) {
-        developer.log('AssignedEmployees DEBUG: User logged in - UID: ${user.uid}, Email: ${user.email}', 
-                     name: 'ManagerDashboard');
-        
+        developer.log(
+          'AssignedEmployees DEBUG: User logged in - UID: ${user.uid}, Email: ${user.email}',
+          name: 'ManagerDashboard',
+        );
+
         // Try to get name from onboarding collection first
         final onboardingName = await DatabaseService.getUserNameFromOnboarding(
           userId: user.uid,
@@ -105,85 +107,103 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         if (onboardingName != null && onboardingName.isNotEmpty) {
           // Use full name from onboarding
           name = onboardingName;
-          developer.log('AssignedEmployees DEBUG: Found name from onboarding: "$name"', 
-                       name: 'ManagerDashboard');
+          developer.log(
+            'AssignedEmployees DEBUG: Found name from onboarding: "$name"',
+            name: 'ManagerDashboard',
+          );
         } else {
-          developer.log('AssignedEmployees DEBUG: No name found in onboarding, trying fallbacks', 
-                       name: 'ManagerDashboard');
-          
+          developer.log(
+            'AssignedEmployees DEBUG: No name found in onboarding, trying fallbacks',
+            name: 'ManagerDashboard',
+          );
+
           // Fallback to userProfile or Firebase Auth
           final profile = await DatabaseService.getUserProfile(user.uid);
           final display = profile.displayName.trim();
           if (display.isNotEmpty) {
             name = display; // Use full display name, not just first name
-            developer.log('AssignedEmployees DEBUG: Using profile display name: "$name"', 
-                         name: 'ManagerDashboard');
+            developer.log(
+              'AssignedEmployees DEBUG: Using profile display name: "$name"',
+              name: 'ManagerDashboard',
+            );
           } else if ((user.displayName ?? '').isNotEmpty) {
             name = user.displayName!; // Use full display name
-            developer.log('AssignedEmployees DEBUG: Using Firebase display name: "$name"', 
-                         name: 'ManagerDashboard');
+            developer.log(
+              'AssignedEmployees DEBUG: Using Firebase display name: "$name"',
+              name: 'ManagerDashboard',
+            );
           } else if ((user.email ?? '').isNotEmpty) {
             name = user.email!.split('@').first;
-            developer.log('AssignedEmployees DEBUG: Using email username: "$name"', 
-                         name: 'ManagerDashboard');
+            developer.log(
+              'AssignedEmployees DEBUG: Using email username: "$name"',
+              name: 'ManagerDashboard',
+            );
           }
         }
       }
-      
+
       if (!mounted) return;
       setState(() {
         _managerName = name;
         // Generate alternative manager names to try
         _alternativeManagerNames = _generateAlternativeManagerNames(name);
       });
-      
-      developer.log('AssignedEmployees DEBUG: Final manager name set to: "$_managerName"', 
-                   name: 'ManagerDashboard');
-      developer.log('AssignedEmployees DEBUG: Generated ${_alternativeManagerNames.length} alternative names', 
-                   name: 'ManagerDashboard');
+
+      developer.log(
+        'AssignedEmployees DEBUG: Final manager name set to: "$_managerName"',
+        name: 'ManagerDashboard',
+      );
+      developer.log(
+        'AssignedEmployees DEBUG: Generated ${_alternativeManagerNames.length} alternative names',
+        name: 'ManagerDashboard',
+      );
       for (int i = 0; i < _alternativeManagerNames.length; i++) {
-        developer.log('AssignedEmployees DEBUG: Alternative ${i + 1}: "${_alternativeManagerNames[i]}"', 
-                     name: 'ManagerDashboard');
+        developer.log(
+          'AssignedEmployees DEBUG: Alternative ${i + 1}: "${_alternativeManagerNames[i]}"',
+          name: 'ManagerDashboard',
+        );
       }
-      
     } catch (e) {
-      developer.log('AssignedEmployees DEBUG: Error loading manager name: $e', 
-                   name: 'ManagerDashboard', error: e);
+      developer.log(
+        'AssignedEmployees DEBUG: Error loading manager name: $e',
+        name: 'ManagerDashboard',
+        error: e,
+      );
     }
   }
 
   List<String> _generateAlternativeManagerNames(String managerName) {
     final alternatives = <String>[];
-    
+
     // Add the original name (this should be the full name from onboarding)
     alternatives.add(managerName);
-    
+
     // Add email format
     final user = FirebaseAuth.instance.currentUser;
     if (user?.email != null) {
       alternatives.add(user!.email!);
     }
-    
+
     // Add common variations - but prioritize full name with space
     if (managerName.contains(' ')) {
       final parts = managerName.split(' ');
       if (parts.length >= 2) {
         // Add first name only
         alternatives.add(parts.first);
-        // Add last name only  
+        // Add last name only
         alternatives.add(parts.last);
         // Add with different spacing
         alternatives.add('${parts.first}${parts.last}'); // No space
       }
     }
-    
-    // Add the expected format "name surname" 
+
+    // Add the expected format "name surname"
     // This should match the database format exactly
     alternatives.add('Nkosinathi Radebe');
-    
+
     // Add email as fallback
     alternatives.add('Nkosinathi.Radebe1@khonology.com');
-    
+
     return alternatives.toSet().toList(); // Remove duplicates
   }
 
@@ -1034,316 +1054,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ],
       ),
     );
-  }
-
-  Widget _buildAssignedEmployees() {
-    return _card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Assigned Employees', style: AppTypography.heading2),
-              IconButton(
-                onPressed: () async {
-                  // Force refresh by incrementing the refresh key
-                  setState(() {
-                    _assignedEmployeesRefreshKey++;
-                  });
-                  
-                  // Also force a fresh query to Firestore
-                  try {
-                    await FirebaseFirestore.instance
-                        .collection('onboarding')
-                        .where('manager', isEqualTo: _managerName)
-                        .get();
-                  } catch (e) {
-                    // Error will be handled by the FutureBuilder
-                  }
-                },
-                icon: const Icon(
-                  Icons.refresh,
-                  color: AppColors.activeColor,
-                  size: 20,
-                ),
-                tooltip: 'Refresh assigned employees',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          FutureBuilder<List<DocumentSnapshot>>(
-            key: ValueKey(_assignedEmployeesRefreshKey),
-            future: _getAssignedEmployees(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Text(
-                  'Error loading assigned employees: ${snapshot.error}',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.dangerColor,
-                  ),
-                );
-              }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Column(
-                  children: [
-                    Icon(
-                      Icons.people_outline,
-                      size: 48,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No employees assigned yet',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Please contact your Khonobuzz admin to assign employees for you.',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                );
-              }
-
-              final assignedEmployees = snapshot.data!;
-
-              return Column(
-                children: [
-                  if (assignedEmployees.isEmpty)
-                    Text('No employees assigned yet', style: AppTypography.muted)
-                  else
-                    ...assignedEmployees.map((doc) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      
-                      // Enhanced name resolution to get both name and surname
-                      final firstName = data['firstName']?.toString().trim() ?? '';
-                      final lastName = data['lastName']?.toString().trim() ?? '';
-                      final displayName = data['displayName']?.toString().trim() ?? '';
-                      final fullName = data['fullName']?.toString().trim() ?? '';
-                      final name = data['name']?.toString().trim() ?? '';
-                      
-                      // Debug logging for name field analysis
-                      developer.log('AssignedEmployees DEBUG: Employee name fields analysis', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: firstName: "$firstName"', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: lastName: "$lastName"', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: displayName: "$displayName"', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: fullName: "$fullName"', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: name: "$name"', 
-                                   name: 'ManagerDashboard');
-                      
-                      // Priority order for employee name resolution
-                      String employeeName = '';
-                      
-                      // 1. Try firstName + lastName combination (preferred)
-                      if (firstName.isNotEmpty && lastName.isNotEmpty) {
-                        employeeName = '$firstName $lastName';
-                        developer.log('AssignedEmployees DEBUG: Using firstName + lastName: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 2. Try displayName if available
-                      else if (displayName.isNotEmpty) {
-                        employeeName = displayName;
-                        developer.log('AssignedEmployees DEBUG: Using displayName: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 3. Try fullName field
-                      else if (fullName.isNotEmpty) {
-                        employeeName = fullName;
-                        developer.log('AssignedEmployees DEBUG: Using fullName: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 4. Try name field
-                      else if (name.isNotEmpty) {
-                        employeeName = name;
-                        developer.log('AssignedEmployees DEBUG: Using name: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 5. Use firstName only if available
-                      else if (firstName.isNotEmpty) {
-                        employeeName = firstName;
-                        developer.log('AssignedEmployees DEBUG: Using firstName only: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 6. Use lastName only if available
-                      else if (lastName.isNotEmpty) {
-                        employeeName = lastName;
-                        developer.log('AssignedEmployees DEBUG: Using lastName only: "$employeeName"', 
-                                     name: 'ManagerDashboard');
-                      }
-                      // 7. Fallback to Unknown
-                      else {
-                        employeeName = 'Unknown Employee';
-                        developer.log('AssignedEmployees DEBUG: No name fields found, using fallback', 
-                                     name: 'ManagerDashboard');
-                      }
-                      
-                      final email = data['email']?.toString() ?? 'No email';
-                      final managerField = data['manager']?.toString() ?? 'No manager field';
-                      
-                      developer.log('AssignedEmployees DEBUG: Final employee name: "$employeeName" ($email)', 
-                                   name: 'ManagerDashboard');
-                      developer.log('AssignedEmployees DEBUG: Employee manager field: "$managerField"', 
-                                   name: 'ManagerDashboard');
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.person, color: AppColors.activeColor),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    employeeName,
-                                    style: AppTypography.bodyText,
-                                  ),
-                                  if (email != 'No email' && email.isNotEmpty)
-                                    Text(
-                                      email,
-                                      style: AppTypography.bodySmall.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Employee',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<List<DocumentSnapshot>> _getAssignedEmployees() async {
-    developer.log('AssignedEmployees DEBUG: Starting employee query process', 
-                 name: 'ManagerDashboard');
-    developer.log('AssignedEmployees DEBUG: Trying ${_alternativeManagerNames.length} manager name variations', 
-                 name: 'ManagerDashboard');
-    
-    for (int i = 0; i < _alternativeManagerNames.length; i++) {
-      final managerName = _alternativeManagerNames[i];
-      
-      try {
-        developer.log('AssignedEmployees DEBUG: Query ${i + 1}/${_alternativeManagerNames.length} - Trying manager name: "$managerName"', 
-                     name: 'ManagerDashboard');
-        
-        final query = await FirebaseFirestore.instance
-            .collection('onboarding')
-            .where('manager', isEqualTo: managerName)
-            .get();
-        
-        developer.log('AssignedEmployees DEBUG: Query returned ${query.docs.length} documents for manager name: "$managerName"', 
-                     name: 'ManagerDashboard');
-        
-        if (query.docs.isNotEmpty) {
-          developer.log('AssignedEmployees DEBUG: ✅ SUCCESS! Found ${query.docs.length} employees with manager name: "$managerName"', 
-                       name: 'ManagerDashboard');
-          
-          // Log details of found employees
-          for (int j = 0; j < query.docs.length; j++) {
-            final doc = query.docs[j];
-            final data = doc.data();
-            final employeeName = data['displayName'] ?? 
-                                data['fullName'] ?? 
-                                data['firstName'] ?? 
-                                data['name'] ?? 
-                                'Unknown Employee';
-            final email = data['email'] ?? 'No email';
-            final managerField = data['manager']?.toString() ?? 'No manager field';
-            
-            developer.log('AssignedEmployees DEBUG: Employee ${j + 1}: "$employeeName" ($email) - manager field: "$managerField"', 
-                         name: 'ManagerDashboard');
-          }
-          
-          return query.docs;
-        } else {
-          developer.log('AssignedEmployees DEBUG: ❌ No employees found for manager name: "$managerName"', 
-                       name: 'ManagerDashboard');
-        }
-      } catch (e) {
-        developer.log('AssignedEmployees DEBUG: ❌ Error querying with manager name "$managerName": $e', 
-                     name: 'ManagerDashboard', error: e);
-      }
-    }
-    
-    developer.log('AssignedEmployees DEBUG: ❌ No employees found for any manager name variation', 
-                 name: 'ManagerDashboard');
-    
-    // Additional debug: Check if there are any documents with manager field at all
-    try {
-      developer.log('AssignedEmployees DEBUG: Checking if any documents have manager field...', 
-                   name: 'ManagerDashboard');
-      
-      final sampleQuery = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .where('manager', isNull: false)
-          .limit(5)
-          .get();
-      
-      developer.log('AssignedEmployees DEBUG: Found ${sampleQuery.docs.length} sample documents with manager field', 
-                   name: 'ManagerDashboard');
-      
-      for (final doc in sampleQuery.docs) {
-        final data = doc.data();
-        final managerField = data['manager']?.toString() ?? 'null';
-        final employeeName = data['displayName'] ?? 
-                            data['fullName'] ?? 
-                            data['firstName'] ?? 
-                            data['name'] ?? 
-                            'Unknown';
-        
-        developer.log('AssignedEmployees DEBUG: Sample - Employee: "$employeeName", manager field: "$managerField"', 
-                     name: 'ManagerDashboard');
-      }
-    } catch (e) {
-      developer.log('AssignedEmployees DEBUG: Error checking sample documents: $e', 
-                   name: 'ManagerDashboard', error: e);
-    }
-    
-    return [];
   }
 
   Widget _buildActiveStatusIndicator(EmployeeData employee) {
