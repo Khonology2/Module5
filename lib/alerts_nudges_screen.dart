@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, duplicate_ignore
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,7 +82,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       type: AlertType.profileIncomplete,
       priority: AlertPriority.high,
       title: 'Complete Your Profile',
-      message: 'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) in your profile.',
+      message:
+          'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) in your profile.',
       actionText: 'Go to Profile',
       actionRoute: '/my_profile',
       createdAt: DateTime.now(),
@@ -272,11 +275,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     initialData: _cachedAlerts,
                     builder: (context, alertsSnapshot) {
                       // Debug logging
-                      developer.log('Alerts snapshot state: ${alertsSnapshot.connectionState}');
+                      developer.log(
+                        'Alerts snapshot state: ${alertsSnapshot.connectionState}',
+                      );
                       if (alertsSnapshot.hasError) {
-                        developer.log('Alerts stream error: ${alertsSnapshot.error}');
+                        developer.log(
+                          'Alerts stream error: ${alertsSnapshot.error}',
+                        );
                       }
-                      
+
                       final streamedAlerts = alertsSnapshot.data;
                       // Update cache when fresh data arrives
                       if (streamedAlerts != null &&
@@ -288,42 +295,42 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       if (alertsSnapshot.hasError && _cachedAlerts == null) {
                         final errorMessage = alertsSnapshot.error.toString();
 
-                            // Check if it's a permission error
-                            if (errorMessage.contains('permission-denied') ||
-                                errorMessage.contains(
-                                  'Missing or insufficient permissions',
-                                )) {
-                              return _buildPermissionErrorState();
-                            }
+                        // Check if it's a permission error
+                        if (errorMessage.contains('permission-denied') ||
+                            errorMessage.contains(
+                              'Missing or insufficient permissions',
+                            )) {
+                          return _buildPermissionErrorState();
+                        }
 
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    size: 48,
-                                    color: AppColors.dangerColor,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Error loading alerts',
-                                    style: AppTypography.heading4.copyWith(
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Please try again later',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: AppColors.dangerColor,
                               ),
-                            );
-                          }
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error loading alerts',
+                                style: AppTypography.heading4.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please try again later',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
                       final alerts = streamedAlerts ?? _cachedAlerts ?? [];
 
@@ -333,8 +340,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           _cachedAlerts == null) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
                           ),
                         );
                       }
@@ -344,67 +352,62 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           .where((a) => a.type != AlertType.goalOverdue)
                           .toList();
 
-                          return FutureBuilder<bool>(
-                            future: _isProfileIncomplete(),
-                            builder: (context, profileSnapshot) {
-                              final isIncomplete = profileSnapshot.data == true;
-                              final allAlerts = isIncomplete
-                                  ? [
-                                      _buildProfileIncompleteAlert()!,
-                                      ...filtered,
-                                    ]
-                                  : filtered;
+                      return FutureBuilder<bool>(
+                        future: _isProfileIncomplete(),
+                        builder: (context, profileSnapshot) {
+                          final isIncomplete = profileSnapshot.data == true;
+                          final allAlerts = isIncomplete
+                              ? [_buildProfileIncompleteAlert()!, ...filtered]
+                              : filtered;
 
-                              return Column(
+                          return Column(
+                            children: [
+                              _buildAlertSummary(allAlerts),
+                              const SizedBox(height: AppSpacing.lg),
+                              _buildPredictiveRiskAlerts(),
+                              const SizedBox(height: AppSpacing.lg),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  _buildAlertSummary(allAlerts),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  _buildPredictiveRiskAlerts(),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Recent Alerts',
-                                        style: AppTypography.heading3.copyWith(
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      ElevatedButton.icon(
-                                        onPressed: () => _showAIChatAssistant(
-                                          context,
-                                          allAlerts,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.chat_bubble_outline,
-                                          size: 18,
-                                        ),
-                                        label: const Text('AI Assistant'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              AppColors.activeColor,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(28),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    'Recent Alerts',
+                                    style: AppTypography.heading3.copyWith(
+                                      color: AppColors.textPrimary,
+                                    ),
                                   ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  _buildAlertsList(allAlerts),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _showAIChatAssistant(
+                                      context,
+                                      allAlerts,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 18,
+                                    ),
+                                    label: const Text('AI Assistant'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.activeColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(28),
+                                      ),
+                                    ),
+                                  ),
                                 ],
-                              );
-                            },
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              _buildAlertsList(allAlerts),
+                            ],
                           );
                         },
-                      ),
+                      );
+                    },
+                  ),
                 ],
               );
             },
@@ -961,8 +964,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               ),
             ],
           ),
-          if (alert.actionText != null &&
-              (!isManagerNudge || hasGoal)) ...[
+          if (alert.actionText != null && (!isManagerNudge || hasGoal)) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -1060,7 +1062,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Quick options
                   Text(
                     'Quick Options:',
@@ -1069,35 +1071,37 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   ...[
                     ('Extend by 1 week', '1week'),
                     ('Extend by 2 weeks', '2weeks'),
                     ('Extend by 1 month', '1month'),
                     ('Adjust scope', 'scope'),
                     ('Add milestones', 'milestones'),
-                  ].map((option) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setDialogState(() {
-                          selectedOption = option.$2;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedOption == option.$2
-                            ? AppColors.activeColor
-                            : Colors.grey.withValues(alpha: 0.2),
-                        foregroundColor: selectedOption == option.$2
-                            ? Colors.white
-                            : AppColors.textPrimary,
+                  ].map(
+                    (option) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            selectedOption = option.$2;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: selectedOption == option.$2
+                              ? AppColors.activeColor
+                              : Colors.grey.withValues(alpha: 0.2),
+                          foregroundColor: selectedOption == option.$2
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                        ),
+                        child: Text(option.$1),
                       ),
-                      child: Text(option.$1),
                     ),
-                  )),
-                  
+                  ),
+
                   const SizedBox(height: 16),
-                  
+
                   // Custom date picker
                   Text(
                     'Or choose new date:',
@@ -1106,12 +1110,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   ElevatedButton.icon(
                     onPressed: () async {
                       final date = await showDatePicker(
                         context: context,
-                        initialDate: goal.targetDate.add(const Duration(days: 7)),
+                        initialDate: goal.targetDate.add(
+                          const Duration(days: 7),
+                        ),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
@@ -1150,22 +1156,31 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     ? null
                     : () async {
                         setDialogState(() => isLoading = true);
-                        
+
+                        // Capture navigator before async operations
+                        final navigator = Navigator.of(context);
+
                         try {
                           DateTime finalDate;
                           String actionMessage;
-                          
+
                           switch (selectedOption) {
                             case '1week':
-                              finalDate = goal.targetDate.add(const Duration(days: 7));
+                              finalDate = goal.targetDate.add(
+                                const Duration(days: 7),
+                              );
                               actionMessage = 'Extended deadline by 1 week';
                               break;
                             case '2weeks':
-                              finalDate = goal.targetDate.add(const Duration(days: 14));
+                              finalDate = goal.targetDate.add(
+                                const Duration(days: 14),
+                              );
                               actionMessage = 'Extended deadline by 2 weeks';
                               break;
                             case '1month':
-                              finalDate = goal.targetDate.add(const Duration(days: 30));
+                              finalDate = goal.targetDate.add(
+                                const Duration(days: 30),
+                              );
                               actionMessage = 'Extended deadline by 1 month';
                               break;
                             case 'custom':
@@ -1176,23 +1191,25 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             case 'scope':
                             case 'milestones':
                               // Navigate to goal detail with special mode
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => GoalDetailScreen(
-                                    goal: goal,
-                                    initialMode: selectedOption == 'scope' 
-                                        ? GoalDetailMode.adjustScope 
-                                        : GoalDetailMode.addMilestones,
+                              navigator.pop();
+                              if (mounted) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => GoalDetailScreen(
+                                      goal: goal,
+                                      initialMode: selectedOption == 'scope'
+                                          ? GoalDetailMode.adjustScope
+                                          : GoalDetailMode.addMilestones,
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              }
                               return;
                             default:
                               return;
                           }
-                          
+
                           // Update goal
                           await FirebaseFirestore.instance
                               .collection('goals')
@@ -1200,9 +1217,13 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                               .update({
                                 'targetDate': Timestamp.fromDate(finalDate),
                               });
-                          
-                          Navigator.pop(context);
-                          
+
+                          if (!mounted) return;
+
+                          navigator.pop();
+
+                          if (!mounted) return;
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(actionMessage),
@@ -1211,6 +1232,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           );
                         } catch (e) {
                           setDialogState(() => isLoading = false);
+
+                          if (!mounted) return;
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Failed to reschedule goal'),
@@ -1288,7 +1312,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     bool sendingReaction = false;
     bool sendingResponse = false;
 
-    Future<void> _sendReaction(
+    Future<void> sendReaction(
       String reaction,
       StateSetter setDialogState,
     ) async {
@@ -1327,7 +1351,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Could not record reaction. Please try again.'),
+              content: const Text(
+                'Could not record reaction. Please try again.',
+              ),
               backgroundColor: AppColors.dangerColor,
             ),
           );
@@ -1339,7 +1365,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
     }
 
-    Future<void> _sendResponse(
+    Future<void> sendResponse(
       StateSetter setDialogState,
       BuildContext dialogContext,
     ) async {
@@ -1415,16 +1441,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 backgroundColor: Colors.black.withValues(alpha: 0.75),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 title: Row(
                   children: [
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor:
-                          AppColors.activeColor.withValues(alpha: 0.15),
+                      backgroundColor: AppColors.activeColor.withValues(
+                        alpha: 0.15,
+                      ),
                       child: Text(
                         managerName.isNotEmpty
                             ? managerName[0].toUpperCase()
@@ -1499,9 +1524,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             label: Text(reaction),
                             selected: isSelected,
                             onSelected: (_) =>
-                                _sendReaction(reaction, setDialogState),
-                            selectedColor:
-                                AppColors.activeColor.withValues(alpha: 0.2),
+                                sendReaction(reaction, setDialogState),
+                            selectedColor: AppColors.activeColor.withValues(
+                              alpha: 0.2,
+                            ),
                             labelStyle: AppTypography.bodySmall.copyWith(
                               color: isSelected
                                   ? AppColors.textPrimary
@@ -1557,7 +1583,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                 ),
                 actions: [
-                  if (alert.actionRoute == '/my_goal_workspace' && _hasGoal(alert)) ...[
+                  if (alert.actionRoute == '/my_goal_workspace' &&
+                      _hasGoal(alert)) ...[
                     TextButton.icon(
                       onPressed: () {
                         Navigator.of(dialogContext).pop();
@@ -1573,8 +1600,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                   ElevatedButton.icon(
                     onPressed: sendingResponse
-                      ? null
-                      : () => _sendResponse(setDialogState, dialogContext),
+                        ? null
+                        : () => sendResponse(setDialogState, dialogContext),
                     icon: sendingResponse
                         ? SizedBox(
                             width: 16,

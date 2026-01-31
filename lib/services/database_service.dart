@@ -488,7 +488,7 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    Future<DocumentReference<Map<String, dynamic>>> _attemptCreate(int attempt) async {
+    Future<DocumentReference<Map<String, dynamic>>> attemptCreate(int attempt) async {
       try {
         return await FirebaseFirestore.instance.collection('goals').add({
           'userId': goal.userId,
@@ -514,13 +514,13 @@ class DatabaseService {
           final delayMs = 200 * (attempt + 1);
           developer.log('Retrying goal create after transient Firestore error (attempt ${attempt + 1})');
           await Future.delayed(Duration(milliseconds: delayMs));
-          return _attemptCreate(attempt + 1);
+          return attemptCreate(attempt + 1);
         }
         rethrow;
       }
     }
 
-    final doc = await _attemptCreate(0);
+    final doc = await attemptCreate(0);
     // Auto-request approval asynchronously to avoid blocking UI navigation
     // ignore: unawaited_futures
     Future(() async {

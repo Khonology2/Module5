@@ -49,8 +49,7 @@ import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScre
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/services/cache_service.dart'; // Import CacheService
-import 'package:pdh/services/backend_auth_service.dart';
+// Import CacheService
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:pdh/widgets/version_control_overlay.dart'; // Import VersionControlOverlay

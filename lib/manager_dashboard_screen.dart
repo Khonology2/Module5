@@ -1129,11 +1129,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       final data = doc.data() as Map<String, dynamic>;
                       
                       // Enhanced name resolution to get both name and surname
-                      final firstName = data['firstName']?.toString()?.trim() ?? '';
-                      final lastName = data['lastName']?.toString()?.trim() ?? '';
-                      final displayName = data['displayName']?.toString()?.trim() ?? '';
-                      final fullName = data['fullName']?.toString()?.trim() ?? '';
-                      final name = data['name']?.toString()?.trim() ?? '';
+                      final firstName = data['firstName']?.toString().trim() ?? '';
+                      final lastName = data['lastName']?.toString().trim() ?? '';
+                      final displayName = data['displayName']?.toString().trim() ?? '';
+                      final fullName = data['fullName']?.toString().trim() ?? '';
+                      final name = data['name']?.toString().trim() ?? '';
                       
                       // Debug logging for name field analysis
                       developer.log('AssignedEmployees DEBUG: Employee name fields analysis', 
