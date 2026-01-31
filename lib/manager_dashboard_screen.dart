@@ -5,7 +5,6 @@ import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
-import 'package:pdh/widgets/version_badge.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/utils/firestore_safe.dart';
@@ -514,8 +513,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
-              const SizedBox(height: AppSpacing.lg),
-              const Align(alignment: Alignment.center, child: VersionBadge()),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -575,11 +572,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               ),
             ),
             child: content,
-          ),
-          const Positioned(
-            left: 0,
-            bottom: 0,
-            child: SafeArea(left: true, bottom: true, child: VersionBadge()),
           ),
         ],
       ),
