@@ -5,6 +5,7 @@ import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/services/streak_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class BadgeService {
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
@@ -63,23 +64,22 @@ class BadgeService {
     final goalsSub = _firestore
         .collection('goals')
         .where('userId', isEqualTo: userId)
-        .snapshots()
-        .listen((_) => maybeCheck(), onError: (_) {});
+        .snapshots();
+    final goalsSafeSub = FirestoreSafe.stream(goalsSub).listen((_) => maybeCheck());
 
-    final userDocSub = _firestore
-        .collection('users')
-        .doc(userId)
-        .snapshots()
-        .listen((_) => maybeCheck(), onError: (_) {});
+    final userDocSafeSub = FirestoreSafe.stream(
+      _firestore.collection('users').doc(userId).snapshots(),
+    ).listen((_) => maybeCheck());
 
     // Also listen to seasons where the user participates so season-based badges update realtime
-    final seasonsSub = _firestore
-        .collection('seasons')
-        .where('participantIds', arrayContains: userId)
-        .snapshots()
-        .listen((_) => maybeCheck(), onError: (_) {});
+    final seasonsSafeSub = FirestoreSafe.stream(
+      _firestore
+          .collection('seasons')
+          .where('participantIds', arrayContains: userId)
+          .snapshots(),
+    ).listen((_) => maybeCheck());
 
-    _trackingSubsByUser[userId] = [goalsSub, userDocSub, seasonsSub];
+    _trackingSubsByUser[userId] = [goalsSafeSub, userDocSafeSub, seasonsSafeSub];
 
     // Kick off an initial check on start
     maybeCheck();
@@ -102,11 +102,13 @@ class BadgeService {
   static Stream<List<Badge>> getUserBadgesStream(String userId) async* {
     // Defensive stream: emit empty list on any Firestore/watch error instead of bubbling.
     try {
-      await for (final snapshot in _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .snapshots()) {
+      await for (final snapshot in FirestoreSafe.stream(
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .snapshots(),
+      )) {
         try {
           final list = snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
             ..sort((a, b) {

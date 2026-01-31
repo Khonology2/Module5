@@ -15,6 +15,13 @@ class ManagerBadgeEvaluator {
   static const int _meetingTier2 = 10;
   static const int _replanTier2 = 15;
 
+  static Query<Map<String, dynamic>> _managerNudgeQuery(String managerId) {
+    return _db
+        .collectionGroup('alerts')
+        .where('type', isEqualTo: AlertType.managerNudge.name)
+        .where('fromUserId', isEqualTo: managerId);
+  }
+
   static Future<void> evaluate(String managerId) async {
     // Compute metrics
     await ensureBaselineManagerBadges(managerId);
@@ -324,11 +331,17 @@ class ManagerBadgeEvaluator {
   }
 
   static Future<int> _countDetailedNudges(String managerId) async {
-    final nudgesSnap = await _db
-        .collection('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
+    try {
+      nudgesSnap = await _managerNudgeQuery(managerId).get();
+    } catch (_) {
+      // Fallback: top-level alerts only
+      nudgesSnap = await _db
+          .collection('alerts')
+          .where('type', isEqualTo: AlertType.managerNudge.name)
+          .where('fromUserId', isEqualTo: managerId)
+          .get();
+    }
     int detailed = 0;
     for (final d in nudgesSnap.docs) {
       final data = d.data();
@@ -492,11 +505,17 @@ class ManagerBadgeEvaluator {
   }
 
   static Future<int> _countDetailedNudgesInWindow(String managerId, DateTime windowStart) async {
-    final nudgesSnap = await _db
-        .collection('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
+    try {
+      nudgesSnap = await _managerNudgeQuery(managerId).get();
+    } catch (_) {
+      // Fallback: top-level alerts only
+      nudgesSnap = await _db
+          .collection('alerts')
+          .where('type', isEqualTo: AlertType.managerNudge.name)
+          .where('fromUserId', isEqualTo: managerId)
+          .get();
+    }
     final lastByRecipient = <String, DateTime>{};
     int counted = 0;
     for (final d in nudgesSnap.docs) {
@@ -548,11 +567,17 @@ class ManagerBadgeEvaluator {
 
   // Lifetime distinct employees nudged (no time window)
   static Future<int> _countDistinctEmployeesNudgedAllTime(String managerId) async {
-    final nudgesSnap = await _db
-        .collection('alerts')
-        .where('type', isEqualTo: AlertType.managerNudge.name)
-        .where('fromUserId', isEqualTo: managerId)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> nudgesSnap;
+    try {
+      nudgesSnap = await _managerNudgeQuery(managerId).get();
+    } catch (_) {
+      // Fallback: top-level alerts only
+      nudgesSnap = await _db
+          .collection('alerts')
+          .where('type', isEqualTo: AlertType.managerNudge.name)
+          .where('fromUserId', isEqualTo: managerId)
+          .get();
+    }
     final distinct = <String>{};
     for (final d in nudgesSnap.docs) {
       final data = d.data();

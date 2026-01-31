@@ -4,8 +4,11 @@ import 'dart:developer' as developer;
 import 'dart:convert' as convert;
 import 'package:web/web.dart' as web;
 import 'package:flutter/material.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/approved_goal_audit_service.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/models/approved_goal_audit.dart';
 import 'package:pdh/models/audit_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/repository_service.dart';
@@ -17,8 +20,6 @@ import 'package:pdh/services/timeline_service.dart';
 import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
-import 'package:pdh/services/goal_deletion_service.dart';
-import 'package:pdh/models/goal_deletion_request.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/utils/debouncer.dart';
 
@@ -148,15 +149,11 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   return Column(
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
-                      const SizedBox(height: 16),
-                      if (isManager) ...[
-                        const SizedBox(height: 16),
-                        _buildDeletionRequestsSection(),
-                        const SizedBox(height: 16),
-                      ],
                       _buildAuditEntriesList(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
+                      const SizedBox(height: 24),
+                      _buildApprovedGoalsSection(isManager: isManager),
                     ],
                   );
                 },
@@ -344,7 +341,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       DropdownMenuItem(
                         value: 'rejected',
                         child: Text('Rejected'),
-                      ),
+                        ),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -1582,101 +1579,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  Widget _buildDeletionRequestsSection() {
-    return StreamBuilder<List<GoalDeletionRequest>>(
-      stream: GoalDeletionService.getManagerPendingRequestsStream(),
-      builder: (context, snapshot) {
-        final requests = snapshot.data ?? [];
-        if (requests.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Goal Deletion Requests',
-              style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 8),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: requests.length,
-              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
-              itemBuilder: (context, index) {
-                final r = requests[index];
-                return ListTile(
-                  leading: const Icon(Icons.delete_forever, color: Colors.orange),
-                  title: Text(r.goalTitle, style: TextStyle(color: AppColors.textPrimary)),
-                  subtitle: Text(r.reason, style: TextStyle(color: AppColors.textMuted)),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green),
-                        tooltip: 'Approve',
-                        onPressed: () async {
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1F2840),
-                              title: const Text('Approve deletion?', style: TextStyle(color: Colors.white)),
-                              content: const Text('This will permanently delete the goal.', style: TextStyle(color: Colors.white70)),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Approve')),
-                              ],
-                            ),
-                          );
-                          if (ok == true) {
-                            try {
-                              await GoalDeletionService.approveRequest(r);
-                            } catch (e) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
-                        tooltip: 'Reject',
-                        onPressed: () async {
-                          final reasonCtrl = TextEditingController();
-                          final ok = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF1F2840),
-                              title: const Text('Reject deletion', style: TextStyle(color: Colors.white)),
-                              content: TextField(
-                                controller: reasonCtrl,
-                                decoration: const InputDecoration(hintText: 'Reason', hintStyle: TextStyle(color: Colors.white38)),
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                                ElevatedButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Reject')),
-                              ],
-                            ),
-                          );
-                          if (ok == true) {
-                            await GoalDeletionService.rejectRequest(r, reasonCtrl.text.trim());
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
+  
+  
   Widget _buildRepositorySection({required bool isManager}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
@@ -2695,5 +2599,85 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
       default:
         return Icons.help;
     }
+  }
+
+  // Helper method to fetch employee details from profile
+  Future<Map<String, String>> _getEmployeeDetails(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userData = userDoc.data() ?? {};
+      
+      String name = userData['displayName'] ?? userData['fullName'] ?? userData['name'] ?? userData['email'] ?? 'Unknown Employee';
+      String department = userData['department'] ?? 'Not specified';
+      
+      return {
+        'name': name,
+        'department': department,
+      };
+    } catch (e) {
+      return {
+        'name': 'Unknown Employee',
+        'department': 'Not specified',
+      };
+    }
+  }
+
+  Widget _buildApprovedGoalsSection({required bool isManager}) {
+    final stream = isManager
+        ? ApprovedGoalAuditService.getManagerApprovedGoalsStream()
+        : ApprovedGoalAuditService.getEmployeeApprovedGoalsStream();
+    return StreamBuilder<List<ApprovedGoalAudit>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final audits = snapshot.data ?? [];
+        if (audits.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Approved Goals Audit', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+            const SizedBox(height: 8),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: audits.length,
+              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final audit = audits[index];
+                final date = '${audit.approvedAt.year}-${audit.approvedAt.month.toString().padLeft(2, '0')}-${audit.approvedAt.day.toString().padLeft(2, '0')}';
+                
+                if (isManager) {
+                  // Manager view: show goal title, employee name, department, timestamp
+                  return ListTile(
+                    leading: const Icon(Icons.verified, color: Colors.green),
+                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Employee: ${audit.employeeName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Department: ${audit.department}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      ],
+                    ),
+                  );
+                } else {
+                  // Employee view: show goal name, who approved, timestamp
+                  return ListTile(
+                    leading: const Icon(Icons.verified, color: Colors.green),
+                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Approved by: ${audit.approvedByName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 }

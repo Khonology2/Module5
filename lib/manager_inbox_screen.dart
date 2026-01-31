@@ -15,6 +15,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 @immutable
 class _NudgeFeedback {
@@ -42,10 +43,16 @@ class _NudgeFeedback {
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
     final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
+    final employeeName = (metadata['employeeName'] ??
+            metadata['employeeDisplayName'] ??
+            metadata['userDisplayName'] ??
+            metadata['userName'] ??
+            metadata['fullName'])
+        ?.toString();
     return _NudgeFeedback(
       id: map['id']?.toString() ?? '',
       employeeId: map['employeeId']?.toString() ?? '',
-      employeeName: metadata['employeeName']?.toString(),
+      employeeName: employeeName,
       activityType: map['activityType']?.toString() ?? '',
       reaction: metadata['reaction']?.toString(),
       response: metadata['response']?.toString(),
@@ -72,6 +79,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   String _search = '';
   AlertPriority? _priorityFilter;
   bool _bulkMarking = false;
+  final Map<String, String> _employeeNameCache = {};
+  final Set<String> _pendingEmployeeLookups = {};
+  // Keep a stable stream + last good value to prevent reaction flicker when
+  // parent widgets rebuild (filters, alert stream updates, etc.).
+  Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
+  String? _nudgeFeedbackStreamUserId;
+  List<Map<String, dynamic>> _lastNudgeFeedbackMaps = const <Map<String, dynamic>>[];
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -110,10 +124,53 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     );
   }
 
+  void _prefetchEmployeeNames(List<_NudgeFeedback> feedback) {
+    for (final fb in feedback) {
+      final metaName = fb.employeeName?.trim() ?? '';
+      if (metaName.isNotEmpty) {
+        _employeeNameCache[fb.employeeId] ??= metaName;
+        continue;
+      }
+      if (_employeeNameCache.containsKey(fb.employeeId) ||
+          _pendingEmployeeLookups.contains(fb.employeeId)) {
+        continue;
+      }
+      _pendingEmployeeLookups.add(fb.employeeId);
+      DatabaseService.getUserProfile(fb.employeeId).then((profile) {
+        if (!mounted) return;
+        final resolved = profile.displayName.trim();
+        setState(() {
+          _employeeNameCache[fb.employeeId] =
+              resolved.isNotEmpty ? resolved : fb.employeeId;
+        });
+      }).catchError((e) {
+        developer.log('Could not load employee name: $e');
+      }).whenComplete(() {
+        _pendingEmployeeLookups.remove(fb.employeeId);
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _redirectIfManager();
+  }
+
+  void _ensureNudgeFeedbackStream({
+    required String managerId,
+    String? managerName,
+    int limit = 200,
+  }) {
+    if (_nudgeFeedbackStream != null && _nudgeFeedbackStreamUserId == managerId) {
+      return;
+    }
+    _nudgeFeedbackStreamUserId = managerId;
+    _nudgeFeedbackStream = ManagerRealtimeService.getNudgeFeedbackStream(
+      managerId: managerId,
+      managerName: managerName,
+      limit: limit,
+    );
   }
 
   void _showGoalReviewSheet(Alert alert) {
@@ -143,14 +200,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('goals')
-                    .doc(goalId)
-                    .snapshots()
-                    .handleError((error) {
-                      // Silently handle errors to prevent unmount errors
-                      developer.log('Error in goal stream: $error');
-                    }),
+                stream: FirestoreSafe.stream(
+                  FirebaseFirestore.instance
+                      .collection('goals')
+                      .doc(goalId)
+                      .snapshots(),
+                ),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && snap.data!.exists) {
@@ -791,14 +846,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               }
 
               if (_typeFilter == 'nudge') {
+                _ensureNudgeFeedbackStream(
+                  managerId: user.uid,
+                  managerName: user.displayName,
+                  limit: 200,
+                );
                 return StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: ManagerRealtimeService.getNudgeFeedbackStream(
-                    managerId: user.uid,
-                    managerName: user.displayName,
-                    limit: 200,
-                  ),
+                  stream: _nudgeFeedbackStream,
+                  initialData: _lastNudgeFeedbackMaps,
                   builder: (context, fbSnap) {
-                    final feedbackMaps = fbSnap.data ?? const <Map<String, dynamic>>[];
+                    final feedbackMaps =
+                        fbSnap.data ?? const <Map<String, dynamic>>[];
+                    if (fbSnap.hasData) {
+                      // Cache last good value so we don't flash empty UI during
+                      // transient reconnects / stream resubscriptions.
+                      _lastNudgeFeedbackMaps = feedbackMaps;
+                    }
                     final rawFeedback = feedbackMaps
                         .map(_NudgeFeedback.fromMap)
                         .toList();
@@ -808,13 +871,28 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
                       final mid = meta['managerId']?.toString();
-                      final mname = meta['managerName']?.toString().toLowerCase().trim();
-                      final matchesId = mid != null && mid == user.uid;
-                      final matchesName = managerNameLower.isNotEmpty &&
+                      final mname = (meta['managerNameLower'] ??
+                              meta['managerName'])
+                          ?.toString()
+                          .toLowerCase()
+                          .trim();
+                      
+                      // Match by manager ID if available
+                      if (mid != null && mid.isNotEmpty) {
+                        return mid == user.uid;
+                      }
+                      
+                      // Match by manager name if available
+                      if (managerNameLower.isNotEmpty &&
                           mname != null &&
-                          mname == managerNameLower;
-                      return matchesId || matchesName;
+                          mname.isNotEmpty) {
+                        return mname == managerNameLower;
+                      }
+                      
+                      // If no manager metadata, exclude to avoid showing other managers' reactions
+                      return false;
                     }).toList();
+                    _prefetchEmployeeNames(feedback);
 
                     final hPad = AppSpacing.screenPadding.left;
                     final widgets = <Widget>[];
@@ -1243,9 +1321,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     final chipLabel = isReaction ? 'Reaction' : 'Reply';
     final chipColor =
         isReaction ? AppColors.infoColor : AppColors.activeColor;
-    final title = fb.employeeName?.isNotEmpty == true
-        ? fb.employeeName!
-        : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}';
+    final cachedName = _employeeNameCache[fb.employeeId]?.trim() ?? '';
+    final resolvedName = fb.employeeName?.trim();
+    final title = (resolvedName?.isNotEmpty == true)
+        ? resolvedName!
+        : (cachedName.isNotEmpty
+            ? cachedName
+            : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}');
     final message = isReaction
         ? fb.reaction ?? 'Reaction'
         : fb.response ?? 'Response';

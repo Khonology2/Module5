@@ -1,15 +1,17 @@
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_ai/firebase_ai.dart';
-import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
+import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 
 enum LeaderboardFilter {
   thisMonth,
@@ -39,7 +41,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     with SingleTickerProviderStateMixin {
   // Initialize with concrete values to prevent initialization errors
   final Set<LeaderboardFilter> _selectedFilters = <LeaderboardFilter>{
-    LeaderboardFilter.thisMonth,
+    // Default to all-time because totalPoints is authoritative across the app.
+    // Monthly points rely on `metrics.points.daily`, which may not be updated by all point-awarding flows.
+    LeaderboardFilter.allTime,
     LeaderboardFilter.points,
   };
   LeaderboardMetric _currentMetric = LeaderboardMetric.points;
@@ -47,6 +51,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   late final AnimationController _topHoverController;
   bool _isTopHovered = false;
   List<Map<String, dynamic>> _lastLeaderboardData = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedUserDocs = const [];
+  bool _hasFetchedUsers = false;
+  Future<void>? _fetchUsersFuture;
+  List<Map<String, dynamic>> _cachedOnboardingUsers = const [];
+  bool _hasFetchedOnboarding = false;
+  Future<void>? _fetchOnboardingFuture;
 
   @override
   void initState() {
@@ -74,6 +84,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         if (mounted) {
           setState(() {
             _currentUser = userProfile;
+            // Department-based queries depend on current user; refetch when profile arrives.
+            _hasFetchedUsers = false;
+            _fetchUsersFuture = null;
           });
         }
       } catch (e) {
@@ -101,6 +114,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         }
         _selectedFilters.add(filter);
       }
+
+      // Only the team filter affects the Firestore query; refetch docs when toggled.
+      if (filter == LeaderboardFilter.myTeam) {
+        _hasFetchedUsers = false;
+        _fetchUsersFuture = null;
+      }
     });
   }
 
@@ -112,13 +131,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   // Removed unused _getOrderByField to satisfy linter
 
-  Query<Map<String, dynamic>> _buildQuery({String? userRole}) {
+  Query<Map<String, dynamic>> _buildQuery() {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(
       'users',
     );
 
-    // ALWAYS filter to only show employees (not managers) - leaderboard is for employees only
-    query = query.where('role', isEqualTo: 'employee');
+    // NOTE: We intentionally do NOT filter by `role` at the query level.
+    // Some user docs may be missing the `role` field; we treat missing role as "employee"
+    // and filter to employees in-memory during processing.
 
     // Apply team filter if selected
     if (_selectedFilters.contains(LeaderboardFilter.myTeam) &&
@@ -133,12 +153,64 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     return query.limit(10000);
   }
 
+  Future<void> _ensureUsersFetched({bool force = false}) {
+    // Avoid repeated network reads on rebuild/animation.
+    if (!force && _hasFetchedUsers) {
+      return Future.value();
+    }
+    final existing = _fetchUsersFuture;
+    if (!force && existing != null) return existing;
+
+    final fut = () async {
+      try {
+        final snap = await FirestoreSafe.getQuery(_buildQuery());
+        _cachedUserDocs = snap.docs;
+        _hasFetchedUsers = true;
+      } catch (e) {
+        developer.log('Leaderboard fetch users failed: $e');
+        // Keep previous cached docs if any
+      }
+    }();
+
+    _fetchUsersFuture = fut;
+    return fut;
+  }
+
+  Future<void> _ensureOnboardingFetched({bool force = false}) {
+    if (!force && _hasFetchedOnboarding) {
+      return Future.value();
+    }
+    final existing = _fetchOnboardingFuture;
+    if (!force && existing != null) return existing;
+
+    final fut = () async {
+      try {
+        _cachedOnboardingUsers = await _fetchOnboardingUsers();
+        _hasFetchedOnboarding = true;
+      } catch (e) {
+        developer.log('Leaderboard fetch onboarding failed: $e');
+      }
+    }();
+
+    _fetchOnboardingFuture = fut;
+    return fut;
+  }
+
+  Future<List<Map<String, dynamic>>> _computeLeaderboardFromCache() async {
+    await _ensureOnboardingFetched();
+    final onboardingDocs = _cachedOnboardingUsers.map((userData) {
+      return _OnboardingUserDoc(userData);
+    }).toList();
+    final allDocs = <dynamic>[..._cachedUserDocs, ...onboardingDocs];
+    return _processLeaderboardData(allDocs);
+  }
+
   /// Fetch onboarding users and convert them to a list of maps compatible with user format
   Future<List<Map<String, dynamic>>> _fetchOnboardingUsers() async {
     try {
-      final onboardingSnapshot = await FirebaseFirestore.instance
-          .collection('onboarding')
-          .get();
+      final onboardingSnapshot = await FirestoreSafe.getQuery(
+        FirebaseFirestore.instance.collection('onboarding'),
+      );
 
       // Filter onboarding users to only include those with 'employee' persona for PDH
       final employeeOnboardingUsers = onboardingSnapshot.docs.where((doc) {
@@ -213,23 +285,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     }
   }
 
-  Future<List<Map<String, dynamic>>> _processLeaderboardDataWithOnboarding(
-    List<QueryDocumentSnapshot> docs, {
-    String? userRole,
-  }) async {
-    // Fetch onboarding users
-    final onboardingUsers = await _fetchOnboardingUsers();
+  int _coerceInt(dynamic value, [int fallback = 0]) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value == null) return fallback;
+    return int.tryParse(value.toString()) ?? fallback;
+  }
 
-    // Convert onboarding users to a format that can be processed like regular docs
-    final onboardingDocs = onboardingUsers.map((userData) {
-      // Create a mock document-like structure
-      return _OnboardingUserDoc(userData);
-    }).toList();
-
-    // Combine regular docs with onboarding docs
-    final allDocs = <dynamic>[...docs, ...onboardingDocs];
-
-    return _processLeaderboardData(allDocs, userRole: userRole);
+  num _coerceNum(dynamic value, [num fallback = 0]) {
+    if (value is num) return value;
+    if (value == null) return fallback;
+    return num.tryParse(value.toString()) ?? fallback;
   }
 
   Future<List<Map<String, dynamic>>> _processLeaderboardData(
@@ -282,24 +348,18 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
           if (data != null) {
             // ALWAYS exclude managers from leaderboard
-            final role = data['role']?.toString() ?? 'employee';
+            var role = (data['role'] ?? 'employee').toString().trim();
+            role = role.isEmpty ? 'employee' : role.toLowerCase();
             if (role != 'employee') {
               return false; // Exclude managers and any other non-employee roles
             }
 
-            // Check opt-in status (onboarding users don't have opt-in, so include them)
+            // Show all employees EXCEPT those who did not opt in
+            // (support both new + legacy fields)
             final optIn = data['leaderboardOptin'];
             final legacyOptIn = data['leaderboardParticipation'];
-            final fromOnboarding = data['fromOnboarding'] == true;
-
-            // Managers can see all employees regardless of opt-in, employees only see opted-in
-            // Onboarding users are always included
-            if (isManager || fromOnboarding) {
-              return true; // Managers see all employees, onboarding users always visible
-            } else {
-              return optIn == true ||
-                  legacyOptIn == true; // Employees only see opted-in
-            }
+            // Only show users who opted in to the leaderboard (for both employees and managers)
+            return optIn == true || legacyOptIn == true;
           }
           return false;
         } catch (e) {
@@ -345,18 +405,24 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             badgeCount = badgesField.length;
           } else if (badgesField is num) {
             badgeCount = badgesField.toInt();
+          } else if (badgesField is String) {
+            badgeCount = int.tryParse(badgesField) ?? 0;
           }
 
           if (badgeCount == 0) {
             final earnedBadgesCount = data['earnedBadgesCount'];
             if (earnedBadgesCount is num) {
               badgeCount = earnedBadgesCount.toInt();
+            } else if (earnedBadgesCount is String) {
+              badgeCount = int.tryParse(earnedBadgesCount) ?? 0;
             } else {
               final badgeSummary = data['badgeSummary'];
               if (badgeSummary is Map<String, dynamic>) {
                 final earned = badgeSummary['earned'];
                 if (earned is num) {
                   badgeCount = earned.toInt();
+                } else if (earned is String) {
+                  badgeCount = int.tryParse(earned) ?? 0;
                 }
               }
             }
@@ -372,13 +438,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Calculate points based on time filter
         num points = 0;
         if (useThisMonth) {
+          // Monthly points require metrics.points.daily to be present.
+          // If not present (or not used by some point-award flows), fall back to 0 for month view.
           points = _calculateMonthlyPoints(data);
         } else {
           // All time - use totalPoints
           try {
-            if (data['totalPoints'] is num) {
-              points = data['totalPoints'] as num;
-            }
+            points = _coerceNum(data['totalPoints'], 0);
           } catch (e) {
             developer.log('Error processing points for user $docId: $e');
           }
@@ -386,9 +452,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
         num level = 1;
         try {
-          if (data['level'] is num) {
-            level = data['level'] as num;
-          }
+          level = _coerceNum(data['level'], 1);
         } catch (e) {
           developer.log('Error processing level for user $docId: $e');
         }
@@ -397,16 +461,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         int currentStreak = 0;
         int longestStreak = 0;
         try {
-          currentStreak = (data['currentStreak'] is num)
-              ? (data['currentStreak'] as num).toInt()
-              : (data['currentStreak'] is int
-                    ? data['currentStreak'] as int
-                    : 0);
-          longestStreak = (data['longestStreak'] is num)
-              ? (data['longestStreak'] as num).toInt()
-              : (data['longestStreak'] is int
-                    ? data['longestStreak'] as int
-                    : 0);
+          currentStreak = _coerceInt(data['currentStreak'], 0);
+          longestStreak = _coerceInt(data['longestStreak'], 0);
         } catch (e) {
           developer.log('Error processing streaks for user $docId: $e');
         }
@@ -419,9 +475,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
         return {
           'userId': docId,
-          'name': displayName,
-          'points': points,
-          'level': level,
+          'name': data['displayName']?.toString() ?? 'Anonymous',
+          // Use ints for display consistency.
+          'points': _coerceInt(points, 0),
+          'level': _coerceInt(level, 1),
           'badges': badgeCount,
           'currentStreak': currentStreak,
           'longestStreak': longestStreak,
@@ -529,122 +586,144 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    // If Firestore Web entered an unrecoverable internal state, don't keep subscribing.
+    if (kIsWeb && FirestoreWebCircuitBreaker.isBroken) {
+      return _buildFirestoreBrokenState();
+    }
+
+    final isManager = _currentUser?.role == 'manager';
+
     // Render as a plain widget so it works inside MainLayout
     return Container(
       color: Colors.transparent,
-      child: StreamBuilder<String?>(
-        stream: RoleService.instance.roleStream(),
-        builder: (context, roleSnapshot) {
-          final role =
-              roleSnapshot.data ??
-              RoleService.instance.cachedRole ??
-              'employee';
+      child: FutureBuilder<void>(
+        future: _ensureUsersFetched(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return _buildErrorState();
+          }
 
-          final isManager = role == 'manager';
+          return FutureBuilder<List<Map<String, dynamic>>>(
+            future: () async {
+              try {
+                if (_cachedUserDocs.isNotEmpty) {
+                  return await _computeLeaderboardFromCache();
+                }
+                return _lastLeaderboardData;
+              } catch (e) {
+                developer.log('Error processing leaderboard data: $e');
+                return _lastLeaderboardData;
+              }
+            }(),
+            builder: (context, dataSnapshot) {
+              List<Map<String, dynamic>> leaderboardData;
+              if (dataSnapshot.hasData) {
+                leaderboardData = dataSnapshot.data!;
+                _lastLeaderboardData = leaderboardData;
+              } else if (dataSnapshot.hasError) {
+                return _buildErrorState();
+              } else {
+                leaderboardData = _lastLeaderboardData;
+              }
 
-          return StreamBuilder<QuerySnapshot>(
-            stream: _buildQuery(userRole: role).snapshots().handleError((
-              error,
-            ) {
-              // Silently handle errors to prevent unmount errors
-              developer.log('Error in leaderboard stream: $error');
-            }),
-            builder:
-                (context, AsyncSnapshot<QuerySnapshot> leaderboardSnapshot) {
-                  if (leaderboardSnapshot.hasError) {
-                    developer.log(
-                      'Leaderboard error: ${leaderboardSnapshot.error}',
-                    );
-                    developer.log(
-                      'Error details: ${leaderboardSnapshot.error.toString()}',
-                    );
-                    return _buildErrorState();
-                  }
-
-                  return FutureBuilder<List<Map<String, dynamic>>>(
-                    future: () async {
-                      try {
-                        final docs = leaderboardSnapshot.hasData
-                            ? leaderboardSnapshot.data!.docs.toList()
-                            : const <QueryDocumentSnapshot>[];
-                        if (docs.isNotEmpty) {
-                          final data = await _processLeaderboardDataWithOnboarding(
-                            docs,
-                            userRole: role,
-                          );
-                          _lastLeaderboardData = data;
-                          return data;
-                        } else {
-                          return _lastLeaderboardData;
-                        }
-                      } catch (e) {
-                        developer.log('Error processing leaderboard data: $e');
-                        return _lastLeaderboardData;
-                      }
-                    }(),
-                    builder: (context, snapshot) {
-                      List<Map<String, dynamic>> leaderboardData;
-                      if (snapshot.hasData) {
-                        leaderboardData = snapshot.data!;
-                        _lastLeaderboardData = leaderboardData;
-                      } else if (snapshot.hasError) {
-                        developer.log(
-                          'Error in FutureBuilder: ${snapshot.error}',
-                        );
-                        return _buildErrorState();
-                      } else {
-                        leaderboardData = _lastLeaderboardData;
-                      }
-
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.activeColor,
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await _ensureUsersFetched(force: true);
+                  await _ensureOnboardingFetched(force: true);
+                  if (mounted) setState(() {});
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: _buildHeader()),
+                          const SizedBox(width: 12),
+                          IconButton(
+                            tooltip: 'Refresh',
+                            onPressed: () async {
+                              await _ensureUsersFetched(force: true);
+                              await _ensureOnboardingFetched(force: true);
+                              if (mounted) setState(() {});
+                            },
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                        );
-                      }
-
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(
-                          24.0,
-                          32.0,
-                          24.0,
-                          24.0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildHeader(),
-                            const SizedBox(height: 20),
-                            _buildFiltersBar(isManager: isManager),
-                            const SizedBox(height: 16),
-                            leaderboardData.isEmpty
-                                ? _buildEmptyState()
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildPodium(leaderboardData),
-                                      const SizedBox(height: 20),
-                                      _buildLeaderList(
-                                        leaderboardData,
-                                        isManager: isManager,
-                                      ),
-                                    ],
-                                  ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _buildFiltersBar(isManager: isManager),
+                      const SizedBox(height: 16),
+                      leaderboardData.isEmpty
+                          ? _buildEmptyState()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildPodium(leaderboardData),
+                                const SizedBox(height: 20),
+                                _buildLeaderList(
+                                  leaderboardData,
+                                  isManager: isManager,
+                                ),
+                              ],
+                            ),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildFirestoreBrokenState() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.refresh, color: AppColors.warningColor, size: 40),
+            const SizedBox(height: 12),
+            const Text(
+              'Live data temporarily unavailable',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'A Firestore web issue was detected. Please reload the page to recover.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: FirestoreWebCircuitBreaker.forceReload,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reload'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.activeColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -674,6 +753,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 child: Image.asset(
                   'assets/Internet_Web_Browser/Live.png', // Corrected asset path
                   fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
                 ),
               ), // Replaced Icon with Image.asset
               const SizedBox(width: 8),
@@ -1028,12 +1109,16 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
   }) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final bool showTopPerformersSection = !isManager;
+
+    // Podium already shows top 3; avoid duplicating them in lists below.
     final List<Map<String, dynamic>> topPerformers = showTopPerformersSection
-        ? leaderboardData.take(5).toList()
+        ? leaderboardData.skip(3).take(5).toList()
         : const [];
+
     final int alreadyShownCount = showTopPerformersSection
-        ? topPerformers.length
+        ? (3 + topPerformers.length)
         : 3;
+
     final remainingUsers = leaderboardData.skip(alreadyShownCount).toList();
 
     return Column(
@@ -1114,7 +1199,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       return {};
     }
 
-    final bool isManager = _currentUser!.role == 'manager';
+    final bool isManager = _currentUser!.role.trim().toLowerCase() == 'manager';
     final bool optedIn = _currentUser!.leaderboardOptin;
     if (!isManager && !optedIn) {
       // Employees who opted out shouldn't be surfaced anywhere on the leaderboard
@@ -1268,8 +1353,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Process_Flows_Automation/Points.png',
+                          'assets/Process_Flows_Automation/Points.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1281,8 +1368,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Business_Growth_Development/Growth_Development_Red.png',
+                          'assets/Business_Growth_Development/Growth_Development_Red.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1294,8 +1383,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         width: 12,
                         height: 12,
                         child: Image.asset(
-                          'Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
+                          'assets/Goal_Target/Goal_Target_White_Badge_Red_Badge_White.png',
                           fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                         ),
                       ),
                     ),
@@ -1309,8 +1400,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                           width: 12,
                           height: 12,
                           child: Image.asset(
-                            'Office_Workplace/Offices.png',
+                          'assets/Office_Workplace/Offices.png',
                             fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
                           ),
                         ),
                       ),

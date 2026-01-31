@@ -7,6 +7,7 @@ import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/season_service.dart';
@@ -55,6 +56,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
+
+    // Sync manager season points from season metrics into the manager's user doc.
+    // This is required because employee milestone updates cannot write to the manager's user doc.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
+    // Sync manager season badges earned (tracked on seasons) into the manager's badges collection.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
 
     // Check if tutorial should be shown
     Future.delayed(const Duration(milliseconds: 1500), () {
@@ -488,8 +495,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
               const SizedBox(height: AppSpacing.lg),
-              _buildAssignedEmployees(),
-              const SizedBox(height: AppSpacing.lg),
+              const Align(alignment: Alignment.center, child: VersionBadge()),
+              const SizedBox(height: AppSpacing.xxl),
             ],
           );
         },
@@ -547,7 +554,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 fit: BoxFit.cover,
               ),
             ),
-          child: content,
+            child: content,
+          ),
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: SafeArea(left: true, bottom: true, child: VersionBadge()),
           ),
         ],
       ),
@@ -732,20 +744,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   Stream<UserProfile?> _getManagerProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
-          if (!doc.exists) return null;
-          final profile = UserProfile.fromFirestore(doc);
-          _currentProfilePhotoUrl =
-              (profile.profilePhotoUrl != null &&
-                  profile.profilePhotoUrl!.isNotEmpty)
-              ? profile.profilePhotoUrl
-              : null;
-          return profile;
-        });
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
+      if (!doc.exists) return null;
+      final profile = UserProfile.fromFirestore(doc);
+      _currentProfilePhotoUrl =
+          (profile.profilePhotoUrl != null &&
+              profile.profilePhotoUrl!.isNotEmpty)
+          ? profile.profilePhotoUrl
+          : null;
+      return profile;
+    });
   }
 
   String _resolveManagerName() {
@@ -1368,6 +1378,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  // Check-in functionality removed
   Widget _buildSeasonProgressAlerts() {
     return _card(
       child: Column(

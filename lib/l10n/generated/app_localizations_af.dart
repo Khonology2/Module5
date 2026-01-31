@@ -30,7 +30,7 @@ class AppLocalizationsAf extends AppLocalizations {
   String get save => 'Stoor';
 
   @override
-  String get delete => 'Vee uit';
+  String get delete => 'Delete';
 
   @override
   String get create => 'Skep';
@@ -51,7 +51,7 @@ class AppLocalizationsAf extends AppLocalizations {
   String get sign_out => 'Meld af';
 
   @override
-  String get delete_account => 'Skrap rekening';
+  String get delete_account => 'Delete Account';
 
   @override
   String get export_my_data => 'Voer my data uit';
@@ -268,7 +268,7 @@ class AppLocalizationsAf extends AppLocalizations {
   String get season_details_recompute => 'Herbereken';
 
   @override
-  String get season_details_delete_season => 'Skrap seisoen';
+  String get season_details_delete_season => 'Delete Season';
 
   @override
   String get season_details_force_complete_title => 'Voltooi seisoen forto?';
@@ -283,10 +283,10 @@ class AppLocalizationsAf extends AppLocalizations {
   String get season_details_complete_confirm => 'Voltooi';
 
   @override
-  String get season_details_delete_title => 'Skrap seisoen?';
+  String get season_details_delete_title => 'Delete Season?';
 
   @override
-  String get season_details_delete_confirm => 'Skrap';
+  String get season_details_delete_confirm => 'Delete';
 
   @override
   String get season_goal_completion_title => 'Voltooi Seisoendoelwit';
@@ -348,14 +348,14 @@ class AppLocalizationsAf extends AppLocalizations {
   }
 
   @override
-  String get goal_delete_title => 'Skrap Doelwit';
+  String get goal_delete_title => 'Delete Goal';
 
   @override
-  String get goal_deleted => 'Doelwit geskrap';
+  String get goal_deleted => 'Goal deleted';
 
   @override
   String goal_delete_error(Object error) {
-    return 'Kon nie doelwit skrap nie: $error';
+    return 'Failed to delete goal: $error';
   }
 
   @override
@@ -437,18 +437,18 @@ class AppLocalizationsAf extends AppLocalizations {
   }
 
   @override
-  String get goal_milestone_delete_title => 'Skrap Mylpaal';
+  String get goal_milestone_delete_title => 'Delete Milestone';
 
   @override
   String get goal_milestone_delete_confirm_text =>
-      'Verwyder hierdie mylpaal van die doelwit?';
+      'Remove this milestone from the goal?';
 
   @override
-  String get goal_milestone_deleted => 'Mylpaal geskrap.';
+  String get goal_milestone_deleted => 'Milestone deleted.';
 
   @override
   String goal_milestone_delete_error(Object error) {
-    return 'Kon nie mylpaal skrap nie: $error';
+    return 'Failed to delete milestone: $error';
   }
 
   @override

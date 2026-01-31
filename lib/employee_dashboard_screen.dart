@@ -24,6 +24,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/employee_sidebar_tutorial.dart';
 import 'package:pdh/widgets/profile_completion_banner.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class EmployeeDashboardScreen extends StatefulWidget {
   const EmployeeDashboardScreen({super.key});
@@ -40,6 +41,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   String? error;
   int currentStreak = 0;
   bool hasActivityToday = false;
+  Future<String?>? _onboardingNameFuture;
 
   // Hover states for the six KPI cards
   bool _isHoveringActiveGoals = false;
@@ -71,6 +73,15 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
     // Check if tutorial should be shown
     _checkTutorial();
+
+    // Cache onboarding name lookups to avoid repeated Firestore reads on rebuilds (esp. on web).
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser != null) {
+      _onboardingNameFuture = DatabaseService.getUserNameFromOnboarding(
+        userId: authUser.uid,
+        email: authUser.email,
+      );
+    }
   }
 
   @override
@@ -453,52 +464,43 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
   Stream<UserProfile?> _getUserProfileStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in getUserProfileStream: $error');
-        })
-        .map((doc) {
-          if (!doc.exists) return null;
-          return UserProfile.fromFirestore(doc);
-        });
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
+      if (!doc.exists) return null;
+      return UserProfile.fromFirestore(doc);
+    });
   }
 
   Stream<List<Goal>> _getUserGoalsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
-    return FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          developer.log('Error in getUserGoalsStream: $error');
-        })
-        .map((snapshot) {
-          final goals = snapshot.docs
-              .map((doc) => Goal.fromFirestore(doc))
-              .toList();
-          // Removed in-memory sort - using Firestore orderBy instead
-          return goals;
-        });
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+    ).map((snapshot) {
+      final goals = snapshot.docs
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
+      // Removed in-memory sort - using Firestore orderBy instead
+      return goals;
+    });
   }
 
   Stream<int> _getEarnedBadgesCountStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(0);
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('badges')
-        .where('isEarned', isEqualTo: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length)
-        .handleError((_) => 0);
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('badges')
+          .where('isEarned', isEqualTo: true)
+          .snapshots(),
+    ).map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length);
   }
 
   String _getTimeBasedGreeting() {
@@ -714,10 +716,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     // Try to get name from onboarding collection first, then fallback to other sources
     if (user != null) {
       return FutureBuilder<String?>(
-        future: DatabaseService.getUserNameFromOnboarding(
-          userId: user.uid,
-          email: user.email,
-        ),
+        future:
+            _onboardingNameFuture ??
+            DatabaseService.getUserNameFromOnboarding(
+              userId: user.uid,
+              email: user.email,
+            ),
         builder: (context, snapshot) {
           // Determine userName with priority: onboarding fullName > userProfile > Firebase Auth > email
           if (snapshot.hasData &&
@@ -1156,6 +1160,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   iconColor = AppColors.successColor;
                   actionText = 'Completed';
                   break;
+                case GoalStatus.acknowledged:
+                  iconColor = AppColors.successColor;
+                  actionText = 'Acknowledged';
+                  break;
                 case GoalStatus.inProgress:
                   iconColor = AppColors.activeColor;
                   actionText = 'Started working on';
@@ -1446,10 +1454,11 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     final user = FirebaseAuth.instance.currentUser;
     return FutureBuilder<String?>(
       future: user != null
-          ? DatabaseService.getUserNameFromOnboarding(
-              userId: user.uid,
-              email: user.email,
-            )
+          ? (_onboardingNameFuture ??
+                DatabaseService.getUserNameFromOnboarding(
+                  userId: user.uid,
+                  email: user.email,
+                ))
           : Future.value(null),
       builder: (context, nameSnapshot) {
         String userName = 'User';

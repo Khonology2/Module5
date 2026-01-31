@@ -1,8 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
+import 'package:pdh/services/audit_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
@@ -19,6 +21,241 @@ class _ManagerReviewTeamDashboardScreenState
     extends State<ManagerReviewTeamDashboardScreen> {
   final TimeFilter _selectedTimeFilter = TimeFilter.month;
   String? _selectedDepartment;
+
+  late Stream<List<EmployeeData>> _employeesStream;
+  List<EmployeeData> _lastEmployees = const [];
+
+  final TextEditingController _employeeSearchController =
+      TextEditingController();
+  Timer? _employeeSearchDebounce;
+  String _employeeSearchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _rebuildStreams();
+  }
+
+  void _rebuildStreams() {
+    // IMPORTANT: keep the stream instance stable.
+    // Creating new streams during build (especially inside nested StreamBuilders)
+    // causes unsubscribe/resubscribe flicker where employees "show then disappear".
+    _employeesStream = ManagerRealtimeService.getTeamDataStream(
+      department: _selectedDepartment,
+      timeFilter: _selectedTimeFilter,
+    );
+  }
+
+  @override
+  void dispose() {
+    _employeeSearchDebounce?.cancel();
+    _employeeSearchController.dispose();
+    super.dispose();
+  }
+
+  void _onEmployeeSearchChanged(String raw) {
+    // Rebuild immediately to keep suffix icon (clear button) in sync with input.
+    if (mounted) setState(() {});
+
+    _employeeSearchDebounce?.cancel();
+    _employeeSearchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() {
+        _employeeSearchQuery = raw.trim().toLowerCase();
+      });
+    });
+  }
+
+  List<EmployeeData> _filterEmployees(List<EmployeeData> employees) {
+    final q = _employeeSearchQuery.trim();
+    if (q.isEmpty) return employees;
+
+    final terms = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (terms.isEmpty) return employees;
+
+    return employees.where((e) {
+      final name = e.profile.displayName.toLowerCase();
+      final email = e.profile.email.toLowerCase();
+      final haystack = '$name $email';
+      return terms.every(haystack.contains);
+    }).toList();
+  }
+
+  List<TeamInsight> _computeInsights(List<EmployeeData> employees) {
+    final insights = <TeamInsight>[];
+    final now = DateTime.now();
+
+    for (final employee in employees) {
+      if (employee.overdueGoalsCount > 0) {
+        insights.add(
+          TeamInsight(
+            title: 'Overdue Goals Detected',
+            description:
+                '${employee.profile.displayName} has ${employee.overdueGoalsCount} overdue goal${employee.overdueGoalsCount > 1 ? 's' : ''}.',
+            employeeName: employee.profile.displayName,
+            actionRequired:
+                'Schedule 1:1 meeting to discuss blockers and provide support',
+            priority: InsightPriority.urgent,
+            createdAt: now,
+          ),
+        );
+      }
+
+      if (employee.avgProgress < 30 && employee.goals.isNotEmpty) {
+        insights.add(
+          TeamInsight(
+            title: 'Low Progress Alert',
+            description:
+                '${employee.profile.displayName} has average goal progress of ${employee.avgProgress.toStringAsFixed(1)}%.',
+            employeeName: employee.profile.displayName,
+            actionRequired:
+                'Send motivational nudge or offer additional resources',
+            priority: InsightPriority.high,
+            createdAt: now,
+          ),
+        );
+      }
+
+      final daysSinceActivity = now.difference(employee.lastActivity).inDays;
+      if (daysSinceActivity > 7) {
+        insights.add(
+          TeamInsight(
+            title: 'Employee Inactive',
+            description:
+                '${employee.profile.displayName} has been inactive for $daysSinceActivity days.',
+            employeeName: employee.profile.displayName,
+            actionRequired: 'Reach out to check on engagement and well-being',
+            priority: InsightPriority.medium,
+            createdAt: now,
+          ),
+        );
+      }
+
+      if (employee.avgProgress > 80 && employee.completedGoalsCount > 2) {
+        insights.add(
+          TeamInsight(
+            title: 'High Performer',
+            description:
+                '${employee.profile.displayName} is excelling with ${employee.avgProgress.toStringAsFixed(1)}% average progress.',
+            employeeName: employee.profile.displayName,
+            actionRequired: 'Consider offering stretch goals or recognition',
+            priority: InsightPriority.low,
+            createdAt: now,
+          ),
+        );
+      }
+    }
+
+    insights.sort((a, b) {
+      final priorityOrder = {
+        InsightPriority.urgent: 0,
+        InsightPriority.high: 1,
+        InsightPriority.medium: 2,
+        InsightPriority.low: 3,
+      };
+      return priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+    });
+
+    return insights.take(10).toList();
+  }
+
+  Widget _buildEmployeeSearchBar({
+    required int totalCount,
+    required int filteredCount,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _employeeSearchController,
+            onChanged: _onEmployeeSearchChanged,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search employees by name or email...',
+              hintStyle: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: AppColors.textSecondary,
+              ),
+              suffixIcon: _employeeSearchController.text.trim().isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear',
+                      icon: const Icon(Icons.close),
+                      color: AppColors.textSecondary,
+                      onPressed: () {
+                        _employeeSearchController.clear();
+                        _employeeSearchDebounce?.cancel();
+                        setState(() {
+                          _employeeSearchQuery = '';
+                        });
+                      },
+                    ),
+              filled: true,
+              fillColor: Colors.black.withValues(alpha: 0.25),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.activeColor),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 12,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            filteredCount == totalCount
+                ? '$totalCount employee${totalCount == 1 ? '' : 's'}'
+                : '$filteredCount of $totalCount employees',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoSearchResults() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: const Center(
+        child: Text(
+          'No employees match your search.',
+          style: TextStyle(color: Colors.white70),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
@@ -111,68 +348,74 @@ class _ManagerReviewTeamDashboardScreenState
                       horizontalPadding,
                       16.0,
                     ),
-                    child: StreamBuilder<TeamMetrics>(
-                      stream: ManagerRealtimeService.getTeamMetricsStream(
-                        department: _selectedDepartment,
-                        timeFilter: _selectedTimeFilter,
-                      ),
-                      builder: (context, metricsSnapshot) {
-                        return StreamBuilder<List<EmployeeData>>(
-                          stream: ManagerRealtimeService.getTeamDataStream(
-                            department: _selectedDepartment,
-                            timeFilter: _selectedTimeFilter,
-                          ),
-                          builder: (context, employeesSnapshot) {
-                            if (employeesSnapshot.hasError) {}
-                            if (employeesSnapshot.hasData) {}
+                    child: StreamBuilder<List<EmployeeData>>(
+                      stream: _employeesStream,
+                      builder: (context, employeesSnapshot) {
+                        final incoming = employeesSnapshot.data;
+                        final hasPlaceholderBatch =
+                            incoming != null &&
+                            incoming.isNotEmpty &&
+                            incoming.every((e) => e.isPlaceholder);
 
-                            return StreamBuilder<List<TeamInsight>>(
-                              stream:
-                                  ManagerRealtimeService.getTeamInsightsStream(
-                                    department: _selectedDepartment,
-                                    timeFilter: _selectedTimeFilter,
-                                  ),
-                              builder: (context, insightsSnapshot) {
-                                if (insightsSnapshot.hasError) {}
-                                if (insightsSnapshot.hasData) {}
+                        // Keep last known-good list so the UI doesn't "flash empty"
+                        // when the stream re-emits (or rebuilds) during first entry.
+                        //
+                        // Also: ignore the initial placeholder emission (employees with
+                        // empty goals/metrics) and wait for the enriched payload.
+                        if (employeesSnapshot.hasData &&
+                            (employeesSnapshot.data?.isNotEmpty ?? false) &&
+                            !hasPlaceholderBatch) {
+                          _lastEmployees = employeesSnapshot.data!;
+                        }
 
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildHeader(),
-                                    const SizedBox(height: 20),
+                        if (employeesSnapshot.hasError &&
+                            _lastEmployees.isEmpty) {
+                          return _buildErrorState(employeesSnapshot.error!);
+                        }
 
-                                    if (employeesSnapshot.hasData &&
-                                        employeesSnapshot.data!.isNotEmpty)
-                                      _buildRealTimeEmployeeList(
-                                        employeesSnapshot.data!,
-                                      )
-                                    else if (employeesSnapshot.hasData &&
-                                        employeesSnapshot.data!.isEmpty)
-                                      _buildEmptyState()
-                                    else if (employeesSnapshot.hasError)
-                                      _buildErrorState(employeesSnapshot.error!)
-                                    else
-                                      _buildLoadingState(),
+                        // If we only have placeholders and no enriched cache yet,
+                        // still show employees immediately (for "Last active"),
+                        // but render goal/metrics sections as "Loading..." in each card.
+                        final employees = hasPlaceholderBatch
+                            ? incoming
+                            : (employeesSnapshot.data ?? _lastEmployees);
 
-                                    const SizedBox(height: 20),
-                                    if (insightsSnapshot.hasData)
-                                      _buildAIManagerInsights(
-                                        insightsSnapshot.data!,
-                                      )
-                                    else if (insightsSnapshot.hasError)
-                                      _buildErrorInsights(
-                                        insightsSnapshot.error!,
-                                      )
-                                    else
-                                      _buildLoadingInsights(),
+                        if (employees.isEmpty) {
+                          if (employeesSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return _buildLoadingState();
+                          }
+                          return _buildEmptyState();
+                        }
 
-                                    const SizedBox(height: 24),
-                                  ],
-                                );
-                              },
-                            );
-                          },
+                        final insights =
+                            hasPlaceholderBatch ? const <TeamInsight>[] : _computeInsights(employees);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeader(),
+                            const SizedBox(height: 20),
+
+                            _buildEmployeeSearchBar(
+                              totalCount: employees.length,
+                              filteredCount: _filterEmployees(employees).length,
+                            ),
+                            const SizedBox(height: 12),
+                            if (_filterEmployees(employees).isNotEmpty)
+                              _buildRealTimeEmployeeList(
+                                _filterEmployees(employees),
+                              )
+                            else
+                              _buildNoSearchResults(),
+
+                            const SizedBox(height: 20),
+                            _buildAIManagerInsights(
+                              insights,
+                              isLoading: hasPlaceholderBatch,
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         );
                       },
                     ),
@@ -190,7 +433,10 @@ class _ManagerReviewTeamDashboardScreenState
     return const SizedBox.shrink();
   }
 
-  Widget _buildAIManagerInsights(List<TeamInsight> insights) {
+  Widget _buildAIManagerInsights(
+    List<TeamInsight> insights, {
+    bool isLoading = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -216,7 +462,9 @@ class _ManagerReviewTeamDashboardScreenState
             ],
           ),
           const SizedBox(height: 15),
-          if (insights.isEmpty)
+          if (isLoading)
+            _buildInsightBullet('Analyzing team performance and goals...')
+          else if (insights.isEmpty)
             _buildInsightBullet(
               'All team members are performing well. No immediate action needed.',
             )
@@ -232,19 +480,20 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                 ),
           const SizedBox(height: 15),
-          GestureDetector(
-            onTap: () {
-              _showFullInsights(insights);
-            },
-            child: const Text(
-              'View Full Analysis',
-              style: TextStyle(
-                color: Color(0xFFC10D00),
-                decoration: TextDecoration.underline,
-                fontSize: 14,
+          if (!isLoading)
+            GestureDetector(
+              onTap: () {
+                _showFullInsights(insights);
+              },
+              child: const Text(
+                'View Full Analysis',
+                style: TextStyle(
+                  color: Color(0xFFC10D00),
+                  decoration: TextDecoration.underline,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -429,8 +678,11 @@ class _ManagerReviewTeamDashboardScreenState
     final today = DateTime(now.year, now.month, now.day);
     final sevenDaysAgo = now.subtract(const Duration(days: 7));
 
-    bool isActiveToday = employee.lastActivity.isAfter(today);
-    bool isActiveThisWeek = employee.lastActivity.isAfter(sevenDaysAgo);
+    // Avoid misleading "activity" chips while we're still showing placeholders.
+    bool isActiveToday =
+        !employee.isPlaceholder && employee.lastActivity.isAfter(today);
+    bool isActiveThisWeek =
+        !employee.isPlaceholder && employee.lastActivity.isAfter(sevenDaysAgo);
 
     Color activeStatusColor;
     IconData activeStatusIcon;
@@ -576,14 +828,17 @@ class _ManagerReviewTeamDashboardScreenState
                     AssetImage('assets/Approved_Tick/Approved_White.png'),
                   ),
                   label: 'Active Goals',
-                  value: employee.goals
-                      .where(
-                        (g) =>
-                            g.approvalStatus == GoalApprovalStatus.approved &&
-                            g.status != GoalStatus.completed,
-                      )
-                      .length
-                      .toString(),
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : employee.goals
+                            .where(
+                              (g) =>
+                                  g.approvalStatus ==
+                                      GoalApprovalStatus.approved &&
+                                  !_isGoalCompleted(g),
+                            )
+                            .length
+                            .toString(),
                   color: AppColors.activeColor,
                 ),
               ),
@@ -595,7 +850,9 @@ class _ManagerReviewTeamDashboardScreenState
                     AssetImage('assets/Process_Flows_Automation/points2.png'),
                   ),
                   label: 'Completed',
-                  value: employee.completedGoalsCount.toString(),
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : employee.completedGoalsCount.toString(),
                   color: AppColors.successColor,
                 ),
               ),
@@ -609,7 +866,9 @@ class _ManagerReviewTeamDashboardScreenState
                     ),
                   ),
                   label: 'Progress',
-                  value: '${employee.avgProgress.toStringAsFixed(1)}%',
+                  value: employee.isPlaceholder
+                      ? '...'
+                      : '${employee.avgProgress.toStringAsFixed(1)}%',
                   color: employee.avgProgress >= 70
                       ? AppColors.successColor
                       : employee.avgProgress >= 40
@@ -633,7 +892,7 @@ class _ManagerReviewTeamDashboardScreenState
                 Icon(Icons.schedule, color: AppColors.textSecondary, size: 14),
                 const SizedBox(width: 6),
                 Text(
-                  'Last active: ${_formatLastActivity(employee.lastActivity)}',
+                  'Last active: ${employee.isPlaceholder ? 'Loading...' : _formatLastActivity(employee.lastActivity)}',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -678,6 +937,30 @@ class _ManagerReviewTeamDashboardScreenState
                   ),
                 ),
               ),
+          ] else if (employee.isPlaceholder) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.hourglass_top,
+                    color: AppColors.textSecondary,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Loading goals...',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ] else ...[
             Container(
               padding: const EdgeInsets.all(12),
@@ -807,7 +1090,7 @@ class _ManagerReviewTeamDashboardScreenState
     final next14Days = now.add(const Duration(days: 14));
 
     return employee.goals.where((goal) {
-      if (goal.status == GoalStatus.completed) return false;
+      if (_isGoalCompleted(goal)) return false;
       return goal.targetDate.isAfter(now) &&
           goal.targetDate.isBefore(next14Days);
     }).toList()..sort((a, b) => a.targetDate.compareTo(b.targetDate));
@@ -890,9 +1173,7 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   Widget _buildCompletedGoalsReviewSection(EmployeeData employee) {
-    final completedGoals = employee.goals
-        .where((g) => g.status == GoalStatus.completed)
-        .toList();
+    final completedGoals = employee.goals.where(_isGoalCompleted).toList();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -948,9 +1229,7 @@ class _ManagerReviewTeamDashboardScreenState
   }
 
   void _reviewCompletedGoals(EmployeeData employee) {
-    final completedGoals = employee.goals
-        .where((g) => g.status == GoalStatus.completed)
-        .toList();
+    final completedGoals = employee.goals.where(_isGoalCompleted).toList();
 
     showDialog(
       context: context,
@@ -1131,8 +1410,20 @@ class _ManagerReviewTeamDashboardScreenState
 
   void _acknowledgeGoal(Goal goal, EmployeeData employee) async {
     try {
-      // NOTE: Implement acknowledgement in database service
-      // For now, show a success message
+      if (!_isGoalCompleted(goal)) {
+        await _showCenterNotice(
+          context,
+          'Only completed goals can be acknowledged.',
+        );
+        return;
+      }
+
+      await AuditService.acknowledgeCompletedGoal(
+        goal: goal,
+        employeeId: employee.profile.uid,
+        employeeName: employee.profile.displayName,
+        employeeDepartment: employee.profile.department,
+      );
       Navigator.pop(context); // Close review dialog
       await _showCenterNotice(
         context,
@@ -1142,8 +1433,6 @@ class _ManagerReviewTeamDashboardScreenState
       await _showCenterNotice(context, 'Error acknowledging goal: $e');
     }
   }
-
- 
 
   Widget _buildEmployeeMetricChip({
     required IconData icon,
@@ -1251,6 +1540,10 @@ class _ManagerReviewTeamDashboardScreenState
     }
   }
 
+  bool _isGoalCompleted(Goal goal) {
+    return goal.status == GoalStatus.completed || goal.progress >= 100;
+  }
+
   String _formatLastActivity(DateTime? lastActivity) {
     if (lastActivity == null) return 'Never';
 
@@ -1258,7 +1551,12 @@ class _ManagerReviewTeamDashboardScreenState
       final now = DateTime.now();
 
       // Check if the date is valid (not in the future or too far in the past)
-      if (lastActivity.isAfter(now) || lastActivity.year < 2000) {
+      if (lastActivity.year < 2000) return 'Unknown';
+      if (lastActivity.isAfter(now)) {
+        // Allow small clock skew (server timestamp slightly ahead of device).
+        if (lastActivity.difference(now) <= const Duration(minutes: 10)) {
+          return 'Just now';
+        }
         return 'Unknown';
       }
 
@@ -1301,45 +1599,6 @@ class _ManagerReviewTeamDashboardScreenState
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingInsights() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
-              SizedBox(width: 8),
-              Text(
-                'AI Manager Insights',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 15),
-          Center(child: CircularProgressIndicator(color: Color(0xFFC10D00))),
-          SizedBox(height: 10),
-          Center(
-            child: Text(
-              'Analyzing team performance...',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1636,65 +1895,6 @@ class _ManagerReviewTeamDashboardScreenState
             'Error: $error',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorInsights(Object error) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0x80000000),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.lightbulb_outline, color: Color(0xFFC10D00), size: 20),
-              SizedBox(width: 8),
-              Text(
-                'AI Manager Insights',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  color: Colors.red.withValues(alpha: 0.7),
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Error loading insights',
-                  style: TextStyle(
-                    color: Colors.red.withValues(alpha: 0.7),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              '$error',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
           ),
         ],
       ),

@@ -9,12 +9,16 @@ class CloudinaryService {
   // Cloudinary configuration - you'll need to get these from your Cloudinary dashboard
   static const String _cloudName = 'dj7phyugw'; // Replace with your cloud name
   static const String _apiKey = '946333512921255'; // Replace with your API key
-  static const String _apiSecret = '2d_4NtGANso3Cdn2X_KFDAdR-Zk'; // Replace with your API secret
-  static const String _uploadPreset = 'evidence_upload'; // Replace with your upload preset
+  static const String _apiSecret =
+      '2d_4NtGANso3Cdn2X_KFDAdR-Zk'; // Replace with your API secret
+  static const String _uploadPreset =
+      'evidence_upload'; // Replace with your upload preset
 
   // Build the upload URL for a given Cloudinary resource type
   static Uri _buildUploadUri(String resourceType) {
-    return Uri.parse('https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload');
+    return Uri.parse(
+      'https://api.cloudinary.com/v1_1/$_cloudName/$resourceType/upload',
+    );
   }
 
   // Guess the appropriate Cloudinary resource type from the file extension
@@ -40,18 +44,17 @@ class CloudinaryService {
       // Create form data (auto-detect resource type; fallback to raw on failure)
       final initialType = _guessResourceType(fileName);
       var request = http.MultipartRequest('POST', _buildUploadUri(initialType));
-      
+
       // Add file
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: fileName,
-      ));
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+      );
 
       // Add parameters
       request.fields['upload_preset'] = _uploadPreset;
-      request.fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}';
-      
+      request.fields['public_id'] =
+          'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}';
+
       if (folder != null) {
         request.fields['folder'] = folder;
       }
@@ -74,9 +77,12 @@ class CloudinaryService {
           initialType != 'raw') {
         request = http.MultipartRequest('POST', _buildUploadUri('raw'))
           ..fields['upload_preset'] = _uploadPreset
-          ..fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
+          ..fields['public_id'] =
+              'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
           ..fields['tags'] = 'evidence,goal,${user.uid}'
-          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+          ..files.add(
+            http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+          );
 
         response = await request.send();
         responseBody = await response.stream.bytesToString();
@@ -107,15 +113,14 @@ class CloudinaryService {
       var request = http.MultipartRequest('POST', _buildUploadUri(initialType));
 
       // Add file
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: fileName,
-      ));
+      request.files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+      );
 
       // Add parameters for unsigned upload
       request.fields['upload_preset'] = _uploadPreset;
-      request.fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}';
+      request.fields['public_id'] =
+          'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}';
       request.fields['tags'] = 'evidence,goal,${user.uid}';
 
       // Send request
@@ -133,9 +138,12 @@ class CloudinaryService {
           initialType != 'raw') {
         request = http.MultipartRequest('POST', _buildUploadUri('raw'))
           ..fields['upload_preset'] = _uploadPreset
-          ..fields['public_id'] = 'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
+          ..fields['public_id'] =
+              'evidence/${user.uid}/$goalId/${DateTime.now().millisecondsSinceEpoch}'
           ..fields['tags'] = 'evidence,goal,${user.uid}'
-          ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+          ..files.add(
+            http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+          );
 
         response = await request.send();
         responseBody = await response.stream.bytesToString();
@@ -157,7 +165,7 @@ class CloudinaryService {
       // Extract public ID from URL
       final uri = Uri.parse(cloudinaryUrl);
       final pathSegments = uri.pathSegments;
-      
+
       if (pathSegments.length >= 3) {
         final publicId = pathSegments.sublist(2).join('/').replaceAll('.', '/');
         return {
@@ -166,7 +174,7 @@ class CloudinaryService {
           'secureUrl': cloudinaryUrl,
         };
       }
-      
+
       return {
         'publicId': null,
         'url': cloudinaryUrl,

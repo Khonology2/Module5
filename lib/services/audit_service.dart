@@ -55,8 +55,7 @@ class AuditService {
       final userData = userDoc.data() ?? {};
 
       final rawDepartment = (userData['department'] as String?)?.trim() ?? '';
-      final department =
-          rawDepartment.isEmpty ? 'Unknown' : rawDepartment;
+      final department = rawDepartment.isEmpty ? 'Unknown' : rawDepartment;
 
       final auditEntry = AuditEntry(
         id: '', // Will be set by Firestore
@@ -115,57 +114,62 @@ class AuditService {
 
       query = query.orderBy('submittedDate', descending: true).limit(200);
 
-      return query.snapshots().map((snapshot) {
-        try {
-          List<AuditEntry> entries = snapshot.docs
-              .map((doc) {
-                try {
-                  return AuditEntry.fromFirestore(doc);
-                } catch (e) {
-                  developer.log(
-                    'Error parsing audit entry ${doc.id}: $e',
-                    name: 'AuditService',
-                  );
-                  return null;
-                }
-              })
-              .where((entry) => entry != null)
-              .cast<AuditEntry>()
-              .toList();
+      return query
+          .snapshots()
+          .map((snapshot) {
+            try {
+              List<AuditEntry> entries = snapshot.docs
+                  .map((doc) {
+                    try {
+                      return AuditEntry.fromFirestore(doc);
+                    } catch (e) {
+                      developer.log(
+                        'Error parsing audit entry ${doc.id}: $e',
+                        name: 'AuditService',
+                      );
+                      return null;
+                    }
+                  })
+                  .where((entry) => entry != null)
+                  .cast<AuditEntry>()
+                  .toList();
 
-          if (searchQuery != null && searchQuery.isNotEmpty) {
-            final lowercaseQuery = searchQuery.toLowerCase();
-            entries = entries.where((entry) {
-              return entry.goalTitle.toLowerCase().contains(lowercaseQuery) ||
-                  entry.userDisplayName
-                      .toLowerCase()
-                      .contains(lowercaseQuery) ||
-                  entry.userDepartment
-                      .toLowerCase()
-                      .contains(lowercaseQuery) ||
-                  entry.evidence.any(
-                    (evidence) =>
-                        evidence.toLowerCase().contains(lowercaseQuery),
-                  );
-            }).toList();
-          }
+              if (searchQuery != null && searchQuery.isNotEmpty) {
+                final lowercaseQuery = searchQuery.toLowerCase();
+                entries = entries.where((entry) {
+                  return entry.goalTitle.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.userDisplayName.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.userDepartment.toLowerCase().contains(
+                        lowercaseQuery,
+                      ) ||
+                      entry.evidence.any(
+                        (evidence) =>
+                            evidence.toLowerCase().contains(lowercaseQuery),
+                      );
+                }).toList();
+              }
 
-          return entries;
-        } catch (e) {
-          developer.log(
-            'Error processing manager audit entries: $e',
-            name: 'AuditService',
-          );
-          return <AuditEntry>[];
-        }
-      }).handleError((error, stackTrace) {
-        developer.log(
-          'Manager audit entries stream error: $error',
-          name: 'AuditService',
-          error: error,
-          stackTrace: stackTrace,
-        );
-      });
+              return entries;
+            } catch (e) {
+              developer.log(
+                'Error processing manager audit entries: $e',
+                name: 'AuditService',
+              );
+              return <AuditEntry>[];
+            }
+          })
+          .handleError((error, stackTrace) {
+            developer.log(
+              'Manager audit entries stream error: $error',
+              name: 'AuditService',
+              error: error,
+              stackTrace: stackTrace,
+            );
+          });
     } catch (e) {
       developer.log(
         'Error building manager audit entries stream: $e',
@@ -548,6 +552,142 @@ class AuditService {
       }
     } catch (e) {
       developer.log('Error verifying audit entry: $e');
+      rethrow;
+    }
+  }
+
+  // Manager acknowledgement for a completed goal (with or without a prior request)
+  static Future<void> acknowledgeCompletedGoal({
+    required Goal goal,
+    required String employeeId,
+    required String employeeName,
+    required String employeeDepartment,
+    double? score,
+    String? comments,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+      final managerName =
+          userData['displayName'] ?? user.displayName ?? 'Manager';
+
+      final existingEntries = await _firestore
+          .collection('audit_entries')
+          .where('userId', isEqualTo: employeeId)
+          .where('goalId', isEqualTo: goal.id)
+          .limit(1)
+          .get();
+
+      if (existingEntries.docs.isNotEmpty) {
+        final entryDoc = existingEntries.docs.first;
+        final entry = AuditEntry.fromFirestore(entryDoc);
+
+        // Update audit entry status
+        await _firestore.collection('audit_entries').doc(entryDoc.id).update({
+          'status': 'verified',
+          'score': score,
+          'comments': comments,
+          'acknowledgedBy': managerName,
+          'acknowledgedById': user.uid,
+          'verifiedDate': Timestamp.now(),
+          'rejectionReason': null,
+        });
+
+        // Also update the goal status to acknowledged
+        await _firestore.collection('goals').doc(goal.id).update({
+          'status': 'acknowledged',
+          'acknowledgedAt': Timestamp.now(),
+          'acknowledgedBy': managerName,
+          'acknowledgedById': user.uid,
+        });
+
+        final updatedEntry = AuditEntry(
+          id: entry.id,
+          userId: entry.userId,
+          goalId: entry.goalId,
+          goalTitle: entry.goalTitle,
+          completedDate: entry.completedDate,
+          submittedDate: entry.submittedDate,
+          status: 'verified',
+          evidence: entry.evidence,
+          acknowledgedBy: managerName,
+          acknowledgedById: user.uid,
+          score: score ?? entry.score,
+          comments: comments ?? entry.comments,
+          userDisplayName: entry.userDisplayName,
+          userDepartment: entry.userDepartment,
+          verifiedDate: DateTime.now(),
+        );
+
+        await RepositoryService.addVerifiedGoalToRepository(updatedEntry);
+
+        final event = TimelineService.buildEvent(
+          eventType: 'verification',
+          description: 'Goal acknowledged by manager',
+          actorIdOverride: user.uid,
+          actorNameOverride: managerName,
+        );
+        await TimelineService.logEvent(entryDoc.id, event);
+        return;
+      }
+
+      final now = DateTime.now();
+      final auditEntry = AuditEntry(
+        id: '',
+        userId: employeeId,
+        goalId: goal.id,
+        goalTitle: goal.title,
+        completedDate: now,
+        submittedDate: now,
+        verifiedDate: now,
+        status: 'verified',
+        evidence: goal.evidence,
+        acknowledgedBy: managerName,
+        acknowledgedById: user.uid,
+        score: score,
+        comments: comments,
+        userDisplayName: employeeName,
+        userDepartment: employeeDepartment.isEmpty
+            ? 'Unknown'
+            : employeeDepartment,
+      );
+
+      final ref = await _firestore
+          .collection('audit_entries')
+          .add(auditEntry.toFirestore());
+
+      final storedEntry = AuditEntry(
+        id: ref.id,
+        userId: auditEntry.userId,
+        goalId: auditEntry.goalId,
+        goalTitle: auditEntry.goalTitle,
+        completedDate: auditEntry.completedDate,
+        submittedDate: auditEntry.submittedDate,
+        verifiedDate: auditEntry.verifiedDate,
+        status: auditEntry.status,
+        evidence: auditEntry.evidence,
+        acknowledgedBy: auditEntry.acknowledgedBy,
+        acknowledgedById: auditEntry.acknowledgedById,
+        score: auditEntry.score,
+        comments: auditEntry.comments,
+        userDisplayName: auditEntry.userDisplayName,
+        userDepartment: auditEntry.userDepartment,
+      );
+
+      await RepositoryService.addVerifiedGoalToRepository(storedEntry);
+
+      final event = TimelineService.buildEvent(
+        eventType: 'verification',
+        description: 'Goal acknowledged by manager',
+        actorIdOverride: user.uid,
+        actorNameOverride: managerName,
+      );
+      await TimelineService.logEvent(ref.id, event);
+    } catch (e) {
+      developer.log('Error acknowledging completed goal: $e');
       rethrow;
     }
   }

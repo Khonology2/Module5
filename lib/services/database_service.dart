@@ -1,18 +1,22 @@
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/services/points_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
-import 'package:pdh/models/season.dart';
 import 'package:pdh/models/user_profile.dart';
+import 'package:pdh/models/season.dart';
+import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/performance_cache_service.dart';
+import 'package:pdh/services/approved_goal_audit_service.dart';
+import 'package:pdh/services/points_service.dart';
+import 'package:pdh/services/timeline_service.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class DatabaseService {
   // Caps configuration
@@ -51,16 +55,14 @@ class DatabaseService {
       final data = doc.data() ?? <String, dynamic>{};
       return {
         'privateGoals': data['privateGoals'] == true,
-        'managerOnly': data['managerOnly'] == true,
-        'teamShare': data['teamShare'] != false, // default true
-        'profileVisible': data['profileVisible'] != false, // default true
+        'privateMilestones': data['privateMilestones'] == true,
+        'privateProgress': data['privateProgress'] == true,
       };
     } catch (_) {
       return {
         'privateGoals': false,
-        'managerOnly': false,
-        'teamShare': true,
-        'profileVisible': true,
+        'privateMilestones': false,
+        'privateProgress': false,
       };
     }
   }
@@ -138,9 +140,10 @@ class DatabaseService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .handleError((error) {
-          // Silently handle errors to prevent unmount errors
-          // Return empty list on error to prevent crashes
           developer.log('Error in getUserGoalsStream: $error');
+          if (error is Object) {
+            FirestoreWebCircuitBreaker.maybeReload(error);
+          }
         })
         .map((snapshot) {
           var goals = snapshot.docs
@@ -360,6 +363,40 @@ class DatabaseService {
       });
     });
     if (goalData == null) return;
+
+    // Get employee details for audit
+    String employeeName = '';
+    String department = '';
+    try {
+      final employeeDoc = await firestore
+          .collection('users')
+          .doc(goalData!['userId'])
+          .get();
+      final employeeData = employeeDoc.data() ?? {};
+      employeeName =
+          employeeData['displayName'] ??
+          employeeData['fullName'] ??
+          employeeData['name'] ??
+          employeeData['email'] ??
+          '';
+      department = employeeData['department'] ?? '';
+    } catch (_) {}
+
+    // Log approved goal audit
+    try {
+      await ApprovedGoalAuditService.logApprovedGoal(
+        goalId: goalId,
+        goalTitle: (goalData!['title'] ?? '') as String,
+        employeeId: (goalData!['userId'] ?? '') as String,
+        employeeName: employeeName,
+        department: department,
+        approvedBy: managerId,
+        approvedByName: managerName,
+      );
+    } catch (e) {
+      developer.log('Error logging approved goal audit: $e');
+    }
+
     try {
       await AlertService.createGoalApprovalDecisionAlert(
         employeeId: (goalData!['userId'] ?? '') as String,
@@ -488,7 +525,9 @@ class DatabaseService {
   }
 
   static Future<String> createGoal(Goal goal) async {
-    Future<DocumentReference<Map<String, dynamic>>> attemptCreate(int attempt) async {
+    Future<DocumentReference<Map<String, dynamic>>> attemptCreate(
+      int attempt,
+    ) async {
       try {
         return await FirebaseFirestore.instance.collection('goals').add({
           'userId': goal.userId,
@@ -512,7 +551,9 @@ class DatabaseService {
       } catch (e) {
         if (_isFirestoreInternalAssertion(e) && attempt < 2) {
           final delayMs = 200 * (attempt + 1);
-          developer.log('Retrying goal create after transient Firestore error (attempt ${attempt + 1})');
+          developer.log(
+            'Retrying goal create after transient Firestore error (attempt ${attempt + 1})',
+          );
           await Future.delayed(Duration(milliseconds: delayMs));
           return attemptCreate(attempt + 1);
         }
@@ -536,7 +577,9 @@ class DatabaseService {
       } catch (e) {
         developer.log('Error requesting goal approval: $e');
         if (_isFirestoreInternalAssertion(e)) {
-          developer.log('Goal approval request hit transient Firestore error, will not block creation.');
+          developer.log(
+            'Goal approval request hit transient Firestore error, will not block creation.',
+          );
         }
         // Log more details for debugging
         developer.log(
@@ -599,88 +642,298 @@ class DatabaseService {
     });
   }
 
-  static Future<void> requestGoalDeletion({
+  // NEW: Submit milestone with evidence - atomic operation for workflow
+  static Future<void> submitMilestoneWithEvidence({
     required String goalId,
-    required String reason,
-    required String requesterId,
+    required String milestoneId,
+    required MilestoneEvidence evidence,
   }) async {
-    final fs = FirebaseFirestore.instance;
-    final goalRef = fs.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    if (!goalSnap.exists) {
-      throw Exception('Goal not found');
-    }
-    final data = goalSnap.data() as Map<String, dynamic>;
-    final ownerId = (data['userId'] ?? '') as String;
-    if (requesterId != ownerId) {
-      throw Exception('Only the goal owner can request deletion');
-    }
-    await fs.collection('goal_deletion_requests').add({
-      'goalId': goalId,
-      'userId': ownerId,
-      'reason': reason,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'goalTitle': data['title'] ?? '',
-    });
-  }
+    final now = DateTime.now();
 
-  static Future<void> deleteGoal({
-    required String goalId,
-    required String requesterId,
-  }) async {
-    final fs = FirebaseFirestore.instance;
-    final goalRef = fs.collection('goals').doc(goalId);
-    final goalSnap = await goalRef.get();
-    if (!goalSnap.exists) {
-      throw Exception('Goal not found');
-    }
-    final data = goalSnap.data() as Map<String, dynamic>;
-    final ownerId = (data['userId'] ?? '') as String;
+    // Atomic operation: add evidence and update milestone status
+    final batch = FirebaseFirestore.instance.batch();
 
-    String role = 'employee';
-    try {
-      final userDoc = await fs.collection('users').doc(requesterId).get();
-      role = (userDoc.data()?['role'] ?? 'employee') as String;
-    } catch (_) {}
-
-    if (requesterId != ownerId && role != 'manager') {
-      throw Exception('Not authorized to delete this goal');
-    }
-
-    final batch = fs.batch();
-    // Log deletion for audit before deleting
-    final deletionLogRef = fs.collection('deleted_goals').doc(goalId);
-    batch.set(deletionLogRef, {
-      'goalId': goalId,
-      'deletedAt': FieldValue.serverTimestamp(),
-      'deletedBy': requesterId,
-      'goalData': data,
+    // Add evidence to milestone
+    final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
+    batch.update(milestoneRef, {
+      'evidence': FieldValue.arrayUnion([evidence.toMap()]),
+      'status': GoalMilestoneStatus
+          .pendingManagerReview
+          .name, // NEW: Change to pending review
+      'updatedAt': Timestamp.fromDate(now),
     });
 
-    batch.delete(goalRef);
-
-    try {
-      final alerts = await fs
-          .collection('alerts')
-          .where('relatedGoalId', isEqualTo: goalId)
-          .get();
-      for (final d in alerts.docs) {
-        batch.delete(d.reference);
-      }
-    } catch (_) {}
-
-    try {
-      final daily = await fs
-          .collection('goal_daily_progress')
-          .where('goalId', isEqualTo: goalId)
-          .get();
-      for (final d in daily.docs) {
-        batch.delete(d.reference);
-      }
-    } catch (_) {}
+    // Store evidence in separate collection for audit trail
+    final evidenceRef = FirebaseFirestore.instance
+        .collection('milestone_evidence')
+        .doc(evidence.id);
+    batch.set(evidenceRef, evidence.toMap());
 
     await batch.commit();
+
+    // Send notification to manager
+    final milestoneDoc = await milestoneRef.get();
+    final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+    await _handleMilestoneEvidenceSubmission(
+      goalId: goalId,
+      milestone: milestone,
+      evidenceList: [evidence], // Create list with single evidence
+    );
+  }
+
+  // NEW: Submit multiple milestone evidence files - simplified to avoid Firestore race conditions
+  static Future<void> submitMultipleMilestoneEvidence({
+    required String goalId,
+    required String milestoneId,
+    required List<MilestoneEvidence> evidenceList,
+  }) async {
+    Future<void> attempt(int attemptCount) async {
+      final milestoneRef = _goalMilestonesRef(goalId).doc(milestoneId);
+
+      // Convert evidence to simple maps like goal evidence
+      final evidenceMaps = evidenceList.map((e) => e.toMap()).toList();
+
+      try {
+        // Single operation only - no secondary operations that cause race conditions
+        await milestoneRef.set({
+          'evidence': FieldValue.arrayUnion(evidenceMaps),
+          'status': GoalMilestoneStatus.pendingManagerReview.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        developer.log(
+          'Successfully submitted evidence for milestone: $milestoneId',
+        );
+
+        // Send notification to manager (non-critical)
+        try {
+          final milestoneDoc = await milestoneRef.get();
+          if (milestoneDoc.exists) {
+            final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+            await _handleMilestoneEvidenceSubmission(
+              goalId: goalId,
+              milestone: milestone,
+              evidenceList: evidenceList,
+            );
+          }
+        } catch (notificationError) {
+          developer.log(
+            'Error sending evidence submission notification: $notificationError',
+          );
+          // Don't fail the whole operation if notification fails
+        }
+      } catch (e) {
+        developer.log('Error submitting milestone evidence: $e');
+
+        // Handle different types of Firestore errors
+        if (_isPermissionDeniedError(e)) {
+          developer.log(
+            'Permission denied for milestone evidence submission - user may not have rights',
+          );
+          throw Exception(
+            'You do not have permission to submit evidence for this milestone. Please contact your manager.',
+          );
+        } else if (_isFirestoreInternalAssertion(e) && attemptCount < 2) {
+          final delayMs = 200 * (attemptCount + 1);
+          developer.log(
+            'Retrying milestone evidence submission after transient Firestore error (attempt ${attemptCount + 1})',
+          );
+          await Future.delayed(Duration(milliseconds: delayMs));
+          return attempt(attemptCount + 1);
+        } else if (_isDocumentNotFoundError(e)) {
+          developer.log('Milestone document not found: $milestoneId');
+          throw Exception(
+            'The milestone could not be found. It may have been deleted.',
+          );
+        } else {
+          developer.log(
+            'Unexpected error in milestone evidence submission: $e',
+          );
+          throw Exception('Failed to submit evidence. Please try again later.');
+        }
+      }
+    }
+
+    await attempt(0);
+
+    // Note: Audit trail and notifications removed to prevent Firestore race conditions
+    // The core functionality (evidence submission) works consistently this way
+  }
+
+  // Helper methods for error detection
+  static bool _isPermissionDeniedError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('permission-denied') ||
+        errorString.contains('permission denied') ||
+        errorString.contains('missing or insufficient permissions') ||
+        errorString.contains('firestore: permission-denied');
+  }
+
+  static bool _isDocumentNotFoundError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('not-found') ||
+        errorString.contains('not found') ||
+        errorString.contains('firestore: not-found');
+  }
+
+  // NEW: Handle milestone evidence submission notifications
+  static Future<void> _handleMilestoneEvidenceSubmission({
+    required String goalId,
+    required GoalMilestone milestone,
+    required List<MilestoneEvidence> evidenceList,
+  }) async {
+    try {
+      // Get goal details for notification
+      final goalDoc = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goal = Goal.fromFirestore(goalDoc);
+
+      // Send notification to manager with correct evidence count
+      await AlertService.createMilestoneEvidenceSubmittedAlert(
+        employeeId: goal.userId,
+        goalId: goalId,
+        milestoneId: milestone.id,
+        milestoneTitle: milestone.title,
+        evidenceCount: evidenceList.length, // Use actual list length
+      );
+    } catch (e) {
+      developer.log('Error sending evidence submission notification: $e');
+    }
+  }
+
+  // NEW: Manager acknowledges milestone completion
+  static Future<void> acknowledgeMilestone({
+    required String goalId,
+    required String milestoneId,
+    required String managerId,
+    required String managerName,
+    String? checkInNotes,
+  }) async {
+    final now = DateTime.now();
+
+    try {
+      // Get milestone details
+      final milestoneDoc = await _goalMilestonesRef(
+        goalId,
+      ).doc(milestoneId).get();
+
+      if (!milestoneDoc.exists) {
+        throw Exception('Milestone not found. It may have been deleted.');
+      }
+
+      final milestone = GoalMilestone.fromFirestore(milestoneDoc);
+
+      // Update milestone status to completedAcknowledged
+      await _goalMilestonesRef(goalId).doc(milestoneId).update({
+        'status': GoalMilestoneStatus.completedAcknowledged.name,
+        'updatedAt': Timestamp.fromDate(now),
+        'acknowledgedAt': Timestamp.fromDate(now),
+        'acknowledgedBy': managerId,
+        'acknowledgedByName': managerName,
+        'checkInNotes': checkInNotes ?? '',
+      });
+
+      // Log manager acknowledgment in audit timeline
+      try {
+        final auditEvent = TimelineService.buildEvent(
+          eventType: 'milestone_acknowledged',
+          description:
+              'Manager acknowledged milestone: "${milestone.title}"${checkInNotes != null && checkInNotes.isNotEmpty ? ' with notes: "$checkInNotes"' : ''}',
+          actorIdOverride: managerId,
+          actorNameOverride: managerName,
+        );
+
+        await TimelineService.logEvent(goalId, auditEvent);
+      } catch (auditError) {
+        developer.log(
+          'Error logging milestone acknowledgment in audit timeline: $auditError',
+        );
+        // Don't fail the whole operation if audit logging fails
+      }
+
+      // Send notification to employee (non-critical)
+      try {
+        await _sendMilestoneAcknowledgedNotification(
+          goalId: goalId,
+          milestone: milestone,
+          managerId: managerId,
+          managerName: managerName,
+          checkInNotes: checkInNotes,
+        );
+      } catch (notificationError) {
+        developer.log(
+          'Error sending acknowledgement notification: $notificationError',
+        );
+        // Don't fail the whole operation if notification fails
+      }
+
+      developer.log('Milestone acknowledged: $milestoneId by $managerName');
+    } catch (e) {
+      developer.log('Error acknowledging milestone: $e');
+
+      // Handle different types of errors with specific messages
+      if (_isPermissionDeniedError(e)) {
+        throw Exception(
+          'You do not have permission to acknowledge this milestone. Please check your access rights.',
+        );
+      } else if (_isDocumentNotFoundError(e)) {
+        throw Exception(
+          'The milestone could not be found. It may have been deleted. Please refresh the page.',
+        );
+      } else if (e.toString().contains('INTERNAL ASSERTION FAILED')) {
+        throw Exception(
+          'A temporary error occurred. Please try again in a moment.',
+        );
+      } else {
+        throw Exception('Failed to acknowledge milestone: ${e.toString()}');
+      }
+    }
+  }
+
+  // NEW: Send notification to employee about milestone acknowledgement
+  static Future<void> _sendMilestoneAcknowledgedNotification({
+    required String goalId,
+    required GoalMilestone milestone,
+    required String managerId,
+    required String managerName,
+    String? checkInNotes,
+  }) async {
+    try {
+      // Get goal details
+      final goalDoc = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goal = Goal.fromFirestore(goalDoc);
+
+      // Create notification for employee
+      await AlertService.createMilestoneAcknowledgedAlert(
+        employeeId: goal.userId,
+        goalId: goalId,
+        milestoneId: milestone.id,
+        milestoneTitle: milestone.title,
+        managerName: managerName,
+        checkInNotes: checkInNotes,
+      );
+    } catch (e) {
+      developer.log('Error sending acknowledgement notification: $e');
+    }
+  }
+
+  static Future<String> getUserName(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      return userDoc.data()?['displayName'] ??
+          userDoc.data()?['name'] ??
+          'Unknown';
+    } catch (_) {
+      return 'Unknown';
+    }
   }
 
   static CollectionReference<Map<String, dynamic>> _goalMilestonesRef(
@@ -696,11 +949,21 @@ class DatabaseService {
     return _goalMilestonesRef(goalId)
         .orderBy('dueDate')
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => GoalMilestone.fromFirestore(doc))
-              .toList(),
-        );
+        .handleError((error) {
+          developer.log('Error in milestones stream: $error');
+          // Return empty list on error to prevent UI crashes
+          return <GoalMilestone>[];
+        })
+        .map((snapshot) {
+          try {
+            return snapshot.docs
+                .map((doc) => GoalMilestone.fromFirestore(doc))
+                .toList();
+          } catch (e) {
+            developer.log('Error parsing milestone documents: $e');
+            return <GoalMilestone>[];
+          }
+        });
   }
 
   static Future<String> addGoalMilestone({
@@ -711,6 +974,7 @@ class DatabaseService {
     required String createdBy,
     String? createdByName,
     GoalMilestoneStatus status = GoalMilestoneStatus.notStarted,
+    // REMOVED: requiresEvidence parameter - no longer needed
   }) async {
     final now = DateTime.now();
     final docRef = await _goalMilestonesRef(goalId).add({
@@ -725,6 +989,8 @@ class DatabaseService {
       'completedAt': status == GoalMilestoneStatus.completed
           ? Timestamp.fromDate(now)
           : null,
+      // REMOVED: requiresEvidence field - no longer needed
+      'evidence': [], // Initialize empty evidence array for new workflow
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
@@ -785,6 +1051,19 @@ class DatabaseService {
     if (description != null) updates['description'] = description;
     if (dueDate != null) updates['dueDate'] = Timestamp.fromDate(dueDate);
     if (status != null) {
+      // NEW: Evidence validation before milestone completion (additive extension)
+      if (status == GoalMilestoneStatus.completed) {
+        final canComplete = await MilestoneEvidenceService.canCompleteMilestone(
+          goalId: goalId,
+          milestoneId: milestoneId,
+        );
+        if (!canComplete) {
+          throw Exception(
+            'Milestone requires approved evidence before completion.',
+          );
+        }
+      }
+
       updates['status'] = status.name;
       if (status == GoalMilestoneStatus.completed) {
         updates['completedAt'] = FieldValue.serverTimestamp();
@@ -800,14 +1079,6 @@ class DatabaseService {
       milestone: milestone,
       previousStatus: previousStatus,
     );
-  }
-
-  static Future<void> deleteGoalMilestone({
-    required String goalId,
-    required String milestoneId,
-  }) async {
-    await _goalMilestonesRef(goalId).doc(milestoneId).delete();
-    await _syncGoalProgressWithMilestones(goalId);
   }
 
   static Future<void> _afterMilestoneMutation({
@@ -859,18 +1130,21 @@ class DatabaseService {
           goalId: goal.id,
         );
       } catch (e) {
-        developer.log('Milestone motivational alert failed: $e');
+        developer.log('Motivational alert failed: $e');
       }
 
+      // NEW: Extended manager notification with evidence info (additive extension)
       try {
         await AlertService.createManagerMilestoneAlert(
           goal: goal,
           milestoneTitle: milestone.title,
+          milestoneId: milestone.id, // Pass milestone ID for evidence checking
         );
       } catch (e) {
         developer.log('Manager milestone alert failed: $e');
       }
     } catch (e) {
+      developer.log('Milestone completion handling failed: $e');
       developer.log('handleMilestoneCompletion error: $e');
     }
   }
@@ -1287,9 +1561,9 @@ class DatabaseService {
           final target = targetTs.toDate();
           final now = DateTime.now();
           if (!now.isAfter(target)) {
-            totalAward += PointsService.onTimeModifier(allocated);
+            totalAward += PointsService.onTimeModifier(allocated).toInt();
           } else {
-            totalAward += PointsService.lateModifier(allocated);
+            totalAward += PointsService.lateModifier(allocated).toInt();
           }
         }
         completionAward = totalAward;
@@ -1583,6 +1857,9 @@ class DatabaseService {
     required String userId,
     String? email,
   }) async {
+    if (FirestoreWebCircuitBreaker.isBroken) {
+      return null;
+    }
     try {
       // First try by userId
       var onboardingDoc = await FirebaseFirestore.instance
@@ -1623,8 +1900,31 @@ class DatabaseService {
       }
     } catch (e) {
       developer.log('Error getting user name from onboarding: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
     }
     return null;
+  }
+
+  /// Helper function to prepare user document data for writing
+  /// Removes 'role' field if document exists (to satisfy security rules)
+  /// This ensures all write operations (set, update) comply with Firestore rules
+  static Future<Map<String, dynamic>> _prepareUserDataForWrite(
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    final userDocRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    final existing = await userDocRef.get();
+
+    // Create a copy to avoid modifying the original
+    final preparedData = Map<String, dynamic>.from(data);
+
+    // Remove 'role' field if document exists (users can't change their own role)
+    // Only admins can modify roles, and they should use a separate admin function
+    if (existing.exists) {
+      preparedData.remove('role');
+    }
+
+    return preparedData;
   }
 
   static Future<void> updateUserProfile(UserProfile userProfile) async {
@@ -1632,27 +1932,29 @@ class DatabaseService {
         .collection('users')
         .doc(userProfile.uid);
 
-    // Get all profile fields as a map - toFirestore() includes all fields
-    // We need to avoid updating the 'role' field for existing documents to satisfy security rules
-    final existing = await userDocRef.get();
-    final data = Map<String, dynamic>.from(userProfile.toFirestore());
-    if (existing.exists) {
-      // Only admins are allowed to modify roles per Firestore rules; omit role on normal updates
-      data.remove('role');
+    // Verify user is authenticated and matches the profile UID
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid == null) {
+      throw Exception('User not authenticated');
+    }
+    if (authUid != userProfile.uid) {
+      throw Exception(
+        'Cannot update profile: authenticated user ($authUid) does not match profile UID ($userProfile.uid)',
+      );
     }
 
-    // Debug log to help diagnose permission issues in the field
+    // Prepare data for write (removes role if document exists)
+    final data = await _prepareUserDataForWrite(
+      userProfile.uid,
+      userProfile.toFirestore(),
+    );
+
+    // Debug log to help diagnose permission issues
     try {
-      final authUid = FirebaseAuth.instance.currentUser?.uid;
       final projectId = Firebase.app().options.projectId;
       developer.log(
-        'updateUserProfile: authUid=${authUid ?? 'null'}, targetUid=${userProfile.uid}, exists=${existing.exists}, keys=${data.keys.join(',')}, project=$projectId',
+        'updateUserProfile: authUid=$authUid, targetUid=${userProfile.uid}, keys=${data.keys.join(',')}, project=$projectId',
       );
-      if (authUid != null && authUid != userProfile.uid) {
-        developer.log(
-          'updateUserProfile: WARNING authUid != targetUid; this will be denied by rules',
-        );
-      }
     } catch (_) {}
 
     // Use set with merge: true to ensure all fields are saved
