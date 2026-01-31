@@ -222,20 +222,20 @@ class AlertService {
         }
       }
 
-      Query mgrQuery = _firestore
+      QuerySnapshot mgrQuery = await _firestore
           .collection('users')
           .where('role', isEqualTo: 'manager')
           .where('department', isEqualTo: dept)
           .get();
 
-      if (mgrs.docs.isEmpty) {
+      if (mgrQuery.docs.isEmpty) {
         developer.log(
           'WARNING: No managers found in department $dept to notify for milestone',
         );
         return;
       }
 
-      for (final mgr in mgrs.docs) {
+      for (final mgr in mgrQuery.docs) {
         await _firestore.collection('alerts').add({
           'userId': mgr.id,
           'type': AlertType.goalMilestoneCompleted.name,
@@ -262,43 +262,6 @@ class AlertService {
       }
     } catch (e) {
       developer.log('Error creating manager milestone alert: $e');
-    }
-  }
-
-  /// Check goals and create appropriate alerts
-  static Future<void> checkAndCreateGoalAlerts() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final goalsSnapshot = await _firestore
-          .collection('goals')
-          .where('userId', isEqualTo: user.uid)
-          .where('status', whereIn: ['notStarted', 'inProgress'])
-          .get();
-
-      for (final doc in goalsSnapshot.docs) {
-        final goal = Goal.fromFirestore(doc);
-
-        // Check for overdue goals
-        if (goal.targetDate.isBefore(DateTime.now())) {
-          await createGoalAlert(
-            userId: user.uid,
-            goal: goal,
-            type: AlertType.goalOverdue,
-          );
-        }
-        // Check for goals due soon (within 3 days)
-        else if (goal.targetDate.difference(DateTime.now()).inDays <= 3) {
-          await createGoalAlert(
-            userId: user.uid,
-            goal: goal,
-            type: AlertType.goalDueSoon,
-          );
-        }
-      }
-    } catch (e) {
-      developer.log('Error checking and creating goal alerts: $e');
     }
   }
 
@@ -799,56 +762,56 @@ class AlertService {
           .where('isDismissed', isEqualTo: false)
           .snapshots(),
     ).map((snapshot) {
-          try {
-            final alerts = snapshot.docs
-                .map((doc) => Alert.fromFirestore(doc))
-                .where((alert) {
-                  // Filter out expired alerts
-                  if (alert.expiresAt != null &&
-                      alert.expiresAt!.isBefore(DateTime.now())) {
-                    return false;
-                  }
-                  return true;
-                })
-                .toList();
-
-            // Sort in memory to avoid index requirements
-            alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-            // Deduplicate by a stable composite key to avoid doubles in UI
-            final seen = <String>{};
-            final deduped = <Alert>[];
-            String keyFor(Alert a) {
-              switch (a.type) {
-                case AlertType.goalDueSoon:
-                case AlertType.goalOverdue:
-                case AlertType.inactivity:
-                case AlertType.goalApprovalRequested:
-                case AlertType.goalApprovalApproved:
-                case AlertType.goalApprovalRejected:
-                case AlertType.teamGoalAvailable:
-                case AlertType.employeeJoinedTeamGoal:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}';
-                case AlertType.managerNudge:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
-                default:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
+      try {
+        final alerts = snapshot.docs
+            .map((doc) => Alert.fromFirestore(doc))
+            .where((alert) {
+              // Filter out expired alerts
+              if (alert.expiresAt != null &&
+                  alert.expiresAt!.isBefore(DateTime.now())) {
+                return false;
               }
-            }
+              return true;
+            })
+            .toList();
 
-            for (final a in alerts) {
-              final key = keyFor(a);
-              if (seen.add(key)) {
-                deduped.add(a);
-              }
-            }
+        // Sort in memory to avoid index requirements
+        alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-            return deduped.take(50).toList();
-          } catch (e) {
-            developer.log('Error processing alerts: $e');
-            return <Alert>[];
+        // Deduplicate by a stable composite key to avoid doubles in UI
+        final seen = <String>{};
+        final deduped = <Alert>[];
+        String keyFor(Alert a) {
+          switch (a.type) {
+            case AlertType.goalDueSoon:
+            case AlertType.goalOverdue:
+            case AlertType.inactivity:
+            case AlertType.goalApprovalRequested:
+            case AlertType.goalApprovalApproved:
+            case AlertType.goalApprovalRejected:
+            case AlertType.teamGoalAvailable:
+            case AlertType.employeeJoinedTeamGoal:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}';
+            case AlertType.managerNudge:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
+            default:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
           }
-        });
+        }
+
+        for (final a in alerts) {
+          final key = keyFor(a);
+          if (seen.add(key)) {
+            deduped.add(a);
+          }
+        }
+
+        return deduped.take(50).toList();
+      } catch (e) {
+        developer.log('Error processing alerts: $e');
+        return <Alert>[];
+      }
+    });
   }
 
   /// Stream alerts for the manager inbox with optional filters.

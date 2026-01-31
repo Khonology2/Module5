@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously, duplicate_ignore
-
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
@@ -23,7 +21,6 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'dart:developer' as developer;
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -51,48 +48,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     _loadPredictiveRisks();
   }
 
-  Future<bool> _isProfileIncomplete() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-
-    try {
-      final userProfile = await DatabaseService.getUserProfile(user.uid);
-      final onboardingData = await DatabaseService.getOnboardingData(
-        userId: user.uid,
-        email: user.email,
-      );
-
-      final fullName = onboardingData['fullName'] ?? userProfile.displayName;
-      final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
-      final department = userProfile.department;
-      final email = userProfile.email;
-
-      return fullName.trim().isEmpty ||
-          jobTitle.trim().isEmpty ||
-          department.trim().isEmpty ||
-          email.trim().isEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Alert? _buildProfileIncompleteAlert() {
-    return Alert(
-      id: 'profile_incomplete_alert',
-      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
-      type: AlertType.profileIncomplete,
-      priority: AlertPriority.high,
-      title: 'Complete Your Profile',
-      message:
-          'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) in your profile.',
-      actionText: 'Go to Profile',
-      actionRoute: '/my_profile',
-      createdAt: DateTime.now(),
-      isRead: false,
-      isDismissed: false,
-    );
-  }
-
   Future<void> _loadPredictiveRisks() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -100,15 +55,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     setState(() => _isLoadingRisks = true);
 
     try {
-      // Use cached goals if available, otherwise fetch
       final goals = await DatabaseService.getUserGoals(user.uid);
       if (goals.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _predictiveRisks = [];
-            _isLoadingRisks = false;
-          });
-        }
+        setState(() {
+          _predictiveRisks = [];
+          _isLoadingRisks = false;
+        });
         return;
       }
 
@@ -289,16 +241,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     stream: AlertService.getUserAlertsStream(user.uid),
                     initialData: _cachedAlerts,
                     builder: (context, alertsSnapshot) {
-                      // Debug logging
-                      developer.log(
-                        'Alerts snapshot state: ${alertsSnapshot.connectionState}',
-                      );
-                      if (alertsSnapshot.hasError) {
-                        developer.log(
-                          'Alerts stream error: ${alertsSnapshot.error}',
-                        );
-                      }
-
                       final streamedAlerts = alertsSnapshot.data;
                       // Update cache when fresh data arrives
                       if (streamedAlerts != null &&
@@ -367,59 +309,46 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           .where((a) => a.type != AlertType.goalOverdue)
                           .toList();
 
-                      return FutureBuilder<bool>(
-                        future: _isProfileIncomplete(),
-                        builder: (context, profileSnapshot) {
-                          final isIncomplete = profileSnapshot.data == true;
-                          final allAlerts = isIncomplete
-                              ? [_buildProfileIncompleteAlert()!, ...filtered]
-                              : filtered;
-
-                          return Column(
+                      return Column(
+                        children: [
+                          _buildAlertSummary(filtered),
+                          const SizedBox(height: AppSpacing.lg),
+                          _buildPredictiveRiskAlerts(),
+                          const SizedBox(height: AppSpacing.lg),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              _buildAlertSummary(allAlerts),
-                              const SizedBox(height: AppSpacing.lg),
-                              _buildPredictiveRiskAlerts(),
-                              const SizedBox(height: AppSpacing.lg),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Recent Alerts',
-                                    style: AppTypography.heading3.copyWith(
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  ElevatedButton.icon(
-                                    onPressed: () => _showAIChatAssistant(
-                                      context,
-                                      allAlerts,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.chat_bubble_outline,
-                                      size: 18,
-                                    ),
-                                    label: const Text('AI Assistant'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.activeColor,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(28),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                'Recent Alerts',
+                                style: AppTypography.heading3.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                              const SizedBox(height: AppSpacing.md),
-                              _buildAlertsList(allAlerts),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    _showAIChatAssistant(context, filtered),
+                                icon: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 18,
+                                ),
+                                label: const Text('AI Assistant'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.activeColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                ),
+                              ),
                             ],
-                          );
-                        },
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildAlertsList(filtered),
+                        ],
                       );
                     },
                   ),
@@ -995,11 +924,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                         return;
                       }
 
-                      if (alert.type == AlertType.goalOverdue) {
-                        await _showRescheduleWizard(alert);
-                        return;
-                      }
-
                       await _handleAlertNavigation(alert);
                     },
                     style: ElevatedButton.styleFrom(
@@ -1036,250 +960,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _showRescheduleWizard(Alert alert) async {
-    final goalId = alert.relatedGoalId;
-    if (goalId == null || goalId.isEmpty) return;
-
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!mounted) return;
-      if (!doc.exists) return;
-
-      final goal = Goal.fromFirestore(doc);
-      DateTime? newTargetDate;
-      String? selectedOption;
-      bool isLoading = false;
-
-      await showDialog(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text(
-              'Reschedule Goal',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '"${goal.title}" is overdue by ${DateTime.now().difference(goal.targetDate).inDays} days.',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Quick options
-                  Text(
-                    'Quick Options:',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  ...[
-                    ('Extend by 1 week', '1week'),
-                    ('Extend by 2 weeks', '2weeks'),
-                    ('Extend by 1 month', '1month'),
-                    ('Adjust scope', 'scope'),
-                    ('Add milestones', 'milestones'),
-                  ].map(
-                    (option) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setDialogState(() {
-                            selectedOption = option.$2;
-                          });
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: selectedOption == option.$2
-                              ? AppColors.activeColor
-                              : Colors.grey.withValues(alpha: 0.2),
-                          foregroundColor: selectedOption == option.$2
-                              ? Colors.white
-                              : AppColors.textPrimary,
-                        ),
-                        child: Text(option.$1),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Custom date picker
-                  Text(
-                    'Or choose new date:',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: goal.targetDate.add(
-                          const Duration(days: 7),
-                        ),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date != null) {
-                        setDialogState(() {
-                          newTargetDate = date;
-                          selectedOption = 'custom';
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(
-                      newTargetDate != null
-                          ? '${newTargetDate!.day}/${newTargetDate!.month}/${newTargetDate!.year}'
-                          : 'Select Date',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: selectedOption == 'custom'
-                          ? AppColors.activeColor
-                          : Colors.grey.withValues(alpha: 0.2),
-                      foregroundColor: selectedOption == 'custom'
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: selectedOption == null || isLoading
-                    ? null
-                    : () async {
-                        setDialogState(() => isLoading = true);
-
-                        // Capture navigator before async operations
-                        final navigator = Navigator.of(context);
-
-                        try {
-                          DateTime finalDate;
-                          String actionMessage;
-
-                          switch (selectedOption) {
-                            case '1week':
-                              finalDate = goal.targetDate.add(
-                                const Duration(days: 7),
-                              );
-                              actionMessage = 'Extended deadline by 1 week';
-                              break;
-                            case '2weeks':
-                              finalDate = goal.targetDate.add(
-                                const Duration(days: 14),
-                              );
-                              actionMessage = 'Extended deadline by 2 weeks';
-                              break;
-                            case '1month':
-                              finalDate = goal.targetDate.add(
-                                const Duration(days: 30),
-                              );
-                              actionMessage = 'Extended deadline by 1 month';
-                              break;
-                            case 'custom':
-                              if (newTargetDate == null) return;
-                              finalDate = newTargetDate!;
-                              actionMessage = 'Rescheduled to new date';
-                              break;
-                            case 'scope':
-                            case 'milestones':
-                              // Navigate to goal detail with special mode
-                              navigator.pop();
-                              if (mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => GoalDetailScreen(
-                                      goal: goal,
-                                      initialMode: selectedOption == 'scope'
-                                          ? GoalDetailMode.adjustScope
-                                          : GoalDetailMode.addMilestones,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return;
-                            default:
-                              return;
-                          }
-
-                          // Update goal
-                          await FirebaseFirestore.instance
-                              .collection('goals')
-                              .doc(goalId)
-                              .update({
-                                'targetDate': Timestamp.fromDate(finalDate),
-                              });
-
-                          if (!mounted) return;
-
-                          navigator.pop();
-
-                          if (!mounted) return;
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(actionMessage),
-                              backgroundColor: AppColors.successColor,
-                            ),
-                          );
-                        } catch (e) {
-                          setDialogState(() => isLoading = false);
-
-                          if (!mounted) return;
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Failed to reschedule goal'),
-                              backgroundColor: AppColors.dangerColor,
-                            ),
-                          );
-                        }
-                      },
-                child: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Reschedule'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading goal details'),
-            backgroundColor: AppColors.dangerColor,
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _handleAlertNavigation(Alert alert) async {
@@ -1874,6 +1554,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.block);
       case AlertType.managerGeneral:
         return Icon(Icons.notifications);
+      case AlertType.profileIncomplete:
+        return Icon(Icons.person_outline);
     }
   }
 
@@ -3006,6 +2688,8 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         return Icon(Icons.block);
       case AlertType.managerGeneral:
         return Icon(Icons.notifications);
+      case AlertType.profileIncomplete:
+        return Icon(Icons.person_outline);
     }
   }
 
@@ -3026,3 +2710,6 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
 }
 
 // Drawer removed; persistent sidebar via MainLayout
+
+
+
