@@ -10,6 +10,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/services/database_service.dart';
+import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/goal.dart';
@@ -22,6 +23,7 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/manager_badge_evaluator.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class ProgressVisualsScreen extends StatefulWidget {
   final bool embedded;
@@ -37,14 +39,51 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
   bool isLoading = true;
   String? error;
   UserProfile? _cachedProfile;
+  static UserProfile? _globalCachedProfile;
 
   @override
   void initState() {
     super.initState();
     // Ensure role is loaded before building
     RoleService.instance.ensureRoleLoaded();
+    // Populate daily progress snapshots used by "View Trend" charts.
+    // This was previously only triggered on Alerts & Nudges screen load.
+    AlertService.checkAndCreateGoalAlerts();
     _redirectIfManagerStandalone();
+    _seedFastProfile();
     _loadUserData();
+  }
+
+  void _seedFastProfile() {
+    // Render instantly using an in-memory or auth-based profile placeholder.
+    // The Firestore stream + DatabaseService load will replace this shortly.
+    if (_cachedProfile != null || userProfile != null) return;
+    if (_globalCachedProfile != null) {
+      _cachedProfile = _globalCachedProfile;
+      userProfile = _globalCachedProfile;
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final role = RoleService.instance.cachedRole ?? 'employee';
+    final email = (user.email ?? '').trim();
+    final displayName =
+        (user.displayName ?? '').trim().isNotEmpty
+            ? user.displayName!.trim()
+            : (email.isNotEmpty ? email.split('@').first : 'User');
+
+    final placeholder = UserProfile(
+      uid: user.uid,
+      email: email,
+      displayName: displayName,
+      totalPoints: 0,
+      level: 1,
+      badges: const [],
+      role: role,
+    );
+    _cachedProfile = placeholder;
+    userProfile = placeholder;
   }
 
   Future<void> _redirectIfManagerStandalone() async {
@@ -71,10 +110,13 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
 
   Future<void> _loadUserData() async {
     try {
-      setState(() {
-        isLoading = true;
-        error = null;
-      });
+      // Only trigger the full-screen "loading" state if we truly have nothing to render yet.
+      if (mounted && _cachedProfile == null && userProfile == null) {
+        setState(() {
+          isLoading = true;
+          error = null;
+        });
+      }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -83,6 +125,7 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
         setState(() {
           userProfile = profile;
           _cachedProfile = profile;
+          _globalCachedProfile = profile;
           isLoading = false;
         });
       }
@@ -100,21 +143,20 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value(null);
 
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .snapshots()
-        .map((doc) {
-          if (!doc.exists) return null;
-          return UserProfile.fromFirestore(doc);
-        });
+    return FirestoreSafe.stream(
+      FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    ).map((doc) {
+      if (!doc.exists) return null;
+      return UserProfile.fromFirestore(doc);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<UserProfile?>(
       stream: _getUserProfileStream(),
-      initialData: _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
+      initialData:
+          _cachedProfile ?? userProfile, // Use cached profile to avoid spinner
       builder: (context, profileSnapshot) {
         final streamedProfile = profileSnapshot.data;
         if (streamedProfile != null && streamedProfile != _cachedProfile) {
@@ -155,7 +197,8 @@ class _ProgressVisualsScreenState extends State<ProgressVisualsScreen> {
           );
         }
 
-        final effectiveProfile = streamedProfile ?? _cachedProfile ?? userProfile;
+        final effectiveProfile =
+            streamedProfile ?? _cachedProfile ?? userProfile;
 
         // Only show loading if we truly don't have any data
         if (profileSnapshot.connectionState == ConnectionState.waiting &&
@@ -260,13 +303,34 @@ class _ManagerProgressVisualsContentState
   String? selectedDepartment;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   bool _hasAppliedDefaultView = false;
+  // Keep a stable focus anchor so we don't leave focus on a disposed widget
+  // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
+  final FocusNode _stableFocusNode = FocusNode(debugLabel: 'ManagerProgressVisuals');
   DateTime? _lastBadgeEval;
   static const Duration _badgeEvalCooldown = Duration(minutes: 5);
+  late final Stream<List<ManagerActivity>> _managerActivitiesStream;
+  late Stream<List<EmployeeData>> _teamStream;
+  String _teamStreamKey = '';
+  List<EmployeeData> _lastEnrichedTeamEmployees = const [];
+
+  // In-memory caches to avoid an entry-time "blank loading" state.
+  static List<ManagerActivity> _cachedManagerActivities = const [];
+  static String _cachedTeamKey = '';
+  static List<EmployeeData> _cachedTeamEmployees = const [];
 
   @override
   void initState() {
     super.initState();
     _ensureDefaultManagerView();
+    // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
+    _managerActivitiesStream = _getManagerActivitiesStream();
+    _rebuildTeamStream();
+  }
+
+  @override
+  void dispose() {
+    _stableFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -289,62 +353,115 @@ class _ManagerProgressVisualsContentState
     _hasAppliedDefaultView = true;
   }
 
+  String _makeTeamStreamKey({
+    String? department,
+    TimeFilter? timeFilter,
+  }) {
+    final dept = (department ?? '').trim().toLowerCase();
+    final tf = (timeFilter ?? currentTimeFilter).name;
+    return '$dept|$tf';
+  }
+
+  void _rebuildTeamStream() {
+    _teamStreamKey = _makeTeamStreamKey(
+      department: selectedDepartment,
+      timeFilter: currentTimeFilter,
+    );
+    _teamStream = ManagerRealtimeService.getTeamDataStream(
+      department: selectedDepartment,
+      timeFilter: currentTimeFilter,
+    );
+  }
+
+  void _switchViewType(ProgressViewType next) {
+    // Clear any focus that might belong to a widget that's about to be removed.
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      currentViewType = next;
+    });
+    // After rebuild, re-anchor focus on a stable node to avoid web focus traversal crashes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _stableFocusNode.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  currentViewType == ProgressViewType.team
-                      ? 'Team Progress Overview'
-                      : 'My Progress Overview',
-                  style: AppTypography.heading2.copyWith(
-                    color: AppColors.textPrimary,
+    return Focus(
+      focusNode: _stableFocusNode,
+      child: SingleChildScrollView(
+        padding: AppSpacing.screenPadding,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    currentViewType == ProgressViewType.team
+                        ? 'Team Progress Overview'
+                        : 'My Progress Overview',
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              _buildViewTypeFilter(),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
+                _buildViewTypeFilter(),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
 
-          if (currentViewType == ProgressViewType.team)
-            _buildTeamProgressView()
-          else
-            _buildMyProgressView(),
-        ],
+            if (currentViewType == ProgressViewType.team)
+              _buildTeamProgressView()
+            else
+              _buildMyProgressView(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTeamProgressView() {
     return StreamBuilder<List<EmployeeData>>(
-      stream: ManagerRealtimeService.getTeamDataStream(
-        department: selectedDepartment,
-        timeFilter: currentTimeFilter,
-      ),
+      stream: _teamStream,
+      initialData:
+          (_cachedTeamKey == _teamStreamKey) ? _cachedTeamEmployees : null,
       builder: (context, teamSnapshot) {
-        if (teamSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
+        final incoming = teamSnapshot.data;
+        final hasPlaceholderBatch =
+            incoming != null &&
+            incoming.isNotEmpty &&
+            incoming.every((e) => e.isPlaceholder);
+
+        // Only treat non-placeholder emissions as "real" (placeholders have no goals/metrics).
+        if (incoming != null && incoming.isNotEmpty && !hasPlaceholderBatch) {
+          _lastEnrichedTeamEmployees = incoming;
+          _cachedTeamKey = _teamStreamKey;
+          _cachedTeamEmployees = incoming;
         }
 
         if (teamSnapshot.hasError) {
           return _buildErrorState(teamSnapshot.error.toString());
         }
 
-        final employees = teamSnapshot.data ?? [];
-        if (employees.isEmpty) {
-          return _buildNoDataState();
+        final employees =
+            (!hasPlaceholderBatch && incoming != null)
+                ? incoming
+                : (_lastEnrichedTeamEmployees.isNotEmpty
+                      ? _lastEnrichedTeamEmployees
+                      : (_cachedTeamKey == _teamStreamKey
+                            ? _cachedTeamEmployees
+                            : (incoming ?? const [])));
+
+        // If we're still warming up (or only have placeholders), show a lightweight skeleton
+        // instead of a full-screen spinner.
+        final noEnrichedCache =
+            _lastEnrichedTeamEmployees.isEmpty &&
+            (_cachedTeamKey != _teamStreamKey || _cachedTeamEmployees.isEmpty);
+        if (employees.isEmpty || (hasPlaceholderBatch && noEnrichedCache)) {
+          return _buildTeamProgressSkeleton();
         }
 
         final metrics = _calculateTeamMetrics(employees);
@@ -365,7 +482,11 @@ class _ManagerProgressVisualsContentState
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: AppColors.activeColor, size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.activeColor,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -390,7 +511,10 @@ class _ManagerProgressVisualsContentState
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/manager_review_team_dashboard');
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/manager_review_team_dashboard',
+                      );
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.activeColor,
@@ -408,21 +532,38 @@ class _ManagerProgressVisualsContentState
 
   Widget _buildMyProgressView() {
     return StreamBuilder<List<ManagerActivity>>(
-      stream: _getManagerActivitiesStream(),
+      stream: _managerActivitiesStream,
+      initialData: _cachedManagerActivities.isNotEmpty
+          ? _cachedManagerActivities
+          : null,
       builder: (context, activitySnapshot) {
-        if (activitySnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.activeColor),
-            ),
-          );
-        }
-
         if (activitySnapshot.hasError) {
           return _buildErrorState(activitySnapshot.error.toString());
         }
 
         final activities = activitySnapshot.data ?? [];
+        if (activities.isNotEmpty) {
+          _cachedManagerActivities = activities;
+        }
+
+        // If we don't have any cached activities yet, show skeleton cards rather than
+        // blocking the entire screen with a spinner.
+        final isStillLoading =
+            (activitySnapshot.connectionState == ConnectionState.waiting ||
+                activitySnapshot.connectionState == ConnectionState.none) &&
+            _cachedManagerActivities.isEmpty &&
+            activities.isEmpty;
+        if (isStillLoading) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildManagerProgressMetricsLoading(),
+              const SizedBox(height: AppSpacing.xl),
+              _buildManagerBadgesSummary(),
+            ],
+          );
+        }
+
         if (activities.isEmpty) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,33 +591,187 @@ class _ManagerProgressVisualsContentState
             const SizedBox(height: AppSpacing.xl),
             _buildManagerBadgesSummary(),
             const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Recent manager actions',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+            _buildRecentManagerActionsCollapsible(activities),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildManagerProgressMetricsLoading() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Total Activities',
+                value: '...',
+                icon: Icons.work_outline,
+                color: AppColors.activeColor,
+                subtitle: 'Loading',
               ),
             ),
-            const SizedBox(height: AppSpacing.md),
-            ...activities.take(8).map(
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Nudges Sent',
+                value: '...',
+                icon: Icons.send,
+                color: AppColors.infoColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Approvals',
+                value: '...',
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Loading',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Replans',
+                value: '...',
+                icon: Icons.update,
+                color: AppColors.warningColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamProgressSkeleton() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Team Progress',
+                value: '...',
+                icon: Icons.trending_up,
+                color: AppColors.activeColor,
+                subtitle: 'Loading metrics',
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildMetricCard(
+                title: 'Goals Completed',
+                value: '...',
+                icon: Icons.check_circle_outline,
+                color: AppColors.successColor,
+                subtitle: 'Loading',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _buildMetricCard(
+          title: 'Active Employees',
+          value: '...',
+          icon: Icons.online_prediction,
+          color: AppColors.infoColor,
+          subtitle: 'Loading',
+          fullWidth: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentManagerActionsCollapsible(
+    List<ManagerActivity> activities,
+  ) {
+    final visible = activities.take(8).toList();
+    final remaining = (activities.length - visible.length).clamp(0, 999999);
+
+    final subtitleText = activities.isEmpty
+        ? 'No actions yet'
+        : 'Tap to view your most recent actions (${visible.length} of ${activities.length})';
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          key: const PageStorageKey<String>('recent_manager_actions'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          iconColor: AppColors.activeColor,
+          collapsedIconColor: AppColors.activeColor,
+          title: Text(
+            'Recent manager actions',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            subtitleText,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          children: [
+            const SizedBox(height: AppSpacing.sm),
+            ...visible.map(
               (activity) => Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: _buildManagerActivityCard(activity),
               ),
             ),
-            if (activities.length > 8)
+            if (remaining > 0)
               Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Text(
-                  '+${activities.length - 8} more actions',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.activeColor,
-                    fontWeight: FontWeight.w600,
-                  ),
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '+$remaining more actions',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.activeColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          '/manager_review_team_dashboard',
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.activeColor,
+                      ),
+                      child: const Text('View all'),
+                    ),
+                  ],
                 ),
               ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -623,9 +918,7 @@ class _ManagerProgressVisualsContentState
     final criteria = badge.criteria;
     final source = criteria['source'];
     final hasManagerLevel = criteria.containsKey('managerLevel');
-    return badge.id.startsWith('mgr_') ||
-        source == 'season' ||
-        hasManagerLevel;
+    return badge.id.startsWith('mgr_') || source == 'season' || hasManagerLevel;
   }
 
   Stream<List<Goal>> _getManagerGoalsStream() {
@@ -633,18 +926,20 @@ class _ManagerProgressVisualsContentState
     if (user == null) return Stream.value([]);
 
     // Merge top-level and nested user goals (same pattern as manager_employee_detail_screen)
-    final topLevel = FirebaseFirestore.instance
-        .collection('goals')
-        .where('userId', isEqualTo: user.uid)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+    final topLevel = FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .snapshots(),
+    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
 
-    final nested = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('goals')
-        .snapshots()
-        .map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
+    final nested = FirestoreSafe.stream(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('goals')
+          .snapshots(),
+    ).map((s) => s.docs.map((d) => Goal.fromFirestore(d)).toList());
 
     return topLevel.combineLatest<List<Goal>, List<Goal>>(nested, (a, b) {
       final seen = <String>{};
@@ -784,9 +1079,7 @@ class _ManagerProgressVisualsContentState
       children: [
         Text(
           'Milestone Analytics',
-          style: AppTypography.heading3.copyWith(
-            color: AppColors.textPrimary,
-          ),
+          style: AppTypography.heading3.copyWith(color: AppColors.textPrimary),
         ),
         const SizedBox(height: AppSpacing.md),
         ...goals
@@ -812,11 +1105,7 @@ class _ManagerProgressVisualsContentState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.flag_outlined,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
+          Icon(Icons.flag_outlined, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No Goals Yet',
@@ -937,21 +1226,90 @@ class _ManagerProgressVisualsContentState
           );
         }
 
-        // Fetch approvals from goals
-        final approvalsSnapshot = await FirebaseFirestore.instance
-            .collection('goals')
-            .where('approvedByUserId', isEqualTo: user.uid)
-            .orderBy('approvedAt', descending: true)
-            .limit(50)
-            .get();
+        // Fetch approvals from goals (ONLY goals approved by *this* manager).
+        // Include both top-level goals and nested user goals, with index-safe fallbacks.
+        List<QueryDocumentSnapshot<Map<String, dynamic>>> approvalDocs = [];
+        Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+        fetchApprovalDocsFrom(Query<Map<String, dynamic>> q) async {
+          try {
+            final snap = await q
+                .where('approvedByUserId', isEqualTo: user.uid)
+                .where(
+                  'approvalStatus',
+                  isEqualTo: GoalApprovalStatus.approved.name,
+                )
+                .orderBy('approvedAt', descending: true)
+                .limit(50)
+                .get();
+            return snap.docs;
+          } catch (e) {
+            // If composite index fails, try without orderBy and sort in memory
+            developer.log('Approvals orderBy failed, using fallback: $e');
+            try {
+              final snap = await q
+                  .where('approvedByUserId', isEqualTo: user.uid)
+                  .where(
+                    'approvalStatus',
+                    isEqualTo: GoalApprovalStatus.approved.name,
+                  )
+                  .limit(100)
+                  .get();
+              final docs = snap.docs.toList()
+                ..sort((a, b) {
+                  final aTime =
+                      (a.data()['approvedAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  final bTime =
+                      (b.data()['approvedAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMillisecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime);
+                });
+              return docs.take(50).toList();
+            } catch (e2) {
+              developer.log('Approvals fallback also failed: $e2');
+              return const [];
+            }
+          }
+        }
 
-        for (final doc in approvalsSnapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data == null) continue;
+        // Top-level goals approvals
+        approvalDocs.addAll(
+          await fetchApprovalDocsFrom(
+            FirebaseFirestore.instance.collection('goals'),
+          ),
+        );
+        // Nested user goals approvals (in case approvals are stored under users/{uid}/goals)
+        approvalDocs.addAll(
+          await fetchApprovalDocsFrom(
+            FirebaseFirestore.instance.collectionGroup('goals'),
+          ),
+        );
 
-          final employeeId = data['userId'] as String?;
+        // Process approvals (dedupe across sources)
+        final seenApprovalKeys = <String>{};
+        for (final doc in approvalDocs) {
+          final data = doc.data();
+
+          // Defensive: ensure it's really approved by this manager
+          if ((data['approvedByUserId'] ?? '').toString() != user.uid) continue;
+          if ((data['approvalStatus'] ?? '').toString() !=
+              GoalApprovalStatus.approved.name) {
+            continue;
+          }
+
+          final employeeId = (data['userId'] ?? data['ownerId'])?.toString();
+          final approvedAt =
+              (data['approvedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final goalTitle = (data['title'] ?? 'Approved a goal').toString();
+
+          // Build a stable dedupe key across collections
+          final approvalKey =
+              '${employeeId ?? ''}|$goalTitle|${approvedAt.millisecondsSinceEpoch}';
+          if (seenApprovalKeys.contains(approvalKey)) continue;
+          seenApprovalKeys.add(approvalKey);
+
           String? employeeName;
-          if (employeeId != null) {
+          if (employeeId != null && employeeId.isNotEmpty) {
             try {
               final empDoc = await FirebaseFirestore.instance
                   .collection('users')
@@ -965,17 +1323,15 @@ class _ManagerProgressVisualsContentState
 
           activities.add(
             ManagerActivity(
-              id: doc.id,
+              id: 'approval_${doc.id}',
               type: ManagerActivityType.approval,
               title: 'Approved Goal',
-              description: data['title'] as String? ?? 'Approved a goal',
+              description: goalTitle,
               employeeId: employeeId,
               employeeName: employeeName,
-              createdAt:
-                  (data['approvedAt'] as Timestamp?)?.toDate() ??
-                  DateTime.now(),
+              createdAt: approvedAt,
               isCompleted: true,
-              metadata: {'goalTitle': data['title']},
+              metadata: {'goalTitle': goalTitle},
             ),
           );
         }
@@ -1151,18 +1507,14 @@ class _ManagerProgressVisualsContentState
             label: 'Team',
             isSelected: currentViewType == ProgressViewType.team,
             onTap: () {
-              setState(() {
-                currentViewType = ProgressViewType.team;
-              });
+              _switchViewType(ProgressViewType.team);
             },
           ),
           _buildViewTypeButton(
             label: 'My Progress',
             isSelected: currentViewType == ProgressViewType.myProgress,
             onTap: () {
-              setState(() {
-                currentViewType = ProgressViewType.myProgress;
-              });
+              _switchViewType(ProgressViewType.myProgress);
             },
           ),
         ],
@@ -1639,7 +1991,6 @@ class _ManagerProgressVisualsContentState
       lastUpdated: DateTime.now(),
     );
   }
-
 
   Widget _buildTeamMetricsCards(TeamMetrics metrics) {
     return Column(
@@ -2852,7 +3203,9 @@ class _EmployeeProgressVisualsContentState
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .map((snapshot) {
-          final goals = snapshot.docs.map((doc) => Goal.fromFirestore(doc)).toList();
+          final goals = snapshot.docs
+              .map((doc) => Goal.fromFirestore(doc))
+              .toList();
           // Sort goals by createdAt descending (newest first)
           goals.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return goals;
@@ -4092,6 +4445,10 @@ $progressDetails
         return 'on-hold';
       case GoalStatus.burnout:
         return 'recovery';
+      case GoalStatus.acknowledged:
+        return 'acknowledged';
+      case GoalStatus.completed:
+        return 'completed';
       default:
         return 'active';
     }
@@ -4522,6 +4879,10 @@ $progressDetails
         return AppColors.dangerColor;
       case GoalMilestoneStatus.notStarted:
         return AppColors.textSecondary;
+      case GoalMilestoneStatus.pendingManagerReview:
+        return Colors.orange; // Orange for pending review
+      case GoalMilestoneStatus.completedAcknowledged:
+        return Colors.purple; // Purple for acknowledged
     }
   }
 
@@ -4535,6 +4896,10 @@ $progressDetails
         return Icons.block;
       case GoalMilestoneStatus.notStarted:
         return Icons.radio_button_unchecked;
+      case GoalMilestoneStatus.pendingManagerReview:
+        return Icons.pending_actions; // Icon for pending review
+      case GoalMilestoneStatus.completedAcknowledged:
+        return Icons.verified; // Icon for acknowledged
     }
   }
 
@@ -4625,28 +4990,47 @@ class GoalTrendDialog extends StatelessWidget {
     final since = now.subtract(const Duration(days: 30));
     final sinceKey =
         '${since.year}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+    final screenW = MediaQuery.sizeOf(context).width;
+    final dialogWidth = (screenW * 0.92).clamp(320.0, 720.0);
     return AlertDialog(
       backgroundColor: AppColors.elevatedBackground,
+      scrollable: true,
       contentPadding: const EdgeInsets.all(16),
       title: Text(
         'Trends • $goalTitle',
         style: AppTypography.heading4.copyWith(color: AppColors.textPrimary),
       ),
       content: SizedBox(
-        width: 600,
+        width: dialogWidth,
         child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('goal_daily_progress')
-              .where('goalId', isEqualTo: goalId)
-              .where('date', isGreaterThanOrEqualTo: sinceKey)
-              .orderBy('date')
-              .limit(90)
-              .snapshots(),
+          stream: FirestoreSafe.stream(
+            FirebaseFirestore.instance
+                .collection('goal_daily_progress')
+                .where('goalId', isEqualTo: goalId)
+                .where('date', isGreaterThanOrEqualTo: sinceKey)
+                .orderBy('date')
+                .limit(90)
+                .snapshots(),
+          ),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const SizedBox(
                 height: 260,
                 child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return SizedBox(
+                height: 260,
+                child: Center(
+                  child: Text(
+                    'Could not load trend data. Please try again.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               );
             }
             final docs = snapshot.data?.docs ?? [];
@@ -4769,6 +5153,9 @@ class _LineChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
+    final pointPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
 
     // Padding for axes
     const leftPad = 28.0;
@@ -4801,17 +5188,25 @@ class _LineChartPainter extends CustomPainter {
     final n = values.length;
     final dx = n > 1 ? chartRect.width / (n - 1) : 0;
     final path = Path();
+    final points = <Offset>[];
     for (int i = 0; i < n; i++) {
       final v = values[i].clamp(0.0, 100.0);
       final x = chartRect.left + dx * i;
       final y = chartRect.bottom - (v / 100.0) * chartRect.height;
+      final pt = Offset(x, y);
+      points.add(pt);
       if (i == 0) {
-        path.moveTo(x, y);
+        path.moveTo(pt.dx, pt.dy);
       } else {
-        path.lineTo(x, y);
+        path.lineTo(pt.dx, pt.dy);
       }
     }
     canvas.drawPath(path, linePaint);
+
+    // Draw markers so a single data point is still visible.
+    for (final p in points) {
+      canvas.drawCircle(p, 3.0, pointPaint);
+    }
 
     // Axes tick labels (0, 25, 50, 75, 100)
     final textPainter = TextPainter(textDirection: TextDirection.ltr);

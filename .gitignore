@@ -48,6 +48,7 @@ app.*.map.json
 .env
 .env.local
 .env.*.local
+backend\app\pdh-fe6eb-firebase-adminsdk-fbsvc-2700680531.json
 
 # Generated config file (contains sensitive keys from build-time injection)
 # Note: We DO commit the placeholder version (with null values) so the code compiles

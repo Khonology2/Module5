@@ -24,15 +24,14 @@ enum AlertType {
   seasonProgressUpdate, // Employee completed a season goal / progress (manager-facing)
   seasonCompleted, // Season fully completed (manager-facing)
   goalMilestoneCompleted, // Employee milestone completion surfaced to managers
-  profileIncomplete, // Profile basic information is incomplete
+  milestoneDeletionRequest, // NEW: Milestone deletion request sent to manager
+  milestoneDeleted, // NEW: Milestone deleted by manager (notification to employee)
+  milestoneDeletionRejected, // NEW: Milestone deletion rejected by manager (notification to employee)
+  managerGeneral, // NEW: Generic manager alert
+  profileIncomplete, // Profile incomplete alert
 }
 
-enum AlertPriority {
-  low,
-  medium,
-  high,
-  urgent,
-}
+enum AlertPriority { low, medium, high, urgent }
 
 class Alert {
   final String id;
@@ -88,7 +87,7 @@ class Alert {
       message: data['message'] ?? '',
       actionText: data['actionText'],
       actionRoute: data['actionRoute'],
-      actionData: data['actionData'] != null 
+      actionData: data['actionData'] != null
           ? Map<String, dynamic>.from(data['actionData'])
           : null,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),

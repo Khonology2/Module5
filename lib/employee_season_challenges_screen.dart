@@ -12,6 +12,7 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/widgets/season_milestone_progress_card.dart';
+import 'package:pdh/season_celebration_screen.dart';
 
 class EmployeeSeasonChallengesScreen extends StatefulWidget {
   const EmployeeSeasonChallengesScreen({super.key});
@@ -61,6 +62,9 @@ class _EmployeeSeasonChallengesScreenState
           _currentUserDepartment = userDoc.data()?['department'];
         });
       }
+
+      // Sync season challenge points into the employee profile.
+      await SeasonService.syncCurrentEmployeeSeasonPoints();
     }
   }
 
@@ -218,8 +222,13 @@ class _EmployeeSeasonChallengesScreenState
   }
 
   Widget _buildCompletedSeasonsTab() {
+    final uid = _currentUserId;
+    if (uid == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return StreamBuilder<List<Season>>(
-      stream: SeasonService.getManagerSeasonsStream(),
+      stream: SeasonService.getParticipantSeasonsStream(uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -235,8 +244,7 @@ class _EmployeeSeasonChallengesScreenState
 
         final seasons = snapshot.data!;
         final completedSeasons = seasons.where((season) {
-          return season.status == SeasonStatus.completed &&
-              season.participantIds.contains(_currentUserId);
+          return season.status == SeasonStatus.completed;
         }).toList();
 
         if (completedSeasons.isEmpty) {
@@ -968,11 +976,11 @@ class _EmployeeSeasonChallengesScreenState
   }
 
   void _viewSeasonCelebration(Season season) {
-    // Navigate to season celebration screen
-    Navigator.pushNamed(
+    Navigator.push(
       context,
-      '/season_celebration',
-      arguments: {'seasonId': season.id},
+      MaterialPageRoute(
+        builder: (context) => SeasonCelebrationScreen(season: season),
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,7 +21,6 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
-import 'dart:developer' as developer;
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -48,47 +48,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     _loadPredictiveRisks();
   }
 
-  Future<bool> _isProfileIncomplete() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return false;
-
-    try {
-      final userProfile = await DatabaseService.getUserProfile(user.uid);
-      final onboardingData = await DatabaseService.getOnboardingData(
-        userId: user.uid,
-        email: user.email,
-      );
-
-      final fullName = onboardingData['fullName'] ?? userProfile.displayName;
-      final jobTitle = onboardingData['designation'] ?? userProfile.jobTitle;
-      final department = userProfile.department;
-      final email = userProfile.email;
-
-      return fullName.trim().isEmpty ||
-          jobTitle.trim().isEmpty ||
-          department.trim().isEmpty ||
-          email.trim().isEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Alert? _buildProfileIncompleteAlert() {
-    return Alert(
-      id: 'profile_incomplete_alert',
-      userId: FirebaseAuth.instance.currentUser?.uid ?? '',
-      type: AlertType.profileIncomplete,
-      priority: AlertPriority.high,
-      title: 'Complete Your Profile',
-      message: 'Please fill in all basic information fields (Full Name, Job Title, Department, and Work Email) in your profile.',
-      actionText: 'Go to Profile',
-      actionRoute: '/my_profile',
-      createdAt: DateTime.now(),
-      isRead: false,
-      isDismissed: false,
-    );
-  }
-
   Future<void> _loadPredictiveRisks() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -96,15 +55,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     setState(() => _isLoadingRisks = true);
 
     try {
-      // Use cached goals if available, otherwise fetch
       final goals = await DatabaseService.getUserGoals(user.uid);
       if (goals.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _predictiveRisks = [];
-            _isLoadingRisks = false;
-          });
-        }
+        setState(() {
+          _predictiveRisks = [];
+          _isLoadingRisks = false;
+        });
         return;
       }
 
@@ -207,6 +163,20 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     }
   }
 
+  Future<String> _getEmployeeDisplayName(User user) async {
+    final fromAuth = (user.displayName ?? '').trim();
+    if (fromAuth.isNotEmpty) return fromAuth;
+    try {
+      final profile = await DatabaseService.getUserProfile(user.uid);
+      if (profile.displayName.isNotEmpty) {
+        return profile.displayName;
+      }
+    } catch (_) {
+      // Best-effort; fall back below.
+    }
+    return user.email ?? user.uid;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get tutorial state from global service and update context
@@ -271,12 +241,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                     stream: AlertService.getUserAlertsStream(user.uid),
                     initialData: _cachedAlerts,
                     builder: (context, alertsSnapshot) {
-                      // Debug logging
-                      developer.log('Alerts snapshot state: ${alertsSnapshot.connectionState}');
-                      if (alertsSnapshot.hasError) {
-                        developer.log('Alerts stream error: ${alertsSnapshot.error}');
-                      }
-                      
                       final streamedAlerts = alertsSnapshot.data;
                       // Update cache when fresh data arrives
                       if (streamedAlerts != null &&
@@ -288,42 +252,42 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                       if (alertsSnapshot.hasError && _cachedAlerts == null) {
                         final errorMessage = alertsSnapshot.error.toString();
 
-                            // Check if it's a permission error
-                            if (errorMessage.contains('permission-denied') ||
-                                errorMessage.contains(
-                                  'Missing or insufficient permissions',
-                                )) {
-                              return _buildPermissionErrorState();
-                            }
+                        // Check if it's a permission error
+                        if (errorMessage.contains('permission-denied') ||
+                            errorMessage.contains(
+                              'Missing or insufficient permissions',
+                            )) {
+                          return _buildPermissionErrorState();
+                        }
 
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    size: 48,
-                                    color: AppColors.dangerColor,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Error loading alerts',
-                                    style: AppTypography.heading4.copyWith(
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Please try again later',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: AppColors.dangerColor,
                               ),
-                            );
-                          }
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error loading alerts',
+                                style: AppTypography.heading4.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please try again later',
+                                style: AppTypography.bodyMedium.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
                       final alerts = streamedAlerts ?? _cachedAlerts ?? [];
 
@@ -333,8 +297,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           _cachedAlerts == null) {
                         return const Center(
                           child: CircularProgressIndicator(
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(AppColors.activeColor),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.activeColor,
+                            ),
                           ),
                         );
                       }
@@ -344,67 +309,49 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           .where((a) => a.type != AlertType.goalOverdue)
                           .toList();
 
-                          return FutureBuilder<bool>(
-                            future: _isProfileIncomplete(),
-                            builder: (context, profileSnapshot) {
-                              final isIncomplete = profileSnapshot.data == true;
-                              final allAlerts = isIncomplete
-                                  ? [
-                                      _buildProfileIncompleteAlert()!,
-                                      ...filtered,
-                                    ]
-                                  : filtered;
-
-                              return Column(
-                                children: [
-                                  _buildAlertSummary(allAlerts),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  _buildPredictiveRiskAlerts(),
-                                  const SizedBox(height: AppSpacing.lg),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Recent Alerts',
-                                        style: AppTypography.heading3.copyWith(
-                                          color: AppColors.textPrimary,
-                                        ),
-                                      ),
-                                      ElevatedButton.icon(
-                                        onPressed: () => _showAIChatAssistant(
-                                          context,
-                                          allAlerts,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.chat_bubble_outline,
-                                          size: 18,
-                                        ),
-                                        label: const Text('AI Assistant'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              AppColors.activeColor,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(28),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                      return Column(
+                        children: [
+                          _buildAlertSummary(filtered),
+                          const SizedBox(height: AppSpacing.lg),
+                          _buildPredictiveRiskAlerts(),
+                          const SizedBox(height: AppSpacing.lg),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Recent Alerts',
+                                style: AppTypography.heading3.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    _showAIChatAssistant(context, filtered),
+                                icon: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 18,
+                                ),
+                                label: const Text('AI Assistant'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.activeColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
                                   ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  _buildAlertsList(allAlerts),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                      ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          _buildAlertsList(filtered),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               );
             },
@@ -961,8 +908,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               ),
             ],
           ),
-          if (alert.actionText != null &&
-              (!isManagerNudge || hasGoal)) ...[
+          if (alert.actionText != null && (!isManagerNudge || hasGoal)) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -975,11 +921,6 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
                       if (alert.type == AlertType.managerNudge) {
                         await _showManagerNudgeDialog(alert);
-                        return;
-                      }
-
-                      if (alert.type == AlertType.goalOverdue) {
-                        await _showRescheduleWizard(alert);
                         return;
                       }
 
@@ -1021,264 +962,182 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     );
   }
 
-  Future<void> _showRescheduleWizard(Alert alert) async {
-    final goalId = alert.relatedGoalId;
-    if (goalId == null || goalId.isEmpty) return;
+  Future<void> _handleAlertNavigation(Alert alert) async {
+    final navigator = Navigator.of(context);
 
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('goals')
-          .doc(goalId)
-          .get();
-      if (!mounted) return;
-      if (!doc.exists) return;
+    // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
+    final goalId = alert.actionData != null
+        ? (alert.actionData!['goalId'] as String?)
+        : null; 
+    final relatedGoalId = alert.relatedGoalId;
+    final targetGoalId = goalId ?? relatedGoalId;
+    final actionRoute = alert.actionRoute;
 
-      final goal = Goal.fromFirestore(doc);
-      DateTime? newTargetDate;
-      String? selectedOption;
-      bool isLoading = false;
+    Future<void> openRouteIfAny() async {
+      if (actionRoute != null) {
+        var route = actionRoute;
+        if (route == '/team_challenges_seasons') {
+          route = '/season_challenges';
+        }
+        // Never send users to the goal creation workspace as a fallback for
+        // goal-related alerts. If we couldn't open the goal detail, take them
+        // to the employee dashboard where goals are listed.
+        if (route == '/my_goal_workspace' &&
+            targetGoalId != null &&
+            targetGoalId.isNotEmpty) {
+          route = '/employee_dashboard';
+        }
+        navigator.pushNamed(route);
+      }
+    }
 
-      await showDialog(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: Text(
-              'Reschedule Goal',
-              style: AppTypography.heading3.copyWith(
-                color: AppColors.textPrimary,
+    // Helper to navigate to goal detail when doc exists
+    Future<bool> openGoalDetail(String gid) async {
+      try {
+        DocumentSnapshot<Map<String, dynamic>>? doc;
+        try {
+          doc = await FirebaseFirestore.instance
+              .collection('goals')
+              .doc(gid)
+              .get();
+        } on FirebaseException catch (fe) {
+          // Some deployments mistakenly allow queries (list) but deny direct get.
+          // If that happens, try an owner-scoped query as a fallback.
+          if (fe.code == 'permission-denied') {
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            if (uid != null && uid.isNotEmpty) {
+              final q = await FirebaseFirestore.instance
+                  .collection('goals')
+                  .where('userId', isEqualTo: uid)
+                  .where(FieldPath.documentId, isEqualTo: gid)
+                  .limit(1)
+                  .get();
+              if (q.docs.isNotEmpty) {
+                doc = q.docs.first;
+              } else {
+                rethrow;
+              }
+            } else {
+              rethrow;
+            }
+          } else {
+            rethrow;
+          }
+        }
+        if (!mounted) return true; // stop further work
+        if (!doc.exists) {
+          return false;
+        }
+
+        final data = doc.data();
+        final approvalStatus = (data?['approvalStatus'] ?? '')
+            .toString()
+            .toLowerCase();
+        if (approvalStatus == GoalApprovalStatus.rejected.name.toLowerCase()) {
+          final reason = (data?['rejectionReason'] ?? '').toString().trim();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  reason.isNotEmpty
+                      ? 'This goal was rejected and cannot be viewed. Reason: $reason'
+                      : 'This goal was rejected and cannot be viewed.',
+                ),
+                duration: const Duration(seconds: 4),
               ),
+            );
+          }
+          return true; // handled
+        }
+
+        late final Goal goal;
+        try {
+          goal = Goal.fromFirestore(doc);
+        } catch (_) {
+          // Fallback to tolerate older/odd schemas
+          final raw = doc.data();
+          if (raw is Map<String, dynamic>) {
+            goal = Goal.fromMap(raw, id: doc.id);
+          } else {
+            return false;
+          }
+        }
+        navigator.push(
+          MaterialPageRoute(builder: (context) => GoalDetailScreen(goal: goal)),
+        );
+        return true;
+      } catch (e) {
+        if (e is FirebaseException && e.code == 'permission-denied') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'You don’t have access to view this goal right now.',
+                ),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return false;
+        }
+        developer.log('Error navigating to goal: $e');
+      }
+      return false;
+    }
+
+    // If we have a goalId, always try to open the detail screen
+    if (targetGoalId != null && targetGoalId.isNotEmpty) {
+      // If the alert itself is a rejection notice, don't open details.
+      if (alert.type == AlertType.goalApprovalRejected) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                alert.message.isNotEmpty
+                    ? alert.message
+                    : 'This goal was rejected and cannot be viewed.',
+              ),
+              duration: const Duration(seconds: 4),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '"${goal.title}" is overdue by ${DateTime.now().difference(goal.targetDate).inDays} days.',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Quick options
-                  Text(
-                    'Quick Options:',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  ...[
-                    ('Extend by 1 week', '1week'),
-                    ('Extend by 2 weeks', '2weeks'),
-                    ('Extend by 1 month', '1month'),
-                    ('Adjust scope', 'scope'),
-                    ('Add milestones', 'milestones'),
-                  ].map((option) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setDialogState(() {
-                          selectedOption = option.$2;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: selectedOption == option.$2
-                            ? AppColors.activeColor
-                            : Colors.grey.withValues(alpha: 0.2),
-                        foregroundColor: selectedOption == option.$2
-                            ? Colors.white
-                            : AppColors.textPrimary,
-                      ),
-                      child: Text(option.$1),
-                    ),
-                  )),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Custom date picker
-                  Text(
-                    'Or choose new date:',
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: goal.targetDate.add(const Duration(days: 7)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date != null) {
-                        setDialogState(() {
-                          newTargetDate = date;
-                          selectedOption = 'custom';
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(
-                      newTargetDate != null
-                          ? '${newTargetDate!.day}/${newTargetDate!.month}/${newTargetDate!.year}'
-                          : 'Select Date',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: selectedOption == 'custom'
-                          ? AppColors.activeColor
-                          : Colors.grey.withValues(alpha: 0.2),
-                      foregroundColor: selectedOption == 'custom'
-                          ? Colors.white
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: selectedOption == null || isLoading
-                    ? null
-                    : () async {
-                        setDialogState(() => isLoading = true);
-                        
-                        try {
-                          DateTime finalDate;
-                          String actionMessage;
-                          
-                          switch (selectedOption) {
-                            case '1week':
-                              finalDate = goal.targetDate.add(const Duration(days: 7));
-                              actionMessage = 'Extended deadline by 1 week';
-                              break;
-                            case '2weeks':
-                              finalDate = goal.targetDate.add(const Duration(days: 14));
-                              actionMessage = 'Extended deadline by 2 weeks';
-                              break;
-                            case '1month':
-                              finalDate = goal.targetDate.add(const Duration(days: 30));
-                              actionMessage = 'Extended deadline by 1 month';
-                              break;
-                            case 'custom':
-                              if (newTargetDate == null) return;
-                              finalDate = newTargetDate!;
-                              actionMessage = 'Rescheduled to new date';
-                              break;
-                            case 'scope':
-                            case 'milestones':
-                              // Navigate to goal detail with special mode
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => GoalDetailScreen(
-                                    goal: goal,
-                                    initialMode: selectedOption == 'scope' 
-                                        ? GoalDetailMode.adjustScope 
-                                        : GoalDetailMode.addMilestones,
-                                  ),
-                                ),
-                              );
-                              return;
-                            default:
-                              return;
-                          }
-                          
-                          // Update goal
-                          await FirebaseFirestore.instance
-                              .collection('goals')
-                              .doc(goalId)
-                              .update({
-                                'targetDate': Timestamp.fromDate(finalDate),
-                              });
-                          
-                          Navigator.pop(context);
-                          
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(actionMessage),
-                              backgroundColor: AppColors.successColor,
-                            ),
-                          );
-                        } catch (e) {
-                          setDialogState(() => isLoading = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Failed to reschedule goal'),
-                              backgroundColor: AppColors.dangerColor,
-                            ),
-                          );
-                        }
-                      },
-                child: isLoading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Reschedule'),
-              ),
-            ],
-          ),
-        ),
-      );
-    } catch (e) {
+          );
+        }
+        return;
+      }
+
+      final opened = await openGoalDetail(targetGoalId);
+      if (opened) return;
+
+      // Could not open goal detail; show notice then go to a safe screen
+      // (never to the goal creation workspace).
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading goal details'),
-            backgroundColor: AppColors.dangerColor,
+            content: Text(
+              'Could not open goal (id: $targetGoalId). Please retry or update the goal list.',
+            ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
-    }
-  }
-
-  Future<void> _handleAlertNavigation(Alert alert) async {
-    final navigator = Navigator.of(context);
-    final actionRoute = alert.actionRoute;
-
-    if (actionRoute == '/my_goal_workspace') {
-      final goalId = alert.actionData != null
-          ? (alert.actionData!['goalId'] as String?)
-          : alert.relatedGoalId;
-      if (goalId != null && goalId.isNotEmpty) {
-        try {
-          final doc = await FirebaseFirestore.instance
-              .collection('goals')
-              .doc(goalId)
-              .get();
-          if (!mounted) return;
-          if (doc.exists) {
-            final goal = Goal.fromFirestore(doc);
-            navigator.push(
-              MaterialPageRoute(
-                builder: (context) => GoalDetailScreen(goal: goal),
-              ),
-            );
-            return;
-          }
-        } catch (_) {}
+      if (mounted) {
+        navigator.pushNamed('/employee_dashboard');
       }
-      // No goal available; do not navigate
       return;
     }
 
+    // No goal id available: fall back to route-based navigation if provided.
     if (actionRoute != null) {
-      var route = actionRoute;
-      if (route == '/team_challenges_seasons') {
-        route = '/season_challenges';
-      }
-      navigator.pushNamed(route);
+      await openRouteIfAny();
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No goal linked to this alert.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -1288,7 +1147,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     bool sendingReaction = false;
     bool sendingResponse = false;
 
-    Future<void> _sendReaction(
+    Future<void> sendReaction(
       String reaction,
       StateSetter setDialogState,
     ) async {
@@ -1302,6 +1161,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       });
 
       try {
+        final employeeName = await _getEmployeeDisplayName(user);
         await ManagerRealtimeService.recordEmployeeActivity(
           employeeId: user.uid,
           activityType: 'nudge_reaction',
@@ -1311,7 +1171,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
-            'employeeName': user.displayName,
+            'employeeName': employeeName,
+            'employeeNameLower': employeeName.toLowerCase(),
             'reaction': reaction,
           },
         );
@@ -1327,7 +1188,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Could not record reaction. Please try again.'),
+              content: const Text(
+                'Could not record reaction. Please try again.',
+              ),
               backgroundColor: AppColors.dangerColor,
             ),
           );
@@ -1339,7 +1202,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
     }
 
-    Future<void> _sendResponse(
+    Future<void> sendResponse(
       StateSetter setDialogState,
       BuildContext dialogContext,
     ) async {
@@ -1355,6 +1218,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       }
 
       try {
+        final employeeName = await _getEmployeeDisplayName(user);
         await ManagerRealtimeService.recordEmployeeActivity(
           employeeId: user.uid,
           activityType: 'nudge_response',
@@ -1364,7 +1228,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
             'managerId': alert.fromUserId,
             'managerName': alert.fromUserName,
             'managerNameLower': (alert.fromUserName ?? '').trim().toLowerCase(),
-            'employeeName': user.displayName,
+            'employeeName': employeeName,
+            'employeeNameLower': employeeName.toLowerCase(),
             'response': response,
           },
         );
@@ -1415,16 +1280,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 backgroundColor: Colors.black.withValues(alpha: 0.75),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                 ),
                 title: Row(
                   children: [
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor:
-                          AppColors.activeColor.withValues(alpha: 0.15),
+                      backgroundColor: AppColors.activeColor.withValues(
+                        alpha: 0.15,
+                      ),
                       child: Text(
                         managerName.isNotEmpty
                             ? managerName[0].toUpperCase()
@@ -1499,9 +1363,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                             label: Text(reaction),
                             selected: isSelected,
                             onSelected: (_) =>
-                                _sendReaction(reaction, setDialogState),
-                            selectedColor:
-                                AppColors.activeColor.withValues(alpha: 0.2),
+                                sendReaction(reaction, setDialogState),
+                            selectedColor: AppColors.activeColor.withValues(
+                              alpha: 0.2,
+                            ),
                             labelStyle: AppTypography.bodySmall.copyWith(
                               color: isSelected
                                   ? AppColors.textPrimary
@@ -1557,7 +1422,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                 ),
                 actions: [
-                  if (alert.actionRoute == '/my_goal_workspace' && _hasGoal(alert)) ...[
+                  if (_hasGoal(alert)) ...[
                     TextButton.icon(
                       onPressed: () {
                         Navigator.of(dialogContext).pop();
@@ -1573,8 +1438,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ),
                   ElevatedButton.icon(
                     onPressed: sendingResponse
-                      ? null
-                      : () => _sendResponse(setDialogState, dialogContext),
+                        ? null
+                        : () => sendResponse(setDialogState, dialogContext),
                     icon: sendingResponse
                         ? SizedBox(
                             width: 16,
@@ -1681,6 +1546,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.milestoneDeletionRequest:
+        return Icon(Icons.info_outline);
+      case AlertType.milestoneDeleted:
+        return Icon(Icons.info_outline);
+      case AlertType.milestoneDeletionRejected:
+        return Icon(Icons.block);
+      case AlertType.managerGeneral:
+        return Icon(Icons.notifications);
       case AlertType.profileIncomplete:
         return Icon(Icons.person_outline);
     }
@@ -2605,50 +2478,103 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {
-                      final navigator = Navigator.of(context);
-                      final actionRoute = alert.actionRoute;
-
                       // Mark as read when action is taken
                       await AlertService.markAsRead(alert.id);
 
                       if (!mounted) return;
 
-                      // Special handling: If the action is to view a specific goal, open GoalDetailScreen
-                      if (actionRoute == '/my_goal_workspace') {
-                        final goalId = alert.actionData != null
-                            ? (alert.actionData!['goalId'] as String?)
-                            : alert.relatedGoalId;
-                        if (goalId != null && goalId.isNotEmpty) {
-                          try {
-                            final doc = await FirebaseFirestore.instance
-                                .collection('goals')
-                                .doc(goalId)
-                                .get();
-                            if (!mounted) return;
-                            if (doc.exists) {
-                              final goal = Goal.fromFirestore(doc);
-                              navigator.push(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      GoalDetailScreen(goal: goal),
+                      final navigator = Navigator.of(context);
+                      final goalId = alert.actionData != null
+                          ? (alert.actionData!['goalId'] as String?)
+                          : null;
+                      final relatedGoalId = alert.relatedGoalId;
+                      final targetGoalId = goalId ?? relatedGoalId;
+
+                      // For rejection alerts: report and stop.
+                      if (alert.type == AlertType.goalApprovalRejected) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                alert.message.isNotEmpty
+                                    ? alert.message
+                                    : 'This goal was rejected and cannot be viewed.',
+                              ),
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      // If we have a goal id, attempt to open its detail view.
+                      if (targetGoalId != null && targetGoalId.isNotEmpty) {
+                        try {
+                          final doc = await FirebaseFirestore.instance
+                              .collection('goals')
+                              .doc(targetGoalId)
+                              .get();
+                          if (!mounted) return;
+                          if (doc.exists) {
+                            late final Goal goal;
+                            try {
+                              goal = Goal.fromFirestore(doc);
+                            } catch (_) {
+                              final raw = doc.data();
+                              if (raw is Map<String, dynamic>) {
+                                goal = Goal.fromMap(raw, id: doc.id);
+                              } else {
+                                throw Exception('Invalid goal data');
+                              }
+                            }
+
+                            if (goal.approvalStatus ==
+                                GoalApprovalStatus.rejected) {
+                              final reason = (goal.rejectionReason ?? '')
+                                  .trim();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    reason.isNotEmpty
+                                        ? 'This goal was rejected and cannot be viewed. Reason: $reason'
+                                        : 'This goal was rejected and cannot be viewed.',
+                                  ),
+                                  duration: const Duration(seconds: 4),
                                 ),
                               );
                               return;
                             }
-                          } catch (_) {
-                            // Fallback to workspace navigation below
+
+                            navigator.push(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    GoalDetailScreen(goal: goal),
+                              ),
+                            );
+                            return;
                           }
+                        } catch (_) {
+                          // Fall through to route navigation below
                         }
                       }
 
-                      // Default: Navigate to the provided route if any
+                      // Fallback to route-based navigation if provided.
+                      final actionRoute = alert.actionRoute;
                       if (actionRoute != null) {
                         var route = actionRoute;
                         if (route == '/team_challenges_seasons') {
                           route = '/season_challenges';
                         }
                         navigator.pushNamed(route);
+                        return;
                       }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('No goal linked to this alert.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: alertColor,
@@ -2754,6 +2680,14 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         return Icon(Icons.emoji_events_outlined);
       case AlertType.goalMilestoneCompleted:
         return Icon(Icons.fact_check);
+      case AlertType.milestoneDeletionRequest:
+        return Icon(Icons.info_outline);
+      case AlertType.milestoneDeleted:
+        return Icon(Icons.info_outline);
+      case AlertType.milestoneDeletionRejected:
+        return Icon(Icons.block);
+      case AlertType.managerGeneral:
+        return Icon(Icons.notifications);
       case AlertType.profileIncomplete:
         return Icon(Icons.person_outline);
     }
@@ -2776,3 +2710,6 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
 }
 
 // Drawer removed; persistent sidebar via MainLayout
+
+
+

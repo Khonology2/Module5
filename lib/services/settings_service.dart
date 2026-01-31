@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class UserSettings {
   final String userId;
@@ -209,6 +211,30 @@ class SettingsService {
   // Cached stream to prevent recreation on every build
   static Stream<UserSettings?>? _cachedSettingsStream;
   static String? _cachedUserId;
+  static final Map<String, Future<void>> _initInFlightByUserId = {};
+
+  static Future<void> _ensureUserSettingsDocInitialized(
+    String uid,
+    UserSettings defaultSettings,
+  ) {
+    final existing = _initInFlightByUserId[uid];
+    if (existing != null) return existing;
+
+    final fut = FirestoreSafe.setDoc<Map<String, dynamic>>(
+      _firestore.collection('users').doc(uid),
+      defaultSettings.toFirestore(),
+      options: SetOptions(merge: true),
+    )
+        .catchError((e) {
+      developer.log('Error initializing user settings: $e');
+      throw e;
+    }).whenComplete(() {
+      _initInFlightByUserId.remove(uid);
+    });
+
+    _initInFlightByUserId[uid] = fut;
+    return fut;
+  }
 
   // Clear cached stream (call on sign out or user change)
   // This prevents multiple Firestore listeners on the same document
@@ -238,22 +264,23 @@ class SettingsService {
     // Create new broadcast stream for this user
     _cachedUserId = user.uid;
     try {
-      _cachedSettingsStream = _firestore
-          .collection('users')
-          .doc(user.uid)
-          .snapshots()
+      _cachedSettingsStream = FirestoreSafe.stream(
+        _firestore.collection('users').doc(user.uid).snapshots(),
+      )
           .asyncMap((snapshot) async {
             if (!snapshot.exists) {
               // Initialize default settings for new users
               final defaultSettings = getDefaultSettings(user);
-              // Save to Firestore asynchronously (don't await to avoid blocking)
-              _firestore
-                  .collection('users')
-                  .doc(user.uid)
-                  .set(defaultSettings.toFirestore(), SetOptions(merge: true))
-                  .catchError((e) {
-                    developer.log('Error initializing user settings: $e');
-                  });
+              // Ensure only one initialization write happens at a time.
+              // This avoids overlapping writes during active listeners (notably on web).
+              try {
+                await _ensureUserSettingsDocInitialized(
+                  user.uid,
+                  defaultSettings,
+                );
+              } catch (_) {
+                // Non-fatal: still return defaults so UI can render.
+              }
               return defaultSettings;
             }
             try {
@@ -265,6 +292,7 @@ class SettingsService {
           })
           .handleError((error) {
             developer.log('Error in user settings stream: $error');
+            FirestoreWebCircuitBreaker.maybeReload(error);
             // Return default settings if there's an error
             return getDefaultSettings(user);
           })
@@ -284,11 +312,20 @@ class SettingsService {
     if (user == null) return null;
 
     try {
-      final snapshot = await _firestore.collection('users').doc(user.uid).get();
-      if (!snapshot.exists) return null;
+      final snapshot =
+          await FirestoreSafe.getDoc(_firestore.collection('users').doc(user.uid));
+      if (!snapshot.exists) {
+        // Ensure defaults exist for new users.
+        final defaults = getDefaultSettings(user);
+        try {
+          await _ensureUserSettingsDocInitialized(user.uid, defaults);
+        } catch (_) {}
+        return defaults;
+      }
       return UserSettings.fromFirestore(snapshot);
     } catch (e) {
       developer.log('Error getting user settings: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
       return null;
     }
   }
@@ -299,10 +336,10 @@ class SettingsService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update(settings.toFirestore());
+      await FirestoreSafe.updateDoc<Map<String, dynamic>>(
+        _firestore.collection('users').doc(user.uid),
+        settings.toFirestore(),
+      );
 
       // Also save certain settings locally
       await _saveLocalSettings(settings);
@@ -330,10 +367,11 @@ class SettingsService {
 
       // Use set with merge to handle both create and update cases
       // This ensures the document exists even if it wasn't created yet
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set(updateData, SetOptions(merge: true));
+      await FirestoreSafe.setDoc<Map<String, dynamic>>(
+        _firestore.collection('users').doc(user.uid),
+        updateData,
+        options: SetOptions(merge: true),
+      );
 
       // Save locally if it's a critical setting
       if (_criticalSettings.contains(key)) {
@@ -348,6 +386,7 @@ class SettingsService {
       }
     } catch (e) {
       developer.log('Error updating setting $key: $e');
+      FirestoreWebCircuitBreaker.maybeReload(e);
       rethrow;
     }
   }
@@ -583,10 +622,10 @@ class SettingsService {
   static Future<void> initializeUserSettings(User user) async {
     try {
       final defaultSettings = getDefaultSettings(user);
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set(defaultSettings.toFirestore());
+      await FirestoreSafe.setDoc<Map<String, dynamic>>(
+        _firestore.collection('users').doc(user.uid),
+        defaultSettings.toFirestore(),
+      );
     } catch (e) {
       developer.log('Error initializing user settings: $e');
       rethrow;

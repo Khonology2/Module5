@@ -101,14 +101,3 @@ class AppColors {
     return activeColor.withValues(alpha: opacity);
   }
 }
-
-/// Backward compatibility for code that used `Color.withValues(alpha: ...)`.
-/// Flutter's `Color` does not have `withValues`; use `withOpacity` instead.
-extension ColorCompatibility on Color {
-  Color withValues({double? alpha}) {
-    if (alpha != null) {
-      return withValues(alpha: alpha);
-    }
-    return this;
-  }
-}

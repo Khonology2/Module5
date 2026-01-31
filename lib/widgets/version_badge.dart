@@ -3,10 +3,7 @@ import 'package:pdh/version_info.dart';
 
 /// Displays the current app version label.
 class VersionBadge extends StatelessWidget {
-  const VersionBadge({
-    super.key,
-    this.padding = const EdgeInsets.all(8),
-  });
+  const VersionBadge({super.key, this.padding = const EdgeInsets.all(8)});
 
   final EdgeInsets padding;
 
@@ -36,4 +33,3 @@ class VersionBadge extends StatelessWidget {
     );
   }
 }
-

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class TeamGoalsScreen extends StatefulWidget {
   const TeamGoalsScreen({super.key});
@@ -103,15 +103,13 @@ class _TeamGoalsScreenState extends State<TeamGoalsScreen> {
 
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: _firestore
-                    .collection('team_goals')
-                    .where('status', isEqualTo: 'active')
-                    .orderBy('createdAt', descending: true)
-                    .snapshots()
-                    .handleError((error) {
-                      // Silently handle errors to prevent unmount errors
-                      developer.log('Error in team_goals stream: $error');
-                    }),
+                stream: FirestoreSafe.stream(
+                  _firestore
+                      .collection('team_goals')
+                      .where('status', isEqualTo: 'active')
+                      .orderBy('createdAt', descending: true)
+                      .snapshots(),
+                ),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(

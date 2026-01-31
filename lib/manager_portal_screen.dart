@@ -28,6 +28,7 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/services/season_service.dart';
 
 class ManagerPortalScreen extends StatefulWidget {
   const ManagerPortalScreen({super.key});
@@ -102,6 +103,13 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Sync manager season points from season metrics into the manager's user doc.
+    // This is required because employee milestone updates cannot write to the manager's user doc.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
+    // Sync manager season badges earned (tracked on seasons) into the manager's badges collection.
+    Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
+
     // Check if tutorial should be shown
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {

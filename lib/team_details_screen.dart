@@ -4,6 +4,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
+import 'package:pdh/utils/firestore_safe.dart';
 
 class TeamDetailsScreen extends StatefulWidget {
   final String teamGoalId;
@@ -29,13 +30,17 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
         Navigator.pushReplacementNamed(context, '/sign_in');
       },
       content: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('team_goals')
-            .doc(widget.teamGoalId)
-            .snapshots(),
+        stream: FirestoreSafe.stream(
+          FirebaseFirestore.instance
+              .collection('team_goals')
+              .doc(widget.teamGoalId)
+              .snapshots(),
+        ),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return const Center(
+              child: Text('Unable to load team goal. Please try again.'),
+            );
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
