@@ -59,6 +59,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
     (index) => GlobalKey(),
   );
 
+  // Safety: avoid infinite spinner if streams never emit (e.g., permission issues).
+  final Stopwatch _initialProfileLoadWatch = Stopwatch()..start();
+
   @override
   void initState() {
     super.initState();
@@ -446,6 +449,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         setState(() {
           currentStreak = 0;
           hasActivityToday = false;
+          // Stop showing "loading" forever if initial fetch failed.
+          isLoading = false;
+          error = e.toString();
         });
       }
     }
@@ -661,6 +667,14 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
                   // If we have no profile data at all, show loading spinner
                   if (effectiveProfile == null) {
+                    final timedOut = _initialProfileLoadWatch.elapsed >
+                        const Duration(seconds: 12);
+                    if (timedOut) {
+                      return _buildLoadTimeout(
+                        message:
+                            'We couldn’t load your profile. This is usually caused by a connection issue or missing Firestore permissions.',
+                      );
+                    }
                     return const Center(
                       child: CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
@@ -673,6 +687,10 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                   // Update local state with latest (or fallback) data
                   userProfile = effectiveProfile;
                   userGoals = List<Goal>.from(effectiveGoals);
+                  // We have data; stop the timeout watch.
+                  if (_initialProfileLoadWatch.isRunning) {
+                    _initialProfileLoadWatch.stop();
+                  }
 
                   return RefreshIndicator(
                     onRefresh: () async {
@@ -1503,6 +1521,86 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLoadTimeout({required String message}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: AppComponents.card(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Still loading…',
+                  style: AppTypography.heading4,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () async {
+                        _initialProfileLoadWatch
+                          ..reset()
+                          ..start();
+                        await _loadAllData();
+                        if (mounted) setState(() {});
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.activeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        await AuthService().signOut();
+                        if (mounted) {
+                          navigator.pushNamedAndRemoveUntil(
+                            '/sign_in',
+                            (route) => false,
+                          );
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      child: const Text('Sign out'),
+                    ),
+                  ],
+                ),
+                if ((error ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    error!,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
