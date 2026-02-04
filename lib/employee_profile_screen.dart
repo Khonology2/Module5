@@ -1,10 +1,13 @@
 // ignore_for_file: use_build_context_synchronously, deprecated_member_use
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 // For ImageFilter
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService
 import 'package:pdh/services/performance_cache_service.dart';
 import 'package:image_picker/image_picker.dart'; // Import image_picker
@@ -65,6 +68,11 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   final TextEditingController _longGoalsController = TextEditingController();
   final TextEditingController _badgeNameController = TextEditingController();
 
+  // AI profile helper controllers (used in the question sheet)
+  final TextEditingController _aiSkillsController = TextEditingController();
+  final TextEditingController _aiDevelopmentAreasController =
+      TextEditingController();
+
   String? _learningStyle;
   String? _notificationFrequency = 'daily';
   String? _goalVisibility = 'private';
@@ -75,6 +83,10 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
   final List<String> _skills = [];
   final List<String> _developmentAreas = [];
   final List<String> _preferredDevActivities = []; // State for checkboxes
+
+  bool _isAiHelpingProfile = false;
+  String _aiHelpPhase = '';
+  String? _aiHelpError;
 
   // Animation state for save button
   double _saveButtonScale = 1.0;
@@ -238,7 +250,486 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
     _shortGoalsController.dispose();
     _longGoalsController.dispose();
     _badgeNameController.dispose();
+    _aiSkillsController.dispose();
+    _aiDevelopmentAreasController.dispose();
     super.dispose();
+  }
+
+  void _mergeTagValues(List<String> target, List<String> additions) {
+    for (final value in additions) {
+      final cleaned = value.trim();
+      if (cleaned.isEmpty) continue;
+      final exists = target.any(
+        (existing) => existing.toLowerCase() == cleaned.toLowerCase(),
+      );
+      if (!exists) {
+        target.add(cleaned);
+      }
+    }
+  }
+
+  List<_ProfileAssistQuestion> _buildProfileAssistQuestions() {
+    // Pre-fill the AI sheet controllers from existing tags
+    _aiSkillsController.text = _skills.join(', ');
+    _aiDevelopmentAreasController.text = _developmentAreas.join(', ');
+
+    return [
+      _ProfileAssistQuestion(
+        id: 'shortGoals',
+        prompt: 'What do you want to achieve in the next 3–6 months?',
+        helper:
+            'Share outcomes you can measure (delivery, quality, impact, collaboration).',
+        placeholder: 'e.g., "Ship feature X and reduce bugs by 30%."',
+        controller: _shortGoalsController,
+        maxLines: 3,
+      ),
+      _ProfileAssistQuestion(
+        id: 'longGoals',
+        prompt: 'What longer-term goal are you working toward (12–24 months)?',
+        helper: 'Describe the role, capability, or impact you’re building toward.',
+        placeholder:
+            'e.g., "Grow into a senior engineer who can lead end-to-end delivery."',
+        controller: _longGoalsController,
+        maxLines: 3,
+      ),
+      _ProfileAssistQuestion(
+        id: 'currentProjects',
+        prompt: 'What are your current projects or focus areas (optional)?',
+        helper:
+            'List key initiatives, responsibilities, or priorities you’re currently working on.',
+        placeholder: 'e.g., "API migration, onboarding improvements, support queue."',
+        controller: _currentProjectsController,
+        maxLines: 4,
+      ),
+      _ProfileAssistQuestion(
+        id: 'careerAspirations',
+        prompt: 'What motivates your next career step?',
+        helper:
+            'Share what kind of work you want more of and what success looks like for you.',
+        placeholder:
+            'e.g., "Build products that help customers and mentor newer teammates."',
+        controller: _careerAspirationsController,
+        maxLines: 4,
+      ),
+      _ProfileAssistQuestion(
+        id: 'skills',
+        prompt: 'What are your current skills / strengths?',
+        helper:
+            'List 5–10 items separated by commas. Keep them specific (tools, domains, strengths).',
+        placeholder: 'e.g., "Flutter, Firebase, SQL, Stakeholder management"',
+        controller: _aiSkillsController,
+        maxLines: 3,
+      ),
+      _ProfileAssistQuestion(
+        id: 'developmentAreas',
+        prompt: 'Which areas do you want to develop next?',
+        helper:
+            'List 3–8 items separated by commas. Prefer skills you can practice.',
+        placeholder: 'e.g., "Testing, System design, Public speaking"',
+        controller: _aiDevelopmentAreasController,
+        maxLines: 3,
+      ),
+    ];
+  }
+
+  Future<bool> _showProfileAssistSheet(
+    List<_ProfileAssistQuestion> questions,
+  ) async {
+    if (questions.isEmpty) return true;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        int currentIndex = 0;
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: FractionallySizedBox(
+            heightFactor: 0.9,
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                final question = questions[currentIndex];
+                final bool isLast = currentIndex == questions.length - 1;
+
+                void goTo(int Function(int) nextIndexBuilder) {
+                  setModalState(() {
+                    currentIndex = nextIndexBuilder(
+                      currentIndex,
+                    ).clamp(0, questions.length - 1);
+                  });
+                }
+
+                void closeWith(bool value) {
+                  // Use the sheet's context to avoid ancestor lookups on a
+                  // deactivated builder context during route dismissal.
+                  FocusScope.of(sheetContext).unfocus();
+                  Navigator.of(sheetContext).pop(value);
+                }
+
+                return ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                  child: Material(
+                    color: const Color(0xFF040610),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 12, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'AI profile helper',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Question ${currentIndex + 1} of ${questions.length}',
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      Navigator.of(sheetContext).pop(false),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                12,
+                                24,
+                                16,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    question.prompt,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    question.helper,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: question.controller,
+                                    maxLines: question.maxLines,
+                                    style: const TextStyle(color: Colors.white),
+                                    decoration: InputDecoration(
+                                      hintText: question.placeholder,
+                                      hintStyle: const TextStyle(
+                                        color: Colors.white38,
+                                      ),
+                                      fillColor: Colors.white10,
+                                      filled: true,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                            child: Row(
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    if (currentIndex == 0) {
+                                      Navigator.of(sheetContext).pop(false);
+                                    } else {
+                                      goTo((index) => index - 1);
+                                    }
+                                  },
+                                  child: Text(
+                                    currentIndex == 0 ? 'Cancel' : 'Back',
+                                  ),
+                                ),
+                                const Spacer(),
+                                TextButton(
+                                  onPressed: () {
+                                    if (isLast) {
+                                      closeWith(true);
+                                    } else {
+                                      goTo((index) => index + 1);
+                                    }
+                                  },
+                                  child: const Text('Skip for now'),
+                                ),
+                                const SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    if (isLast) {
+                                      closeWith(true);
+                                    } else {
+                                      goTo((index) => index + 1);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFC10D00),
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: Text(
+                                    isLast ? 'Apply refinements' : 'Next',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+
+    return result ?? false;
+  }
+
+  List<String> _coerceStringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    if (value is String && value.trim().isNotEmpty) {
+      final raw = value.trim();
+      final split = raw
+          .split(RegExp(r'[,;\n]'))
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+      return split.isNotEmpty ? split : [raw];
+    }
+    return [];
+  }
+
+  Future<void> _refineAndApplyProfileAssist(
+    List<_ProfileAssistQuestion> questions,
+  ) async {
+    final Map<String, dynamic> payload = {};
+    for (final question in questions) {
+      final value = question.controller.text.trim();
+      if (value.isNotEmpty) {
+        payload[question.id] = value;
+      }
+    }
+
+    if (payload.isEmpty) return;
+
+    final model = FirebaseAI.googleAI().generativeModel(
+      model: 'gemini-2.5-flash',
+      systemInstruction: Content.text(
+        'You are a writing coach helping a user complete a professional profile. '
+        'Refine each entry for clarity and a confident tone without changing meaning. '
+        'Respond with JSON only. Keep answers concise (1–2 sentences each). '
+        'For "skills" and "developmentAreas", return arrays of short items (no duplicates). '
+        'Return keys exactly as provided.',
+      ),
+    );
+
+    final response = await model.generateContent([
+      Content.text('Refine and normalize this JSON:\n${jsonEncode(payload)}'),
+    ]);
+
+    final rawText = response.text ?? '';
+    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(rawText);
+    if (jsonMatch == null) return;
+    final decoded = jsonDecode(jsonMatch.group(0)!);
+    if (decoded is! Map) return;
+
+    if (!mounted) return;
+    setState(() {
+      _aiHelpError = null;
+
+      final shortGoals = decoded['shortGoals'];
+      if (shortGoals is String && shortGoals.trim().isNotEmpty) {
+        _shortGoalsController.text = shortGoals.trim();
+      }
+
+      final longGoals = decoded['longGoals'];
+      if (longGoals is String && longGoals.trim().isNotEmpty) {
+        _longGoalsController.text = longGoals.trim();
+      }
+
+      final currentProjects = decoded['currentProjects'];
+      if (currentProjects is String && currentProjects.trim().isNotEmpty) {
+        _currentProjectsController.text = currentProjects.trim();
+      }
+
+      final aspirations = decoded['careerAspirations'];
+      if (aspirations is String && aspirations.trim().isNotEmpty) {
+        _careerAspirationsController.text = aspirations.trim();
+      }
+
+      final skills = _coerceStringList(decoded['skills']);
+      final developmentAreas = _coerceStringList(decoded['developmentAreas']);
+      _mergeTagValues(_skills, skills);
+      _mergeTagValues(_developmentAreas, developmentAreas);
+
+      // Keep the AI sheet fields in sync with the tags after applying.
+      _aiSkillsController.text = _skills.join(', ');
+      _aiDevelopmentAreasController.text = _developmentAreas.join(', ');
+    });
+  }
+
+  Future<void> _runAiProfileHelper() async {
+    if (_isAiHelpingProfile) return;
+
+    final questions = _buildProfileAssistQuestions();
+    final confirmed = await _showProfileAssistSheet(questions);
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() {
+      _isAiHelpingProfile = true;
+      _aiHelpError = null;
+      _aiHelpPhase = 'Polishing your answers...';
+    });
+
+    try {
+      await _refineAndApplyProfileAssist(questions);
+
+      if (!mounted) return;
+      setState(() {
+        _aiHelpPhase = '';
+      });
+
+      // Avoid "Looking up a deactivated widget's ancestor" when the screen is
+      // transitioning or was removed while the AI request was in-flight.
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'AI refinements added to your profile. Review & press Save when ready.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiHelpError = e.toString();
+        _aiHelpPhase = '';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAiHelpingProfile = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildAiProfileHelperSummaryCard() {
+    final bool shouldShowCard = _isAiHelpingProfile || _aiHelpError != null;
+    if (!shouldShowCard) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'AI Profile Helper',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_isAiHelpingProfile) ...[
+            LinearProgressIndicator(
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFC10D00),
+              ),
+              backgroundColor: Colors.white12,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _aiHelpPhase.isEmpty ? 'Refining your profile...' : _aiHelpPhase,
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ] else if (_aiHelpError != null) ...[
+            Text(
+              'Could not refine your profile right now.',
+              style: TextStyle(
+                color: Colors.red.shade300,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _aiHelpError!,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _isAiHelpingProfile ? null : _runAiProfileHelper,
+                child: const Text('Try again'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _pickAndUploadImage() async {
@@ -933,10 +1424,39 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: _isAiHelpingProfile ? null : _runAiProfileHelper,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC10D00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        '✨ AI help me fill my profile ✨',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAiProfileHelperSummaryCard(),
+                    const SizedBox(height: 16),
                     _buildInputLabel('Career Aspirations / Future Role'),
                     _buildInputField(
                       controller: _careerAspirationsController,
                       hintText: 'Describe where you see yourself...',
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 24),
+                    _buildInputLabel('Current Projects / Focus Areas (optional)'),
+                    _buildInputField(
+                      controller: _currentProjectsController,
+                      hintText: 'Share your current projects...',
                       maxLines: 3,
                     ),
                   ],
@@ -1282,4 +1802,22 @@ class _EmployeeProfileScreenState extends State<EmployeeProfileScreen> {
       ],
     );
   }
+}
+
+class _ProfileAssistQuestion {
+  final String id;
+  final String prompt;
+  final String helper;
+  final String placeholder;
+  final TextEditingController controller;
+  final int maxLines;
+
+  const _ProfileAssistQuestion({
+    required this.id,
+    required this.prompt,
+    required this.helper,
+    required this.placeholder,
+    required this.controller,
+    this.maxLines = 3,
+  });
 }
