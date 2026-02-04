@@ -303,6 +303,9 @@ class _ManagerProgressVisualsContentState
   String? selectedDepartment;
   ProgressViewType currentViewType = ProgressViewType.myProgress;
   bool _hasAppliedDefaultView = false;
+  // Keep a stable focus anchor so we don't leave focus on a disposed widget
+  // when swapping between "Team" and "My Progress" subtrees (web can crash on this).
+  final FocusNode _stableFocusNode = FocusNode(debugLabel: 'ManagerProgressVisuals');
   DateTime? _lastBadgeEval;
   static const Duration _badgeEvalCooldown = Duration(minutes: 5);
   late final Stream<List<ManagerActivity>> _managerActivitiesStream;
@@ -322,6 +325,12 @@ class _ManagerProgressVisualsContentState
     // Cache the stream so expanding/collapsing UI doesn't recreate it (which causes a reload spinner).
     _managerActivitiesStream = _getManagerActivitiesStream();
     _rebuildTeamStream();
+  }
+
+  @override
+  void dispose() {
+    _stableFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -364,36 +373,52 @@ class _ManagerProgressVisualsContentState
     );
   }
 
+  void _switchViewType(ProgressViewType next) {
+    // Clear any focus that might belong to a widget that's about to be removed.
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      currentViewType = next;
+    });
+    // After rebuild, re-anchor focus on a stable node to avoid web focus traversal crashes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _stableFocusNode.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: AppSpacing.screenPadding,
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  currentViewType == ProgressViewType.team
-                      ? 'Team Progress Overview'
-                      : 'My Progress Overview',
-                  style: AppTypography.heading2.copyWith(
-                    color: AppColors.textPrimary,
+    return Focus(
+      focusNode: _stableFocusNode,
+      child: SingleChildScrollView(
+        padding: AppSpacing.screenPadding,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    currentViewType == ProgressViewType.team
+                        ? 'Team Progress Overview'
+                        : 'My Progress Overview',
+                    style: AppTypography.heading2.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-              ),
-              _buildViewTypeFilter(),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
+                _buildViewTypeFilter(),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xl),
 
-          if (currentViewType == ProgressViewType.team)
-            _buildTeamProgressView()
-          else
-            _buildMyProgressView(),
-        ],
+            if (currentViewType == ProgressViewType.team)
+              _buildTeamProgressView()
+            else
+              _buildMyProgressView(),
+          ],
+        ),
       ),
     );
   }
@@ -1482,18 +1507,14 @@ class _ManagerProgressVisualsContentState
             label: 'Team',
             isSelected: currentViewType == ProgressViewType.team,
             onTap: () {
-              setState(() {
-                currentViewType = ProgressViewType.team;
-              });
+              _switchViewType(ProgressViewType.team);
             },
           ),
           _buildViewTypeButton(
             label: 'My Progress',
             isSelected: currentViewType == ProgressViewType.myProgress,
             onTap: () {
-              setState(() {
-                currentViewType = ProgressViewType.myProgress;
-              });
+              _switchViewType(ProgressViewType.myProgress);
             },
           ),
         ],
