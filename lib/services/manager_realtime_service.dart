@@ -8,6 +8,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/onboarding_service.dart';
@@ -2021,6 +2022,47 @@ class ManagerRealtimeService {
     }
   }
 
+  /// Request a 1:1 (intent only; no time yet).
+  static Future<void> requestOneOnOne({
+    required String employeeId,
+    String? agenda,
+  }) async {
+    try {
+      final managerId = FirebaseAuth.instance.currentUser!.uid;
+      final meetingId = await OneOnOneMeetingService.requestOneOnOne(
+        managerId: managerId,
+        employeeId: employeeId,
+        agenda: agenda,
+      );
+
+      // Record manager action (analytics/audit)
+      await _firestore.collection('manager_actions').add({
+        'actionType': 'requestMeeting',
+        'managerId': managerId,
+        'employeeId': employeeId,
+        'employeeName': '',
+        'description': 'Requested a 1:1 meeting',
+        'details': {
+          'meetingId': meetingId,
+          'agenda': (agenda ?? '').trim(),
+        },
+        'status': 'requested',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Employee-facing alert (soft-fail inside AlertService)
+      await AlertService.createOneOnOneRequestedAlert(
+        employeeId: employeeId,
+        managerId: managerId,
+        meetingId: meetingId,
+        agenda: agenda,
+      );
+    } catch (e) {
+      developer.log('Error requesting 1:1 meeting: $e');
+      rethrow;
+    }
+  }
+
   // Schedule 1:1 meeting
   static Future<void> scheduleMeeting({
     required String employeeId,
@@ -2029,40 +2071,43 @@ class ManagerRealtimeService {
     String? notes,
   }) async {
     try {
+      final managerId = FirebaseAuth.instance.currentUser!.uid;
+
+      // New trust-first behavior: this is a proposal, not a scheduled meeting,
+      // until the employee accepts.
+      final meetingId = await OneOnOneMeetingService.proposeTime(
+        managerId: managerId,
+        employeeId: employeeId,
+        proposedDateTime: scheduledTime,
+        agenda: purpose,
+      );
+
       await _firestore.collection('manager_actions').add({
         'actionType': 'scheduleMeeting',
-        'managerId': FirebaseAuth.instance.currentUser!.uid,
+        'managerId': managerId,
         'employeeId': employeeId,
         'employeeName': '', // Will be filled by recordManagerAction
-        'description': 'Scheduled 1:1 meeting',
+        'description': 'Proposed 1:1 meeting time',
         'details': {
-          'scheduledTime': Timestamp.fromDate(scheduledTime),
+          'meetingId': meetingId,
+          'proposedDateTime': Timestamp.fromDate(scheduledTime),
           'purpose': purpose,
           'notes': notes ?? '',
         },
-        'status': 'scheduled',
+        'status': 'proposed',
         'createdAt': FieldValue.serverTimestamp(),
         'scheduledFor': Timestamp.fromDate(scheduledTime),
       });
 
-      // Create alert for employee
-      await _firestore.collection('alerts').add({
-        'userId': employeeId,
-        'type': 'meeting_scheduled',
-        'priority': 'medium',
-        'title': '1:1 Meeting Scheduled 📅',
-        'message': 'Your manager scheduled a 1:1 meeting: $purpose',
-        'actionText': 'View Details',
-        'actionRoute': '/schedule',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          scheduledTime.add(const Duration(hours: 1)),
-        ),
-      });
+      await AlertService.createOneOnOneProposedAlert(
+        employeeId: employeeId,
+        managerId: managerId,
+        meetingId: meetingId,
+        proposedDateTime: scheduledTime,
+        agenda: purpose,
+      );
 
-      developer.log('Meeting scheduled with employee $employeeId');
+      developer.log('1:1 proposed for employee $employeeId');
     } catch (e) {
       developer.log('Error scheduling meeting: $e');
       rethrow;

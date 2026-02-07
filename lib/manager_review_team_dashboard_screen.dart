@@ -1,13 +1,17 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/one_on_one_meeting.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -1636,80 +1640,206 @@ class _ManagerReviewTeamDashboardScreenState
     }
   }
 
-  void _scheduleOneOnOne(EmployeeData employee) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0x80000000),
-        title: Text(
-          'Schedule 1:1 with ${employee.profile.displayName}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Meeting purpose...',
-                hintStyle: TextStyle(color: Colors.white54),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                // Store purpose
-              },
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  // In a real app, you would open a date picker here
-                  // For now, we'll schedule for tomorrow
-                  final scheduledTime = DateTime.now().add(
-                    const Duration(days: 1),
-                  );
+  void _scheduleOneOnOne(EmployeeData employee) async {
+    final managerId = FirebaseAuth.instance.currentUser?.uid;
+    final existing = managerId == null
+        ? null
+        : await OneOnOneMeetingService.getLatestBetween(
+            managerId: managerId,
+            employeeId: employee.profile.uid,
+          );
 
-                  await ManagerRealtimeService.scheduleMeeting(
-                    employeeId: employee.profile.uid,
-                    scheduledTime: scheduledTime,
-                    purpose: 'Performance check-in',
-                  );
-                  // ignore: duplicate_ignore
-                  // ignore: use_build_context_synchronously
-                  Navigator.pop(dialogContext); // Use dialogContext
-                  // ignore: duplicate_ignore
-                  // ignore: use_build_context_synchronously
-                  if (!mounted) return;
-                  await _showCenterNotice(
-                    context,
-                    '1:1 scheduled with ${employee.profile.displayName}',
-                  );
-                } catch (e) {
-                  if (!mounted) return; // Add this line back
-                  await _showCenterNotice(
-                    context,
-                    'Error scheduling meeting: $e',
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ),
-              child: const Text('Schedule'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-        ],
+    final agendaController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0E1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
-    );
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '1:1 with ${employee.profile.displayName}',
+                style: AppTypography.heading3.copyWith(color: Colors.white),
+              ),
+              if (existing != null &&
+                  existing.status != OneOnOneMeetingStatus.cancelled &&
+                  existing.status != OneOnOneMeetingStatus.accepted) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Current status: ${existing.status.name} (waiting on: ${existing.waitingOn.name})',
+                  style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                'Start with intent. You can request first, or propose a time.',
+                style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: agendaController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Message / agenda (optional)',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      if (existing != null &&
+                          existing.status != OneOnOneMeetingStatus.cancelled &&
+                          existing.status != OneOnOneMeetingStatus.accepted) {
+                        await _showCenterNotice(
+                          context,
+                          'There is already an active 1:1 thread for this employee. Propose a time instead.',
+                        );
+                        return;
+                      }
+                      await ManagerRealtimeService.requestOneOnOne(
+                        employeeId: employee.profile.uid,
+                        agenda: agendaController.text.trim(),
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(sheetContext);
+                      await _showCenterNotice(
+                        context,
+                        'Request sent to ${employee.profile.displayName}.',
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      await _showCenterNotice(
+                        context,
+                        'Error requesting 1:1: $e',
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Request a 1:1'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async {
+                    try {
+                      final now = DateTime.now();
+                      final pickedDate = await showDatePicker(
+                        context: sheetContext,
+                        firstDate: now,
+                        lastDate: now.add(const Duration(days: 365)),
+                        initialDate: now.add(const Duration(days: 1)),
+                      );
+                      if (pickedDate == null) return;
+
+                      final pickedTime = await showTimePicker(
+                        context: sheetContext,
+                        initialTime: TimeOfDay.fromDateTime(
+                          now.add(const Duration(hours: 1)),
+                        ),
+                      );
+                      if (pickedTime == null) return;
+
+                      final proposed = DateTime(
+                        pickedDate.year,
+                        pickedDate.month,
+                        pickedDate.day,
+                        pickedTime.hour,
+                        pickedTime.minute,
+                      );
+
+                      final agenda = agendaController.text.trim();
+                      // If there is an existing active thread, update it; otherwise create a new proposal.
+                      final canUpdateExisting = existing != null &&
+                          existing.status != OneOnOneMeetingStatus.cancelled &&
+                          existing.status != OneOnOneMeetingStatus.accepted;
+
+                      if (canUpdateExisting) {
+                        await OneOnOneMeetingService.managerProposeNewTime(
+                          meetingId: existing.meetingId,
+                          proposedDateTime: proposed,
+                          agenda: agenda.isEmpty ? null : agenda,
+                        );
+                        if (managerId != null) {
+                          await AlertService.createOneOnOneProposedAlert(
+                            employeeId: employee.profile.uid,
+                            managerId: managerId,
+                            meetingId: existing.meetingId,
+                            proposedDateTime: proposed,
+                            agenda: agenda.isEmpty ? null : agenda,
+                          );
+                        }
+                      } else {
+                        await ManagerRealtimeService.scheduleMeeting(
+                          employeeId: employee.profile.uid,
+                          scheduledTime: proposed,
+                          purpose: agenda.isEmpty ? '1:1' : agenda,
+                        );
+                      }
+
+                      if (!mounted) return;
+                      Navigator.pop(sheetContext);
+                      await _showCenterNotice(
+                        context,
+                        'Time proposed to ${employee.profile.displayName}.',
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      await _showCenterNotice(
+                        context,
+                        'Error proposing time: $e',
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.25),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Propose a time'),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ).whenComplete(() => agendaController.dispose());
   }
 
   void _giveRecognition(EmployeeData employee) {
