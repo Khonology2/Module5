@@ -34,8 +34,9 @@ class ManagerDashboardScreen extends StatefulWidget {
 class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
-  late final Stream<List<EmployeeData>> _employeesStream;
+  late Stream<List<EmployeeData>> _employeesStream;
   String? _currentProfilePhotoUrl;
+  final Stopwatch _employeesLoadWatch = Stopwatch()..start();
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -51,6 +52,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
+    _employeesLoadWatch
+      ..reset()
+      ..start();
 
     // Sync manager season points from season metrics into the manager's user doc.
     // This is required because employee milestone updates cannot write to the manager's user doc.
@@ -369,6 +373,80 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           if (!employeesSnap.hasData) {
+            final timedOut = _employeesLoadWatch.elapsed >
+                const Duration(seconds: 12);
+            if (timedOut) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: AppComponents.card(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Still loading…',
+                            style: AppTypography.heading4,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'We couldn’t load your team data. This is usually caused by a connection issue or missing Firestore permissions.',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _employeesStream = _realtime.employeesStream();
+                                    _employeesLoadWatch
+                                      ..reset()
+                                      ..start();
+                                  });
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.activeColor,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Retry'),
+                              ),
+                              OutlinedButton(
+                                onPressed: () async {
+                                  final navigator = Navigator.of(context);
+                                  await AuthService().signOut();
+                                  if (mounted) {
+                                    navigator.pushNamedAndRemoveUntil(
+                                      '/sign_in',
+                                      (route) => false,
+                                    );
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: const Text('Sign out'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
             return SizedBox(
               height: 360,
               child: const Center(
@@ -381,6 +459,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             );
           }
           final employees = employeesSnap.data!;
+          if (_employeesLoadWatch.isRunning) {
+            _employeesLoadWatch.stop();
+          }
 
           // Compute metrics locally to avoid adding another Firestore listener
           final metrics = _computeTeamMetrics(employees);
