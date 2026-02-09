@@ -284,6 +284,99 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // 1:1 Meetings
+    match /one_on_one_meetings/{meetingId} {
+      function isParticipant(data) {
+        return isSignedIn() && (
+          request.auth.uid == data.managerId ||
+          request.auth.uid == data.employeeId ||
+          isAdmin()
+        );
+      }
+
+      function meetingStatusValid(status) {
+        return status in ['requested', 'proposed', 'accepted', 'rescheduled', 'cancelled'];
+      }
+
+      function waitingOnValid(waitingOn) {
+        return waitingOn in ['employee', 'manager', 'none'];
+      }
+
+      // View: only participants (or admin)
+      allow read: if isParticipant(resource.data);
+      // List/query must be scoped to the caller (prevents broad scans).
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        request.query.where('employeeId', '==', userId()) ||
+        (isManager() && request.query.where('managerId', '==', userId()))
+      );
+
+      // Create: managers only, for an employee
+      allow create: if isSignedIn() && (isAdmin() || (
+        isManager() &&
+        request.resource.data.managerId == request.auth.uid &&
+        userRole(request.resource.data.employeeId) == 'employee' &&
+        request.resource.data.meetingId == meetingId &&
+        meetingStatusValid(request.resource.data.status) &&
+        request.resource.data.status in ['requested', 'proposed'] &&
+        request.resource.data.waitingOn == 'employee' &&
+        waitingOnValid(request.resource.data.waitingOn)
+      ));
+
+      // Update: participants only, manager/employee-specific transitions, meeting identity immutable
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          isParticipant(resource.data) &&
+          request.resource.data.managerId == resource.data.managerId &&
+          request.resource.data.employeeId == resource.data.employeeId &&
+          request.resource.data.meetingId == resource.data.meetingId &&
+          meetingStatusValid(request.resource.data.status) &&
+          waitingOnValid(request.resource.data.waitingOn) &&
+          (
+            // Employee responses
+            (
+              request.auth.uid == resource.data.employeeId &&
+              resource.data.status in ['requested', 'proposed'] &&
+              (
+                // Accept proposal
+                (resource.data.status == 'proposed' &&
+                 request.resource.data.status == 'accepted' &&
+                 request.resource.data.waitingOn == 'none') ||
+                // Suggest new time
+                (request.resource.data.status == 'rescheduled' &&
+                 request.resource.data.waitingOn == 'manager' &&
+                 request.resource.data.proposedDateTime is timestamp) ||
+                // Acknowledge intent-only request (no time)
+                (resource.data.status == 'requested' &&
+                 request.resource.data.status == 'requested' &&
+                 request.resource.data.waitingOn == 'manager') ||
+                // Cancel
+                (request.resource.data.status == 'cancelled' &&
+                 request.resource.data.waitingOn == 'none')
+              )
+            ) ||
+            // Manager responses
+            (
+              request.auth.uid == resource.data.managerId &&
+              resource.data.status in ['requested', 'rescheduled', 'proposed'] &&
+              (
+                // Propose new time
+                (request.resource.data.status == 'proposed' &&
+                 request.resource.data.waitingOn == 'employee' &&
+                 request.resource.data.proposedDateTime is timestamp) ||
+                // Cancel
+                (request.resource.data.status == 'cancelled' &&
+                 request.resource.data.waitingOn == 'none')
+              )
+            )
+          )
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
     // Audit entries for tracking system events
     match /audit_entries/{entryId} {
       // Allow reading own audit entries or all if admin/manager

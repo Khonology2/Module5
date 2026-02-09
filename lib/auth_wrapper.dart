@@ -40,9 +40,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
             final role = roleSnapshot.data ?? RoleService.instance.cachedRole;
 
             // While role is unknown, keep a loading screen to avoid misrouting
-            if (role == null || roleSnapshot.connectionState == ConnectionState.waiting) {
+            if (roleSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            // If role is still null after loading, don't spin forever.
+            if (role == null) {
+              return _RoleNotSetScreen(
+                onTryAgain: () async {
+                  RoleService.instance.clearCache();
+                  await RoleService.instance.ensureRoleLoaded();
+                  if (context.mounted) setState(() {});
+                },
+                onSignOut: () async {
+                  await FirebaseAuth.instance.signOut();
+                },
               );
             }
 
@@ -63,6 +77,88 @@ class _AuthWrapperState extends State<AuthWrapper> {
           },
         );
       },
+    );
+  }
+}
+
+class _RoleNotSetScreen extends StatelessWidget {
+  final Future<void> Function() onTryAgain;
+  final Future<void> Function() onSignOut;
+
+  const _RoleNotSetScreen({
+    required this.onTryAgain,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A1931),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1F2840),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.help_outline, color: Colors.orangeAccent),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'We can’t determine your portal',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Your account role is missing or not accessible. This can happen if your user profile wasn’t created yet, or if permissions prevent reading it.',
+                    style: TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () async {
+                          await onTryAgain();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFC10D00),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Try again'),
+                      ),
+                      OutlinedButton(
+                        onPressed: () async {
+                          await onSignOut();
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white24),
+                        ),
+                        child: const Text('Sign out'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
