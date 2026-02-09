@@ -469,61 +469,6 @@ class _ManagerProgressVisualsContentState
         return Column(
           children: [
             _buildTeamMetricsCards(metrics),
-            const SizedBox(height: AppSpacing.xl),
-            // Removed "Team Member Progress" section - this functionality is better served
-            // by the Manager Review Team Dashboard which has full actions and detailed views
-            // The team metrics cards above provide sufficient high-level overview here
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: AppColors.activeColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Team Management',
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'For detailed team member progress, approvals, and actions, use the Team Dashboard.',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/manager_review_team_dashboard',
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.activeColor,
-                    ),
-                    child: const Text('Go to Team Dashboard'),
-                  ),
-                ],
-              ),
-            ),
           ],
         );
       },
