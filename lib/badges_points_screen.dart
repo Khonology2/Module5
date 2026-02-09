@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -11,13 +12,16 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/services/streak_service.dart';
 import 'package:pdh/services/employee_tutorial_service.dart';
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/rarity_badges_list_screen.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/widgets/badge_celebration_dialog.dart';
 
 class BadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -48,11 +52,14 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   late Animation<double> _pointsCountAnimation;
 
   bool _showLevelUpDialog = false;
-  bool _showBadgeEarnedDialog = false;
   int _previousLevel = 1;
   int _previousPoints = 0;
   List<badge_model.Badge> _newlyEarnedBadges = [];
   bool _didInitialProfileLoad = false;
+  bool _badgeCelebrationInFlight = false;
+  bool _badgeDialogOpen = false;
+  bool _levelDialogOpen = false;
+  StreamSubscription? _badgesSub;
   @override
   void initState() {
     super.initState();
@@ -103,6 +110,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     });
 
     _loadData();
+    unawaited(_startBadgeCelebrationListener());
     _animationController.forward();
   }
 
@@ -112,7 +120,35 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     _levelUpController.dispose();
     _badgeEarnedController.dispose();
     _pointsAnimationController.dispose();
+    try {
+      _badgesSub?.cancel();
+    } catch (_) {}
     super.dispose();
+  }
+
+  Future<void> _startBadgeCelebrationListener() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await BadgeCelebrationService.ensureBaselineInitialized(
+      user.uid,
+      scope: 'employee',
+    );
+
+    // Initial catch-up (if a badge was earned while away from this screen).
+    unawaited(_maybeCelebrateNewBadges(user.uid));
+
+    try {
+      _badgesSub?.cancel();
+    } catch (_) {}
+    _badgesSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('badges')
+        .snapshots()
+        .listen((_) {
+      unawaited(_maybeCelebrateNewBadges(user.uid));
+    });
   }
 
   Future<void> _redirectIfManager() async {
@@ -198,6 +234,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           });
         }
 
+        // If any badges were earned since the last visit, celebrate them once.
+        // This runs independently of the background evaluator.
+        unawaited(_maybeCelebrateNewBadges(user.uid));
+
         // Run badge checks in background (non-blocking)
         // This ensures UI is displayed immediately while badges are updated
         _updateBadgesInBackground(user.uid);
@@ -225,8 +265,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
       await BadgeService.checkAndAwardBadges(userId);
 
-      // Check for newly earned badges after updates
-      await _checkForNewBadges(userId);
+      // Check for newly earned badges after updates (one-time celebration)
+      await _maybeCelebrateNewBadges(userId);
 
       // Reload profile and rank to get updated values if they changed
       if (mounted) {
@@ -273,6 +313,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       _showLevelUpDialog = true;
     });
 
+    // Show the dialog once per level-up event (avoid stacking on rebuilds).
+    unawaited(_displayLevelUpDialog());
+
     // Auto-hide after animation
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -284,52 +327,61 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     });
   }
 
-  Future<void> _checkForNewBadges(String userId) async {
+  Future<void> _maybeCelebrateNewBadges(String userId) async {
+    if (!mounted) return;
+    if (_badgeCelebrationInFlight) return;
+    _badgeCelebrationInFlight = true;
     try {
-      final badgesSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .where('isEarned', isEqualTo: true)
-          .where(
-            'earnedAt',
-            isGreaterThan: DateTime.now().subtract(const Duration(minutes: 5)),
-          )
-          .get();
+      // Employee screen should NOT celebrate manager-only badges.
+      final badges = await BadgeCelebrationService.fetchUncelebratedEarnedBadges(
+        userId,
+        scope: 'employee',
+        includeManagerBadges: false,
+        limit: 5,
+      );
+      if (!mounted) return;
+      if (badges.isEmpty) return;
 
-      final newBadges = badgesSnapshot.docs
-          .map((doc) => badge_model.Badge.fromFirestore(doc))
-          .toList();
+      setState(() {
+        _newlyEarnedBadges = badges;
+      });
 
-      if (newBadges.isNotEmpty) {
-        setState(() {
-          _newlyEarnedBadges = newBadges;
-          _showBadgeEarnedDialog = true;
-        });
+      await _displayBadgeEarnedDialog();
 
-        _badgeEarnedController.forward();
-
-        // Auto-hide after animation
-        Future.delayed(const Duration(seconds: 4), () {
-          if (mounted) {
-            setState(() {
-              _showBadgeEarnedDialog = false;
-              _newlyEarnedBadges.clear();
-            });
-            _badgeEarnedController.reset();
-          }
-        });
-      }
+      final upTo = badges
+          .map((b) => b.earnedAt!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      await BadgeCelebrationService.markCelebratedUpTo(
+        userId,
+        scope: 'employee',
+        upTo: upTo,
+      );
     } catch (e) {
-      developer.log('Error checking for new badges: $e');
+      developer.log('Error celebrating new badges: $e');
+    } finally {
+      _badgeCelebrationInFlight = false;
     }
   }
 
-  void _displayLevelUpDialog() {
-    showDialog(
+  Future<void> _displayLevelUpDialog() async {
+    if (!mounted) return;
+    if (_levelDialogOpen) return;
+    _levelDialogOpen = true;
+
+    // Auto-close after a short celebration window (schedule once).
+    final nav = Navigator.of(context);
+    Future.delayed(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      if (!_levelDialogOpen) return;
+      try {
+        nav.pop();
+      } catch (_) {}
+    });
+
+    await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AnimatedBuilder(
+      builder: (dialogContext) => AnimatedBuilder(
         animation: _levelUpScale,
         builder: (context, child) => Transform.scale(
           scale: _levelUpScale.value,
@@ -390,92 +442,65 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
     );
 
-    // Auto-close after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    });
+    _levelDialogOpen = false;
   }
 
-  void _displayBadgeEarnedDialog() {
+  Future<void> _displayBadgeEarnedDialog() async {
     if (_newlyEarnedBadges.isEmpty) return;
+    if (!mounted) return;
+    if (_badgeDialogOpen) return;
+    _badgeDialogOpen = true;
 
-    showDialog(
+    try {
+      // Light haptics / system chime (best-effort).
+      unawaited(SoundService.playChime());
+
+      try {
+        await _badgeEarnedController.forward(from: 0);
+      } catch (_) {}
+
+      final first = _newlyEarnedBadges.first;
+      final moreCount = (_newlyEarnedBadges.length - 1).clamp(0, 99);
+
+      await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AnimatedBuilder(
-        animation: _badgeEarnedScale,
-        builder: (context, child) => Transform.scale(
-          scale: _badgeEarnedScale.value,
-          child: AlertDialog(
-            backgroundColor: Colors.transparent,
-            content: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    _getBadgeRarityColor(_newlyEarnedBadges.first.rarity),
-                    _getBadgeRarityColor(
-                      _newlyEarnedBadges.first.rarity,
-                    ).withValues(alpha: 0.7),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: _getBadgeRarityColor(
-                      _newlyEarnedBadges.first.rarity,
-                    ).withValues(alpha: 0.5),
-                    blurRadius: 20,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _getBadgeIcon(
-                    _newlyEarnedBadges.first.iconName,
-                  ), // Directly use the returned widget
-                  const SizedBox(height: 16),
-                  Text(
-                    'BADGE EARNED!',
-                    style: AppTypography.heading1.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _newlyEarnedBadges.first.name,
-                    style: AppTypography.heading3.copyWith(color: Colors.white),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _newlyEarnedBadges.first.description,
-                    style: AppTypography.bodyLarge.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+      builder: (dialogContext) {
+        // Auto-close after a short celebration window.
+        Future.delayed(const Duration(seconds: 4), () {
+          try {
+            Navigator.of(dialogContext).pop();
+          } catch (_) {}
+        });
+
+        return BadgeCelebrationDialog(
+          title: 'Congratulations!',
+          badgeName: first.name,
+          badgeDescription: first.description,
+          accentColor: _getBadgeRarityColor(first.rarity),
+          badgeIcon: SizedBox(
+            width: 72,
+            height: 72,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: _getBadgeIcon(first.iconName),
             ),
           ),
-        ),
-      ),
-    );
-
-    // Auto-close after 4 seconds
-    Future.delayed(const Duration(seconds: 4), () {
+          moreCount: moreCount,
+        );
+      },
+      );
+    } finally {
       if (mounted) {
-        Navigator.of(context).pop();
+        setState(() {
+          _newlyEarnedBadges.clear();
+        });
       }
-    });
+      try {
+        _badgeEarnedController.reset();
+      } catch (_) {}
+      _badgeDialogOpen = false;
+    }
   }
 
   String _getLevelRewardText(int level) {
@@ -647,16 +672,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Show dialogs when needed
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_showLevelUpDialog) {
-        _displayLevelUpDialog();
-      }
-      if (_showBadgeEarnedDialog) {
-        _displayBadgeEarnedDialog();
-      }
-    });
-
     return StreamBuilder<String?>(
       stream: RoleService.instance.roleStream(),
       builder: (context, snap) {
