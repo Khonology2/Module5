@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,9 +14,12 @@ import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/manager_level_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/services/season_service.dart';
+import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/widgets/badge_celebration_dialog.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -30,6 +34,9 @@ class ManagerBadgesPointsScreen extends StatefulWidget {
 class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
   final _auth = FirebaseAuth.instance;
   bool? _didEval;
+  StreamSubscription? _badgesSub;
+  bool _badgeCelebrationInFlight = false;
+  bool _badgeDialogOpen = false;
 
   // Weights for manager points calculation (tunable)
   static const int weightApproval = 10; // approve/reject acknowledgements
@@ -44,6 +51,142 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     // Ensure season-earned points/badges are synced into the manager profile before rendering.
     Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
     Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
+    Future.microtask(_startBadgeCelebrationListener);
+  }
+
+  @override
+  void dispose() {
+    try {
+      _badgesSub?.cancel();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  Future<void> _startBadgeCelebrationListener() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Baseline on first run (prevents celebrating historical badges).
+    await BadgeCelebrationService.ensureBaselineInitialized(
+      user.uid,
+      scope: 'manager',
+    );
+
+    // Initial catch-up (if a badge was earned while away from this screen).
+    unawaited(_maybeCelebrateNewManagerBadges(user.uid));
+
+    // Listen for new badge writes while the manager is on this screen.
+    try {
+      _badgesSub?.cancel();
+    } catch (_) {}
+    _badgesSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('badges')
+        .snapshots()
+        .listen((_) {
+      unawaited(_maybeCelebrateNewManagerBadges(user.uid));
+    });
+  }
+
+  Color _rarityColor(badge_model.BadgeRarity rarity) {
+    switch (rarity) {
+      case badge_model.BadgeRarity.common:
+        return AppColors.textSecondary;
+      case badge_model.BadgeRarity.rare:
+        return AppColors.activeColor;
+      case badge_model.BadgeRarity.epic:
+        return AppColors.warningColor;
+      case badge_model.BadgeRarity.legendary:
+        return const Color(0xFFFFD700);
+    }
+  }
+
+  Widget _iconForBadge(String iconName) {
+    switch (iconName) {
+      case 'verified':
+        return const Icon(Icons.verified);
+      case 'chat':
+        return const Icon(Icons.chat);
+      case 'flag':
+        return const Icon(Icons.flag);
+      case 'bolt':
+        return const Icon(Icons.bolt);
+      case 'build':
+        return const Icon(Icons.build);
+      case 'calendar_today':
+        return const Icon(Icons.calendar_today);
+      case 'groups':
+        return const Icon(Icons.groups);
+      case 'workspace_premium':
+        return const Icon(Icons.workspace_premium);
+      case 'emoji_events':
+        return const Icon(Icons.emoji_events);
+      case 'trophy':
+        return const Icon(Icons.emoji_events);
+      case 'diversity_3':
+        return const Icon(Icons.diversity_3);
+      default:
+        return const Icon(Icons.emoji_events);
+    }
+  }
+
+  Future<void> _maybeCelebrateNewManagerBadges(String userId) async {
+    if (!mounted) return;
+    if (_badgeCelebrationInFlight) return;
+    _badgeCelebrationInFlight = true;
+    try {
+      final badges = await BadgeCelebrationService.fetchUncelebratedEarnedBadges(
+        userId,
+        scope: 'manager',
+        includeManagerBadges: true,
+        limit: 5,
+      );
+      if (!mounted) return;
+      if (badges.isEmpty) return;
+
+      if (_badgeDialogOpen) return;
+      _badgeDialogOpen = true;
+
+      final first = badges.first;
+      final moreCount = (badges.length - 1).clamp(0, 99);
+      unawaited(SoundService.playChime());
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          Future.delayed(const Duration(seconds: 4), () {
+            try {
+              Navigator.of(dialogContext).pop();
+            } catch (_) {}
+          });
+
+          return BadgeCelebrationDialog(
+            title: 'Congratulations!',
+            badgeName: first.name,
+            badgeDescription: first.description,
+            accentColor: _rarityColor(first.rarity),
+            badgeIcon: _iconForBadge(first.iconName),
+            moreCount: moreCount,
+          );
+        },
+      );
+
+      final upTo = badges
+          .map((b) => b.earnedAt!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      await BadgeCelebrationService.markCelebratedUpTo(
+        userId,
+        scope: 'manager',
+        upTo: upTo,
+      );
+    } catch (e) {
+      developer.log('Manager badge celebration failed: $e');
+    } finally {
+      _badgeDialogOpen = false;
+      _badgeCelebrationInFlight = false;
+    }
   }
 
   @override
