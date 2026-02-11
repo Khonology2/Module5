@@ -30,6 +30,61 @@ service cloud.firestore {
       return userRole(userId) == 'employee';
     }
 
+    // Allow managers to award points/badges to employees (kudos/recognition),
+    // but ONLY for narrowly-scoped "gamification" fields.
+    function isManagerGamificationUpdate(targetUid) {
+      return isManager() && userRole(targetUid) == 'employee' && (
+        isManagerPointsUpdate() ||
+        isManagerBadgesOnlyUpdate() ||
+        isManagerBadgeSummarySyncUpdate()
+      );
+    }
+
+    function isManagerPointsUpdate() {
+      // Only allow increasing totalPoints (small bounded increments).
+      let changed = resource.data.diff(request.resource.data).changedKeys();
+      let beforePts = (resource.data.totalPoints is int) ? resource.data.totalPoints : 0;
+      let afterPts = (request.resource.data.totalPoints is int) ? request.resource.data.totalPoints : beforePts;
+      return changed.hasOnly(['totalPoints']) &&
+             afterPts >= beforePts &&
+             afterPts <= beforePts + 500;
+    }
+
+    function isManagerBadgesOnlyUpdate() {
+      // Only allow adding badges (superset of previous list).
+      let changed = resource.data.diff(request.resource.data).changedKeys();
+      let beforeBadges = (resource.data.badges is list) ? resource.data.badges : [];
+      let afterBadges = (request.resource.data.badges is list) ? request.resource.data.badges : beforeBadges;
+      return changed.hasOnly(['badges']) &&
+             afterBadges.hasAll(beforeBadges) &&
+             afterBadges.size() >= beforeBadges.size() &&
+             afterBadges.size() <= beforeBadges.size() + 5;
+    }
+
+    function isManagerBadgeSummarySyncUpdate() {
+      // BadgeService.updateUserBadgeSummary() writes these fields with merge:true.
+      let changed = resource.data.diff(request.resource.data).changedKeys();
+      let badgesOk = request.resource.data.badges is list;
+      let countOk = request.resource.data.earnedBadgesCount is int &&
+                    request.resource.data.earnedBadgesCount >= 0;
+      let summary = request.resource.data.badgeSummary;
+      let summaryOk = summary is map &&
+                      ('earned' in summary) &&
+                      ('total' in summary) &&
+                      ('lastSyncedAt' in summary) &&
+                      (summary.earned is int) &&
+                      (summary.total is int) &&
+                      summary.earned >= 0 &&
+                      summary.total >= 0;
+      return changed.hasOnly(['badges', 'earnedBadgesCount', 'badgeSummary']) &&
+             badgesOk &&
+             countOk &&
+             summaryOk &&
+             // keep counts internally consistent
+             request.resource.data.badges.size() == request.resource.data.earnedBadgesCount &&
+             summary.earned == request.resource.data.earnedBadgesCount;
+    }
+
     function goalExists(goalId) {
       return exists(/databases/$(database)/documents/goals/$(goalId));
     }
@@ -144,6 +199,10 @@ service cloud.firestore {
         (!('role' in resource.data) && ('role' in request.resource.data)) ||
         (resource.data.role == request.resource.data.role)
       );
+
+      // Managers can award kudos/recognition by updating only gamification fields
+      // (points/badges summaries) on employee profiles.
+      allow update: if isManagerGamificationUpdate(userId);
 
       // Admins can write anything (including changing roles).
       allow write: if isAdmin();

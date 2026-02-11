@@ -376,7 +376,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         if (incoming != null && incoming != _cachedMeetings) {
           _cachedMeetings = incoming;
         }
-        final meetings = incoming ?? _cachedMeetings ?? const <OneOnOneMeeting>[];
+        final meetings =
+            incoming ?? _cachedMeetings ?? const <OneOnOneMeeting>[];
 
         // Hide cancelled meetings by default (keeps the section focused)
         final visible = meetings
@@ -436,16 +437,30 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   }
 
   String _formatMeetingTime(DateTime dt) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  String _formatMeetingRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+    String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+    final sameDay =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    if (sameDay) return '${date(start)} ${time(start)} - ${time(end)}';
+    return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
   }
 
   Widget _buildMeetingTile(OneOnOneMeeting m) {
     final statusText = _humanMeetingStatus(m);
-    final timeText =
-        m.proposedDateTime != null ? _formatMeetingTime(m.proposedDateTime!) : null;
+    final start = m.proposedStartDateTime;
+    final end = m.proposedEndDateTime;
+    final timeText = start == null
+        ? null
+        : (end != null ? _formatMeetingRange(start, end) : _formatMeetingTime(start));
 
-    final canRespond = m.waitingOn == OneOnOneWaitingOn.employee &&
+    final canRespond =
+        m.waitingOn == OneOnOneWaitingOn.employee &&
         (m.status == OneOnOneMeetingStatus.requested ||
             m.status == OneOnOneMeetingStatus.proposed);
 
@@ -480,8 +495,10 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.activeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
@@ -532,11 +549,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     final cached = _userNameCache[uid];
     if (cached != null) return cached;
     try {
-      final snap =
-          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       final data = snap.data();
-      final name =
-          (data?['displayName'] ?? data?['name'] ?? '').toString().trim();
+      final name = (data?['displayName'] ?? data?['name'] ?? '')
+          .toString()
+          .trim();
       final resolved = name.isNotEmpty ? name : 'Manager';
       _userNameCache[uid] = resolved;
       return resolved;
@@ -551,7 +571,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       children: [
         Expanded(
           child: ElevatedButton(
-            onPressed: isProposed ? () => _acceptMeeting(m) : () => _ackRequest(m),
+            onPressed: isProposed
+                ? () => _acceptMeeting(m)
+                : () => _ackRequest(m),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.activeColor,
               foregroundColor: Colors.white,
@@ -569,7 +591,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
               side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            child: Text(isProposed ? 'Suggest a different time' : 'Suggest a time'),
+            child: Text(
+              isProposed ? 'Suggest a different time' : 'Suggest a time',
+            ),
           ),
         ),
       ],
@@ -585,7 +609,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           .doc(user.uid)
           .get();
       final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? '').toString().trim();
+      final name = (data?['displayName'] ?? data?['name'] ?? '')
+          .toString()
+          .trim();
       return name.isNotEmpty ? name : (user.displayName ?? 'Employee');
     } catch (_) {
       return user.displayName ?? 'Employee';
@@ -599,17 +625,18 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         managerId: m.managerId,
         employeeId: m.employeeId,
         meetingId: m.meetingId,
-        acceptedDateTime: m.proposedDateTime,
+        acceptedStartDateTime: m.proposedStartDateTime,
+        acceptedEndDateTime: m.proposedEndDateTime,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Meeting accepted.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Meeting accepted.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not accept: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not accept: $e')));
     }
   }
 
@@ -624,29 +651,54 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       );
       if (pickedDate == null) return;
 
-      final pickedTime = await showTimePicker(
+      final pickedStartTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
       );
-      if (pickedTime == null) return;
+      if (pickedStartTime == null) return;
 
-      final proposed = DateTime(
+      final proposedStart = DateTime(
         pickedDate.year,
         pickedDate.month,
         pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
+        pickedStartTime.hour,
+        pickedStartTime.minute,
       );
+
+      final suggestedEnd = proposedStart.add(const Duration(minutes: 60));
+      final pickedEndTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
+      );
+      if (pickedEndTime == null) return;
+
+      final proposedEnd = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedEndTime.hour,
+        pickedEndTime.minute,
+      );
+
+      if (!proposedEnd.isAfter(proposedStart)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End time must be after start time.')),
+        );
+        return;
+      }
 
       await OneOnOneMeetingService.employeeSuggestNewTime(
         meetingId: m.meetingId,
-        proposedDateTime: proposed,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
       );
       await AlertService.createOneOnOneRescheduledAlertToManager(
         managerId: m.managerId,
         employeeId: m.employeeId,
         meetingId: m.meetingId,
-        proposedDateTime: proposed,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
       );
 
       if (!mounted) return;
@@ -655,15 +707,17 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not suggest time: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not suggest time: $e')));
     }
   }
 
   Future<void> _ackRequest(OneOnOneMeeting m) async {
     try {
-      await OneOnOneMeetingService.employeeAcknowledgeRequest(meetingId: m.meetingId);
+      await OneOnOneMeetingService.employeeAcknowledgeRequest(
+        meetingId: m.meetingId,
+      );
       final employeeName = await _currentUserDisplayName();
       await AlertService.createGeneralAlert(
         userId: m.managerId,
@@ -679,14 +733,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         fromUserName: employeeName,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Acknowledged.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Acknowledged.')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not acknowledge: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not acknowledge: $e')));
     }
   }
 
@@ -1297,7 +1351,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
     final goalId = alert.actionData != null
         ? (alert.actionData!['goalId'] as String?)
-        : null; 
+        : null;
     final relatedGoalId = alert.relatedGoalId;
     final targetGoalId = goalId ?? relatedGoalId;
     final actionRoute = alert.actionRoute;
