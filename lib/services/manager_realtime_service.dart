@@ -8,7 +8,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/services/alert_service.dart';
-import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/onboarding_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
@@ -2093,6 +2093,9 @@ class ManagerRealtimeService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
       final batch = _firestore.batch();
       final now = Timestamp.fromDate(DateTime.now());
 
@@ -2110,12 +2113,16 @@ class ManagerRealtimeService {
         'serverTimestamp': FieldValue.serverTimestamp(),
       });
 
-      // Update user's last activity timestamp
-      final userRef = _firestore.collection('users').doc(employeeId);
-      batch.update(userRef, {
-        'lastActivityAt': FieldValue.serverTimestamp(),
-        'lastLoginAt': FieldValue.serverTimestamp(), // Also update login time
-      });
+      // Update user's timestamps ONLY when the user is recording their own activity.
+      // Managers should not be able to mutate employee profile timestamps.
+      if (currentUser.uid == employeeId) {
+        final userRef = _firestore.collection('users').doc(employeeId);
+        batch.update(userRef, {
+          'lastActivityAt': FieldValue.serverTimestamp(),
+          // Keep lastLoginAt in sync for self activity only.
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       await FirestoreSafe.writeBatch(batch);
 
@@ -2343,6 +2350,10 @@ class ManagerRealtimeService {
     required int points,
     String? badgeName,
   }) async {
+    // Two-phase behavior:
+    // - Phase 1 (must succeed): points increment + alert creation
+    // - Phase 2 (best-effort): activity/audit logging (must NOT surface as "failed"
+    //   when Phase 1 already succeeded)
     try {
       final batch = _firestore.batch();
 
@@ -2350,12 +2361,10 @@ class ManagerRealtimeService {
       final userRef = _firestore.collection('users').doc(employeeId);
       batch.update(userRef, {'totalPoints': FieldValue.increment(points)});
 
-      // Add to achievements if badge provided
-      if (badgeName != null) {
-        batch.update(userRef, {
-          'badges': FieldValue.arrayUnion([badgeName]),
-        });
-      }
+      // NOTE:
+      // We intentionally do NOT mutate the employee's earned badges list here.
+      // Badge awarding/sync is handled by BadgeService based on badge documents,
+      // and "kudos" should primarily award points + an alert.
 
       // Create alert for employee
       final alertRef = _firestore.collection('alerts').doc();
@@ -2364,7 +2373,9 @@ class ManagerRealtimeService {
         'type': 'recognition',
         'priority': 'high',
         'title': 'Recognition Received! 🏆',
-        'message': 'Your manager recognized you: $reason',
+        'message': 'Your manager recognized you: $reason'
+            '${badgeName != null && badgeName.trim().isNotEmpty ? ' (Badge: ${badgeName.trim()})' : ''}'
+            ' (+$points pts)',
         'actionText': 'View Achievement',
         'actionRoute': '/badges_points',
         'createdAt': FieldValue.serverTimestamp(),
@@ -2377,25 +2388,28 @@ class ManagerRealtimeService {
 
       await batch.commit();
 
-      if (badgeName != null) {
-        await BadgeService.updateUserBadgeSummary(employeeId);
+      // Best-effort logging (do not fail the UX if rules block these writes)
+      try {
+        await recordEmployeeActivity(
+          employeeId: employeeId,
+          activityType: 'recognition_received',
+          description: 'Received recognition: $reason',
+          metadata: {'points': points, 'badge': badgeName},
+        );
+      } catch (e) {
+        developer.log('Recognition activity logging skipped: $e');
       }
 
-      // Record activity
-      await recordEmployeeActivity(
-        employeeId: employeeId,
-        activityType: 'recognition_received',
-        description: 'Received recognition: $reason',
-        metadata: {'points': points, 'badge': badgeName},
-      );
-
-      // Record manager action
-      await recordManagerAction(
-        actionType: ManagementAction.giveRecognition,
-        employeeId: employeeId,
-        description: 'Gave recognition: $reason',
-        details: {'points': points, 'badge': badgeName},
-      );
+      try {
+        await recordManagerAction(
+          actionType: ManagementAction.giveRecognition,
+          employeeId: employeeId,
+          description: 'Gave recognition: $reason',
+          details: {'points': points, 'badge': badgeName},
+        );
+      } catch (e) {
+        developer.log('Recognition manager-action logging skipped: $e');
+      }
 
       developer.log('Recognition given to employee $employeeId');
     } catch (e) {
@@ -2404,48 +2418,98 @@ class ManagerRealtimeService {
     }
   }
 
+  /// Request a 1:1 (intent only; no time yet).
+  static Future<void> requestOneOnOne({
+    required String employeeId,
+    String? agenda,
+  }) async {
+    try {
+      final managerId = FirebaseAuth.instance.currentUser!.uid;
+      final meetingId = await OneOnOneMeetingService.requestOneOnOne(
+        managerId: managerId,
+        employeeId: employeeId,
+        agenda: agenda,
+      );
+
+      // Record manager action (analytics/audit)
+      await _firestore.collection('manager_actions').add({
+        'actionType': 'requestMeeting',
+        'managerId': managerId,
+        'employeeId': employeeId,
+        'employeeName': '',
+        'description': 'Requested a 1:1 meeting',
+        'details': {
+          'meetingId': meetingId,
+          'agenda': (agenda ?? '').trim(),
+        },
+        'status': 'requested',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Employee-facing alert (soft-fail inside AlertService)
+      await AlertService.createOneOnOneRequestedAlert(
+        employeeId: employeeId,
+        managerId: managerId,
+        meetingId: meetingId,
+        agenda: agenda,
+      );
+    } catch (e) {
+      developer.log('Error requesting 1:1 meeting: $e');
+      rethrow;
+    }
+  }
+
   // Schedule 1:1 meeting
   static Future<void> scheduleMeeting({
     required String employeeId,
-    required DateTime scheduledTime,
+    required DateTime scheduledStartTime,
+    required DateTime scheduledEndTime,
     required String purpose,
     String? notes,
   }) async {
     try {
+      final managerId = FirebaseAuth.instance.currentUser!.uid;
+
+      // New trust-first behavior: this is a proposal, not a scheduled meeting,
+      // until the employee accepts.
+      final meetingId = await OneOnOneMeetingService.proposeTime(
+        managerId: managerId,
+        employeeId: employeeId,
+        proposedStartDateTime: scheduledStartTime,
+        proposedEndDateTime: scheduledEndTime,
+        agenda: purpose,
+      );
+
       await _firestore.collection('manager_actions').add({
         'actionType': 'scheduleMeeting',
-        'managerId': FirebaseAuth.instance.currentUser!.uid,
+        'managerId': managerId,
         'employeeId': employeeId,
         'employeeName': '', // Will be filled by recordManagerAction
-        'description': 'Scheduled 1:1 meeting',
+        'description': 'Proposed 1:1 meeting time',
         'details': {
-          'scheduledTime': Timestamp.fromDate(scheduledTime),
+          'meetingId': meetingId,
+          'proposedStartDateTime': Timestamp.fromDate(scheduledStartTime),
+          'proposedEndDateTime': Timestamp.fromDate(scheduledEndTime),
+          // Backwards compatibility for older dashboards/analytics
+          'proposedDateTime': Timestamp.fromDate(scheduledStartTime),
           'purpose': purpose,
           'notes': notes ?? '',
         },
-        'status': 'scheduled',
+        'status': 'proposed',
         'createdAt': FieldValue.serverTimestamp(),
-        'scheduledFor': Timestamp.fromDate(scheduledTime),
+        'scheduledFor': Timestamp.fromDate(scheduledStartTime),
       });
 
-      // Create alert for employee
-      await _firestore.collection('alerts').add({
-        'userId': employeeId,
-        'type': 'meeting_scheduled',
-        'priority': 'medium',
-        'title': '1:1 Meeting Scheduled 📅',
-        'message': 'Your manager scheduled a 1:1 meeting: $purpose',
-        'actionText': 'View Details',
-        'actionRoute': '/schedule',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'isDismissed': false,
-        'expiresAt': Timestamp.fromDate(
-          scheduledTime.add(const Duration(hours: 1)),
-        ),
-      });
+      await AlertService.createOneOnOneProposedAlert(
+        employeeId: employeeId,
+        managerId: managerId,
+        meetingId: meetingId,
+        proposedStartDateTime: scheduledStartTime,
+        proposedEndDateTime: scheduledEndTime,
+        agenda: purpose,
+      );
 
-      developer.log('Meeting scheduled with employee $employeeId');
+      developer.log('1:1 proposed for employee $employeeId');
     } catch (e) {
       developer.log('Error scheduling meeting: $e');
       rethrow;

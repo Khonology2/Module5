@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:pdh/services/onboarding_service.dart';
 
 class RoleService {
   RoleService._internal();
@@ -14,6 +15,8 @@ class RoleService {
   String? _cachedRole; // 'manager' | 'employee'
   Stream<String?>? _roleBroadcast;
   String? _currentUserId; // Track which user the stream is for
+  String? _onboardingInferAttemptedUserId;
+  String? _onboardingCachedRole;
   String? _roleOverride;
 
   String? get cachedRole => _cachedRole;
@@ -23,6 +26,48 @@ class RoleService {
     final r = role?.toString().trim().toLowerCase();
     if (r == null || r.isEmpty) return null;
     return r;
+  }
+
+  Future<String?> _inferRoleFromOnboarding({
+    required String userId,
+    required String? email,
+  }) async {
+    // Prevent repeated Firestore reads during rebuilds.
+    if (_onboardingInferAttemptedUserId == userId) {
+      return _onboardingCachedRole;
+    }
+    _onboardingInferAttemptedUserId = userId;
+
+    try {
+      // First try onboarding by UID.
+      final byId = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .doc(userId)
+          .get();
+
+      Map<String, dynamic>? onboardingData = byId.exists ? byId.data() : null;
+
+      // If not found by UID, try by email.
+      if (onboardingData == null && (email ?? '').trim().isNotEmpty) {
+        final byEmail = await FirebaseFirestore.instance
+            .collection('onboarding')
+            .where('email', isEqualTo: email!.trim())
+            .limit(1)
+            .get();
+        if (byEmail.docs.isNotEmpty) {
+          onboardingData = byEmail.docs.first.data();
+        }
+      }
+
+      final moduleAccessRole = onboardingData?['moduleAccessRole'] as String?;
+      final inferred = OnboardingService.extractPersonaForApp(moduleAccessRole);
+      _onboardingCachedRole = inferred;
+      return inferred;
+    } catch (e) {
+      developer.log('Error inferring role from onboarding: $e');
+      _onboardingCachedRole = null;
+      return null;
+    }
   }
 
   Future<String?> getRole({bool refresh = false}) async {
@@ -60,6 +105,17 @@ class RoleService {
         if (retryRole != null) {
           // Role was set between reads, use it
           _cachedRole = retryRole;
+          return _cachedRole;
+        }
+
+        // Attempt to infer the role from the onboarding collection (common for
+        // Google sign-in users where `users/<uid>.role` may be missing).
+        final inferred = await _inferRoleFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        );
+        if (inferred != null) {
+          _cachedRole = inferred;
           return _cachedRole;
         }
 
@@ -119,11 +175,24 @@ class RoleService {
             .snapshots();
 
         _roleBroadcast = firestoreStream
-            .map((doc) {
+            .asyncMap((doc) async {
               try {
                 final role = _normalizeRole(doc.data()?['role']);
-                _cachedRole = role;
-                return role;
+                if (role != null) {
+                  _cachedRole = role;
+                  return role;
+                }
+
+                // If role is missing in users doc, try onboarding inference once.
+                if (_cachedRole != null) return _cachedRole;
+                final inferred = await _inferRoleFromOnboarding(
+                  userId: user.uid,
+                  email: user.email,
+                );
+                if (inferred != null) {
+                  _cachedRole = inferred;
+                }
+                return _cachedRole;
               } catch (e) {
                 developer.log('Error processing role snapshot: $e');
                 return _cachedRole;
@@ -146,6 +215,8 @@ class RoleService {
     // Let Firestore handle cleanup naturally when all listeners unsubscribe
     _roleBroadcast = null;
     _currentUserId = null;
+    _onboardingInferAttemptedUserId = null;
+    _onboardingCachedRole = null;
   }
 
   // Method to clear cache (useful for sign out)
@@ -153,13 +224,13 @@ class RoleService {
     _cachedRole = null;
     _clearStream();
   }
-  
+
   void setRoleOverride(String role) {
     final r = _normalizeRole(role) ?? role;
     _roleOverride = r;
     _cachedRole = r;
   }
-  
+
   void clearRoleOverride() {
     _roleOverride = null;
   }
@@ -361,7 +432,9 @@ class _RoleGateState extends State<RoleGate> {
       stream: RoleService.instance.roleStream(),
       initialData: RoleService.instance.cachedRole,
       builder: (context, snapshot) {
-        String? role = _normalizeRole(snapshot.data ?? RoleService.instance.cachedRole);
+        String? role = _normalizeRole(
+          snapshot.data ?? RoleService.instance.cachedRole,
+        );
         if (RoleService.instance.roleOverride != null) {
           role = RoleService.instance.roleOverride;
         }
@@ -389,9 +462,16 @@ class _RoleGateState extends State<RoleGate> {
         // If role is still null, treat as loading for managers, allow employees through.
         if (role == null) {
           if (widget.requiredRole == RequiredRole.employee) return widget.child;
-          return Center(
-            child: CircularProgressIndicator(color: Color(0xFFC10D00)),
-          );
+          // If the stream is active but still no role, don't spin forever.
+          final isStillWaiting =
+              snapshot.connectionState == ConnectionState.waiting ||
+              snapshot.connectionState == ConnectionState.none;
+          if (isStillWaiting) {
+            return Center(
+              child: CircularProgressIndicator(color: Color(0xFFC10D00)),
+            );
+          }
+          return widget.unauthorized ?? const _RoleUnknown();
         }
 
         final ok =
@@ -410,6 +490,89 @@ class _RoleGateState extends State<RoleGate> {
         });
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+class _RoleUnknown extends StatelessWidget {
+  const _RoleUnknown();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A1931),
+      body: Center(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F2840),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.help_outline, color: Colors.orangeAccent),
+              const SizedBox(height: 12),
+              const Text(
+                'Account role not set',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'We could not determine your portal access. Please try again, or sign out and sign back in.',
+                style: TextStyle(color: Colors.white70),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () async {
+                      RoleService.instance.clearCache();
+                      await RoleService.instance.ensureRoleLoaded();
+                      if (context.mounted) {
+                        // Force a rebuild of the gate by replacing the route.
+                        Navigator.pushReplacementNamed(
+                          context,
+                          ModalRoute.of(context)?.settings.name ?? '/sign_in',
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFC10D00),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Try again'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () async {
+                      await FirebaseAuth.instance.signOut();
+                      if (context.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/sign_in',
+                          (route) => false,
+                        );
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white24),
+                    ),
+                    child: const Text('Sign out'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

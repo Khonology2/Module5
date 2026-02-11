@@ -1252,12 +1252,38 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.actionText != null && alert.actionRoute != null)
                 TextButton.icon(
                   onPressed: () {
+                    final route = alert.actionRoute!;
+                    Object? args;
+
+                    // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
+                    if (route == '/manager_review_team_dashboard') {
+                      final data = alert.actionData ?? const <String, dynamic>{};
+                      final meetingId = data['meetingId']?.toString().trim();
+                      final employeeIdRaw =
+                          data['employeeId']?.toString().trim();
+                      final employeeId = (employeeIdRaw != null &&
+                              employeeIdRaw.isNotEmpty)
+                          ? employeeIdRaw
+                          : (alert.fromUserId?.toString().trim().isNotEmpty ==
+                                  true
+                              ? alert.fromUserId!.toString().trim()
+                              : null);
+
+                      if (employeeId != null && employeeId.isNotEmpty) {
+                        args = <String, dynamic>{
+                          'employeeId': employeeId,
+                          if (meetingId != null && meetingId.isNotEmpty)
+                            'meetingId': meetingId,
+                        };
+                      }
+                    } else if (alert.relatedGoalId != null) {
+                      args = {'goalId': alert.relatedGoalId};
+                    }
+
                     Navigator.pushNamed(
                       context,
-                      alert.actionRoute!,
-                      arguments: alert.relatedGoalId != null
-                          ? {'goalId': alert.relatedGoalId}
-                          : null,
+                      route,
+                      arguments: args,
                     );
                   },
                   icon: const Icon(Icons.open_in_new),

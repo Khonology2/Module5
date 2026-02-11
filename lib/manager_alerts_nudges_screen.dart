@@ -2289,7 +2289,25 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       await AlertService.markAsRead(alert.id);
 
       if (alert.actionRoute != null && mounted) {
-        Navigator.pushNamed(context, alert.actionRoute!);
+        final route = alert.actionRoute!;
+        Object? args;
+
+        // Deep-link manager meeting alerts into the Review Team Dashboard.
+        if (route == '/manager_review_team_dashboard') {
+          final data = alert.actionData ?? const <String, dynamic>{};
+          final meetingId = data['meetingId']?.toString().trim();
+          final employeeId =
+              (data['employeeId']?.toString().trim().isNotEmpty ?? false)
+                  ? data['employeeId']?.toString().trim()
+                  : employee.profile.uid;
+
+          args = <String, dynamic>{
+            'employeeId': employeeId,
+            if (meetingId != null && meetingId.isNotEmpty) 'meetingId': meetingId,
+          };
+        }
+
+        Navigator.pushNamed(context, route, arguments: args);
       }
     } catch (e) {
       if (mounted) {

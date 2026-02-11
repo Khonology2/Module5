@@ -11,6 +11,192 @@ import 'package:pdh/utils/firestore_safe.dart';
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static String _formatMeetingTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  static String _formatMeetingRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+    String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+
+    final sameDay =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    if (sameDay) {
+      return '${date(start)} ${time(start)} - ${time(end)}';
+    }
+    return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
+  }
+
+  static Future<String> _displayNameForUser(String uid) async {
+    try {
+      final snap = await FirestoreSafe.getDoc(_firestore.collection('users').doc(uid));
+      final data = snap.data();
+      final name = (data?['displayName'] ?? data?['name'] ?? '').toString().trim();
+      return name.isNotEmpty ? name : 'Someone';
+    } catch (_) {
+      return 'Someone';
+    }
+  }
+
+  /// Employee-facing: manager expressed intent (no time).
+  static Future<void> createOneOnOneRequestedAlert({
+    required String employeeId,
+    required String managerId,
+    required String meetingId,
+    String? agenda,
+  }) async {
+    final managerName = await _displayNameForUser(managerId);
+    final alert = Alert(
+      id: '',
+      userId: employeeId,
+      type: AlertType.oneOnOneRequested,
+      priority: AlertPriority.medium,
+      title: '1:1 Requested',
+      message: '$managerName would like to have a 1:1 with you.',
+      actionText: 'View',
+      actionRoute: '/alerts_nudges',
+      actionData: {
+        'meetingId': meetingId,
+        if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
+      },
+      createdAt: DateTime.now(),
+      fromUserId: managerId,
+      fromUserName: managerName,
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+    await _createAlert(alert);
+  }
+
+  /// Employee-facing: manager proposed a meeting time range.
+  static Future<void> createOneOnOneProposedAlert({
+    required String employeeId,
+    required String managerId,
+    required String meetingId,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
+    String? agenda,
+  }) async {
+    final managerName = await _displayNameForUser(managerId);
+    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
+    final alert = Alert(
+      id: '',
+      userId: employeeId,
+      type: AlertType.oneOnOneProposed,
+      priority: AlertPriority.high,
+      title: '1:1 Proposed',
+      message: '$managerName proposed a 1:1 from $when.',
+      actionText: 'Respond',
+      actionRoute: '/alerts_nudges',
+      actionData: {
+        'meetingId': meetingId,
+        'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+        'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+        // Backwards compatibility for older routes/clients
+        'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
+        if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
+      },
+      createdAt: DateTime.now(),
+      fromUserId: managerId,
+      fromUserName: managerName,
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+    await _createAlert(alert);
+  }
+
+  /// Manager-facing: employee accepted the proposal.
+  static Future<void> createOneOnOneAcceptedAlertToManager({
+    required String managerId,
+    required String employeeId,
+    required String meetingId,
+    DateTime? acceptedStartDateTime,
+    DateTime? acceptedEndDateTime,
+  }) async {
+    final employeeName = await _displayNameForUser(employeeId);
+    String when = '';
+    if (acceptedStartDateTime != null && acceptedEndDateTime != null) {
+      when = ' for ${_formatMeetingRange(acceptedStartDateTime, acceptedEndDateTime)}';
+    } else if (acceptedStartDateTime != null) {
+      when = ' on ${_formatMeetingTime(acceptedStartDateTime)}';
+    }
+    final alert = Alert(
+      id: '',
+      userId: managerId,
+      type: AlertType.oneOnOneAccepted,
+      priority: AlertPriority.medium,
+      title: '1:1 Confirmed',
+      message: '$employeeName accepted your proposed 1:1$when.',
+      actionText: 'View',
+      actionRoute: '/manager_review_team_dashboard',
+      actionData: {'meetingId': meetingId, 'employeeId': employeeId},
+      createdAt: DateTime.now(),
+      fromUserId: employeeId,
+      fromUserName: employeeName,
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+    await _createAlert(alert);
+  }
+
+  /// Manager-facing: employee suggested a new time.
+  static Future<void> createOneOnOneRescheduledAlertToManager({
+    required String managerId,
+    required String employeeId,
+    required String meetingId,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
+  }) async {
+    final employeeName = await _displayNameForUser(employeeId);
+    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
+    final alert = Alert(
+      id: '',
+      userId: managerId,
+      type: AlertType.oneOnOneRescheduled,
+      priority: AlertPriority.high,
+      title: 'Reschedule Requested',
+      message: '$employeeName suggested a new 1:1 time: $when.',
+      actionText: 'Review',
+      actionRoute: '/manager_review_team_dashboard',
+      actionData: {'meetingId': meetingId, 'employeeId': employeeId},
+      createdAt: DateTime.now(),
+      fromUserId: employeeId,
+      fromUserName: employeeName,
+      expiresAt: DateTime.now().add(const Duration(days: 14)),
+    );
+    await _createAlert(alert);
+  }
+
+  static Future<void> createGeneralAlert({
+    required String userId,
+    required String title,
+    required String message,
+    AlertType type = AlertType.managerGeneral,
+    AlertPriority priority = AlertPriority.medium,
+    String? actionText,
+    String? actionRoute,
+    Map<String, dynamic>? actionData,
+    String? fromUserId,
+    String? fromUserName,
+    Duration ttl = const Duration(days: 14),
+  }) async {
+    final alert = Alert(
+      id: '',
+      userId: userId,
+      type: type,
+      priority: priority,
+      title: title,
+      message: message,
+      actionText: actionText,
+      actionRoute: actionRoute,
+      actionData: actionData,
+      createdAt: DateTime.now(),
+      fromUserId: fromUserId,
+      fromUserName: fromUserName,
+      expiresAt: DateTime.now().add(ttl),
+    );
+    await _createAlert(alert);
+  }
+
   // Create different types of alerts
   static Future<void> createGoalAlert({
     required String userId,
@@ -778,26 +964,33 @@ class AlertService {
         // Sort in memory to avoid index requirements
         alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-        // Deduplicate by a stable composite key to avoid doubles in UI
-        final seen = <String>{};
-        final deduped = <Alert>[];
-        String keyFor(Alert a) {
-          switch (a.type) {
-            case AlertType.goalDueSoon:
-            case AlertType.goalOverdue:
-            case AlertType.inactivity:
-            case AlertType.goalApprovalRequested:
-            case AlertType.goalApprovalApproved:
-            case AlertType.goalApprovalRejected:
-            case AlertType.teamGoalAvailable:
-            case AlertType.employeeJoinedTeamGoal:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}';
-            case AlertType.managerNudge:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
-            default:
-              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
-          }
-        }
+            // Deduplicate by a stable composite key to avoid doubles in UI
+            final seen = <String>{};
+            final deduped = <Alert>[];
+            String keyFor(Alert a) {
+              switch (a.type) {
+                case AlertType.oneOnOneRequested:
+                case AlertType.oneOnOneProposed:
+                case AlertType.oneOnOneAccepted:
+                case AlertType.oneOnOneRescheduled:
+                case AlertType.oneOnOneCancelled:
+                  final mid = (a.actionData?['meetingId'] ?? '').toString();
+                  return '${a.type.name}|$mid';
+                case AlertType.goalDueSoon:
+                case AlertType.goalOverdue:
+                case AlertType.inactivity:
+                case AlertType.goalApprovalRequested:
+                case AlertType.goalApprovalApproved:
+                case AlertType.goalApprovalRejected:
+                case AlertType.teamGoalAvailable:
+                case AlertType.employeeJoinedTeamGoal:
+                  return '${a.type.name}|${a.relatedGoalId ?? ''}';
+                case AlertType.managerNudge:
+                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
+                default:
+                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
+              }
+            }
 
         for (final a in alerts) {
           final key = keyFor(a);

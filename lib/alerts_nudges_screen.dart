@@ -18,9 +18,11 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/alert.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/one_on_one_meeting.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -36,6 +38,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   bool _isLoadingRisks = false;
   bool _isRiskAlertsExpanded = false;
   List<Alert>? _cachedAlerts;
+  List<OneOnOneMeeting>? _cachedMeetings;
+  final Map<String, String> _userNameCache = {};
 
   @override
   void initState() {
@@ -315,6 +319,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                           const SizedBox(height: AppSpacing.lg),
                           _buildPredictiveRiskAlerts(),
                           const SizedBox(height: AppSpacing.lg),
+                          _buildOneOnOneMeetingsSection(employeeId: user.uid),
+                          const SizedBox(height: AppSpacing.lg),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -359,6 +365,387 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildOneOnOneMeetingsSection({required String employeeId}) {
+    return StreamBuilder<List<OneOnOneMeeting>>(
+      stream: OneOnOneMeetingService.streamForEmployee(employeeId),
+      initialData: _cachedMeetings,
+      builder: (context, snapshot) {
+        final incoming = snapshot.data;
+        if (incoming != null && incoming != _cachedMeetings) {
+          _cachedMeetings = incoming;
+        }
+        final meetings =
+            incoming ?? _cachedMeetings ?? const <OneOnOneMeeting>[];
+
+        // Hide cancelled meetings by default (keeps the section focused)
+        final visible = meetings
+            .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
+            .take(5)
+            .toList();
+
+        if (visible.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return AppComponents.card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.event, color: AppColors.activeColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      '1:1 Meetings',
+                      style: AppTypography.heading4.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ...visible.map(_buildMeetingTile),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _humanMeetingStatus(OneOnOneMeeting m) {
+    switch (m.status) {
+      case OneOnOneMeetingStatus.requested:
+        return m.waitingOn == OneOnOneWaitingOn.manager
+            ? 'Waiting for manager'
+            : 'Waiting for your response';
+      case OneOnOneMeetingStatus.proposed:
+        return m.waitingOn == OneOnOneWaitingOn.employee
+            ? 'Time proposed'
+            : 'Waiting for manager';
+      case OneOnOneMeetingStatus.accepted:
+        return 'Confirmed';
+      case OneOnOneMeetingStatus.rescheduled:
+        return 'Reschedule requested';
+      case OneOnOneMeetingStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  String _formatMeetingTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  String _formatMeetingRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+    String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+    final sameDay =
+        start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day;
+    if (sameDay) return '${date(start)} ${time(start)} - ${time(end)}';
+    return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
+  }
+
+  Widget _buildMeetingTile(OneOnOneMeeting m) {
+    final statusText = _humanMeetingStatus(m);
+    final start = m.proposedStartDateTime;
+    final end = m.proposedEndDateTime;
+    final timeText = start == null
+        ? null
+        : (end != null
+              ? _formatMeetingRange(start, end)
+              : _formatMeetingTime(start));
+
+    final canRespond =
+        m.waitingOn == OneOnOneWaitingOn.employee &&
+        (m.status == OneOnOneMeetingStatus.requested ||
+            m.status == OneOnOneMeetingStatus.proposed);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: FutureBuilder<String>(
+                  future: _userDisplayName(m.managerId),
+                  builder: (context, snap) {
+                    final label = (snap.data != null && snap.data!.isNotEmpty)
+                        ? snap.data!
+                        : 'Manager';
+                    return Text(
+                      'From: $label',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.activeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.activeColor.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Text(
+                  statusText,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if ((m.agenda ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              m.agenda!.trim(),
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          if (timeText != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              (m.status == OneOnOneMeetingStatus.accepted)
+                  ? 'Confirmed: $timeText'
+                  : 'Proposed: $timeText',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          if (canRespond) ...[
+            const SizedBox(height: 10),
+            _buildMeetingActions(m),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<String> _userDisplayName(String uid) async {
+    final cached = _userNameCache[uid];
+    if (cached != null) return cached;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      final data = snap.data();
+      final name = (data?['displayName'] ?? data?['name'] ?? '')
+          .toString()
+          .trim();
+      final resolved = name.isNotEmpty ? name : 'Manager';
+      _userNameCache[uid] = resolved;
+      return resolved;
+    } catch (_) {
+      return 'Manager';
+    }
+  }
+
+  Widget _buildMeetingActions(OneOnOneMeeting m) {
+    final isProposed = m.status == OneOnOneMeetingStatus.proposed;
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: isProposed
+                ? () => _acceptMeeting(m)
+                : () => _ackRequest(m),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.activeColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(isProposed ? 'Accept' : 'Acknowledge'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => _suggestNewTime(m),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(
+              isProposed ? 'Suggest a different time' : 'Suggest a time',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String> _currentUserDisplayName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return 'Employee';
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final data = snap.data();
+      final name = (data?['displayName'] ?? data?['name'] ?? '')
+          .toString()
+          .trim();
+      return name.isNotEmpty ? name : (user.displayName ?? 'Employee');
+    } catch (_) {
+      return user.displayName ?? 'Employee';
+    }
+  }
+
+  Future<void> _acceptMeeting(OneOnOneMeeting m) async {
+    try {
+      await OneOnOneMeetingService.employeeAccept(meetingId: m.meetingId);
+      await AlertService.createOneOnOneAcceptedAlertToManager(
+        managerId: m.managerId,
+        employeeId: m.employeeId,
+        meetingId: m.meetingId,
+        acceptedStartDateTime: m.proposedStartDateTime,
+        acceptedEndDateTime: m.proposedEndDateTime,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Meeting accepted.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not accept: $e')));
+    }
+  }
+
+  Future<void> _suggestNewTime(OneOnOneMeeting m) async {
+    try {
+      final now = DateTime.now();
+      final pickedDate = await showDatePicker(
+        context: context,
+        firstDate: now,
+        lastDate: now.add(const Duration(days: 365)),
+        initialDate: now.add(const Duration(days: 1)),
+      );
+      if (pickedDate == null || !mounted) return;
+
+      final pickedStartTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+      );
+      if (pickedStartTime == null || !mounted) return;
+
+      final proposedStart = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedStartTime.hour,
+        pickedStartTime.minute,
+      );
+
+      final suggestedEnd = proposedStart.add(const Duration(minutes: 60));
+      final pickedEndTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
+      );
+      if (pickedEndTime == null || !mounted) return;
+
+      final proposedEnd = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedEndTime.hour,
+        pickedEndTime.minute,
+      );
+
+      if (!proposedEnd.isAfter(proposedStart)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End time must be after start time.')),
+        );
+        return;
+      }
+
+      await OneOnOneMeetingService.employeeSuggestNewTime(
+        meetingId: m.meetingId,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
+      );
+      await AlertService.createOneOnOneRescheduledAlertToManager(
+        managerId: m.managerId,
+        employeeId: m.employeeId,
+        meetingId: m.meetingId,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reschedule sent to manager.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not suggest time: $e')));
+    }
+  }
+
+  Future<void> _ackRequest(OneOnOneMeeting m) async {
+    try {
+      await OneOnOneMeetingService.employeeAcknowledgeRequest(
+        meetingId: m.meetingId,
+      );
+      final employeeName = await _currentUserDisplayName();
+      await AlertService.createGeneralAlert(
+        userId: m.managerId,
+        title: '1:1 Acknowledged',
+        message:
+            '$employeeName acknowledged your 1:1 request. Propose a time when you’re ready.',
+        type: AlertType.oneOnOneRequested,
+        priority: AlertPriority.low,
+        actionText: 'View',
+        actionRoute: '/manager_review_team_dashboard',
+        actionData: {'meetingId': m.meetingId, 'employeeId': m.employeeId},
+        fromUserId: m.employeeId,
+        fromUserName: employeeName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Acknowledged.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not acknowledge: $e')));
+    }
   }
 
   Widget _buildAlertSummary(List<Alert> alerts) {
@@ -968,7 +1355,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
     final goalId = alert.actionData != null
         ? (alert.actionData!['goalId'] as String?)
-        : null; 
+        : null;
     final relatedGoalId = alert.relatedGoalId;
     final targetGoalId = goalId ?? relatedGoalId;
     final actionRoute = alert.actionRoute;
@@ -1554,6 +1941,18 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         return Icon(Icons.block);
       case AlertType.managerGeneral:
         return Icon(Icons.notifications);
+      case AlertType.oneOnOneRequested:
+        return Icon(Icons.event_note);
+      case AlertType.oneOnOneProposed:
+        return Icon(Icons.event_available);
+      case AlertType.oneOnOneAccepted:
+        return Icon(Icons.event_available_outlined);
+      case AlertType.oneOnOneRescheduled:
+        return Icon(Icons.event_repeat);
+      case AlertType.oneOnOneCancelled:
+        return Icon(Icons.event_busy);
+      case AlertType.recognition:
+        return Icon(Icons.emoji_events);
       case AlertType.profileIncomplete:
         return Icon(Icons.person_outline);
     }
@@ -2670,6 +3069,18 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
         return Icon(Icons.access_time);
       case AlertType.teamGoalAvailable:
         return Icon(Icons.group_work);
+      case AlertType.oneOnOneRequested:
+        return Icon(Icons.event_note);
+      case AlertType.oneOnOneProposed:
+        return Icon(Icons.event_available);
+      case AlertType.oneOnOneAccepted:
+        return Icon(Icons.event_available_outlined);
+      case AlertType.oneOnOneRescheduled:
+        return Icon(Icons.event_repeat);
+      case AlertType.oneOnOneCancelled:
+        return Icon(Icons.event_busy);
+      case AlertType.recognition:
+        return Icon(Icons.emoji_events);
       case AlertType.employeeJoinedTeamGoal:
         return Icon(Icons.group_add);
       case AlertType.seasonJoined:
@@ -2710,6 +3121,3 @@ class _HoverableSummaryChipState extends State<_HoverableSummaryChip> {
 }
 
 // Drawer removed; persistent sidebar via MainLayout
-
-
-

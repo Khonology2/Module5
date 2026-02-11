@@ -28,7 +28,13 @@ enum AlertType {
   milestoneDeleted, // NEW: Milestone deleted by manager (notification to employee)
   milestoneDeletionRejected, // NEW: Milestone deletion rejected by manager (notification to employee)
   managerGeneral, // NEW: Generic manager alert
-  profileIncomplete, // Profile incomplete alert
+  oneOnOneRequested, // One-on-one meeting requested
+  oneOnOneProposed, // One-on-one meeting proposed
+  oneOnOneAccepted, // One-on-one meeting accepted
+  oneOnOneRescheduled, // One-on-one meeting rescheduled
+  oneOnOneCancelled, // One-on-one meeting cancelled
+  recognition, // Employee recognition
+  profileIncomplete, // User profile is incomplete
 }
 
 enum AlertPriority { low, medium, high, urgent }
@@ -70,15 +76,28 @@ class Alert {
     this.fromUserName,
   });
 
+  static AlertType parseAlertType(String raw) {
+    // Legacy strings written directly by older services
+    switch (raw) {
+      case 'meeting_scheduled':
+        // Old behavior: treated as "scheduled". New behavior: it’s a proposal.
+        return AlertType.oneOnOneProposed;
+      case 'recognition':
+        return AlertType.recognition;
+    }
+
+    return AlertType.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => AlertType.goalCreated,
+    );
+  }
+
   factory Alert.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Alert(
       id: doc.id,
       userId: data['userId'] ?? '',
-      type: AlertType.values.firstWhere(
-        (e) => e.name == (data['type'] ?? 'goalCreated'),
-        orElse: () => AlertType.goalCreated,
-      ),
+      type: parseAlertType((data['type'] ?? 'goalCreated').toString()),
       priority: AlertPriority.values.firstWhere(
         (e) => e.name == (data['priority'] ?? 'medium'),
         orElse: () => AlertPriority.medium,
@@ -111,10 +130,7 @@ class Alert {
     return Alert(
       id: id ?? (map['id']?.toString() ?? ''),
       userId: map['userId']?.toString() ?? '',
-      type: AlertType.values.firstWhere(
-        (e) => e.name == (map['type'] ?? 'goalCreated'),
-        orElse: () => AlertType.goalCreated,
-      ),
+      type: parseAlertType((map['type'] ?? 'goalCreated').toString()),
       priority: AlertPriority.values.firstWhere(
         (e) => e.name == (map['priority'] ?? 'medium'),
         orElse: () => AlertPriority.medium,

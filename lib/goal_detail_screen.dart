@@ -1343,8 +1343,27 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
     );
     DateTime? dueDate =
         milestone?.dueDate ?? DateTime.now().add(const Duration(days: 7));
-    GoalMilestoneStatus status =
-        milestone?.status ?? GoalMilestoneStatus.notStarted;
+    GoalMilestoneStatus status;
+    if (milestone != null) {
+      // For existing milestones, map system-managed statuses to appropriate employee options
+      switch (milestone.status) {
+        case GoalMilestoneStatus.notStarted:
+        case GoalMilestoneStatus.pendingManagerReview:
+        case GoalMilestoneStatus.blocked:
+          status = GoalMilestoneStatus.inProgress; // Map to In Progress
+          break;
+        case GoalMilestoneStatus.completedAcknowledged:
+          status = GoalMilestoneStatus.completed; // Map to Completed
+          break;
+        case GoalMilestoneStatus.inProgress:
+        case GoalMilestoneStatus.completed:
+          status = milestone.status; // Keep as-is
+          break;
+      }
+    } else {
+      // For new milestones, default to In Progress instead of Not Started
+      status = GoalMilestoneStatus.inProgress;
+    }
     bool saving = false;
     String? successMessage;
 
@@ -1401,16 +1420,37 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
               setDialogState(() => saving = true);
               try {
+                GoalMilestone? createdMilestone;
                 if (milestone == null) {
-                  await DatabaseService.addGoalMilestone(
+                  // For new milestones, if status is "Completed", create as "In Progress" first
+                  // since evidence will be required to actually complete it
+                  final initialStatus = status == GoalMilestoneStatus.completed
+                      ? GoalMilestoneStatus.inProgress
+                      : status;
+
+                  final milestoneId = await DatabaseService.addGoalMilestone(
                     goalId: currentGoal.id,
                     title: trimmedTitle,
                     description: trimmedDesc,
                     dueDate: dueDate!,
                     createdBy: user.uid,
                     createdByName: user.displayName ?? user.email ?? 'You',
-                    status: status,
+                    status: initialStatus,
                     // REMOVED: requiresEvidence parameter - no longer needed
+                  );
+
+                  // Create the milestone object for evidence submission
+                  createdMilestone = GoalMilestone(
+                    id: milestoneId,
+                    goalId: currentGoal.id,
+                    title: trimmedTitle,
+                    description: trimmedDesc,
+                    dueDate: dueDate!,
+                    createdBy: user.uid,
+                    createdByName: user.displayName ?? user.email ?? 'You',
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                    status: initialStatus,
                   );
                 } else {
                   await DatabaseService.updateGoalMilestone(
@@ -1429,12 +1469,26 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                       : 'Milestone updated successfully!';
                 });
 
-                // Auto-close dialog after a short delay to show success message
-                Future.delayed(const Duration(seconds: 2), () {
-                  if (mounted && dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                });
+                // If this was a new milestone created with "Completed" status intent, trigger evidence submission
+                if (milestone == null &&
+                    status == GoalMilestoneStatus.completed &&
+                    createdMilestone != null) {
+                  // Auto-close dialog after a short delay to show success message, then open evidence submission
+                  Future.delayed(const Duration(seconds: 2), () {
+                    if (mounted && dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                      // Trigger evidence submission for the newly created milestone
+                      _showEvidenceSubmissionDialog(createdMilestone!);
+                    }
+                  });
+                } else {
+                  // Auto-close dialog after a short delay to show success message
+                  Future.delayed(const Duration(seconds: 2), () {
+                    if (mounted && dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  });
+                }
               } catch (e) {
                 setDialogState(() => saving = false);
                 // Try to show error message if dialog context is still valid
@@ -1499,17 +1553,36 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
                     DropdownButtonFormField<GoalMilestoneStatus>(
                       initialValue: status,
                       decoration: const InputDecoration(labelText: 'Status'),
-                      items: GoalMilestoneStatus.values
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(_milestoneStatusLabel(value)),
-                            ),
-                          )
-                          .toList(),
+                      items:
+                          const [
+                                GoalMilestoneStatus.inProgress,
+                                GoalMilestoneStatus.completed,
+                              ]
+                              .map(
+                                (value) => DropdownMenuItem(
+                                  value: value,
+                                  child: Text(_milestoneStatusLabel(value)),
+                                ),
+                              )
+                              .toList(),
                       onChanged: (value) {
                         if (value != null) {
                           setDialogState(() => status = value);
+
+                          // If user selects "Completed", show a message that evidence will be required
+                          if (value == GoalMilestoneStatus.completed) {
+                            if (milestone == null) {
+                              // For new milestones, show a message that evidence will be required after saving
+                              setDialogState(() {
+                                successMessage =
+                                    '⚠️ Evidence will be required to mark this milestone as completed. Please save first, then add evidence.';
+                              });
+                            } else {
+                              // For existing milestones, close dialog and trigger evidence submission
+                              Navigator.of(dialogContext).pop();
+                              _showEvidenceSubmissionDialog(milestone);
+                            }
+                          }
                         }
                       },
                     ),

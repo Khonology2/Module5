@@ -1,13 +1,17 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:pdh/manager_employee_detail_screen.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/services/audit_service.dart';
+import 'package:pdh/services/alert_service.dart';
+import 'package:pdh/services/one_on_one_meeting_service.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/models/goal.dart';
+import 'package:pdh/models/one_on_one_meeting.dart';
 
 class ManagerReviewTeamDashboardScreen extends StatefulWidget {
   const ManagerReviewTeamDashboardScreen({super.key});
@@ -30,10 +34,48 @@ class _ManagerReviewTeamDashboardScreenState
   Timer? _employeeSearchDebounce;
   String _employeeSearchQuery = '';
 
+  // Optional deep-link from manager alerts: open the 1:1 sheet for a specific meeting.
+  String? _initialEmployeeId;
+  String? _initialMeetingId;
+  bool _initialMeetingHandled = false;
+
   @override
   void initState() {
     super.initState();
     _rebuildStreams();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialMeetingHandled) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map) {
+      final employeeId = args['employeeId']?.toString().trim();
+      final meetingId = args['meetingId']?.toString().trim();
+      if (employeeId != null && employeeId.isNotEmpty) {
+        _initialEmployeeId = employeeId;
+        if (meetingId != null && meetingId.isNotEmpty) {
+          _initialMeetingId = meetingId;
+        }
+      }
+    }
+  }
+
+  void _maybeOpenInitialMeeting(List<EmployeeData> employees) {
+    if (_initialMeetingHandled) return;
+    final employeeId = _initialEmployeeId;
+    if (employeeId == null || employeeId.isEmpty) return;
+
+    final match = employees.where((e) => e.profile.uid == employeeId).toList();
+    if (match.isEmpty) return;
+
+    _initialMeetingHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scheduleOneOnOne(match.first, meetingId: _initialMeetingId);
+    });
   }
 
   void _rebuildStreams() {
@@ -390,6 +432,11 @@ class _ManagerReviewTeamDashboardScreenState
 
                         final insights =
                             hasPlaceholderBatch ? const <TeamInsight>[] : _computeInsights(employees);
+
+                        // Deep-link from alerts (if provided) once we have a real employee list.
+                        if (!hasPlaceholderBatch) {
+                          _maybeOpenInitialMeeting(employees);
+                        }
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1636,83 +1683,260 @@ class _ManagerReviewTeamDashboardScreenState
     }
   }
 
-  void _scheduleOneOnOne(EmployeeData employee) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0x80000000),
-        title: Text(
-          'Schedule 1:1 with ${employee.profile.displayName}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                hintText: 'Meeting purpose...',
-                hintStyle: TextStyle(color: Colors.white54),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) {
-                // Store purpose
-              },
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  // In a real app, you would open a date picker here
-                  // For now, we'll schedule for tomorrow
-                  final scheduledTime = DateTime.now().add(
-                    const Duration(days: 1),
-                  );
+  void _scheduleOneOnOne(EmployeeData employee, {String? meetingId}) async {
+    final managerId = FirebaseAuth.instance.currentUser?.uid;
+    // If a meetingId was provided via deep-link, prefer that exact meeting.
+    // Otherwise fall back to the latest active thread between manager+employee.
+    OneOnOneMeeting? existing;
+    final requestedMeetingId = meetingId?.trim();
+    if (requestedMeetingId != null && requestedMeetingId.isNotEmpty) {
+      try {
+        final m = await OneOnOneMeetingService.getMeeting(requestedMeetingId);
+        final sameEmployee = m?.employeeId == employee.profile.uid;
+        final sameManager = managerId == null || m?.managerId == managerId;
+        if (m != null && sameEmployee && sameManager) {
+          existing = m;
+        }
+      } catch (_) {
+        // Fall through to latest-between lookup
+      }
+    }
 
-                  await ManagerRealtimeService.scheduleMeeting(
-                    employeeId: employee.profile.uid,
-                    scheduledTime: scheduledTime,
-                    purpose: 'Performance check-in',
-                  );
-                  // ignore: duplicate_ignore
-                  // ignore: use_build_context_synchronously
-                  Navigator.pop(dialogContext); // Use dialogContext
-                  // ignore: duplicate_ignore
-                  // ignore: use_build_context_synchronously
-                  if (!mounted) return;
-                  await _showCenterNotice(
-                    context,
-                    '1:1 scheduled with ${employee.profile.displayName}',
-                  );
-                } catch (e) {
-                  if (!mounted) return; // Add this line back
-                  await _showCenterNotice(
-                    context,
-                    'Error scheduling meeting: $e',
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFC10D00),
-              ),
-              child: const Text('Schedule'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext), // Use dialogContext
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-        ],
+    if (existing == null && managerId != null) {
+      existing = await OneOnOneMeetingService.getLatestBetween(
+          managerId: managerId, employeeId: employee.profile.uid);
+    }
+
+    final agendaController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0E1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
-    );
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '1:1 with ${employee.profile.displayName}',
+                style: AppTypography.heading3.copyWith(color: Colors.white),
+              ),
+              if (existing != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Current status: ${existing.status.name} (waiting on: ${existing.waitingOn.name})',
+                  style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+                ),
+                if (existing.proposedStartDateTime != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    existing.proposedEndDateTime != null
+                        ? 'Time: ${existing.proposedStartDateTime!.toLocal().toString()} - ${existing.proposedEndDateTime!.toLocal().toString()}'
+                        : 'Time: ${existing.proposedStartDateTime!.toLocal().toString()}',
+                    style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+                  ),
+                ],
+              ],
+              const SizedBox(height: 8),
+              Text(
+                'Start with intent. You can request first, or propose a time.',
+                style: AppTypography.bodySmall.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: agendaController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Message / agenda (optional)',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    try {
+                      if (existing != null &&
+                          existing.status != OneOnOneMeetingStatus.cancelled &&
+                          existing.status != OneOnOneMeetingStatus.accepted) {
+                        await _showCenterNotice(
+                          context,
+                          'There is already an active 1:1 thread for this employee. Propose a time instead.',
+                        );
+                        return;
+                      }
+                      await ManagerRealtimeService.requestOneOnOne(
+                        employeeId: employee.profile.uid,
+                        agenda: agendaController.text.trim(),
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(sheetContext);
+                      await _showCenterNotice(
+                        context,
+                        'Request sent to ${employee.profile.displayName}.',
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      await _showCenterNotice(
+                        context,
+                        'Error requesting 1:1: $e',
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFC10D00),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Request a 1:1'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () async {
+                    try {
+                      final now = DateTime.now();
+                      final pickedDate = await showDatePicker(
+                        context: sheetContext,
+                        firstDate: now,
+                        lastDate: now.add(const Duration(days: 365)),
+                        initialDate: now.add(const Duration(days: 1)),
+                      );
+                      if (pickedDate == null) return;
+
+                      final pickedStartTime = await showTimePicker(
+                        context: sheetContext,
+                        initialTime: TimeOfDay.fromDateTime(
+                          now.add(const Duration(hours: 1)),
+                        ),
+                      );
+                      if (pickedStartTime == null) return;
+
+                      final proposedStart = DateTime(
+                        pickedDate.year,
+                        pickedDate.month,
+                        pickedDate.day,
+                        pickedStartTime.hour,
+                        pickedStartTime.minute,
+                      );
+
+                      final suggestedEnd = proposedStart.add(
+                        const Duration(minutes: 60),
+                      );
+                      final pickedEndTime = await showTimePicker(
+                        context: sheetContext,
+                        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
+                      );
+                      if (pickedEndTime == null) return;
+
+                      final proposedEnd = DateTime(
+                        pickedDate.year,
+                        pickedDate.month,
+                        pickedDate.day,
+                        pickedEndTime.hour,
+                        pickedEndTime.minute,
+                      );
+
+                      if (!proposedEnd.isAfter(proposedStart)) {
+                        await _showCenterNotice(
+                          context,
+                          'End time must be after start time.',
+                        );
+                        return;
+                      }
+
+                      final agenda = agendaController.text.trim();
+                      // If there is an existing active thread, update it; otherwise create a new proposal.
+                      final canUpdateExisting = existing != null &&
+                          existing.status != OneOnOneMeetingStatus.cancelled &&
+                          existing.status != OneOnOneMeetingStatus.accepted;
+
+                      if (canUpdateExisting) {
+                        await OneOnOneMeetingService.managerProposeNewTime(
+                          meetingId: existing.meetingId,
+                          proposedStartDateTime: proposedStart,
+                          proposedEndDateTime: proposedEnd,
+                          agenda: agenda.isEmpty ? null : agenda,
+                        );
+                        if (managerId != null) {
+                          await AlertService.createOneOnOneProposedAlert(
+                            employeeId: employee.profile.uid,
+                            managerId: managerId,
+                            meetingId: existing.meetingId,
+                            proposedStartDateTime: proposedStart,
+                            proposedEndDateTime: proposedEnd,
+                            agenda: agenda.isEmpty ? null : agenda,
+                          );
+                        }
+                      } else {
+                        await ManagerRealtimeService.scheduleMeeting(
+                          employeeId: employee.profile.uid,
+                          scheduledStartTime: proposedStart,
+                          scheduledEndTime: proposedEnd,
+                          purpose: agenda.isEmpty ? '1:1' : agenda,
+                        );
+                      }
+
+                      if (!mounted) return;
+                      Navigator.pop(sheetContext);
+                      await _showCenterNotice(
+                        context,
+                        'Time proposed to ${employee.profile.displayName}.',
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      await _showCenterNotice(
+                        context,
+                        'Error proposing time: $e',
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.25),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Propose a time'),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ).whenComplete(() => agendaController.dispose());
   }
 
   void _giveRecognition(EmployeeData employee) {
+    final TextEditingController reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1725,15 +1949,13 @@ class _ManagerReviewTeamDashboardScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              controller: reasonController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
                 hintText: 'Recognition reason...',
                 hintStyle: TextStyle(color: Colors.white54),
                 border: OutlineInputBorder(),
               ),
-              onChanged: (value) {
-                // Store reason
-              },
             ),
             const SizedBox(height: 12),
             Row(
@@ -1742,11 +1964,13 @@ class _ManagerReviewTeamDashboardScreenState
                   child: ElevatedButton(
                     onPressed: () async {
                       try {
+                        final typedReason = reasonController.text.trim();
                         await ManagerRealtimeService.giveRecognition(
                           employeeId: employee.profile.uid,
-                          reason: 'Outstanding performance this week!',
+                          reason: typedReason.isNotEmpty
+                              ? typedReason
+                              : 'Outstanding performance this week!',
                           points: 50,
-                          badgeName: 'Manager Recognition',
                         );
                         Navigator.pop(dialogContext); // Use dialogContext
                         if (!mounted) return;
@@ -1782,7 +2006,7 @@ class _ManagerReviewTeamDashboardScreenState
           ),
         ],
       ),
-    );
+    ).whenComplete(() => reasonController.dispose());
   }
 
   void _viewActivities(EmployeeData employee) {
