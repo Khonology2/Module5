@@ -437,15 +437,27 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   }
 
   String _formatMeetingTime(DateTime dt) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  String _formatMeetingRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+    String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+    final sameDay =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    if (sameDay) return '${date(start)} ${time(start)} - ${time(end)}';
+    return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
   }
 
   Widget _buildMeetingTile(OneOnOneMeeting m) {
     final statusText = _humanMeetingStatus(m);
-    final timeText = m.proposedDateTime != null
-        ? _formatMeetingTime(m.proposedDateTime!)
-        : null;
+    final start = m.proposedStartDateTime;
+    final end = m.proposedEndDateTime;
+    final timeText = start == null
+        ? null
+        : (end != null ? _formatMeetingRange(start, end) : _formatMeetingTime(start));
 
     final canRespond =
         m.waitingOn == OneOnOneWaitingOn.employee &&
@@ -613,7 +625,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         managerId: m.managerId,
         employeeId: m.employeeId,
         meetingId: m.meetingId,
-        acceptedDateTime: m.proposedDateTime,
+        acceptedStartDateTime: m.proposedStartDateTime,
+        acceptedEndDateTime: m.proposedEndDateTime,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -638,29 +651,54 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
       );
       if (pickedDate == null) return;
 
-      final pickedTime = await showTimePicker(
+      final pickedStartTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
       );
-      if (pickedTime == null) return;
+      if (pickedStartTime == null) return;
 
-      final proposed = DateTime(
+      final proposedStart = DateTime(
         pickedDate.year,
         pickedDate.month,
         pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
+        pickedStartTime.hour,
+        pickedStartTime.minute,
       );
+
+      final suggestedEnd = proposedStart.add(const Duration(minutes: 60));
+      final pickedEndTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
+      );
+      if (pickedEndTime == null) return;
+
+      final proposedEnd = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedEndTime.hour,
+        pickedEndTime.minute,
+      );
+
+      if (!proposedEnd.isAfter(proposedStart)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End time must be after start time.')),
+        );
+        return;
+      }
 
       await OneOnOneMeetingService.employeeSuggestNewTime(
         meetingId: m.meetingId,
-        proposedDateTime: proposed,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
       );
       await AlertService.createOneOnOneRescheduledAlertToManager(
         managerId: m.managerId,
         employeeId: m.employeeId,
         meetingId: m.meetingId,
-        proposedDateTime: proposed,
+        proposedStartDateTime: proposedStart,
+        proposedEndDateTime: proposedEnd,
       );
 
       if (!mounted) return;
