@@ -20,7 +20,11 @@ class OneOnOneMeeting {
   final String employeeId;
   final OneOnOneMeetingStatus status;
   final OneOnOneWaitingOn waitingOn;
-  final DateTime? proposedDateTime;
+  /// Proposed meeting start time (local display; stored in Firestore as Timestamp).
+  final DateTime? proposedStartDateTime;
+
+  /// Proposed meeting end time (local display; stored in Firestore as Timestamp).
+  final DateTime? proposedEndDateTime;
   final String? agenda;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -31,7 +35,8 @@ class OneOnOneMeeting {
     required this.employeeId,
     required this.status,
     required this.waitingOn,
-    required this.proposedDateTime,
+    required this.proposedStartDateTime,
+    required this.proposedEndDateTime,
     required this.agenda,
     required this.createdAt,
     required this.updatedAt,
@@ -68,13 +73,20 @@ class OneOnOneMeeting {
       return parseDate(v);
     }
 
+    final proposedStart =
+        parseNullableDate(data['proposedStartDateTime']) ??
+        // Backwards compatibility: older docs used a single proposedDateTime.
+        parseNullableDate(data['proposedDateTime']);
+    final proposedEnd = parseNullableDate(data['proposedEndDateTime']);
+
     return OneOnOneMeeting(
       meetingId: (data['meetingId']?.toString() ?? doc.id),
       managerId: data['managerId']?.toString() ?? '',
       employeeId: data['employeeId']?.toString() ?? '',
       status: parseStatus(data['status']),
       waitingOn: parseWaitingOn(data['waitingOn']),
-      proposedDateTime: parseNullableDate(data['proposedDateTime']),
+      proposedStartDateTime: proposedStart,
+      proposedEndDateTime: proposedEnd,
       agenda: data['agenda']?.toString(),
       createdAt: parseDate(data['createdAt']),
       updatedAt: parseDate(data['updatedAt']),
@@ -88,8 +100,15 @@ class OneOnOneMeeting {
       'employeeId': employeeId,
       'status': status.name,
       'waitingOn': waitingOn.name,
-      'proposedDateTime':
-          proposedDateTime != null ? Timestamp.fromDate(proposedDateTime!) : null,
+      'proposedStartDateTime': proposedStartDateTime != null
+          ? Timestamp.fromDate(proposedStartDateTime!)
+          : null,
+      'proposedEndDateTime':
+          proposedEndDateTime != null ? Timestamp.fromDate(proposedEndDateTime!) : null,
+      // Backwards compatibility for older clients expecting a single time.
+      'proposedDateTime': proposedStartDateTime != null
+          ? Timestamp.fromDate(proposedStartDateTime!)
+          : null,
       'agenda': agenda,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),

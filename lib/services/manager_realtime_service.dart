@@ -2079,7 +2079,8 @@ class ManagerRealtimeService {
   // Schedule 1:1 meeting
   static Future<void> scheduleMeeting({
     required String employeeId,
-    required DateTime scheduledTime,
+    required DateTime scheduledStartTime,
+    required DateTime scheduledEndTime,
     required String purpose,
     String? notes,
   }) async {
@@ -2091,7 +2092,8 @@ class ManagerRealtimeService {
       final meetingId = await OneOnOneMeetingService.proposeTime(
         managerId: managerId,
         employeeId: employeeId,
-        proposedDateTime: scheduledTime,
+        proposedStartDateTime: scheduledStartTime,
+        proposedEndDateTime: scheduledEndTime,
         agenda: purpose,
       );
 
@@ -2103,20 +2105,24 @@ class ManagerRealtimeService {
         'description': 'Proposed 1:1 meeting time',
         'details': {
           'meetingId': meetingId,
-          'proposedDateTime': Timestamp.fromDate(scheduledTime),
+          'proposedStartDateTime': Timestamp.fromDate(scheduledStartTime),
+          'proposedEndDateTime': Timestamp.fromDate(scheduledEndTime),
+          // Backwards compatibility for older dashboards/analytics
+          'proposedDateTime': Timestamp.fromDate(scheduledStartTime),
           'purpose': purpose,
           'notes': notes ?? '',
         },
         'status': 'proposed',
         'createdAt': FieldValue.serverTimestamp(),
-        'scheduledFor': Timestamp.fromDate(scheduledTime),
+        'scheduledFor': Timestamp.fromDate(scheduledStartTime),
       });
 
       await AlertService.createOneOnOneProposedAlert(
         employeeId: employeeId,
         managerId: managerId,
         meetingId: meetingId,
-        proposedDateTime: scheduledTime,
+        proposedStartDateTime: scheduledStartTime,
+        proposedEndDateTime: scheduledEndTime,
         agenda: purpose,
       );
 

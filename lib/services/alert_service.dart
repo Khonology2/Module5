@@ -12,8 +12,21 @@ class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static String _formatMeetingTime(DateTime dt) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  static String _formatMeetingRange(DateTime start, DateTime end) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
+    String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
+
+    final sameDay =
+        start.year == end.year && start.month == end.month && start.day == end.day;
+    if (sameDay) {
+      return '${date(start)} ${time(start)} - ${time(end)}';
+    }
+    return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
   }
 
   static Future<String> _displayNameForUser(String uid) async {
@@ -56,28 +69,32 @@ class AlertService {
     await _createAlert(alert);
   }
 
-  /// Employee-facing: manager proposed a time.
+  /// Employee-facing: manager proposed a meeting time range.
   static Future<void> createOneOnOneProposedAlert({
     required String employeeId,
     required String managerId,
     required String meetingId,
-    required DateTime proposedDateTime,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
     String? agenda,
   }) async {
     final managerName = await _displayNameForUser(managerId);
-    final when = _formatMeetingTime(proposedDateTime);
+    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
     final alert = Alert(
       id: '',
       userId: employeeId,
       type: AlertType.oneOnOneProposed,
       priority: AlertPriority.high,
       title: '1:1 Proposed',
-      message: '$managerName proposed a 1:1 on $when.',
+      message: '$managerName proposed a 1:1 from $when.',
       actionText: 'Respond',
       actionRoute: '/alerts_nudges',
       actionData: {
         'meetingId': meetingId,
-        'proposedDateTime': Timestamp.fromDate(proposedDateTime),
+        'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+        'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+        // Backwards compatibility for older routes/clients
+        'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
         if (agenda != null && agenda.trim().isNotEmpty) 'agenda': agenda.trim(),
       },
       createdAt: DateTime.now(),
@@ -93,10 +110,16 @@ class AlertService {
     required String managerId,
     required String employeeId,
     required String meetingId,
-    DateTime? acceptedDateTime,
+    DateTime? acceptedStartDateTime,
+    DateTime? acceptedEndDateTime,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
-    final when = acceptedDateTime != null ? ' on ${_formatMeetingTime(acceptedDateTime)}' : '';
+    String when = '';
+    if (acceptedStartDateTime != null && acceptedEndDateTime != null) {
+      when = ' for ${_formatMeetingRange(acceptedStartDateTime, acceptedEndDateTime)}';
+    } else if (acceptedStartDateTime != null) {
+      when = ' on ${_formatMeetingTime(acceptedStartDateTime)}';
+    }
     final alert = Alert(
       id: '',
       userId: managerId,
@@ -120,10 +143,11 @@ class AlertService {
     required String managerId,
     required String employeeId,
     required String meetingId,
-    required DateTime proposedDateTime,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
-    final when = _formatMeetingTime(proposedDateTime);
+    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
     final alert = Alert(
       id: '',
       userId: managerId,

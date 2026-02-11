@@ -1738,10 +1738,12 @@ class _ManagerReviewTeamDashboardScreenState
                   'Current status: ${existing.status.name} (waiting on: ${existing.waitingOn.name})',
                   style: AppTypography.bodySmall.copyWith(color: Colors.white70),
                 ),
-                if (existing.proposedDateTime != null) ...[
+                if (existing.proposedStartDateTime != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    'Time: ${existing.proposedDateTime!.toLocal().toString()}',
+                    existing.proposedEndDateTime != null
+                        ? 'Time: ${existing.proposedStartDateTime!.toLocal().toString()} - ${existing.proposedEndDateTime!.toLocal().toString()}'
+                        : 'Time: ${existing.proposedStartDateTime!.toLocal().toString()}',
                     style: AppTypography.bodySmall.copyWith(color: Colors.white70),
                   ),
                 ],
@@ -1818,21 +1820,46 @@ class _ManagerReviewTeamDashboardScreenState
                       );
                       if (pickedDate == null) return;
 
-                      final pickedTime = await showTimePicker(
+                      final pickedStartTime = await showTimePicker(
                         context: sheetContext,
                         initialTime: TimeOfDay.fromDateTime(
                           now.add(const Duration(hours: 1)),
                         ),
                       );
-                      if (pickedTime == null) return;
+                      if (pickedStartTime == null) return;
 
-                      final proposed = DateTime(
+                      final proposedStart = DateTime(
                         pickedDate.year,
                         pickedDate.month,
                         pickedDate.day,
-                        pickedTime.hour,
-                        pickedTime.minute,
+                        pickedStartTime.hour,
+                        pickedStartTime.minute,
                       );
+
+                      final suggestedEnd = proposedStart.add(
+                        const Duration(minutes: 60),
+                      );
+                      final pickedEndTime = await showTimePicker(
+                        context: sheetContext,
+                        initialTime: TimeOfDay.fromDateTime(suggestedEnd),
+                      );
+                      if (pickedEndTime == null) return;
+
+                      final proposedEnd = DateTime(
+                        pickedDate.year,
+                        pickedDate.month,
+                        pickedDate.day,
+                        pickedEndTime.hour,
+                        pickedEndTime.minute,
+                      );
+
+                      if (!proposedEnd.isAfter(proposedStart)) {
+                        await _showCenterNotice(
+                          context,
+                          'End time must be after start time.',
+                        );
+                        return;
+                      }
 
                       final agenda = agendaController.text.trim();
                       // If there is an existing active thread, update it; otherwise create a new proposal.
@@ -1843,7 +1870,8 @@ class _ManagerReviewTeamDashboardScreenState
                       if (canUpdateExisting) {
                         await OneOnOneMeetingService.managerProposeNewTime(
                           meetingId: existing.meetingId,
-                          proposedDateTime: proposed,
+                          proposedStartDateTime: proposedStart,
+                          proposedEndDateTime: proposedEnd,
                           agenda: agenda.isEmpty ? null : agenda,
                         );
                         if (managerId != null) {
@@ -1851,14 +1879,16 @@ class _ManagerReviewTeamDashboardScreenState
                             employeeId: employee.profile.uid,
                             managerId: managerId,
                             meetingId: existing.meetingId,
-                            proposedDateTime: proposed,
+                            proposedStartDateTime: proposedStart,
+                            proposedEndDateTime: proposedEnd,
                             agenda: agenda.isEmpty ? null : agenda,
                           );
                         }
                       } else {
                         await ManagerRealtimeService.scheduleMeeting(
                           employeeId: employee.profile.uid,
-                          scheduledTime: proposed,
+                          scheduledStartTime: proposedStart,
+                          scheduledEndTime: proposedEnd,
                           purpose: agenda.isEmpty ? '1:1' : agenda,
                         );
                       }
