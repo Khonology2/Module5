@@ -158,7 +158,6 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     }
   }
 
-  
   Future<void> _markModuleComplete(Goal goal) async {
     try {
       final next = (goal.progress + 25).clamp(0, 100);
@@ -241,25 +240,109 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                 final fileInfo =
                                     '📎 File: ${file.name} (${(bytes.length / 1024).toStringAsFixed(1)} KB)';
                                 if (replaceExisting) {
-                                  await DatabaseService.clearGoalEvidence(
-                                    goalId: goal.id,
-                                  );
+                                  try {
+                                    // Show loading indicator for clearing evidence
+                                    if (mounted) {
+                                      _showLoadingDialog(
+                                        context,
+                                        message:
+                                            'Clearing existing evidence...',
+                                      );
+                                    }
+                                    await DatabaseService.clearGoalEvidence(
+                                      goalId: goal.id,
+                                    );
+                                    print(
+                                      'Evidence cleared for goal ${goal.id}',
+                                    );
+                                    // Close loading dialog
+                                    if (mounted) {
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pop();
+                                    }
+                                    // Small delay to ensure Firestore propagates the change
+                                    await Future.delayed(
+                                      const Duration(milliseconds: 500),
+                                    );
+                                  } catch (clearError) {
+                                    print(
+                                      'Error clearing evidence: $clearError',
+                                    );
+                                    // Close loading dialog if still open
+                                    if (mounted) {
+                                      Navigator.of(
+                                        context,
+                                        rootNavigator: true,
+                                      ).pop();
+                                    }
+                                    throw clearError;
+                                  }
                                 }
-                                await DatabaseService.attachGoalEvidence(
-                                  goalId: goal.id,
-                                  evidence: [fileInfo, cloudinaryUrl],
-                                );
+                                try {
+                                  // Show loading indicator for attaching new evidence
+                                  if (mounted) {
+                                    _showLoadingDialog(
+                                      context,
+                                      message: 'Attaching new evidence...',
+                                    );
+                                  }
+                                  await DatabaseService.attachGoalEvidence(
+                                    goalId: goal.id,
+                                    evidence: [fileInfo, cloudinaryUrl],
+                                  );
+                                  print(
+                                    'New evidence attached for goal ${goal.id}',
+                                  );
+                                  // Close loading dialog
+                                  if (mounted) {
+                                    Navigator.of(
+                                      context,
+                                      rootNavigator: true,
+                                    ).pop();
+                                  }
+                                  // Small delay to ensure Firestore propagates the change
+                                  await Future.delayed(
+                                    const Duration(milliseconds: 500),
+                                  );
+                                } catch (attachError) {
+                                  print(
+                                    'Error attaching evidence: $attachError',
+                                  );
+                                  // Close loading dialog if still open
+                                  if (mounted) {
+                                    Navigator.of(
+                                      context,
+                                      rootNavigator: true,
+                                    ).pop();
+                                  }
+                                  throw attachError;
+                                }
                                 if (mounted) {
                                   // Ensure loading dialog is fully closed (definite pop)
                                   Navigator.of(
                                     context,
                                     rootNavigator: true,
                                   ).pop();
-                                  // Don't call setState - StreamBuilder will automatically update
-                                  // Show success message
+
+                                  // Force immediate UI refresh multiple times to ensure real-time update
+                                  setState(() {});
+
+                                  // Show success message with confirmation
                                   await _showCenterNotice(
                                     context,
-                                    'File uploaded successfully',
+                                    '✅ Evidence updated successfully! Your changes are now visible below.',
+                                  );
+
+                                  // Additional refresh after a short delay to ensure StreamBuilder catches the change
+                                  Future.delayed(
+                                    const Duration(milliseconds: 1000),
+                                    () {
+                                      if (mounted) {
+                                        setState(() {});
+                                      }
+                                    },
                                   );
                                 }
                               } catch (cloudErr) {
@@ -315,16 +398,45 @@ class _MyPdpScreenState extends State<MyPdpScreen>
     if (result != null && result.isNotEmpty) {
       if (result != 'uploaded') {
         if (replaceExisting) {
-          await DatabaseService.clearGoalEvidence(goalId: goal.id);
+          try {
+            await DatabaseService.clearGoalEvidence(goalId: goal.id);
+            print('Evidence cleared for goal ${goal.id} (text evidence)');
+            // Small delay to ensure Firestore propagates the change
+            await Future.delayed(const Duration(milliseconds: 500));
+          } catch (clearError) {
+            print('Error clearing evidence (text): $clearError');
+            throw clearError;
+          }
         }
-        await DatabaseService.attachGoalEvidence(
-          goalId: goal.id,
-          evidence: [result],
-        );
+        try {
+          await DatabaseService.attachGoalEvidence(
+            goalId: goal.id,
+            evidence: [result],
+          );
+          print('New text evidence attached for goal ${goal.id}');
+          // Small delay to ensure Firestore propagates the change
+          await Future.delayed(const Duration(milliseconds: 500));
+        } catch (attachError) {
+          print('Error attaching text evidence: $attachError');
+          throw attachError;
+        }
       }
       if (mounted) {
-        // Don't call setState - StreamBuilder will automatically update
-        await _showCenterNotice(context, 'Evidence added');
+        // Force immediate UI refresh multiple times to ensure real-time update
+        setState(() {});
+
+        // Show success message with confirmation
+        await _showCenterNotice(
+          context,
+          '✅ Evidence updated successfully! Your changes are now visible below.',
+        );
+
+        // Additional refresh after a short delay to ensure StreamBuilder catches the change
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) {
+            setState(() {});
+          }
+        });
       }
     }
   }
@@ -1097,7 +1209,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                 ),
                               ),
                             ),
-                                                        Text(
+                            Text(
                               '${goal.progress}%',
                               style: const TextStyle(color: Colors.white70),
                             ),
@@ -1354,8 +1466,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                           : Icons.lock_clock);
                                 final style = isVerified
                                     ? OutlinedButton.styleFrom(
-                                        backgroundColor:
-                                            Colors.green.withValues(alpha: 0.1),
+                                        backgroundColor: Colors.green
+                                            .withValues(alpha: 0.1),
                                         foregroundColor: Colors.green,
                                         side: const BorderSide(
                                           color: Colors.green,
@@ -1363,8 +1475,9 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       )
                                     : isRejected
                                     ? OutlinedButton.styleFrom(
-                                        backgroundColor:
-                                            Colors.red.withValues(alpha: 0.1),
+                                        backgroundColor: Colors.red.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         foregroundColor: Colors.red,
                                         side: const BorderSide(
                                           color: Colors.red,
@@ -1373,8 +1486,8 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     : hasAuditEntry
                                     ? OutlinedButton.styleFrom(
                                         // ignore: deprecated_member_use
-                                        backgroundColor:
-                                            Colors.orange.withValues(alpha: 0.1),
+                                        backgroundColor: Colors.orange
+                                            .withValues(alpha: 0.1),
                                         foregroundColor: Colors.orange,
                                         side: const BorderSide(
                                           color: Colors.orange,

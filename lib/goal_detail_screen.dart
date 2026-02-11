@@ -2507,14 +2507,8 @@ class _GoalMilestoneTile extends StatelessWidget {
                       case 'edit':
                         onEdit();
                         break;
-                      case 'start':
-                        await onUpdateStatus(GoalMilestoneStatus.notStarted);
-                        break;
                       case 'progress':
                         await onUpdateStatus(GoalMilestoneStatus.inProgress);
-                        break;
-                      case 'blocked':
-                        await onUpdateStatus(GoalMilestoneStatus.blocked);
                         break;
                       case 'complete':
                         await onUpdateStatus(GoalMilestoneStatus.completed);
@@ -2526,23 +2520,18 @@ class _GoalMilestoneTile extends StatelessWidget {
                       value: 'edit',
                       child: Text('Edit details'),
                     ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: 'start',
-                      child: Text('Mark Not Started'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'progress',
-                      child: Text('Mark In Progress'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'blocked',
-                      child: Text('Mark Blocked'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'complete',
-                      child: Text('Mark Completed'),
-                    ),
+                    // Only show employee-appropriate options
+                    if (RoleService.instance.cachedRole != 'manager') ...[
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: 'progress',
+                        child: Text('Mark In Progress'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'complete',
+                        child: Text('Mark Completed'),
+                      ),
+                    ],
                   ],
                 ),
               if (!canEdit && isLocked)
