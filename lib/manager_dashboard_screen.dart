@@ -34,6 +34,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
   late final Stream<List<EmployeeData>> _employeesStream;
+  late final Stream<List<EmployeeData>> _assignedEmployeesStream;
   String? _currentProfilePhotoUrl;
 
   // Alternative manager names to try for assigned employees query
@@ -53,6 +54,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
+    _assignedEmployeesStream =
+        ManagerRealtimeService.getAssignedEmployeesDataStream();
 
     // Sync manager season points from season metrics into the manager's user doc.
     // This is required because employee milestone updates cannot write to the manager's user doc.
@@ -513,6 +516,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
+              const SizedBox(height: AppSpacing.xl),
+              _buildAssignedEmployees(),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -1282,6 +1287,215 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       context,
       '/season_management',
       arguments: {'seasonId': season.id},
+    );
+  }
+
+  Widget _buildAssignedEmployees() {
+    return StreamBuilder<List<EmployeeData>>(
+      stream: _assignedEmployeesStream,
+      builder: (context, assignedEmployeesSnap) {
+        if (assignedEmployeesSnap.hasError) {
+          return _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Assigned Employees', style: AppTypography.heading2),
+                const SizedBox(height: 12),
+                Text(
+                  'Error loading assigned employees: ${assignedEmployeesSnap.error}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.dangerColor,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (!assignedEmployeesSnap.hasData) {
+          return _card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Assigned Employees', style: AppTypography.heading2),
+                const SizedBox(height: 12),
+                const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final assignedEmployees = assignedEmployeesSnap.data!;
+
+        return _card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.people, color: AppColors.activeColor, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Assigned Employees', style: AppTypography.heading2),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${assignedEmployees.length}',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.activeColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (assignedEmployees.isEmpty)
+                Text(
+                  'No employees assigned to you yet',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                )
+              else
+                Column(
+                  children: assignedEmployees.map((employee) {
+                    // Extract name and surname from displayName
+                    String fullName = employee.profile.displayName;
+                    String name = '';
+                    String surname = '';
+
+                    // Try to parse name and surname from displayName
+                    if (fullName.contains(' ')) {
+                      final parts = fullName.split(' ');
+                      name = parts.first;
+                      surname = parts.sublist(1).join(' ');
+                    } else {
+                      name = fullName;
+                      surname = '';
+                    }
+
+                    // Debug logging for name and surname
+                    developer.log(
+                      'AssignedEmployees DEBUG: Employee - Name: "$name", Surname: "$surname", Full: "$fullName"',
+                      name: 'ManagerDashboard',
+                    );
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.activeColor.withValues(
+                                alpha: 0.1,
+                              ),
+                              border: Border.all(
+                                color: AppColors.activeColor.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
+                            ),
+                            child:
+                                employee.profile.profilePhotoUrl != null &&
+                                    employee.profile.profilePhotoUrl!.isNotEmpty
+                                ? ClipOval(
+                                    child: Image.network(
+                                      employee.profile.profilePhotoUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) => Icon(
+                                            Icons.person,
+                                            color: AppColors.activeColor,
+                                            size: 20,
+                                          ),
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.person,
+                                    color: AppColors.activeColor,
+                                    size: 20,
+                                  ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  fullName, // Display full name
+                                  style:
+                                      AppTypography.bodyText?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ) ??
+                                      AppTypography.bodyText,
+                                ),
+                                if (employee.profile.jobTitle.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    employee.profile.jobTitle,
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildActiveStatusIndicator(employee),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${employee.totalPoints}',
+                                style: AppTypography.heading4.copyWith(
+                                  color: AppColors.activeColor,
+                                ),
+                              ),
+                              Text(
+                                'points',
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

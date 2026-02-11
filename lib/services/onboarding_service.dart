@@ -79,11 +79,25 @@ class OnboardingService {
         onboardingData['fullName'] ??
         'Unknown User';
 
+    // Extract individual name and surname fields if available
+    final name = onboardingData['name'] as String? ?? '';
+    final surname = onboardingData['surname'] as String? ?? '';
+
+    // If we have separate name and surname, combine them for displayName
+    String finalDisplayName = displayName;
+    if (name.isNotEmpty && surname.isNotEmpty) {
+      finalDisplayName = '$name $surname';
+    } else if (name.isNotEmpty && displayName == 'Unknown User') {
+      finalDisplayName = name;
+    }
+
     final email = onboardingData['email'] ?? '';
 
     // Create a user-like document
     return {
-      'displayName': displayName,
+      'displayName': finalDisplayName,
+      'name': name.isNotEmpty ? name : null,
+      'surname': surname.isNotEmpty ? surname : null,
       'email': email,
       'role': persona,
       'fromOnboarding': true, // Flag to identify onboarding users
