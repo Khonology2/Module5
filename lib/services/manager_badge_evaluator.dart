@@ -601,7 +601,17 @@ class ManagerBadgeEvaluator {
     int? managerLevel,
   }) async {
     final ref = _db.collection('users').doc(userId).collection('badges').doc(badgeId);
-    await ref.set({
+    // Preserve earnedAt once a badge is earned so we don't "re-earn" it every evaluation.
+    Timestamp? preservedEarnedAt;
+    bool wasEarned = false;
+    try {
+      final existing = await ref.get();
+      final data = existing.data();
+      wasEarned = (data?['isEarned'] == true);
+      preservedEarnedAt = data?['earnedAt'] as Timestamp?;
+    } catch (_) {}
+
+    final update = <String, dynamic>{
       'name': name,
       'description': description,
       'iconName': iconName,
@@ -612,11 +622,17 @@ class ManagerBadgeEvaluator {
         'badgeId': badgeId,
         if (managerLevel != null) 'managerLevel': managerLevel,
       },
-      'earnedAt': isEarned ? FieldValue.serverTimestamp() : null,
+      'earnedAt': isEarned
+          ? ((wasEarned && preservedEarnedAt != null)
+              ? preservedEarnedAt
+              : FieldValue.serverTimestamp())
+          : null,
       'isEarned': isEarned,
       'progress': progress,
       'maxProgress': maxProgress,
-    }, SetOptions(merge: true));
+    };
+
+    await ref.set(update, SetOptions(merge: true));
   }
 
   // Utility to log engagement reactivation events (Option A schema)

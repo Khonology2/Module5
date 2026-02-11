@@ -83,6 +83,9 @@ class OneOnOneMeetingService {
       'employeeId': employeeId,
       'status': OneOnOneMeetingStatus.requested.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
+      'proposedStartDateTime': null,
+      'proposedEndDateTime': null,
+      // Backwards compatibility for older clients
       'proposedDateTime': null,
       'agenda': (agenda ?? '').trim(),
       'createdAt': FieldValue.serverTimestamp(),
@@ -91,13 +94,17 @@ class OneOnOneMeetingService {
     return ref.id;
   }
 
-  /// Manager proposes a date/time.
+  /// Manager proposes a meeting time range.
   static Future<String> proposeTime({
     required String managerId,
     required String employeeId,
-    required DateTime proposedDateTime,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
     String? agenda,
   }) async {
+    if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
+      throw ArgumentError('End time must be after start time.');
+    }
     final ref = _col.doc();
     await FirestoreSafe.setDoc(ref, {
       'meetingId': ref.id,
@@ -105,7 +112,10 @@ class OneOnOneMeetingService {
       'employeeId': employeeId,
       'status': OneOnOneMeetingStatus.proposed.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
-      'proposedDateTime': Timestamp.fromDate(proposedDateTime),
+      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+      // Backwards compatibility for older clients
+      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
       'agenda': (agenda ?? '').trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -126,13 +136,20 @@ class OneOnOneMeetingService {
 
   static Future<void> employeeSuggestNewTime({
     required String meetingId,
-    required DateTime proposedDateTime,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
     String? agenda,
   }) async {
+    if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
+      throw ArgumentError('End time must be after start time.');
+    }
     await FirestoreSafe.updateDoc(_col.doc(meetingId), {
       'status': OneOnOneMeetingStatus.rescheduled.name,
       'waitingOn': OneOnOneWaitingOn.manager.name,
-      'proposedDateTime': Timestamp.fromDate(proposedDateTime),
+      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+      // Backwards compatibility for older clients
+      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
       if (agenda != null) 'agenda': agenda.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
@@ -159,13 +176,20 @@ class OneOnOneMeetingService {
 
   static Future<void> managerProposeNewTime({
     required String meetingId,
-    required DateTime proposedDateTime,
+    required DateTime proposedStartDateTime,
+    required DateTime proposedEndDateTime,
     String? agenda,
   }) async {
+    if (!proposedEndDateTime.isAfter(proposedStartDateTime)) {
+      throw ArgumentError('End time must be after start time.');
+    }
     await FirestoreSafe.updateDoc(_col.doc(meetingId), {
       'status': OneOnOneMeetingStatus.proposed.name,
       'waitingOn': OneOnOneWaitingOn.employee.name,
-      'proposedDateTime': Timestamp.fromDate(proposedDateTime),
+      'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+      'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+      // Backwards compatibility for older clients
+      'proposedDateTime': Timestamp.fromDate(proposedStartDateTime),
       if (agenda != null) 'agenda': agenda.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': FirebaseAuth.instance.currentUser?.uid,
