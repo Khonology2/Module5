@@ -7,6 +7,7 @@ import 'package:pdh/services/role_service.dart'; // Add RoleService import
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore (includes Timestamp)
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/services/badge_celebration_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/services/database_service.dart'; // For syncOnboardingData
 import 'package:shared_preferences/shared_preferences.dart';
@@ -198,6 +199,12 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
 
       // Before navigating, ensure badges are up to date for this session
       if (user != null) {
+        // Initialize celebration baseline BEFORE awarding any badges in this session,
+        // so newly earned badges can be celebrated when the user opens Badges & Points.
+        await BadgeCelebrationService.ensureBaselineInitialized(
+          user.uid,
+          scope: currentRole == 'manager' ? 'manager' : 'employee',
+        );
         await BadgeService.checkAndAwardBadges(user.uid);
       }
 

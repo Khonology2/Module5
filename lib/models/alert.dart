@@ -100,6 +100,7 @@ class Alert {
 
   factory Alert.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final rawActionData = data['actionData'];
     return Alert(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -112,16 +113,16 @@ class Alert {
       message: data['message'] ?? '',
       actionText: data['actionText'],
       actionRoute: data['actionRoute'],
-      actionData: data['actionData'] != null 
-          ? Map<String, dynamic>.from(data['actionData'])
+      actionData: rawActionData is Map
+          ? Map<String, dynamic>.from(rawActionData)
           : null,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: data['isRead'] ?? false,
       isDismissed: data['isDismissed'] ?? false,
       expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
-      relatedGoalId: data['relatedGoalId'],
-      fromUserId: data['fromUserId'],
-      fromUserName: data['fromUserName'],
+      relatedGoalId: data['relatedGoalId']?.toString(),
+      fromUserId: data['fromUserId']?.toString(),
+      fromUserName: data['fromUserName']?.toString(),
     );
   }
 
