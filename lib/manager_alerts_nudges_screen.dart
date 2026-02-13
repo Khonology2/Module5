@@ -129,6 +129,18 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     );
   }
 
+  String? _normalizeGoalId(dynamic raw) {
+    final s = raw?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+    if (s.contains('/')) {
+      final parts = s.split('/').where((p) => p.trim().isNotEmpty).toList();
+      if (parts.isEmpty) return null;
+      final last = parts.last.trim();
+      return last.isEmpty ? null : last;
+    }
+    return s;
+  }
+
   Future<void> _rescheduleGoal(
     BuildContext context,
     String goalId,
@@ -1134,11 +1146,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _rescheduleGoal(
-                      context,
-                      alert.relatedGoalId!,
-                      employee,
-                    ),
+                    onPressed: () {
+                      final gid = _normalizeGoalId(alert.relatedGoalId);
+                      if (gid == null) {
+                        _showCenterNotice(
+                          context,
+                          'This alert is missing a valid goal link.',
+                        );
+                        return;
+                      }
+                      _rescheduleGoal(context, gid, employee);
+                    },
                     icon: const Icon(Icons.update),
                     label: const Text('Reschedule'),
                     style: ElevatedButton.styleFrom(
@@ -1150,11 +1168,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _extendGoalDeadline(
-                      context,
-                      alert.relatedGoalId!,
-                      employee,
-                    ),
+                    onPressed: () {
+                      final gid = _normalizeGoalId(alert.relatedGoalId);
+                      if (gid == null) {
+                        _showCenterNotice(
+                          context,
+                          'This alert is missing a valid goal link.',
+                        );
+                        return;
+                      }
+                      _extendGoalDeadline(context, gid, employee);
+                    },
                     icon: const Icon(Icons.schedule),
                     label: const Text('Extend Deadline'),
                   ),
@@ -1162,7 +1186,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _pauseGoal(alert.relatedGoalId!, employee),
+                    onPressed: () {
+                      final gid = _normalizeGoalId(alert.relatedGoalId);
+                      if (gid == null) {
+                        _showCenterNotice(
+                          context,
+                          'This alert is missing a valid goal link.',
+                        );
+                        return;
+                      }
+                      _pauseGoal(gid, employee);
+                    },
                     icon: const Icon(Icons.pause_circle_outline),
                     label: const Text('Pause Goal'),
                   ),
@@ -1170,8 +1204,17 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () =>
-                        _markGoalBurnout(alert.relatedGoalId!, employee),
+                    onPressed: () {
+                      final gid = _normalizeGoalId(alert.relatedGoalId);
+                      if (gid == null) {
+                        _showCenterNotice(
+                          context,
+                          'This alert is missing a valid goal link.',
+                        );
+                        return;
+                      }
+                      _markGoalBurnout(gid, employee);
+                    },
                     icon: const Icon(Icons.local_fire_department),
                     label: const Text('Mark Burnout'),
                     style: ElevatedButton.styleFrom(

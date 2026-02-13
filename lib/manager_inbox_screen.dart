@@ -95,6 +95,33 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
 
+  String? _normalizeGoalId(dynamic raw) {
+    final s = raw?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+
+    // Sometimes older alerts store a full path like "goals/<id>" or
+    // ".../goals/<id>". Firestore doc ids cannot contain "/" so we extract last.
+    if (s.contains('/')) {
+      final parts = s.split('/').where((p) => p.trim().isNotEmpty).toList();
+      if (parts.isEmpty) return null;
+      final last = parts.last.trim();
+      if (last.isEmpty) return null;
+      return last;
+    }
+
+    return s;
+  }
+
+  String? _goalIdFromAlert(Alert alert) {
+    final fromAction = alert.actionData?['goalId'];
+    return _normalizeGoalId(alert.relatedGoalId ?? fromAction);
+  }
+
+  bool _hasValidGoalId(Alert alert) {
+    final gid = _goalIdFromAlert(alert);
+    return gid != null && gid.isNotEmpty;
+  }
+
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -174,8 +201,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   void _showGoalReviewSheet(Alert alert) {
-    final goalId = alert.relatedGoalId;
-    if (goalId == null) return;
+    final goalId = _goalIdFromAlert(alert);
+    if (goalId == null || goalId.isEmpty) {
+      _showCenterNotice(
+        context,
+        'This alert is missing a valid goal link. Please refresh the inbox or ask the employee to resubmit the goal.',
+      );
+      return;
+    }
     _clarity.putIfAbsent(goalId, () => 3);
     _measurability.putIfAbsent(goalId, () => 3);
     _achievability.putIfAbsent(goalId, () => 3);
@@ -1187,7 +1220,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 style: AppTypography.bodySmall.copyWith(color: Colors.white54),
               ),
               const SizedBox(width: 8),
-              if (alert.type == AlertType.goalApprovalRequested)
+              if (alert.type == AlertType.goalApprovalRequested &&
+                  _hasValidGoalId(alert))
                 TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),
                   icon: const Icon(Icons.visibility_outlined),
