@@ -98,14 +98,33 @@ class FirestoreSafe {
   /// failure, a reload will occur; for other errors, consumers can rely on the
   /// last good value / local cache patterns.
   static Stream<T> stream<T>(Stream<T> source) {
-    return source.transform(
-      StreamTransformer<T, T>.fromHandlers(
-        handleError: (error, stack, sink) {
-          _hookError(error);
-          // Swallow the error to avoid UI stack traces.
-        },
-      ),
+    // Avoid Stream.transform() here:
+    // On Flutter web (DDC), generic specialization can sometimes throw runtime
+    // type errors when upstream streams are strongly typed (e.g.
+    // DocumentSnapshot<Map<String,dynamic>>) but downstream widgets use raw
+    // types (e.g. StreamBuilder<DocumentSnapshot>), producing a transformer type
+    // mismatch. A manual controller-based proxy keeps the stream strongly typed
+    // without relying on transformer runtime checks.
+    StreamSubscription<T>? sub;
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
+      sync: true,
+      onListen: () {
+        sub = source.listen(
+          controller.add,
+          onError: (error, stack) {
+            _hookError(error);
+            // Swallow the error to avoid UI stack traces.
+          },
+          onDone: controller.close,
+        );
+      },
+      onCancel: () async {
+        await sub?.cancel();
+        sub = null;
+      },
     );
+    return controller.stream;
   }
 
   static Future<DocumentSnapshot<T>> getDoc<T>(

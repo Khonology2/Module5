@@ -232,8 +232,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           builder: (context, scrollController) {
             return Padding(
               padding: const EdgeInsets.all(16),
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirestoreSafe.stream(
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
                   FirebaseFirestore.instance
                       .collection('goals')
                       .doc(goalId)
@@ -241,7 +241,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
                 builder: (context, snap) {
                   Goal? goal;
-                  if (snap.hasData && snap.data!.exists) {
+                  if (snap.hasData && (snap.data?.exists ?? false)) {
                     try {
                       goal = Goal.fromFirestore(snap.data!);
                     } catch (_) {}
