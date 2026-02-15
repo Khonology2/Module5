@@ -575,8 +575,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                                         final bIsSeason =
                                             b.criteria['source'] == 'season' ||
                                             b.id.startsWith('season_');
-                                        if (aIsSeason != bIsSeason)
+                                        if (aIsSeason != bIsSeason) {
                                           return aIsSeason ? -1 : 1;
+                                        }
                                         return a.name.compareTo(b.name);
                                       });
 

@@ -272,7 +272,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                         rootNavigator: true,
                                       ).pop();
                                     }
-                                    throw clearError;
+                                    rethrow;
                                   }
                                 }
                                 try {
@@ -312,7 +312,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       rootNavigator: true,
                                     ).pop();
                                   }
-                                  throw attachError;
+                                  rethrow;
                                 }
                                 if (mounted) {
                                   // Ensure loading dialog is fully closed (definite pop)
@@ -400,7 +400,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             await Future.delayed(const Duration(milliseconds: 500));
           } catch (clearError) {
             print('Error clearing evidence (text): $clearError');
-            throw clearError;
+            rethrow;
           }
         }
         try {
@@ -413,7 +413,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
           await Future.delayed(const Duration(milliseconds: 500));
         } catch (attachError) {
           print('Error attaching text evidence: $attachError');
-          throw attachError;
+          rethrow;
         }
       }
       if (mounted) {
