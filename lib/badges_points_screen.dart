@@ -705,10 +705,21 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
           onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
-            final current = ModalRoute.of(context)?.settings.name;
-            if (current != route) {
-              Navigator.pushNamed(context, route);
+            if (widget.embedded) return;
+
+            if (isManager) {
+              // Keep manager navigation inside the portal so sidebar order changes
+              // don't break content routing.
+              Navigator.pushReplacementNamed(
+                context,
+                '/manager_portal',
+                arguments: {'initialRoute': route},
+              );
+              return;
             }
+
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) Navigator.pushNamed(context, route);
           },
           onLogout: () async {
             final navigator = Navigator.of(context);

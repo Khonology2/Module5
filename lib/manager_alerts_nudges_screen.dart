@@ -409,10 +409,14 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/manager_alerts_nudges',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Keep manager navigation inside the portal so sidebar order changes
+        // don't break content routing.
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
