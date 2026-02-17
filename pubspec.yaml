@@ -40,11 +40,16 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: 0.20.2
+  path_provider: ^2.1.2  # For accessing device file system
+  open_file: ^3.3.1  # For opening files on the device
+  google_fonts: ^6.2.1  # For PDF font support
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.8
 
 flutter:
   uses-material-design: true

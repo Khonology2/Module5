@@ -220,17 +220,19 @@ class SettingsService {
     final existing = _initInFlightByUserId[uid];
     if (existing != null) return existing;
 
-    final fut = FirestoreSafe.setDoc<Map<String, dynamic>>(
-      _firestore.collection('users').doc(uid),
-      defaultSettings.toFirestore(),
-      options: SetOptions(merge: true),
-    )
-        .catchError((e) {
-      developer.log('Error initializing user settings: $e');
-      throw e;
-    }).whenComplete(() {
-      _initInFlightByUserId.remove(uid);
-    });
+    final fut =
+        FirestoreSafe.setDoc<Map<String, dynamic>>(
+              _firestore.collection('users').doc(uid),
+              defaultSettings.toFirestore(),
+              options: SetOptions(merge: true),
+            )
+            .catchError((e) {
+              developer.log('Error initializing user settings: $e');
+              throw e;
+            })
+            .whenComplete(() {
+              _initInFlightByUserId.remove(uid);
+            });
 
     _initInFlightByUserId[uid] = fut;
     return fut;
@@ -264,39 +266,40 @@ class SettingsService {
     // Create new broadcast stream for this user
     _cachedUserId = user.uid;
     try {
-      _cachedSettingsStream = FirestoreSafe.stream(
-        _firestore.collection('users').doc(user.uid).snapshots(),
-      )
-          .asyncMap((snapshot) async {
-            if (!snapshot.exists) {
-              // Initialize default settings for new users
-              final defaultSettings = getDefaultSettings(user);
-              // Ensure only one initialization write happens at a time.
-              // This avoids overlapping writes during active listeners (notably on web).
-              try {
-                await _ensureUserSettingsDocInitialized(
-                  user.uid,
-                  defaultSettings,
-                );
-              } catch (_) {
-                // Non-fatal: still return defaults so UI can render.
-              }
-              return defaultSettings;
-            }
-            try {
-              return UserSettings.fromFirestore(snapshot);
-            } catch (e) {
-              developer.log('Error parsing user settings: $e');
-              return getDefaultSettings(user);
-            }
-          })
-          .handleError((error) {
-            developer.log('Error in user settings stream: $error');
-            FirestoreWebCircuitBreaker.maybeReload(error);
-            // Return default settings if there's an error
-            return getDefaultSettings(user);
-          })
-          .asBroadcastStream();
+      _cachedSettingsStream =
+          FirestoreSafe.stream(
+                _firestore.collection('users').doc(user.uid).snapshots(),
+              )
+              .asyncMap((snapshot) async {
+                if (!snapshot.exists) {
+                  // Initialize default settings for new users
+                  final defaultSettings = getDefaultSettings(user);
+                  // Ensure only one initialization write happens at a time.
+                  // This avoids overlapping writes during active listeners (notably on web).
+                  try {
+                    await _ensureUserSettingsDocInitialized(
+                      user.uid,
+                      defaultSettings,
+                    );
+                  } catch (_) {
+                    // Non-fatal: still return defaults so UI can render.
+                  }
+                  return defaultSettings;
+                }
+                try {
+                  return UserSettings.fromFirestore(snapshot);
+                } catch (e) {
+                  developer.log('Error parsing user settings: $e');
+                  return getDefaultSettings(user);
+                }
+              })
+              .handleError((error) {
+                developer.log('Error in user settings stream: $error');
+                FirestoreWebCircuitBreaker.maybeReload(error);
+                // Return default settings if there's an error
+                return getDefaultSettings(user);
+              })
+              .asBroadcastStream();
     } catch (e) {
       developer.log('Error creating settings stream: $e');
       clearCache();
@@ -312,8 +315,9 @@ class SettingsService {
     if (user == null) return null;
 
     try {
-      final snapshot =
-          await FirestoreSafe.getDoc(_firestore.collection('users').doc(user.uid));
+      final snapshot = await FirestoreSafe.getDoc(
+        _firestore.collection('users').doc(user.uid),
+      );
       if (!snapshot.exists) {
         // Ensure defaults exist for new users.
         final defaults = getDefaultSettings(user);
@@ -437,9 +441,9 @@ class SettingsService {
       // Update Firestore document
       await _firestore.collection('users').doc(user.uid).update({
         'displayName': displayName,
-        if (photoURL != null) 'photoURL': photoURL,
-        if (department != null) 'department': department,
-        if (jobTitle != null) 'jobTitle': jobTitle,
+        if (photoURL != null) ...{'photoURL': photoURL},
+        if (department != null) ...{'department': department},
+        if (jobTitle != null) ...{'jobTitle': jobTitle},
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -574,14 +578,30 @@ class SettingsService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
-      final userData = await _firestore.collection('users').doc(user.uid).get();
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) {
+        throw Exception(
+          'User profile not found. Please complete your profile setup.',
+        );
+      }
+
       final goalsQuery = await _firestore
           .collection('goals')
           .where('userId', isEqualTo: user.uid)
+          .limit(3)
           .get();
 
+      final profileData = userDoc.data();
+      final filteredProfile = {
+        'displayName': profileData?['displayName'],
+        'email': profileData?['email'],
+        'department': profileData?['department'],
+        'jobTitle': profileData?['jobTitle'],
+        'photoURL': profileData?['photoURL'],
+      };
+
       return {
-        'profile': userData.data(),
+        'profile': filteredProfile,
         'goals': goalsQuery.docs.map((doc) => doc.data()).toList(),
         'exportDate': DateTime.now().toIso8601String(),
       };
