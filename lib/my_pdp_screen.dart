@@ -247,7 +247,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     await DatabaseService.clearGoalEvidence(
                                       goalId: goal.id,
                                     );
-                                    print(
+                                    debugPrint(
                                       'Evidence cleared for goal ${goal.id}',
                                     );
                                     // Close loading dialog
@@ -262,7 +262,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       const Duration(milliseconds: 500),
                                     );
                                   } catch (clearError) {
-                                    print(
+                                    debugPrint(
                                       'Error clearing evidence: $clearError',
                                     );
                                     // Close loading dialog if still open
@@ -287,7 +287,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     goalId: goal.id,
                                     evidence: [fileInfo, cloudinaryUrl],
                                   );
-                                  print(
+                                  debugPrint(
                                     'New evidence attached for goal ${goal.id}',
                                   );
                                   // Close loading dialog
@@ -302,7 +302,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     const Duration(milliseconds: 500),
                                   );
                                 } catch (attachError) {
-                                  print(
+                                  debugPrint(
                                     'Error attaching evidence: $attachError',
                                   );
                                   // Close loading dialog if still open
@@ -395,11 +395,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
         if (replaceExisting) {
           try {
             await DatabaseService.clearGoalEvidence(goalId: goal.id);
-            print('Evidence cleared for goal ${goal.id} (text evidence)');
+            debugPrint('Evidence cleared for goal ${goal.id} (text evidence)');
             // Small delay to ensure Firestore propagates the change
             await Future.delayed(const Duration(milliseconds: 500));
           } catch (clearError) {
-            print('Error clearing evidence (text): $clearError');
+            debugPrint('Error clearing evidence (text): $clearError');
             rethrow;
           }
         }
@@ -408,11 +408,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             goalId: goal.id,
             evidence: [result],
           );
-          print('New text evidence attached for goal ${goal.id}');
+          debugPrint('New text evidence attached for goal ${goal.id}');
           // Small delay to ensure Firestore propagates the change
           await Future.delayed(const Duration(milliseconds: 500));
         } catch (attachError) {
-          print('Error attaching text evidence: $attachError');
+          debugPrint('Error attaching text evidence: $attachError');
           rethrow;
         }
       }
