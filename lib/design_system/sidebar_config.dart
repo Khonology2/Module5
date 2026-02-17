@@ -54,10 +54,10 @@ class SidebarConfig {
       route: '/my_pdp',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Profile_White.png',
-      red: 'assets/Khonodemy Icons/Profile_Red.png',
-      label: 'My Profile',
-      route: '/my_profile',
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Alerts & Nudges',
+      route: '/alerts_nudges',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/GoalWorkspace_White.png',
@@ -72,10 +72,10 @@ class SidebarConfig {
       route: '/progress_visuals',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
-      label: 'Alerts & Nudges',
-      route: '/alerts_nudges',
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Leaderboard',
+      route: '/leaderboard',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Badges&Points_White.png',
@@ -89,16 +89,16 @@ class SidebarConfig {
       route: '/season_challenges',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
-      label: 'Leaderboard',
-      route: '/leaderboard',
-    ),
-    itemWithAssets(
       white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
       red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
       label: 'Repository & Audit',
       route: '/repository_audit',
+    ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Profile_White.png',
+      red: 'assets/Khonodemy Icons/Profile_Red.png',
+      label: 'My Profile',
+      route: '/my_profile',
     ),
     // Goal Proof removed
     itemWithAssets(
