@@ -29,8 +29,8 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
       onLogout: () {
         Navigator.pushReplacementNamed(context, '/sign_in');
       },
-      content: StreamBuilder<DocumentSnapshot>(
-        stream: FirestoreSafe.stream(
+      content: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
           FirebaseFirestore.instance
               .collection('team_goals')
               .doc(widget.teamGoalId)
@@ -43,7 +43,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             );
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData || !(snapshot.data?.exists ?? false)) {
             return const Center(child: Text('Team goal not found.'));
           }
 
@@ -51,7 +51,7 @@ class _TeamDetailsScreenState extends State<TeamDetailsScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final teamGoal = snapshot.data!.data() as Map<String, dynamic>;
+          final teamGoal = snapshot.data!.data() ?? const <String, dynamic>{};
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),

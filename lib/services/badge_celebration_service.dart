@@ -89,10 +89,20 @@ class BadgeCelebrationService {
     required bool includeManagerBadges,
     int limit = 3,
   }) async {
-    await ensureBaselineInitialized(userId, scope: scope);
-
-    final lastSeen = await getLastSeenEarnedAt(userId, scope: scope);
-    if (lastSeen == null) return <Badge>[];
+    // NOTE:
+    // We intentionally do NOT call `ensureBaselineInitialized()` here.
+    //
+    // Reason: celebrations are meant to trigger when the user opens the
+    // Badges/Points screen *after* earning a badge. If the baseline is first
+    // initialized on that screen, it may get set to the newest earned badge and
+    // accidentally suppress the celebration.
+    //
+    // If there's no baseline yet, fall back to a reasonable recent window so
+    // users still get a celebration for recently earned badges without spamming
+    // their entire historical badge set.
+    final lastSeen =
+        await getLastSeenEarnedAt(userId, scope: scope) ??
+        DateTime.now().toUtc().subtract(const Duration(days: 30));
 
     try {
       final snap = await FirebaseFirestore.instance

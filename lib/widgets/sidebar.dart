@@ -571,7 +571,8 @@ class _NavTileState extends State<_NavTile> {
         label = localizations.nav_manager_inbox;
         break;
       case '/manager_review_team_dashboard':
-        label = localizations.nav_review_team;
+        // Use the updated manager label without requiring l10n regeneration.
+        label = 'Team Review';
         break;
       case '/admin_dashboard':
         label = localizations.nav_admin_dashboard;

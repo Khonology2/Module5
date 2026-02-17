@@ -89,6 +89,15 @@ class RarityBadgesListScreen extends StatelessWidget {
           : SidebarConfig.employeeItems,
       currentRouteName: isManager ? '/manager_badges_points' : '/badges_points',
       onNavigate: (route) {
+        if (isManager) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/manager_portal',
+            arguments: {'initialRoute': route},
+          );
+          return;
+        }
+
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) Navigator.pushNamed(context, route);
       },
