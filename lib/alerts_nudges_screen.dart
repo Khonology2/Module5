@@ -40,6 +40,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   List<Alert>? _cachedAlerts;
   List<OneOnOneMeeting>? _cachedMeetings;
   final Map<String, String> _userNameCache = {};
+  static const Duration _defaultMeetingDuration = Duration(hours: 1);
 
   @override
   void initState() {
@@ -379,13 +380,21 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         final meetings =
             incoming ?? _cachedMeetings ?? const <OneOnOneMeeting>[];
 
-        // Hide cancelled meetings by default (keeps the section focused)
+        // Show only relevant meetings:
+        // - hide cancelled
+        // - hide meetings whose time window has already passed
+        // - keep unconfirmed/action-needed at the top
+        final now = DateTime.now();
         final visible = meetings
             .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
-            .take(5)
-            .toList();
+            .where((m) => !_isMeetingPast(m, now))
+            .toList()
+          ..sort((a, b) => _compareMeetingsForDisplay(a, b, now));
 
-        if (visible.isEmpty) {
+        // Keep this section compact.
+        final top = visible.take(5).toList();
+
+        if (top.isEmpty) {
           return const SizedBox.shrink();
         }
 
@@ -408,13 +417,65 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                ...visible.map(_buildMeetingTile),
+                ...top.map(_buildMeetingTile),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  bool _isMeetingPast(OneOnOneMeeting m, DateTime now) {
+    // If we don't have a scheduled time yet, treat it as "unconfirmed" and keep it.
+    final start = m.proposedStartDateTime;
+    if (start == null) return false;
+
+    // Prefer explicit end time; otherwise assume a reasonable default duration.
+    final end = m.proposedEndDateTime ?? start.add(_defaultMeetingDuration);
+
+    // Consider it "past" only once the end time has elapsed.
+    return end.isBefore(now);
+  }
+
+  bool _needsEmployeeAction(OneOnOneMeeting m) {
+    if (m.waitingOn != OneOnOneWaitingOn.employee) return false;
+    // Employee needs to respond/ack in these states.
+    return m.status == OneOnOneMeetingStatus.requested ||
+        m.status == OneOnOneMeetingStatus.proposed ||
+        m.status == OneOnOneMeetingStatus.rescheduled;
+  }
+
+  int _displayPriorityGroup(OneOnOneMeeting m) {
+    // Lower is higher priority in the list.
+    if (_needsEmployeeAction(m)) return 0; // unconfirmed + action needed
+    if (m.waitingOn == OneOnOneWaitingOn.manager) return 1; // pending manager
+    if (m.waitingOn == OneOnOneWaitingOn.none &&
+        m.status == OneOnOneMeetingStatus.accepted) {
+      return 2; // confirmed upcoming
+    }
+    return 3; // anything else
+  }
+
+  int _compareMeetingsForDisplay(
+    OneOnOneMeeting a,
+    OneOnOneMeeting b,
+    DateTime now,
+  ) {
+    final g = _displayPriorityGroup(a).compareTo(_displayPriorityGroup(b));
+    if (g != 0) return g;
+
+    // Within same group, prefer earliest upcoming meetings first.
+    final aStart = a.proposedStartDateTime;
+    final bStart = b.proposedStartDateTime;
+
+    if (aStart == null && bStart == null) {
+      // Fall back to most recently updated first.
+      return b.updatedAt.compareTo(a.updatedAt);
+    }
+    if (aStart == null) return 1; // no time goes after timed items
+    if (bStart == null) return -1;
+    return aStart.compareTo(bStart);
   }
 
   String _humanMeetingStatus(OneOnOneMeeting m) {
