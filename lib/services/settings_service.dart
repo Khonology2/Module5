@@ -585,11 +585,49 @@ class SettingsService {
         );
       }
 
-      final goalsQuery = await _firestore
-          .collection('goals')
+      // Fetch full set of goals (with a safety cap)
+      late final QuerySnapshot goalsQuery;
+      late final QuerySnapshot activitiesQuery;
+      try {
+        goalsQuery = await _firestore
+            .collection('goals')
+            .where('userId', isEqualTo: user.uid)
+            .limit(200)
+            .get();
+
+        // Fetch recent activities (safely capped)
+        // Avoid server-side ordering to reduce risk of Firestore watch/index issues on web SDK.
+        activitiesQuery = await _firestore
+          .collection('activities')
           .where('userId', isEqualTo: user.uid)
-          .limit(3)
+          .limit(200)
           .get();
+      } on FirebaseException catch (e) {
+        // If Firestore requires a composite index, the server returns a URL
+        final msg = e.message ?? e.toString();
+        final urlMatch = RegExp(r'https?://[^\s]+create_composite[^\s]+').firstMatch(msg);
+        if (urlMatch != null) {
+          throw Exception('Firestore index required for this export. Create it here: ${urlMatch.group(0)}');
+        }
+        // Surface internal assertion failures with clearer guidance
+        if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
+          throw Exception('Firestore internal error occurred during export. Try again, and consider upgrading your Firebase SDKs. Technical details: $msg');
+        }
+        throw Exception('Firestore query failed during export: $msg');
+      }
+
+      // Fetch badges from user subcollection if present
+      List<Map<String, dynamic>> badges = [];
+      try {
+        final badgeSnapshot = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('badges')
+            .get();
+        badges = badgeSnapshot.docs.map((d) => d.data()).toList();
+      } catch (_) {
+        // ignore - not all installations use user subcollection badges
+      }
 
       final profileData = userDoc.data();
       final filteredProfile = {
@@ -598,15 +636,23 @@ class SettingsService {
         'department': profileData?['department'],
         'jobTitle': profileData?['jobTitle'],
         'photoURL': profileData?['photoURL'],
+        'userId': user.uid,
+        'createdAt': profileData?['createdAt']?.toString(),
+        'lastUpdated': profileData?['lastUpdated']?.toString(),
+        'currentStreak': profileData?['currentStreak'] ?? 0,
+        'points': profileData?['points'] ?? 0,
       };
 
       return {
         'profile': filteredProfile,
         'goals': goalsQuery.docs.map((doc) => doc.data()).toList(),
+        'activities': activitiesQuery.docs.map((doc) => doc.data()).toList(),
+        'badges': badges,
         'exportDate': DateTime.now().toIso8601String(),
       };
     } catch (e) {
       developer.log('Error exporting user data: $e');
+      // If it's a low-level FirebaseException, rethrow to UI for user guidance
       rethrow;
     }
   }

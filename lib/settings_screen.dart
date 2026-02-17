@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/utils/pdf_saver.dart' show savePdfBytes;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
@@ -1351,48 +1352,257 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final fontData = await rootBundle.load('assets/fonts/poppins/Poppins-Regular.ttf');
     final ttfFont = pw.Font.ttf(fontData);
 
-    // Add content pages
+    // Try to load a header and footer logo asset (optional)
+    pw.MemoryImage? logoImage;
+    pw.MemoryImage? bottomLogoImage;
+    try {
+      final logoData = await rootBundle.load('assets/khono.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {
+      logoImage = null;
+    }
+    try {
+      final bottomData = await rootBundle.load('assets/discs.png');
+      bottomLogoImage = pw.MemoryImage(bottomData.buffer.asUint8List());
+    } catch (_) {
+      bottomLogoImage = null;
+    }
+
+    // Helper to render profile photo (try network then skip)
+    Future<pw.MemoryImage?> _loadProfilePhoto(String? url) async {
+      if (url == null) return null;
+      try {
+        final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+        if (resp.statusCode == 200) {
+          return pw.MemoryImage(resp.bodyBytes);
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    final profile = data['profile'] as Map<String, dynamic>? ?? {};
+    final goals = (data['goals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final activities = (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final badges = (data['badges'] as List<dynamic>?) ?? <dynamic>[];
+
+    final profilePhoto = await _loadProfilePhoto(profile['photoURL']?.toString());
+
+    // Compute goals overview stats
+    int totalGoals = goals.length;
+    int completedGoals = 0;
+    final Map<String, int> byCategory = {};
+    final Map<String, int> byPriority = {};
+    final Map<String, int> byStatus = {};
+
+    for (final g in goals) {
+      final status = (g['status'] ?? 'unknown').toString();
+      byStatus[status] = (byStatus[status] ?? 0) + 1;
+      if (status.toLowerCase() == 'completed' || status.toLowerCase() == 'done') completedGoals++;
+      final cat = (g['category'] ?? 'Uncategorized').toString();
+      byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+      final pri = (g['priority'] ?? 'Medium').toString();
+      byPriority[pri] = (byPriority[pri] ?? 0) + 1;
+    }
+
+    // Footer builder
+    pw.Widget _buildFooter(pw.Context ctx) {
+      return pw.Container(
+        alignment: pw.Alignment.centerRight,
+        margin: const pw.EdgeInsets.only(top: 10),
+        child: pw.Text('Page ${ctx.pageNumber} / ${ctx.pagesCount} • Generated ${DateTime.now().toIso8601String()}', style: pw.TextStyle(font: ttfFont, fontSize: 8)),
+      );
+    }
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        build: (pw.Context context) {
+        margin: const pw.EdgeInsets.all(24),
+        footer: (ctx) => _buildFooter(ctx),
+        build: (pw.Context ctx) {
           final widgets = <pw.Widget>[];
+
+          // Header & Branding
           widgets.add(
-            pw.Text(
-              'Personal Development Hub - Data Export',
-              style: pw.TextStyle(font: ttfFont, fontSize: 16, fontWeight: pw.FontWeight.bold),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null)
+                  pw.Image(logoImage, width: 80, height: 40),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text('Employee Development Data Export', style: pw.TextStyle(font: ttfFont, fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Generated: ${data['exportDate'] ?? DateTime.now().toIso8601String()}', style: pw.TextStyle(font: ttfFont, fontSize: 9)),
+                    pw.Text(profile['displayName'] ?? '', style: pw.TextStyle(font: ttfFont, fontSize: 9)),
+                  ],
+                ),
+              ],
             ),
           );
+
+          widgets.add(pw.SizedBox(height: 8));
+          widgets.add(pw.Text('Confidential — For internal use only', style: pw.TextStyle(font: ttfFont, fontSize: 9, color: PdfColors.grey)));
+          widgets.add(pw.Divider());
+
+          // Profile Section
+          widgets.add(pw.Header(level: 1, child: pw.Text('Employee Profile', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(pw.SizedBox(height: 6));
           widgets.add(
-            pw.Text(
-              'Generated on: ${DateTime.now().toString()}',
-              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  flex: 3,
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Full name: ${profile['displayName'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Email: ${profile['email'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Department: ${profile['department'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Job title: ${profile['jobTitle'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Employee ID: ${profile['userId'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Account created: ${profile['createdAt'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                      pw.Text('Last updated: ${profile['lastUpdated'] ?? 'N/A'}', style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Container(
+                  width: 80,
+                  height: 80,
+                  decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey300)),
+                  child: profilePhoto != null ? pw.Image(profilePhoto, fit: pw.BoxFit.cover) : pw.Center(child: pw.Text('No photo', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                ),
+              ],
             ),
           );
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Goals Overview
+          widgets.add(pw.Header(level: 1, child: pw.Text('Goals Overview', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(pw.Text('Total goals: $totalGoals', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(pw.Text('Completed: $completedGoals • Active: ${totalGoals - completedGoals}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(pw.SizedBox(height: 6));
+
+          // Goals by category
+          if (byCategory.isNotEmpty) {
+            widgets.add(pw.Text('Goals by category:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.Column(children: byCategory.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          // Goals by priority
+          if (byPriority.isNotEmpty) {
+            widgets.add(pw.Text('Goals by priority:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.Column(children: byPriority.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          // Status breakdown
+          if (byStatus.isNotEmpty) {
+            widgets.add(pw.Text('Status breakdown:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.Column(children: byStatus.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          widgets.add(pw.SizedBox(height: 8));
+
+          // Detailed Goals Section
+          widgets.add(pw.Header(level: 1, child: pw.Text('Detailed Goals', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(pw.SizedBox(height: 6));
+
+          if (goals.isEmpty) {
+            widgets.add(pw.Text('No goals found', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          } else {
+            for (final g in goals) {
+              final title = g['title'] ?? g['name'] ?? 'Untitled Goal';
+              final desc = (g['description'] ?? '').toString();
+              final category = g['category'] ?? 'Uncategorized';
+              final priority = g['priority'] ?? 'Medium';
+              final status = g['status'] ?? 'Unknown';
+              final progress = (g['progress'] is num) ? (g['progress'] as num).toDouble() : double.tryParse((g['progress'] ?? '0').toString()) ?? 0.0;
+              final target = g['targetDate']?.toString() ?? g['dueDate']?.toString() ?? 'N/A';
+              final points = g['points']?.toString() ?? '0';
+              final approval = g['approvalStatus'] ?? g['approved'] ?? 'N/A';
+              final approver = g['approver'] ?? g['approvedBy'] ?? 'N/A';
+              final evidence = (g['evidence'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+              final kpa = g['kpa'] ?? 'N/A';
+              final created = g['createdAt']?.toString() ?? 'N/A';
+              final approvedAt = g['approvedAt']?.toString() ?? 'N/A';
+
+              widgets.add(pw.Container(padding: const pw.EdgeInsets.symmetric(vertical: 6), decoration: pw.BoxDecoration(border: const pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                pw.Text(title.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 4),
+                pw.Text(desc.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10)),
+                pw.SizedBox(height: 6),
+                pw.Row(children: [
+                  pw.Expanded(child: pw.Text('Category: $category', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                  pw.Expanded(child: pw.Text('Priority: $priority', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                  pw.Expanded(child: pw.Text('Status: $status', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                ]),
+                pw.SizedBox(height: 4),
+                pw.Row(children: [
+                  pw.Expanded(child: pw.Text('Progress: ${progress.toStringAsFixed(0)}%', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                  pw.Expanded(child: pw.Text('Target: $target', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                  pw.Expanded(child: pw.Text('Points: $points', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                ]),
+                pw.SizedBox(height: 4),
+                pw.Row(children: [pw.Text('Approval: $approval', style: pw.TextStyle(font: ttfFont, fontSize: 9)), pw.Spacer(), pw.Text('Approver: $approver', style: pw.TextStyle(font: ttfFont, fontSize: 9))]),
+                if (evidence.isNotEmpty) pw.SizedBox(height: 6),
+                if (evidence.isNotEmpty) pw.Text('Evidence:', style: pw.TextStyle(font: ttfFont, fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                if (evidence.isNotEmpty) pw.Column(children: evidence.map((e) => pw.Text('- $e', style: pw.TextStyle(font: ttfFont, fontSize: 9))).toList()),
+                pw.SizedBox(height: 6),
+                pw.Text('KPA: $kpa • Created: $created • Approved: $approvedAt', style: pw.TextStyle(font: ttfFont, fontSize: 8, color: PdfColors.grey700)),
+              ])));
+            }
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Activities & Performance
+          widgets.add(pw.Header(level: 1, child: pw.Text('Activities & Performance', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(pw.SizedBox(height: 6));
+
+          widgets.add(pw.Text('Total activities: ${activities.length}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          if (activities.isNotEmpty) {
+            final recent = activities.take(10).toList();
+            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(pw.Text('Recent activity timeline (latest first):', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.Column(children: recent.map((a) => pw.Row(children: [pw.Expanded(child: pw.Text(a['description']?.toString() ?? 'No description', style: pw.TextStyle(font: ttfFont, fontSize: 9))), pw.Text(a['createdAt']?.toString() ?? '', style: pw.TextStyle(font: ttfFont, fontSize: 8, color: PdfColors.grey))])).toList()));
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Performance Metrics
+          widgets.add(pw.Header(level: 1, child: pw.Text('Performance Metrics', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(pw.Text('Points: ${profile['points'] ?? 0}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(pw.Text('Current streak: ${profile['currentStreak'] ?? 0}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(pw.SizedBox(height: 8));
+          if (badges.isNotEmpty) {
+            widgets.add(pw.Text('Badges earned:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
+            widgets.add(pw.Column(children: badges.map((b) => pw.Text('- ${b['name'] ?? b.toString()}', style: pw.TextStyle(font: ttfFont, fontSize: 9))).toList()));
+          }
+
           widgets.add(pw.SizedBox(height: 20));
 
-          widgets.addAll(
-            data.entries.map<pw.Widget>((entry) {
-              final section = entry.key;
-              final sectionData = entry.value;
-
-              return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Header(
-                    level: 1,
-                    child: pw.Text(
-                      section.replaceAll('_', ' ').toUpperCase(),
-                      style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.SizedBox(height: 15),
-                  _buildPdfSection(section, sectionData, font: ttfFont),
-                ],
-              );
-            }).toList(),
-          );
+          // Footer metadata and bottom logo
+          widgets.add(pw.Divider());
+          if (bottomLogoImage != null) {
+            widgets.add(
+              pw.Center(
+                child: pw.Image(bottomLogoImage, width: 160, height: 36, fit: pw.BoxFit.contain),
+              ),
+            );
+          }
+          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(pw.Text('Export generated: ${data['exportDate'] ?? DateTime.now().toIso8601String()}', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
+          widgets.add(pw.Text('Data retention: This export contains personal data. Handle securely.', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
+          widgets.add(pw.Text('Support: support@example.com', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
 
           return widgets;
         },
