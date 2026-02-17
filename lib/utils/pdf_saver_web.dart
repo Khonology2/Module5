@@ -1,3 +1,7 @@
+// This file targets web platform; allow web-only APIs and deprecated dart:html usage
+// since the implementation intentionally uses browser APIs.
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+
 import 'dart:html' as html;
 import 'dart:developer' as developer;
 

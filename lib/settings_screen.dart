@@ -6,7 +6,6 @@ import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/utils/pdf_saver.dart' show savePdfBytes;
@@ -185,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: StreamBuilder<UserSettings?>(
             key: const ValueKey('settings_stream'),
-            stream: SettingsService.getUserSettingsStream(),
+            stream: _safeSettingsStream(),
             initialData:
                 _currentSettings, // use cached settings to avoid spinner
             builder: (context, settingsSnapshot) {
@@ -310,6 +309,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Wrap the raw settings stream with a safe async generator that logs
+  /// errors and yields `null` on stream errors so the UI doesn't crash
+  /// when Firestore emits internal assertion errors on web.
+  Stream<UserSettings?> _safeSettingsStream() async* {
+    try {
+      final base = SettingsService.getUserSettingsStream();
+      // Log and suppress errors coming from Firestore internals
+      await for (final s in base.handleError((e, st) {
+        developer.log('Settings stream error', error: e, stackTrace: st);
+      })) {
+        yield s;
+      }
+    } catch (e, st) {
+      developer.log('Fatal error in settings stream', error: e, stackTrace: st);
+      // Yield null once so UI can fall back to cached settings
+      yield null;
+    }
   }
 
   Widget _buildErrorState(String error) {
@@ -1293,7 +1311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         if (kIsWeb) {
           await _showCenterNotice(context, 'PDF download started.');
-        } else if (savedPath != null) {
+        } else {
           // Try to open the saved file on non-web platforms
           final result = await OpenFile.open(savedPath);
           if (result.type != ResultType.done) {
@@ -1304,12 +1322,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Data exported successfully as PDF! ${data.keys.length} sections included.',
             );
           }
-        } else {
-          await _showCenterNotice(context, 'PDF saved.');
         }
       } catch (e) {
         // If there's an error opening the file, just show the success message
-        final msgPath = savedPath ?? 'your device';
+        final msgPath = kIsWeb ? 'your device' : savedPath;
         await _showCenterNotice(
           context,
           'PDF saved to: $msgPath\n\nYou can find your exported data here.',
@@ -1369,10 +1385,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Helper to render profile photo (try network then skip)
-    Future<pw.MemoryImage?> _loadProfilePhoto(String? url) async {
+    Future<pw.MemoryImage?> loadProfilePhoto(String? url) async {
       if (url == null) return null;
       try {
-        final resp = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+        final uri = Uri.parse(url);
+        final resp = await http.get(uri, headers: {'Cache-Control': 'no-cache'}).timeout(const Duration(seconds: 6));
         if (resp.statusCode == 200) {
           return pw.MemoryImage(resp.bodyBytes);
         }
@@ -1385,7 +1402,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final activities = (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
     final badges = (data['badges'] as List<dynamic>?) ?? <dynamic>[];
 
-    final profilePhoto = await _loadProfilePhoto(profile['photoURL']?.toString());
+    // Append a cache-busting parameter so recently-updated profile photos are fetched
+    String? cacheBustedUrl(String? url) {
+      if (url == null) return null;
+      try {
+        final uri = Uri.parse(url);
+        final params = Map<String, String>.from(uri.queryParameters);
+        params['cb'] = DateTime.now().millisecondsSinceEpoch.toString();
+        return uri.replace(queryParameters: params).toString();
+      } catch (_) {
+        return '$url?cb=${DateTime.now().millisecondsSinceEpoch}';
+      }
+    }
+
+    final profilePhoto = await loadProfilePhoto(cacheBustedUrl(profile['photoURL']?.toString()));
 
     // Compute goals overview stats
     int totalGoals = goals.length;
@@ -1405,7 +1435,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     // Footer builder (Page X of Y)
-    pw.Widget _buildFooter(pw.Context ctx) {
+    pw.Widget buildFooter(pw.Context ctx) {
       return pw.Container(
         alignment: pw.Alignment.centerRight,
         margin: const pw.EdgeInsets.only(top: 10),
@@ -1421,7 +1451,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         pageFormat: PdfPageFormat.a4,
         // Use 1 inch margins (72 points)
         margin: const pw.EdgeInsets.all(72),
-        footer: (ctx) => _buildFooter(ctx),
+        footer: (ctx) => buildFooter(ctx),
         build: (pw.Context ctx) {
           final widgets = <pw.Widget>[];
 
@@ -1684,6 +1714,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return pdf;
   }
 
+  // ignore: unused_element
   pw.Widget _buildPdfSection(String section, dynamic data, {required pw.Font font}) {
     if (data == null) {
       return pw.Text('No data available for this section.', style: pw.TextStyle(font: font, fontSize: 10));
@@ -2009,6 +2040,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // ignore: unused_element
   Future<File> _savePdfFile(String fileName, pw.Document pdf) async {
     final safeFileName = fileName.replaceAll(RegExp(r'[<>:\"|?*]'), '_');
 
