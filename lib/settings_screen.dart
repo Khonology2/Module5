@@ -1,13 +1,21 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pdh/utils/pdf_saver.dart' show savePdfBytes;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:open_file/open_file.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
 import 'package:pdh/services/employee_tutorial_service.dart';
@@ -130,8 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       privateGoals: m['privateGoals'] as bool? ?? false,
       managerOnly: m['managerOnly'] as bool? ?? false,
       teamShare: m['teamShare'] as bool? ?? true,
-      leaderboardParticipation:
-          m['leaderboardParticipation'] as bool? ?? false,
+      leaderboardParticipation: m['leaderboardParticipation'] as bool? ?? false,
       profileVisible: m['profileVisible'] as bool? ?? true,
       pushNotifications: m['pushNotifications'] as bool? ?? true,
       emailNotifications: m['emailNotifications'] as bool? ?? true,
@@ -139,8 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       goalReminders: m['goalReminders'] as bool? ?? true,
       weeklyReports: m['weeklyReports'] as bool? ?? false,
       darkMode: m['darkMode'] as bool? ?? true,
-      speechRecognitionEnabled:
-          m['speechRecognitionEnabled'] as bool? ?? false,
+      speechRecognitionEnabled: m['speechRecognitionEnabled'] as bool? ?? false,
       celebrationFeed: m['celebrationFeed'] as bool? ?? true,
       autoSync: m['autoSync'] as bool? ?? true,
       language: m['language'] as String? ?? 'en',
@@ -148,8 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       tutorialEnabled: m['tutorialEnabled'] as bool? ?? false,
       twoFactorAuth: m['twoFactorAuth'] as bool? ?? false,
       sessionTimeout: m['sessionTimeout'] as bool? ?? false,
-      sessionTimeoutMinutes:
-          m['sessionTimeoutMinutes'] as int? ?? 30,
+      sessionTimeoutMinutes: m['sessionTimeoutMinutes'] as int? ?? 30,
       biometricAuth: m['biometricAuth'] as bool? ?? false,
     );
   }
@@ -180,7 +185,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: StreamBuilder<UserSettings?>(
             key: const ValueKey('settings_stream'),
             stream: SettingsService.getUserSettingsStream(),
-            initialData: _currentSettings, // use cached settings to avoid spinner
+            initialData:
+                _currentSettings, // use cached settings to avoid spinner
             builder: (context, settingsSnapshot) {
               // Prefer last known settings to avoid full-screen flicker while waiting
               if (settingsSnapshot.hasError && _currentSettings == null) {
@@ -1019,7 +1025,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (mounted) {
             // Hide low-signal internal Firestore errors from the UI; show a friendly message instead.
             final msg = e.toString();
-            final isTransient = msg.toLowerCase().contains('unavailable') ||
+            final isTransient =
+                msg.toLowerCase().contains('unavailable') ||
                 msg.toLowerCase().contains('offline') ||
                 msg.toLowerCase().contains('network') ||
                 msg.toLowerCase().contains('failed-precondition') ||
@@ -1079,10 +1086,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return current.copyWith(twoFactorAuth: value as bool);
       case 'sessionTimeout':
         return current.copyWith(sessionTimeout: value as bool);
-      case 'language':
-        return current.copyWith(language: value as String);
       case 'sessionTimeoutMinutes':
         return current.copyWith(sessionTimeoutMinutes: value as int);
+      case 'biometricAuth':
+        return current.copyWith(biometricAuth: value as bool);
       default:
         return null;
     }
@@ -1252,29 +1259,280 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _exportUserData() async {
+    if (!mounted) return;
+
     try {
-      // Show blocking loading dialog centred on screen
-      _showLoadingDialog(context, message: 'Exporting your data...');
+      // Show loading dialog
+      _showLoadingDialog(context, message: 'Preparing your data export...');
+
       final data = await SettingsService.exportUserData();
       if (!mounted) return;
-      // Close loading
-      Navigator.of(context, rootNavigator: true).pop();
-      // Trigger JSON file download on web
-      if (kIsWeb) {
-        final filename =
-            'pdh-export-${DateTime.now().millisecondsSinceEpoch}.json';
-        downloadJsonFile(filename, _prettyJson(data));
-      }
-      // Show success dialog centred
-      await _showCenterNotice(
-        context,
-        'Data exported successfully! ${data.keys.length} sections included.',
-      );
-    } catch (e) {
+
+      // Update loading message
+      Navigator.of(context, rootNavigator: true).pop(); // Close current dialog
+      _showLoadingDialog(context, message: 'Generating PDF...');
+
+      final pdf = await _generatePdf(data);
       if (!mounted) return;
-      // Close loading if still open
+
+      // Update loading message
+      Navigator.of(context, rootNavigator: true).pop(); // Close current dialog
+      _showLoadingDialog(context, message: 'Saving PDF...');
+
+      final fileName = 'pdh-export-${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final pdfBytes = await pdf.save();
+
+      // Save or download depending on platform
+      final savedPath = await savePdfBytes(fileName, pdfBytes);
+      if (!mounted) return;
+
+      // Close loading dialog
       Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(context, 'Error exporting data: $e');
+
+      try {
+        if (kIsWeb) {
+          await _showCenterNotice(context, 'PDF download started.');
+        } else if (savedPath != null) {
+          // Try to open the saved file on non-web platforms
+          final result = await OpenFile.open(savedPath);
+          if (result.type != ResultType.done) {
+            await _showCenterNotice(context, 'PDF saved to: $savedPath');
+          } else {
+            await _showCenterNotice(
+              context,
+              'Data exported successfully as PDF! ${data.keys.length} sections included.',
+            );
+          }
+        } else {
+          await _showCenterNotice(context, 'PDF saved.');
+        }
+      } catch (e) {
+        // If there's an error opening the file, just show the success message
+        final msgPath = savedPath ?? 'your device';
+        await _showCenterNotice(
+          context,
+          'PDF saved to: $msgPath\n\nYou can find your exported data here.',
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log('Error exporting data', error: e, stackTrace: stackTrace);
+      if (!mounted) return;
+
+      // Close any open loading dialog
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      String errorMessage = 'An error occurred while exporting your data.';
+      if (e is FileSystemException) {
+        errorMessage =
+            'Could not save the PDF file. Please check storage permissions.';
+      } else if (e is MissingPluginException) {
+        errorMessage = 'A required feature is not available on this device.';
+      } else if (e.toString().contains('TooManyPagesException')) {
+        errorMessage =
+            'Your data is too large to export in a single PDF. Consider reducing the amount of data or contact support.';
+      } else if (e.toString().contains('INTERNAL ASSERTION FAILED')) {
+        errorMessage =
+            'A temporary database error occurred. Please refresh the page and try again.';
+      } else if (e.toString().contains('_Namespace')) {
+        errorMessage =
+            'A system error occurred during export. Please try again with a smaller data set.';
+      }
+
+      await _showCenterNotice(context, '$errorMessage\n\nError details: $e');
+    }
+  }
+
+  Future<pw.Document> _generatePdf(Map<String, dynamic> data) async {
+    final pdf = pw.Document();
+
+    // Load a Unicode-capable font from assets (Poppins is bundled in pubspec.yaml)
+    final fontData = await rootBundle.load('assets/fonts/poppins/Poppins-Regular.ttf');
+    final ttfFont = pw.Font.ttf(fontData);
+
+    // Add content pages
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (pw.Context context) {
+          final widgets = <pw.Widget>[];
+          widgets.add(
+            pw.Text(
+              'Personal Development Hub - Data Export',
+              style: pw.TextStyle(font: ttfFont, fontSize: 16, fontWeight: pw.FontWeight.bold),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Generated on: ${DateTime.now().toString()}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 20));
+
+          widgets.addAll(
+            data.entries.map<pw.Widget>((entry) {
+              final section = entry.key;
+              final sectionData = entry.value;
+
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Header(
+                    level: 1,
+                    child: pw.Text(
+                      section.replaceAll('_', ' ').toUpperCase(),
+                      style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                  pw.SizedBox(height: 15),
+                  _buildPdfSection(section, sectionData, font: ttfFont),
+                ],
+              );
+            }).toList(),
+          );
+
+          return widgets;
+        },
+      ),
+    );
+
+    return pdf;
+  }
+
+  pw.Widget _buildPdfSection(String section, dynamic data, {required pw.Font font}) {
+    if (data == null) {
+      return pw.Text('No data available for this section.', style: pw.TextStyle(font: font, fontSize: 10));
+    }
+
+    if (data is Map) {
+      final items = <pw.Widget>[];
+      data.forEach((key, value) {
+        // Sanitize the value to remove non-serializable objects
+        final sanitizedValue = _sanitizeValue(value);
+        String displayValue = sanitizedValue.toString();
+        if (displayValue.length > 100) {
+          displayValue = '${displayValue.substring(0, 100)}...';
+        }
+        items.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  key.toString().replaceAll('_', ' ').toUpperCase(),
+                  style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 12),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(displayValue, style: pw.TextStyle(font: font, fontSize: 10)),
+                pw.Divider(),
+              ],
+            ),
+          ),
+        );
+      });
+      return pw.Column(children: items);
+    } else if (data is List) {
+      final items = <pw.Widget>[];
+      for (int i = 0; i < data.length; i++) {
+        final item = data[i];
+        if (item is Map) {
+          items.add(
+            pw.Text(
+              'Item ${i + 1}:',
+              style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 12),
+            ),
+          );
+          item.forEach((k, v) {
+            final sanitizedValue = _sanitizeValue(v);
+            String displayValue = sanitizedValue.toString();
+            if (k == 'evidence' && sanitizedValue is List) {
+              displayValue = sanitizedValue.take(3).join(', ');
+              if (sanitizedValue.length > 3) displayValue += '...';
+            } else if (displayValue.length > 50) {
+              displayValue = '${displayValue.substring(0, 50)}...';
+            }
+            items.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 16, bottom: 4),
+                child: pw.Text(
+                  '$k: $displayValue',
+                  style: pw.TextStyle(font: font, fontSize: 10),
+                ),
+              ),
+            );
+          });
+          items.add(pw.SizedBox(height: 10));
+        } else {
+          final sanitizedValue = _sanitizeValue(item);
+          items.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Text(
+                '${i + 1}. ${sanitizedValue.toString()}',
+                style: pw.TextStyle(font: font, fontSize: 10),
+              ),
+            ),
+          );
+        }
+      }
+      return pw.Column(children: items);
+    } else {
+      final sanitizedValue = _sanitizeValue(data);
+      return pw.Text(sanitizedValue.toString(), style: pw.TextStyle(font: font, fontSize: 10));
+    }
+  }
+
+  /// Sanitizes values to remove non-serializable Firestore objects
+  dynamic _sanitizeValue(dynamic value) {
+    try {
+      if (value == null) {
+        return 'N/A';
+      }
+
+      // Handle basic types
+      if (value is String || value is int || value is double || value is bool) {
+        return value;
+      }
+
+      // Handle DateTime
+      if (value is DateTime) {
+        return value.toIso8601String();
+      }
+
+      // Handle Lists
+      if (value is List) {
+        return value
+            .map((item) => _sanitizeValue(item))
+            .toList();
+      }
+
+      // Handle Maps
+      if (value is Map) {
+        final sanitized = <String, dynamic>{};
+        value.forEach((k, v) {
+          sanitized[k.toString()] = _sanitizeValue(v);
+        });
+        return sanitized;
+      }
+
+      // For any other type (including Firestore internal types),
+      // convert to string and filter out problematic characters
+      final stringValue = value.toString();
+
+      // Skip if it looks like an internal Firestore object
+      if (stringValue.contains('_Namespace') ||
+          stringValue.contains('Instance of') ||
+          stringValue.startsWith('_')) {
+        return '[Complex Object - Not Serializable]';
+      }
+
+      return stringValue;
+    } catch (_) {
+      return '[Unable to Serialize]';
     }
   }
 
@@ -1396,11 +1654,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ignore: unused_element
   String _prettyJson(Map<String, dynamic> data) {
     try {
       return const JsonEncoder.withIndent('  ').convert(data);
     } catch (_) {
       return data.toString();
+    }
+  }
+
+  Future<File> _savePdfFile(String fileName, pw.Document pdf) async {
+    final safeFileName = fileName.replaceAll(RegExp(r'[<>:\"|?*]'), '_');
+
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final safePath = '${directory.path}/$safeFileName'.replaceAll('\\', '/');
+      final file = File(safePath);
+      await file.writeAsBytes(await pdf.save());
+      return file;
+    } catch (e) {
+      developer.log('Error saving PDF file: $e');
+      rethrow;
     }
   }
 }

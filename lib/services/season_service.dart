@@ -78,10 +78,7 @@ class SeasonService {
   };
 
   static Map<String, SeasonBadge> _allManagerSeasonBadges() {
-    return {
-      ..._managerActionBadges,
-      ..._managerPerformanceBadges,
-    };
+    return {..._managerActionBadges, ..._managerPerformanceBadges};
   }
 
   // Create a new season
@@ -507,17 +504,17 @@ class SeasonService {
             .where('createdBy', isEqualTo: currentUser.uid)
             .snapshots(),
       ).map((snapshot) {
-            final seasons = snapshot.docs
-                .map((doc) => Season.fromFirestore(doc))
-                .toList();
-            // Sort in memory to avoid composite index requirement
-            seasons.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            for (final season in seasons) {
-              // ignore: unawaited_futures
-              refreshParticipantDisplayNames(season.id);
-            }
-            return seasons;
-          });
+        final seasons = snapshot.docs
+            .map((doc) => Season.fromFirestore(doc))
+            .toList();
+        // Sort in memory to avoid composite index requirement
+        seasons.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        for (final season in seasons) {
+          // ignore: unawaited_futures
+          refreshParticipantDisplayNames(season.id);
+        }
+        return seasons;
+      });
     } catch (e) {
       developer.log('Error getting manager seasons: $e');
       return const Stream.empty();
@@ -526,7 +523,9 @@ class SeasonService {
 
   /// Seasons an employee has participated in (active + completed + etc).
   /// Uses only `arrayContains` and sorts client-side to avoid composite indexes.
-  static Stream<List<Season>> getParticipantSeasonsStream(String participantId) {
+  static Stream<List<Season>> getParticipantSeasonsStream(
+    String participantId,
+  ) {
     try {
       if (participantId.trim().isEmpty) return const Stream.empty();
       return FirestoreSafe.stream(
@@ -535,8 +534,9 @@ class SeasonService {
             .where('participantIds', arrayContains: participantId)
             .snapshots(),
       ).map((snapshot) {
-        final seasons =
-            snapshot.docs.map((doc) => Season.fromFirestore(doc)).toList();
+        final seasons = snapshot.docs
+            .map((doc) => Season.fromFirestore(doc))
+            .toList();
         // Sort newest first. Prefer endDate if present, else createdAt.
         seasons.sort((a, b) {
           final aDate = a.endDate;
@@ -564,17 +564,17 @@ class SeasonService {
             .where('status', isEqualTo: SeasonStatus.active.name)
             .snapshots(),
       ).map((snapshot) {
-            final seasons = snapshot.docs
-                .map((doc) => Season.fromFirestore(doc))
-                .toList();
-            // Sort in memory to avoid composite index requirement
-            seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
-            for (final season in seasons) {
-              // ignore: unawaited_futures
-              refreshParticipantDisplayNames(season.id);
-            }
-            return seasons;
-          });
+        final seasons = snapshot.docs
+            .map((doc) => Season.fromFirestore(doc))
+            .toList();
+        // Sort in memory to avoid composite index requirement
+        seasons.sort((a, b) => b.startDate.compareTo(a.startDate));
+        for (final season in seasons) {
+          // ignore: unawaited_futures
+          refreshParticipantDisplayNames(season.id);
+        }
+        return seasons;
+      });
     } catch (e) {
       developer.log('Error getting active seasons: $e');
       return const Stream.empty();
@@ -923,13 +923,13 @@ class SeasonService {
 
       final userRef = _firestore.collection('users').doc(managerId);
       final userDoc = await userRef.get();
-      final currentManagerSeasonPointsRaw =
-          userDoc.data()?['managerSeasonPoints'];
+      final currentManagerSeasonPointsRaw = userDoc
+          .data()?['managerSeasonPoints'];
       final currentManagerSeasonPoints = currentManagerSeasonPointsRaw is int
           ? currentManagerSeasonPointsRaw
           : (currentManagerSeasonPointsRaw is num
-              ? currentManagerSeasonPointsRaw.toInt()
-              : int.tryParse('$currentManagerSeasonPointsRaw') ?? 0);
+                ? currentManagerSeasonPointsRaw.toInt()
+                : int.tryParse('$currentManagerSeasonPointsRaw') ?? 0);
 
       final delta = computedTotal - currentManagerSeasonPoints;
       if (delta == 0) return;
@@ -973,13 +973,12 @@ class SeasonService {
 
       final userRef = _firestore.collection('users').doc(userId);
       final userDoc = await userRef.get();
-      final currentSeasonPointsRaw =
-          userDoc.data()?['seasonChallengePoints'];
+      final currentSeasonPointsRaw = userDoc.data()?['seasonChallengePoints'];
       final currentSeasonPoints = currentSeasonPointsRaw is int
           ? currentSeasonPointsRaw
           : (currentSeasonPointsRaw is num
-              ? currentSeasonPointsRaw.toInt()
-              : int.tryParse('$currentSeasonPointsRaw') ?? 0);
+                ? currentSeasonPointsRaw.toInt()
+                : int.tryParse('$currentSeasonPointsRaw') ?? 0);
 
       final delta = computedTotal - currentSeasonPoints;
       if (delta <= 0) return;
@@ -1060,39 +1059,31 @@ class SeasonService {
               break;
           }
 
-          batch.set(
-            userBadgeRef,
-            {
-              'name': badge.name,
-              'description': '${badge.description} - $seasonTitle',
-              'iconName': 'emoji_events',
-              'category': 'leadership',
-              'rarity': 'common',
-              'pointsRequired': badge.points,
-              'criteria': {
-                'source': 'season',
-                'seasonId': seasonDoc.id,
-                'seasonTitle': seasonTitle,
-                'isManager': true,
-                'managerLevel': managerLevel,
-                'badgeId': badgeId,
-              },
-              'earnedAt': FieldValue.serverTimestamp(),
-              'isEarned': true,
-              'progress': 1,
-              'maxProgress': 1,
+          batch.set(userBadgeRef, {
+            'name': badge.name,
+            'description': '${badge.description} - $seasonTitle',
+            'iconName': 'emoji_events',
+            'category': 'leadership',
+            'rarity': 'common',
+            'pointsRequired': badge.points,
+            'criteria': {
+              'source': 'season',
+              'seasonId': seasonDoc.id,
+              'seasonTitle': seasonTitle,
+              'isManager': true,
+              'managerLevel': managerLevel,
+              'badgeId': badgeId,
             },
-            SetOptions(merge: true),
-          );
+            'earnedAt': FieldValue.serverTimestamp(),
+            'isEarned': true,
+            'progress': 1,
+            'maxProgress': 1,
+          }, SetOptions(merge: true));
 
-          batch.set(
-            userRef,
-            {
-              'totalPoints': FieldValue.increment(badge.points),
-              'totalBadges': FieldValue.increment(1),
-            },
-            SetOptions(merge: true),
-          );
+          batch.set(userRef, {
+            'totalPoints': FieldValue.increment(badge.points),
+            'totalBadges': FieldValue.increment(1),
+          }, SetOptions(merge: true));
           awardedCount++;
         }
       }
@@ -1149,8 +1140,8 @@ class SeasonService {
         final points = pointsRaw is int
             ? pointsRaw
             : (pointsRaw is num
-                ? pointsRaw.toInt()
-                : int.tryParse('$pointsRaw') ?? 0);
+                  ? pointsRaw.toInt()
+                  : int.tryParse('$pointsRaw') ?? 0);
         if (points <= 0) {
           // Mark as applied even if 0 to avoid reprocessing forever.
           try {
@@ -1174,8 +1165,7 @@ class SeasonService {
 
           final seasonParts =
               (seasonData['participations'] as Map<String, dynamic>?) ?? {};
-          final myPart =
-              (seasonParts[uid] as Map<String, dynamic>?) ?? {};
+          final myPart = (seasonParts[uid] as Map<String, dynamic>?) ?? {};
           if (myPart.isEmpty) return;
           if (myPart['payoutApplied'] == true) return;
 
@@ -1183,8 +1173,8 @@ class SeasonService {
           final myPts = myPtsRaw is int
               ? myPtsRaw
               : (myPtsRaw is num
-                  ? myPtsRaw.toInt()
-                  : int.tryParse('$myPtsRaw') ?? 0);
+                    ? myPtsRaw.toInt()
+                    : int.tryParse('$myPtsRaw') ?? 0);
 
           final userRef = _firestore.collection('users').doc(uid);
           tx.set(userRef, {
@@ -1306,7 +1296,7 @@ class SeasonService {
 
       // Also write to users/{userId}/badges in Badge model structure so it shows in the standard badges UI
       final userBadgeId = '${seasonBadge.id}_${season.id}';
-      
+
       // Determine manager level based on badge type
       int managerLevel;
       switch (seasonBadge.id) {
@@ -1317,12 +1307,13 @@ class SeasonService {
           managerLevel = 3; // Level 3: Creating growth opportunities
           break;
         case 'season_closer':
-          managerLevel = 4; // Level 4: Strategic leadership in completing seasons
+          managerLevel =
+              4; // Level 4: Strategic leadership in completing seasons
           break;
         default:
           managerLevel = 4; // Default to Level 4
       }
-      
+
       final userBadgeRef = _firestore
           .collection('users')
           .doc(userId)
@@ -1978,11 +1969,11 @@ class SeasonService {
     return FirestoreSafe.stream(
       _firestore.collection('season_celebrations').doc(seasonId).snapshots(),
     ).map((doc) {
-          if (!doc.exists) return null;
-          final data = doc.data();
-          if (data == null) return null;
-          return Map<String, dynamic>.from(data);
-        });
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return Map<String, dynamic>.from(data);
+    });
   }
 
   static Future<void> _notifyEmployeesAboutNewSeason(
@@ -2018,7 +2009,7 @@ class SeasonService {
             'seasonId': seasonId,
             'seasonTitle': title,
             'theme': theme,
-            if (department != null) 'department': department,
+            if (department != null) ...{'department': department},
           },
         });
       }
