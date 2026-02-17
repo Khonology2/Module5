@@ -446,7 +446,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     String date(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
     String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
     final sameDay =
-        start.year == end.year && start.month == end.month && start.day == end.day;
+        start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day;
     if (sameDay) return '${date(start)} ${time(start)} - ${time(end)}';
     return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
   }
@@ -457,7 +459,9 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
     final end = m.proposedEndDateTime;
     final timeText = start == null
         ? null
-        : (end != null ? _formatMeetingRange(start, end) : _formatMeetingTime(start));
+        : (end != null
+              ? _formatMeetingRange(start, end)
+              : _formatMeetingTime(start));
 
     final canRespond =
         m.waitingOn == OneOnOneWaitingOn.employee &&
@@ -650,12 +654,14 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         initialDate: now.add(const Duration(days: 1)),
       );
       if (pickedDate == null) return;
+      if (!mounted) return;
 
       final pickedStartTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
       );
       if (pickedStartTime == null) return;
+      if (!mounted) return;
 
       final proposedStart = DateTime(
         pickedDate.year,
@@ -671,6 +677,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         initialTime: TimeOfDay.fromDateTime(suggestedEnd),
       );
       if (pickedEndTime == null) return;
+      if (!mounted) return;
 
       final proposedEnd = DateTime(
         pickedDate.year,
