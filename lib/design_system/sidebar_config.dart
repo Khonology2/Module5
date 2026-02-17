@@ -38,7 +38,9 @@ class SidebarConfig {
   }
 
   // ===== EMPLOYEE SIDEBAR ITEMS =====
-  static List<SidebarItem> employeeItems = [
+  // Use getters to avoid mutable static list ordering issues during hot reload,
+  // and to prevent accidental runtime mutations.
+  static List<SidebarItem> get employeeItems => List.unmodifiable([
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Dashboard_White.png',
       red: 'assets/Khonodemy Icons/Dashboard_Red.png',
@@ -105,31 +107,41 @@ class SidebarConfig {
       label: 'Settings & Privacy',
       route: '/settings',
     ),
-  ];
+  ]);
 
   // ===== MANAGER SIDEBAR ITEMS =====
-  static List<SidebarItem> managerItems = [
+  static List<SidebarItem> get managerItems => List.unmodifiable([
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Dashboard_White.png',
       red: 'assets/Khonodemy Icons/Dashboard_Red.png',
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    SidebarItem(icon: Icons.person, label: 'MyPdp', route: '/my_pdp'),
     SidebarItem(
-      icon: Icons.manage_accounts,
-      label: 'My Profile',
-      route: '/manager_profile',
+      icon: Icons.person,
+      label: 'Goal Workspace',
+      route: '/my_pdp',
     ),
     SidebarItem(
       icon: Icons.inbox_outlined,
       label: 'Inbox',
       route: '/manager_inbox',
     ),
+    itemWithAssets(
+      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
+      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
+      label: 'Team Alerts & Nudges',
+      route: '/manager_alerts_nudges',
+    ),
     SidebarItem(
       icon: Icons.emoji_events,
       label: 'Team Challenges',
       route: '/team_challenges_seasons',
+    ),
+    SidebarItem(
+      icon: Icons.groups,
+      label: 'Team Review',
+      route: '/manager_review_team_dashboard',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/ProgressVisuals_Whie.png',
@@ -138,10 +150,10 @@ class SidebarConfig {
       route: '/progress_visuals',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/Alerts&Visuals_White.png',
-      red: 'assets/Khonodemy Icons/Alerts&Visuals_Red.png',
-      label: 'Team Alerts & Nudges',
-      route: '/manager_alerts_nudges',
+      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
+      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
+      label: 'Leaderboard',
+      route: '/manager_leaderboard',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Badges&Points_White.png',
@@ -150,16 +162,15 @@ class SidebarConfig {
       route: '/manager_badges_points',
     ),
     itemWithAssets(
-      white: 'assets/Khonodemy Icons/LeaderBoard_White.png',
-      red: 'assets/Khonodemy Icons/Leaderboard_Red.png',
-      label: 'Leaderboard',
-      route: '/manager_leaderboard',
-    ),
-    itemWithAssets(
       white: 'assets/Khonodemy Icons/Repository&Audit_White.png',
       red: 'assets/Khonodemy Icons/Repository&Audit_Red.png',
       label: 'Repository & Audit',
       route: '/repository_audit',
+    ),
+    SidebarItem(
+      icon: Icons.manage_accounts,
+      label: 'My Profile',
+      route: '/manager_profile',
     ),
     itemWithAssets(
       white: 'assets/Khonodemy Icons/Settings_White.png',
@@ -167,15 +178,10 @@ class SidebarConfig {
       label: 'Settings & Privacy',
       route: '/settings',
     ),
-    SidebarItem(
-      icon: Icons.groups,
-      label: 'Review Team',
-      route: '/manager_review_team_dashboard',
-    ),
-  ];
+  ]);
 
   // ===== ADMIN SIDEBAR ITEMS =====
-  static List<SidebarItem> adminItems = [
+  static List<SidebarItem> get adminItems => List.unmodifiable([
     SidebarItem(
       icon: Icons.admin_panel_settings,
       label: 'Admin Dashboard',
@@ -198,7 +204,7 @@ class SidebarConfig {
       label: 'Backup & Restore',
       route: '/backup',
     ),
-  ];
+  ]);
 
   // ===== UTILITY METHODS =====
   static List<SidebarItem> getItemsForRole(String role) {

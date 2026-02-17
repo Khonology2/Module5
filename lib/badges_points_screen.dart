@@ -130,11 +130,6 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await BadgeCelebrationService.ensureBaselineInitialized(
-      user.uid,
-      scope: 'employee',
-    );
-
     // Initial catch-up (if a badge was earned while away from this screen).
     unawaited(_maybeCelebrateNewBadges(user.uid));
 
@@ -147,8 +142,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         .collection('badges')
         .snapshots()
         .listen((_) {
-      unawaited(_maybeCelebrateNewBadges(user.uid));
-    });
+          unawaited(_maybeCelebrateNewBadges(user.uid));
+        });
   }
 
   Future<void> _redirectIfManager() async {
@@ -333,12 +328,13 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     _badgeCelebrationInFlight = true;
     try {
       // Employee screen should NOT celebrate manager-only badges.
-      final badges = await BadgeCelebrationService.fetchUncelebratedEarnedBadges(
-        userId,
-        scope: 'employee',
-        includeManagerBadges: false,
-        limit: 5,
-      );
+      final badges =
+          await BadgeCelebrationService.fetchUncelebratedEarnedBadges(
+            userId,
+            scope: 'employee',
+            includeManagerBadges: false,
+            limit: 5,
+          );
       if (!mounted) return;
       if (badges.isEmpty) return;
 
@@ -463,32 +459,32 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       final moreCount = (_newlyEarnedBadges.length - 1).clamp(0, 99);
 
       await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        // Auto-close after a short celebration window.
-        Future.delayed(const Duration(seconds: 4), () {
-          try {
-            Navigator.of(dialogContext).pop();
-          } catch (_) {}
-        });
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          // Auto-close after a short celebration window.
+          Future.delayed(const Duration(seconds: 4), () {
+            try {
+              Navigator.of(dialogContext).pop();
+            } catch (_) {}
+          });
 
-        return BadgeCelebrationDialog(
-          title: 'Congratulations!',
-          badgeName: first.name,
-          badgeDescription: first.description,
-          accentColor: _getBadgeRarityColor(first.rarity),
-          badgeIcon: SizedBox(
-            width: 72,
-            height: 72,
-            child: FittedBox(
-              fit: BoxFit.contain,
-              child: _getBadgeIcon(first.iconName),
+          return BadgeCelebrationDialog(
+            title: 'Congratulations!',
+            badgeName: first.name,
+            badgeDescription: first.description,
+            accentColor: _getBadgeRarityColor(first.rarity),
+            badgeIcon: SizedBox(
+              width: 72,
+              height: 72,
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: _getBadgeIcon(first.iconName),
+              ),
             ),
-          ),
-          moreCount: moreCount,
-        );
-      },
+            moreCount: moreCount,
+          );
+        },
       );
     } finally {
       if (mounted) {
@@ -709,10 +705,21 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           onTutorialNext: tutorialParams['onTutorialNext'] as VoidCallback?,
           onTutorialSkip: tutorialParams['onTutorialSkip'] as VoidCallback?,
           onNavigate: (route) {
-            final current = ModalRoute.of(context)?.settings.name;
-            if (current != route) {
-              Navigator.pushNamed(context, route);
+            if (widget.embedded) return;
+
+            if (isManager) {
+              // Keep manager navigation inside the portal so sidebar order changes
+              // don't break content routing.
+              Navigator.pushReplacementNamed(
+                context,
+                '/manager_portal',
+                arguments: {'initialRoute': route},
+              );
+              return;
             }
+
+            final current = ModalRoute.of(context)?.settings.name;
+            if (current != route) Navigator.pushNamed(context, route);
           },
           onLogout: () async {
             final navigator = Navigator.of(context);
@@ -1060,8 +1067,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             ? badges
             : badges.where((b) => !BadgeService.isManagerBadge(b)).toList();
         // Filter out any placeholder docs like 'init'
-        final visibleBadges =
-            filteredBadges.where((b) => b.id != 'init').toList();
+        final visibleBadges = filteredBadges
+            .where((b) => b.id != 'init')
+            .toList();
 
         if (visibleBadges.isEmpty) {
           // Initialize a user's badge catalog on first visit if missing

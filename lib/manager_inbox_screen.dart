@@ -95,6 +95,33 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
 
+  String? _normalizeGoalId(dynamic raw) {
+    final s = raw?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+
+    // Sometimes older alerts store a full path like "goals/<id>" or
+    // ".../goals/<id>". Firestore doc ids cannot contain "/" so we extract last.
+    if (s.contains('/')) {
+      final parts = s.split('/').where((p) => p.trim().isNotEmpty).toList();
+      if (parts.isEmpty) return null;
+      final last = parts.last.trim();
+      if (last.isEmpty) return null;
+      return last;
+    }
+
+    return s;
+  }
+
+  String? _goalIdFromAlert(Alert alert) {
+    final fromAction = alert.actionData?['goalId'];
+    return _normalizeGoalId(alert.relatedGoalId ?? fromAction);
+  }
+
+  bool _hasValidGoalId(Alert alert) {
+    final gid = _goalIdFromAlert(alert);
+    return gid != null && gid.isNotEmpty;
+  }
+
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -174,8 +201,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   void _showGoalReviewSheet(Alert alert) {
-    final goalId = alert.relatedGoalId;
-    if (goalId == null) return;
+    final goalId = _goalIdFromAlert(alert);
+    if (goalId == null || goalId.isEmpty) {
+      _showCenterNotice(
+        context,
+        'This alert is missing a valid goal link. Please refresh the inbox or ask the employee to resubmit the goal.',
+      );
+      return;
+    }
     _clarity.putIfAbsent(goalId, () => 3);
     _measurability.putIfAbsent(goalId, () => 3);
     _achievability.putIfAbsent(goalId, () => 3);
@@ -199,8 +232,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           builder: (context, scrollController) {
             return Padding(
               padding: const EdgeInsets.all(16),
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirestoreSafe.stream(
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
                   FirebaseFirestore.instance
                       .collection('goals')
                       .doc(goalId)
@@ -208,7 +241,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
                 builder: (context, snap) {
                   Goal? goal;
-                  if (snap.hasData && snap.data!.exists) {
+                  if (snap.hasData && (snap.data?.exists ?? false)) {
                     try {
                       goal = Goal.fromFirestore(snap.data!);
                     } catch (_) {}
@@ -686,10 +719,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/manager_inbox',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Managers should navigate via the portal so the sidebar remains persistent
+        // and content swaps correctly for moved sidebar items (e.g. Review Team).
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
@@ -1187,7 +1224,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 style: AppTypography.bodySmall.copyWith(color: Colors.white54),
               ),
               const SizedBox(width: 8),
-              if (alert.type == AlertType.goalApprovalRequested)
+              if (alert.type == AlertType.goalApprovalRequested &&
+                  _hasValidGoalId(alert))
                 TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),
                   icon: const Icon(Icons.visibility_outlined),

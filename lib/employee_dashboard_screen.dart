@@ -667,7 +667,8 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
 
                   // If we have no profile data at all, show loading spinner
                   if (effectiveProfile == null) {
-                    final timedOut = _initialProfileLoadWatch.elapsed >
+                    final timedOut =
+                        _initialProfileLoadWatch.elapsed >
                         const Duration(seconds: 12);
                     if (timedOut) {
                       return _buildLoadTimeout(
@@ -1580,7 +1581,9 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: const Text('Sign out'),
                     ),

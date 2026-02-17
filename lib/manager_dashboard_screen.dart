@@ -525,10 +525,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       onTutorialNext: _shouldShowTutorial ? _moveToNextTutorialStep : null,
       onTutorialSkip: _shouldShowTutorial ? _skipTutorial : null,
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Keep manager navigation inside the portal so moved sidebar items
+        // always load the correct content (e.g. Review Team).
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
