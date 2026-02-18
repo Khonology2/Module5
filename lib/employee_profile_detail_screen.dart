@@ -48,10 +48,13 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/employee_profile_detail',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // This screen is manager-only; keep navigation within the manager portal
+        // to ensure the persistent sidebar and correct content for all items.
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);

@@ -195,10 +195,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/manager_badges_points',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Managers should navigate via the portal so the sidebar remains persistent
+        // and moved items (e.g. Review Team) open the correct content.
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
