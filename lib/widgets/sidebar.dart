@@ -55,7 +55,9 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   Future<void> _checkProfileCompletion({bool bypassCache = false}) async {
     try {
       final isComplete =
-          await ProfileCompletionService.isCurrentUserProfileComplete(bypassCache: bypassCache);
+          await ProfileCompletionService.isCurrentUserProfileComplete(
+            bypassCache: bypassCache,
+          );
       if (mounted) {
         setState(() {
           _isProfileIncomplete = !isComplete;
@@ -81,10 +83,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
   @override
   void didUpdateWidget(ResponsiveSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Only proceed if the widget is still in the tree
     if (!mounted) return;
-    
+
     // Scroll to tutorial item when step changes
     if (widget.tutorialStepIndex != null &&
         widget.tutorialStepIndex != _previousTutorialStep &&
@@ -92,7 +94,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
         widget.tutorialStepIndex! < widget.sidebarTutorialKeys!.length) {
       _previousTutorialStep = widget.tutorialStepIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {  // Check mounted before proceeding
+        if (mounted) {
+          // Check mounted before proceeding
           _scrollToTutorialItem(widget.tutorialStepIndex!);
         }
       });
@@ -105,7 +108,8 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
         widget.currentRouteName == '/manager_profile' ||
         oldWidget.currentRouteName == '/manager_profile') {
       // Bypass cache when coming from profile page to ensure we get fresh data
-      final bypassCache = oldWidget.currentRouteName == '/manager_profile' ||
+      final bypassCache =
+          oldWidget.currentRouteName == '/manager_profile' ||
           oldWidget.currentRouteName == '/my_profile';
       _checkProfileCompletion(bypassCache: bypassCache);
     }
@@ -113,7 +117,7 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
   void _scrollToTutorialItem(int stepIndex) {
     // Add mounted check to prevent accessing keys after dispose
-    if (!mounted || 
+    if (!mounted ||
         widget.sidebarTutorialKeys == null ||
         stepIndex >= widget.sidebarTutorialKeys!.length) {
       return;
@@ -121,11 +125,10 @@ class _ResponsiveSidebarState extends State<ResponsiveSidebar> {
 
     final key = widget.sidebarTutorialKeys![stepIndex];
     final context = key.currentContext;
-    
+
     // Add additional null and mounted checks
-    if (context != null && 
-        _scrollController.hasClients && 
-        mounted) {  // Check mounted again after async gap
+    if (context != null && _scrollController.hasClients && mounted) {
+      // Check mounted again after async gap
       try {
         Scrollable.ensureVisible(
           context,
@@ -571,7 +574,8 @@ class _NavTileState extends State<_NavTile> {
         label = localizations.nav_manager_inbox;
         break;
       case '/manager_review_team_dashboard':
-        label = localizations.nav_review_team;
+        // Use the updated manager label without requiring l10n regeneration.
+        label = 'Team Review';
         break;
       case '/admin_dashboard':
         label = localizations.nav_admin_dashboard;
@@ -877,7 +881,9 @@ class _NavTileState extends State<_NavTile> {
     }
     return Icon(
       widget.icon,
-      color: isSelected ? AppColors.activeColor : AppColors.textPrimary,
+      color: (isSelected && widget.collapsed)
+          ? AppColors.activeColor
+          : AppColors.textPrimary,
       size: 24.0,
     );
   }

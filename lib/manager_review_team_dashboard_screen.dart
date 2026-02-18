@@ -338,10 +338,7 @@ class _ManagerReviewTeamDashboardScreenState
         backgroundColor: Colors.transparent, // Make AppBar transparent
         elevation: 0, // Remove AppBar shadow
         automaticallyImplyLeading: false, // Remove back arrow button
-        title: Text(
-          'Team Dashboard',
-          style: AppTypography.heading2.copyWith(color: Colors.white),
-        ),
+        title: const SizedBox.shrink(),
         centerTitle: false,
         actions: [], // Hide profile button on dashboard
       ),
@@ -444,6 +441,15 @@ class _ManagerReviewTeamDashboardScreenState
                             _buildHeader(),
                             const SizedBox(height: 20),
 
+                            const Text(
+                              'Team Overview',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
                             _buildEmployeeSearchBar(
                               totalCount: employees.length,
                               filteredCount: _filterEmployees(employees).length,
@@ -667,15 +673,6 @@ class _ManagerReviewTeamDashboardScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Team Overview',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
         ...sortedEmployees.map(
           (employee) => Column(
             children: [

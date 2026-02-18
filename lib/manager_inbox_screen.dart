@@ -719,10 +719,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/manager_inbox',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Managers should navigate via the portal so the sidebar remains persistent
+        // and content swaps correctly for moved sidebar items (e.g. Review Team).
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);

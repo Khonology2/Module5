@@ -312,6 +312,11 @@ class _MyAppState extends State<MyApp> {
               },
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
+                // Flutter Web can assert during view focus changes when
+                // `WidgetOrderTraversalPolicy` queries semantic bounds before layout
+                // (e.g. `RenderTapRegionSurface was not laid out`), which causes a full
+                // page reload. Disable the global traversal group on web.
+                if (kIsWeb) return child;
                 return FocusTraversalGroup(
                   policy: WidgetOrderTraversalPolicy(),
                   child: child,
