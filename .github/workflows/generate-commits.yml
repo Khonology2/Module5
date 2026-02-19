@@ -98,6 +98,6 @@ jobs:
           git config --local user.name "GitHub Action"
           git add assets/data/daily-commits.json
           git commit -m "Update daily commits data [${TODAY}]" || echo "No changes to commit"
-          git pull --rebase origin MAIN || git pull origin MAIN || echo "Pull failed, attempting push anyway"
+          git pull --rebase origin $GITHUB_REF_NAME || echo "Pull failed, attempting push anyway"
           git push || echo "Push failed - likely due to no changes or permissions"
         fi
