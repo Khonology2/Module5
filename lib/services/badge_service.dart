@@ -1,6 +1,8 @@
 import 'dart:developer' as developer;
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdh/badges_v2/badge_v2_definition.dart';
+import 'package:pdh/badges_v2/badge_v2_engine.dart';
 import 'package:pdh/models/badge.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/user_profile.dart';
@@ -9,6 +11,9 @@ import 'package:pdh/utils/firestore_safe.dart';
 
 class BadgeService {
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  static const BadgeEngineV2 _engineV2 = BadgeEngineV2();
+
+  static bool isV2BadgeId(String badgeId) => badgeId.toLowerCase().startsWith('v2_');
 
   // Some user subcollections (like goals) are bootstrapped with an "init" document
   // so the collection exists for security rules. These placeholders should NEVER
@@ -56,6 +61,7 @@ class BadgeService {
       _lastCheckAtByUser[userId] = now;
       try {
         await checkAndAwardBadges(userId);
+        await checkAndAwardBadgesV2(userId);
       } catch (e) {
         developer.log('Realtime badge check failed: $e');
       }
@@ -139,6 +145,307 @@ class BadgeService {
       developer.log('Error loading badges stream: $e', stackTrace: st);
       // Emit a safe empty list so UI continues rendering.
       yield <Badge>[];
+    }
+  }
+
+  /// V2-only stream: emits only badges that belong to the new category-based design.
+  static Stream<List<Badge>> getUserBadgesV2Stream(String userId) async* {
+    try {
+      await for (final snapshot in FirestoreSafe.stream(
+        _firestore.collection('users').doc(userId).collection('badges').snapshots(),
+      )) {
+        try {
+          final v2Docs = snapshot.docs.where((d) => isV2BadgeId(d.id)).toList();
+          final list = v2Docs.map((doc) => Badge.fromFirestore(doc)).toList()
+            ..sort((a, b) {
+              if (a.category != b.category) return a.category.name.compareTo(b.category.name);
+              if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+              final p = b.progressPercentage.compareTo(a.progressPercentage);
+              if (p != 0) return p;
+              return a.name.compareTo(b.name);
+            });
+          yield list;
+        } catch (e, st) {
+          developer.log('Error processing v2 badges snapshot: $e', stackTrace: st);
+          yield <Badge>[];
+        }
+      }
+    } catch (e, st) {
+      developer.log('Error loading v2 badges stream: $e', stackTrace: st);
+      yield <Badge>[];
+    }
+  }
+
+  static List<BadgeDefinitionV2> _getDefaultBadgeDefinitionsV2() {
+    return const [
+      // ===== Goal Mastery =====
+      BadgeDefinitionV2(
+        id: 'v2_goal_starter_1',
+        name: 'Goal Starter',
+        description: 'Create your first goal',
+        iconName: 'emoji_events',
+        category: BadgeCategory.goalMastery,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.goalsCreated, target: 1),
+        sortOrder: 10,
+      ),
+      BadgeDefinitionV2(
+        id: 'v2_goal_builder_5',
+        name: 'Goal Builder',
+        description: 'Create 5 goals',
+        iconName: 'track_changes',
+        category: BadgeCategory.goalMastery,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.goalsCreated, target: 5),
+        sortOrder: 20,
+      ),
+      BadgeDefinitionV2(
+        id: 'v2_goal_finisher_1',
+        name: 'First Finish',
+        description: 'Complete your first goal',
+        iconName: 'check_circle',
+        category: BadgeCategory.goalMastery,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.goalsCompleted, target: 1),
+        sortOrder: 30,
+      ),
+      BadgeDefinitionV2(
+        id: 'v2_goal_master_10',
+        name: 'Goal Master',
+        description: 'Complete 10 goals',
+        iconName: 'workspace_premium',
+        category: BadgeCategory.goalMastery,
+        rarity: BadgeRarity.rare,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.goalsCompleted, target: 10),
+        sortOrder: 40,
+      ),
+
+      // ===== Consistency =====
+      BadgeDefinitionV2(
+        id: 'v2_streak_starter_3',
+        name: 'Streak Starter',
+        description: 'Maintain a 3-day streak',
+        iconName: 'local_fire_department',
+        category: BadgeCategory.consistency,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.currentStreakDays, target: 3),
+        sortOrder: 110,
+      ),
+      BadgeDefinitionV2(
+        id: 'v2_week_warrior_7',
+        name: 'Week Warrior',
+        description: 'Maintain a 7-day streak',
+        iconName: 'local_fire_department',
+        category: BadgeCategory.consistency,
+        rarity: BadgeRarity.rare,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.currentStreakDays, target: 7),
+        sortOrder: 120,
+      ),
+      BadgeDefinitionV2(
+        id: 'v2_month_master_30',
+        name: 'Month Master',
+        description: 'Maintain a 30-day streak',
+        iconName: 'local_fire_department',
+        category: BadgeCategory.consistency,
+        rarity: BadgeRarity.epic,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.currentStreakDays, target: 30),
+        sortOrder: 130,
+      ),
+
+      // ===== Growth =====
+      BadgeDefinitionV2(
+        id: 'v2_growth_points_500',
+        name: 'Growth Momentum',
+        description: 'Reach 500 total points',
+        iconName: 'stars',
+        category: BadgeCategory.growth,
+        rarity: BadgeRarity.rare,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.totalPoints, target: 500),
+        sortOrder: 210,
+      ),
+
+      // ===== Milestones =====
+      BadgeDefinitionV2(
+        id: 'v2_season_joined_1',
+        name: 'Season Starter',
+        description: 'Join your first team season',
+        iconName: 'group_add',
+        category: BadgeCategory.milestones,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(type: BadgeRuleTypeV2.seasonsJoined, target: 1),
+        sortOrder: 310,
+      ),
+
+      // ===== Collaboration =====
+      BadgeDefinitionV2(
+        id: 'v2_collaborator_3',
+        name: 'Collaborator',
+        description: 'Engage in 3 collaboration actions',
+        iconName: 'handshake',
+        category: BadgeCategory.collaboration,
+        rarity: BadgeRarity.common,
+        rule: BadgeRuleV2(
+          type: BadgeRuleTypeV2.collaborationEngagements,
+          target: 3,
+        ),
+        sortOrder: 410,
+      ),
+    ];
+  }
+
+  static Future<void> initializeUserBadgesV2(String userId) async {
+    try {
+      final defs = _getDefaultBadgeDefinitionsV2();
+      final existing = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .get();
+      final existingIds = existing.docs.map((d) => d.id).toSet();
+
+      final batch = _firestore.batch();
+      for (final def in defs) {
+        if (existingIds.contains(def.id)) continue;
+        final ref = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(def.id);
+        batch.set(ref, def.seedBadge().toFirestore(), SetOptions(merge: true));
+      }
+      await batch.commit();
+      await updateUserBadgeSummaryV2(userId);
+    } catch (e) {
+      developer.log('Error initializing v2 badges: $e');
+    }
+  }
+
+  static Future<void> checkAndAwardBadgesV2(String userId) async {
+    try {
+      await initializeUserBadgesV2(userId);
+
+      // Load user profile for points
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final userProfile = UserProfile.fromFirestore(userDoc);
+
+      // Load goals (merge top-level + user subcollection if present)
+      final goalsSnapshot = await _firestore
+          .collection('goals')
+          .where('userId', isEqualTo: userId)
+          .get();
+      List<Goal> goals = goalsSnapshot.docs
+          .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
+          .map((doc) => Goal.fromFirestore(doc))
+          .toList();
+      try {
+        final subSnap = await _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('goals')
+            .get();
+        final subGoals = subSnap.docs
+            .where((doc) => !_isPlaceholderGoalDoc(doc.data(), doc.id))
+            .map((doc) => Goal.fromFirestore(doc))
+            .toList();
+        final seen = goals.map((g) => g.id).toSet();
+        goals.addAll(subGoals.where((g) => !seen.contains(g.id)));
+      } catch (_) {}
+
+      final manualGoals = goals.where((g) => !g.isSeasonGoal).toList();
+      final goalsCreated = manualGoals.length;
+      final goalsCompleted =
+          manualGoals.where((g) => g.status == GoalStatus.completed).length;
+
+      final currentStreak = await StreakService.getCurrentStreak(userId);
+
+      int seasonsJoined = 0;
+      try {
+        final seasonsSnap = await _firestore
+            .collection('seasons')
+            .where('participantIds', arrayContains: userId)
+            .get();
+        seasonsJoined = seasonsSnap.docs.length;
+      } catch (_) {}
+
+      // TODO(v2): wire collaboration engagements to real events once modeled.
+      const collaborationEngagements = 0;
+
+      final stats = BadgeUserStatsV2(
+        goalsCreated: goalsCreated,
+        goalsCompleted: goalsCompleted,
+        currentStreakDays: currentStreak,
+        totalPoints: userProfile.totalPoints,
+        seasonsJoined: seasonsJoined,
+        collaborationEngagements: collaborationEngagements,
+      );
+
+      final defs = _getDefaultBadgeDefinitionsV2();
+      for (final def in defs) {
+        final ref = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .doc(def.id);
+        final snap = await ref.get();
+        if (!snap.exists) continue; // should have been seeded
+        final current = Badge.fromFirestore(snap);
+
+        final newProgress = _engineV2.progressFor(def.rule, stats);
+        final maxProgress = current.maxProgress;
+        final nowEarned = newProgress >= maxProgress;
+
+        // Preserve earnedAt once earned.
+        final wasEarned = current.isEarned;
+        final earnedAt = nowEarned
+            ? (wasEarned ? current.earnedAt : DateTime.now())
+            : null;
+
+        final updated = current.copyWith(
+          progress: newProgress,
+          isEarned: nowEarned,
+          earnedAt: earnedAt,
+        );
+
+        if (updated.progress != current.progress ||
+            updated.isEarned != current.isEarned) {
+          await ref.set(updated.toFirestore(), SetOptions(merge: true));
+
+          if (updated.isEarned && !current.isEarned) {
+            await _createBadgeEarnedAlert(userId, updated);
+          }
+        }
+      }
+
+      await updateUserBadgeSummaryV2(userId);
+    } catch (e) {
+      developer.log('Error checking v2 badges: $e');
+    }
+  }
+
+  static Future<void> updateUserBadgeSummaryV2(String userId) async {
+    try {
+      final badgeSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges')
+          .get();
+
+      final v2Docs = badgeSnapshot.docs.where((d) => isV2BadgeId(d.id)).toList();
+      final earnedBadgeIds = v2Docs
+          .where((doc) => _isBadgeEarned(doc.data()))
+          .map((doc) => doc.id)
+          .toList();
+
+      await _firestore.collection('users').doc(userId).set({
+        'badgesV2': earnedBadgeIds,
+        'badgeV2Summary': {
+          'earned': earnedBadgeIds.length,
+          'total': v2Docs.length,
+          'lastSyncedAt': FieldValue.serverTimestamp(),
+        },
+      }, SetOptions(merge: true));
+    } catch (e) {
+      developer.log('Error syncing v2 badge summary for $userId: $e');
     }
   }
 

@@ -8,6 +8,7 @@ import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
 import 'package:pdh/design_system/app_spacing.dart';
 import 'package:pdh/design_system/sidebar_config.dart';
+import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart';
@@ -259,6 +260,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       // These operations can be slow, so we run them in background after UI loads
       await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
       await BadgeService.checkAndAwardBadges(userId);
+      await BadgeService.checkAndAwardBadgesV2(userId);
 
       // Check for newly earned badges after updates (one-time celebration)
       await _maybeCelebrateNewBadges(userId);
@@ -1037,7 +1039,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     }
 
     return StreamBuilder<List<badge_model.Badge>>(
-      stream: BadgeService.getUserBadgesStream(user.uid).handleError((error) {
+      stream: BadgeService.getUserBadgesV2Stream(user.uid).handleError((error) {
         // Silently handle errors to prevent unmount errors
         developer.log('Error in getUserBadgesStream: $error');
       }),
@@ -1063,117 +1065,171 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           );
         }
 
-        final badges = snapshot.data ?? [];
-        final role = (RoleService.instance.cachedRole ?? '').toLowerCase();
-        final isManager = role == 'manager';
-        final filteredBadges = isManager
-            ? badges
-            : badges.where((b) => !BadgeService.isManagerBadge(b)).toList();
-        // Filter out any placeholder docs like 'init'
-        final visibleBadges = filteredBadges
-            .where((b) => b.id != 'init')
-            .toList();
+        final badges =
+            (snapshot.data ?? const <badge_model.Badge>[])
+                .where((b) => b.id != 'init')
+                .toList();
 
-        if (visibleBadges.isEmpty) {
-          // Initialize a user's badge catalog on first visit if missing
+        if (badges.isEmpty) {
           if (!_attemptedInitBadges) {
             _attemptedInitBadges = true;
-            final u = FirebaseAuth.instance.currentUser;
-            if (u != null) {
-              Future.microtask(() async {
-                try {
-                  await BadgeService.initializeUserBadges(u.uid);
-                  await BadgeService.checkAndAwardBadges(u.uid);
-                } catch (_) {}
-              });
-            }
+            Future.microtask(() async {
+              try {
+                await BadgeService.initializeUserBadgesV2(user.uid);
+                await BadgeService.checkAndAwardBadgesV2(user.uid);
+              } catch (_) {}
+            });
           }
           return _buildEmptyBadgesState();
         }
 
-        // Group badges by rarity in fixed order: Common -> Rare -> Epic -> Legendary
-        final Map<badge_model.BadgeRarity, List<badge_model.Badge>> byRarity = {
-          badge_model.BadgeRarity.common: [],
-          badge_model.BadgeRarity.rare: [],
-          badge_model.BadgeRarity.epic: [],
-          badge_model.BadgeRarity.legendary: [],
-        };
-        for (final b in visibleBadges) {
-          byRarity[b.rarity]?.add(b);
-        }
-
-        // Determine the active rarity based on user's current level
-        final level = userProfile?.level ?? 1;
-        bool isInRange(badge_model.BadgeRarity r) {
-          if (r == badge_model.BadgeRarity.common) {
-            return level >= 1 && level <= 5;
-          }
-          if (r == badge_model.BadgeRarity.rare) {
-            return level >= 6 && level <= 10;
-          }
-          if (r == badge_model.BadgeRarity.epic) {
-            return level >= 11 && level <= 15;
-          }
-          return level >= 16; // legendary
-        }
+        final categories = <_BadgeCategoryMeta>[
+          _BadgeCategoryMeta(
+            category: badge_model.BadgeCategory.goalMastery,
+            title: 'Goal Mastery',
+            subtitle: 'Progress through goal creation and completion',
+            icon: Icons.track_changes,
+          ),
+          _BadgeCategoryMeta(
+            category: badge_model.BadgeCategory.consistency,
+            title: 'Consistency',
+            subtitle: 'Build streaks and momentum',
+            icon: Icons.local_fire_department,
+          ),
+          _BadgeCategoryMeta(
+            category: badge_model.BadgeCategory.growth,
+            title: 'Growth',
+            subtitle: 'Develop through learning and improvement',
+            icon: Icons.trending_up,
+          ),
+          _BadgeCategoryMeta(
+            category: badge_model.BadgeCategory.milestones,
+            title: 'Milestones',
+            subtitle: 'Big moments and major achievements',
+            icon: Icons.emoji_events,
+          ),
+          _BadgeCategoryMeta(
+            category: badge_model.BadgeCategory.collaboration,
+            title: 'Collaboration',
+            subtitle: 'Work with others and contribute',
+            icon: Icons.handshake,
+          ),
+        ];
 
         return Column(
           children: [
-            _buildRarityOvalSection(
-              title: 'Common Goals',
-              subtitle: 'Levels 1–5',
-              rarity: badge_model.BadgeRarity.common,
-              badges: byRarity[badge_model.BadgeRarity.common]!
-                ..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.common),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.common),
-            ),
-            const SizedBox(height: 8),
-            _buildRarityOvalSection(
-              title: 'Rare Goals',
-              subtitle: 'Levels 6–10',
-              rarity: badge_model.BadgeRarity.rare,
-              badges: byRarity[badge_model.BadgeRarity.rare]!
-                ..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.rare),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.rare),
-            ),
-            const SizedBox(height: 8),
-            _buildRarityOvalSection(
-              title: 'Epic Goals',
-              subtitle: 'Levels 11–15',
-              rarity: badge_model.BadgeRarity.epic,
-              badges: byRarity[badge_model.BadgeRarity.epic]!
-                ..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.epic),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.epic),
-            ),
-            const SizedBox(height: 8),
-            _buildRarityOvalSection(
-              title: 'Legendary Goals',
-              subtitle: 'Levels 16+',
-              rarity: badge_model.BadgeRarity.legendary,
-              badges: byRarity[badge_model.BadgeRarity.legendary]!
-                ..sort((a, b) => a.name.compareTo(b.name)),
-              isActive: isInRange(badge_model.BadgeRarity.legendary),
-              onTap: () => _openRarityList(badge_model.BadgeRarity.legendary),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Start completing goals and activities to earn your first badges!',
-              style: AppTypography.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+            for (final meta in categories) ...[
+              _buildCategoryCard(
+                meta: meta,
+                badges: badges.where((b) => b.category == meta.category).toList(),
               ),
-              textAlign: TextAlign.center,
-            ),
+              const SizedBox(height: 10),
+            ],
           ],
         );
       },
     );
   }
 
+  Widget _buildCategoryCard({
+    required _BadgeCategoryMeta meta,
+    required List<badge_model.Badge> badges,
+  }) {
+    final earned = badges.where((b) => b.isEarned).length;
+    final total = badges.length;
+    final progress = total == 0 ? 0.0 : (earned / total).clamp(0.0, 1.0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BadgeCategoryDetailScreen(
+                category: meta.category,
+                title: meta.title,
+                embedded: widget.embedded,
+              ),
+            ),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.activeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: AppColors.activeColor.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  child: Icon(meta.icon, color: AppColors.activeColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        meta.title,
+                        style: AppTypography.heading4.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        meta.subtitle,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  total == 0 ? '0/0' : '$earned/$total',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.activeColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.chevron_right, color: AppColors.activeColor),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+}
+
   // Compact oval section to present a badge rarity group entry point
-  Widget _buildRarityOvalSection({
+  Widget _buildRarityOvalSection({ // ignore: unused_element
     required String title,
     required String subtitle,
     required badge_model.BadgeRarity rarity,
@@ -1316,6 +1372,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
     );
   }
 
+  // ignore: unused_element
   void _openRarityList(badge_model.BadgeRarity rarity) {
     final role = RoleService.instance.cachedRole;
     final isManager = (role ?? '').toLowerCase() == 'manager';
@@ -2339,6 +2396,10 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
         ); // Replaced Icon with Image.asset
       case 'local_fire_department':
         return Icon(Icons.local_fire_department);
+      case 'group_add':
+        return Icon(Icons.group_add);
+      case 'handshake':
+        return Icon(Icons.handshake);
       case 'stars':
         return SizedBox(
           width: 40,
@@ -2478,4 +2539,17 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       ),
     );
   }
+}
+
+class _BadgeCategoryMeta {
+  final badge_model.BadgeCategory category;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  const _BadgeCategoryMeta({
+    required this.category,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
 }
