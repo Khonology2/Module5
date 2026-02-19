@@ -75,6 +75,17 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
     super.dispose();
   }
 
+  /// Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Refresh data when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshCommitData();
+    }
+  }
+
   /// Load commit data from the bundled JSON file
   Future<void> _loadCommitData() async {
     try {
