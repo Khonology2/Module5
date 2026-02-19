@@ -187,7 +187,7 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
             return Transform.scale(
               scale: _scaleAnimation.value,
               child: Text(
-                widget.version,
+                _commitData?.version ?? widget.version,
                 style: TextStyle(
                   fontSize: widget.fontSize,
                   color: _colorAnimation.value,
