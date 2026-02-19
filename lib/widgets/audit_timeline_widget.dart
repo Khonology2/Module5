@@ -15,6 +15,14 @@ class AuditTimelineWidget extends StatelessWidget {
         return Icons.verified_rounded;
       case 'rejection':
         return Icons.cancel_rounded;
+      case 'milestone_created':
+        return Icons.add_circle_rounded;
+      case 'milestone_updated':
+        return Icons.edit_rounded;
+      case 'milestone_status_changed':
+        return Icons.sync_rounded;
+      case 'milestone_deleted':
+        return Icons.delete_rounded;
       default:
         return Icons.update_rounded;
     }
@@ -28,6 +36,14 @@ class AuditTimelineWidget extends StatelessWidget {
         return Colors.green;
       case 'rejection':
         return Colors.redAccent;
+      case 'milestone_created':
+        return Colors.purple;
+      case 'milestone_updated':
+        return Colors.orange;
+      case 'milestone_status_changed':
+        return Colors.teal;
+      case 'milestone_deleted':
+        return Colors.red;
       default:
         return Theme.of(context).colorScheme.secondary;
     }
@@ -56,7 +72,7 @@ class AuditTimelineWidget extends StatelessWidget {
             final icon = _iconForType(event.eventType);
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: color.withValues(alpha:0.15),
+                backgroundColor: color.withValues(alpha: 0.15),
                 child: Icon(icon, color: color),
               ),
               title: Text(event.description),
