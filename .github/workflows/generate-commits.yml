@@ -62,8 +62,14 @@ jobs:
           COMMIT_COUNT=0
         fi
 
-        # Get current version from pubspec.yaml (fallback if not found)
-        VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//' | tr -d ' ' || echo "2026.02.DD1_SIT")
+        # Get current version in YYYY-MM-WD-N.SIT format
+        YEAR=$(date -u +"%Y")
+        MONTH=$(date -u +"%m")
+        WEEK_OF_MONTH=$(date -u +"%V") # Week number of the year
+        WEEK_OF_MONTH_SINGLE=$(echo $WEEK_OF_MONTH | tail -c 2) # Last digit for single character
+        DAY_OF_WEEK=$(date -u +"%u") # 1=Monday, 7=Sunday
+        DAY_LETTER=$(date -u +"%A" | head -c 1) # First letter of weekday (M, T, W, T, F, S, S)
+        VERSION="${YEAR}.${MONTH}.${WEEK_OF_MONTH_SINGLE}${DAY_LETTER}${COMMIT_COUNT}.SIT"
 
         # Create the JSON structure using jq for proper formatting
         jq -n \
