@@ -47,14 +47,40 @@ jobs:
           COMMIT_COUNT=0
         fi
 
-        # Get current version in YYYY-MM-WD-N.SIT format
+        # Get current version in YYYY.MM.WL.DL.COUNT.SIT format
         YEAR=$(date -u +"%Y")
         MONTH=$(date -u +"%m")
-        WEEK_OF_MONTH=$(date -u +"%V") # Week number of the year
-        WEEK_OF_MONTH_SINGLE=$(echo $WEEK_OF_MONTH | tail -c 2) # Last digit for single character
-        DAY_OF_WEEK=$(date -u +"%u") # 1=Monday, 7=Sunday
-        DAY_LETTER=$(date -u +"%A" | head -c 1) # First letter of weekday (M, T, W, T, F, S, S)
-        VERSION="${YEAR}.${MONTH}.${WEEK_OF_MONTH_SINGLE}${DAY_LETTER}${COMMIT_COUNT}.SIT"
+        
+        # Calculate week of month (1-5)
+        FIRST_DAY_OF_MONTH=$(date -u -d "$(date -u +%Y-%m-01)" +"%V")
+        CURRENT_WEEK=$(date -u +"%V")
+        WEEK_OF_MONTH=$((CURRENT_WEEK - FIRST_DAY_OF_MONTH + 1))
+        
+        # Map week number to letter (A=1, B=2, C=3, D=4, E=5)
+        case $WEEK_OF_MONTH in
+          1) WEEK_LETTER="A" ;;
+          2) WEEK_LETTER="B" ;;
+          3) WEEK_LETTER="C" ;;
+          4) WEEK_LETTER="D" ;;
+          5) WEEK_LETTER="E" ;;
+          *) WEEK_LETTER="A" ;; # Fallback
+        esac
+        
+        # Get day of week number (1=Monday, 7=Sunday)
+        DAY_OF_WEEK_NUM=$(date -u +"%u")
+        
+        # Map day number to letter (A=1 Monday, B=2 Tuesday, ..., E=5 Friday)
+        case $DAY_OF_WEEK_NUM in
+          1) DAY_LETTER="A" ;;
+          2) DAY_LETTER="B" ;;
+          3) DAY_LETTER="C" ;;
+          4) DAY_LETTER="D" ;;
+          5) DAY_LETTER="E" ;;
+          6) DAY_LETTER="F" ;; # Saturday
+          7) DAY_LETTER="G" ;; # Sunday
+        esac
+        
+        VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}${DAY_LETTER}${COMMIT_COUNT}.SIT"
 
         # Create the JSON structure using jq for proper formatting
         jq -n \
