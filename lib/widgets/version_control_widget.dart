@@ -101,9 +101,9 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
     // Register app lifecycle observer
     WidgetsBinding.instance.addObserver(this);
 
-    // Setup periodic refresh every 30 seconds
+    // Setup periodic refresh every 5 seconds
     _refreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
+      const Duration(seconds: 5),
       (_) => _refreshCommitData(),
     );
   }
