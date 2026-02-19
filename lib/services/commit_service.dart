@@ -145,7 +145,18 @@ class CommitData {
     buffer.writeln('Daily Commits');
     buffer.writeln();
 
+    // Group commits by author, showing only the latest commit per author
+    final seenAuthors = <String>{};
+    final latestCommits = <CommitInfo>[];
+
     for (final commit in commits) {
+      if (!seenAuthors.contains(commit.author)) {
+        seenAuthors.add(commit.author);
+        latestCommits.add(commit);
+      }
+    }
+
+    for (final commit in latestCommits) {
       buffer.writeln('${commit.author} - ${commit.message}');
       buffer.writeln();
     }
