@@ -140,7 +140,7 @@ class CommitData {
   /// Generate tooltip message for the version control widget
   String getTooltipMessage() {
     final buffer = StringBuffer();
-    buffer.writeln('Daily Commits - $version');
+    buffer.writeln('Daily Commits');
     buffer.writeln();
 
     for (final commit in commits) {
