@@ -5,6 +5,9 @@ on:
     branches: ['*'] # Include ALL branches, including new ones created by developers
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: write # Allow the workflow to push commits back to the repository
+
 jobs:
   generate-commits:
     runs-on: ubuntu-latest
