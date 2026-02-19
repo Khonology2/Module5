@@ -35,9 +35,7 @@ jobs:
             split("\n") |
             map(select(length > 0)) |
             map(split("|") | {author: .[0], message: .[1], timestamp: .[2]}) |
-            map(.author |= (if . == "Nathi" then "Nathi2266" elif . == "Lihle" then "creator745" elif . == "Sipho" then "BhutSipho" else . end)) |
-            group_by(.author) |
-            map(.[0])
+            map(.author |= (if . == "Nathi" then "Nathi2266" elif . == "Lihle" then "creator745" elif . == "Sipho" then "BhutSipho" else . end))
           ')
 
         # Count commits
