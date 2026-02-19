@@ -9,7 +9,7 @@ import 'package:pdh/services/commit_service.dart';
 class VersionControlWidget extends StatefulWidget {
   const VersionControlWidget({
     super.key,
-    this.version = 'Ver. 2026.02.CD1_SIT',
+    this.version = 'Ver. 2026.02.CD1.0.SIT',
     this.fontSize = 12.0,
     this.textColor = Colors.white70,
     this.hoverColor = Colors.white,
@@ -36,7 +36,7 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
   /// Loading state
   bool _isLoading = true;
 
-  /// Timer for periodic data refresh (every 30 minutes)
+  /// Timer for periodic data refresh (every 2 minutes)
   Timer? _refreshTimer;
 
   @override
@@ -75,38 +75,6 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
     super.dispose();
   }
 
-  /// Setup auto-refresh mechanisms
-  void _setupAutoRefresh() {
-    // Register app lifecycle observer
-    WidgetsBinding.instance.addObserver(this);
-
-    // Setup periodic refresh every 30 minutes
-    _refreshTimer = Timer.periodic(
-      const Duration(minutes: 30),
-      (_) => _refreshCommitData(),
-    );
-  }
-
-  /// Refresh commit data from service
-  Future<void> _refreshCommitData() async {
-    try {
-      final commitData = await CommitService.refreshCommitData();
-      if (mounted) {
-        setState(() {
-          _commitData = commitData;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      // Keep existing data if refresh fails
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   /// Handle app lifecycle changes
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -133,6 +101,38 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
       if (mounted) {
         setState(() {
           _commitData = CommitService.getFallbackCommitData();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Setup auto-refresh mechanisms
+  void _setupAutoRefresh() {
+    // Register app lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+
+    // Setup periodic refresh every 5 seconds
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshCommitData(),
+    );
+  }
+
+  /// Refresh commit data from service
+  Future<void> _refreshCommitData() async {
+    try {
+      final commitData = await CommitService.loadCommitData();
+      if (mounted) {
+        setState(() {
+          _commitData = commitData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Keep existing data if refresh fails
+      if (mounted) {
+        setState(() {
           _isLoading = false;
         });
       }

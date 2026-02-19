@@ -47,16 +47,16 @@ class CommitService {
   /// Get fallback commit data when loading fails (public for widget access)
   static CommitData getFallbackCommitData() {
     return CommitData(
-      version: '2026.02.DD1_SIT',
+      version: '2026.02.CD1.0.SIT',
       generatedAt: DateTime.now().toIso8601String(),
       commits: [
         CommitInfo(
           author: 'System',
-          message: 'Commit data temporarily unavailable',
+          message: 'No commits found for today',
           timestamp: DateTime.now().toIso8601String(),
         ),
       ],
-      totalCommits: 1,
+      totalCommits: 0,
       dateRange: DateTime.now().toIso8601String().split('T').first,
     );
   }
