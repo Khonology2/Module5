@@ -1,4 +1,7 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
+import 'package:pdh/services/commit_service.dart';
 
 /// A version control widget that displays the app version with hover animation.
 /// Displays version information at the bottom of screens with smooth hover effects.
@@ -26,6 +29,12 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
   late Animation<double> _scaleAnimation;
   late Animation<Color?> _colorAnimation;
 
+  /// Commit data loaded from bundled JSON
+  CommitData? _commitData;
+
+  /// Loading state
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +55,36 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
             curve: Curves.easeInOut,
           ),
         );
+
+    // Load commit data on initialization
+    _loadCommitData();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  /// Load commit data from the bundled JSON file
+  Future<void> _loadCommitData() async {
+    try {
+      final commitData = await CommitService.loadCommitData();
+      if (mounted) {
+        setState(() {
+          _commitData = commitData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Use fallback data if loading fails
+      if (mounted) {
+        setState(() {
+          _commitData = CommitService.getFallbackCommitData();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _onHover(bool isHovering) {
@@ -64,16 +97,22 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
 
   @override
   Widget build(BuildContext context) {
+    // Generate tooltip message based on loaded commit data
+    String tooltipMessage;
+    if (_isLoading) {
+      tooltipMessage = 'Loading commit data...';
+    } else if (_commitData != null) {
+      tooltipMessage = _commitData!.getTooltipMessage();
+    } else {
+      tooltipMessage = 'Commit data unavailable';
+    }
+
     return MouseRegion(
       onEnter: (_) => _onHover(true),
       onExit: (_) => _onHover(false),
       child: Tooltip(
-        message:
-            'Daily Commits - ${widget.version}\n\n'
-            '1. Nathi - Fix Export Button Functionality on Settings Screen\n\n'
-            '2. Lihle - Sidebar Navigation Order for Improved Information Hierarchy.\n\n'
-            '3. Sipho - Refactor UI Manager Sidebar Icons',
-        textAlign: TextAlign.left,
+        message: tooltipMessage,
+        textAlign: TextAlign.center,
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.symmetric(horizontal: 20),
         decoration: BoxDecoration(
