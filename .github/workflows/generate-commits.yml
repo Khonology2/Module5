@@ -2,7 +2,7 @@ name: Generate Daily Commits
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: ['*'] # Include ALL branches, including new ones created by developers
   workflow_dispatch: # Allow manual trigger
 
 jobs:
