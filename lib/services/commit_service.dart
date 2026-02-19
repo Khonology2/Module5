@@ -47,7 +47,7 @@ class CommitService {
   /// Get fallback commit data when loading fails (public for widget access)
   static CommitData getFallbackCommitData() {
     return CommitData(
-      version: '2026.02.CD1.0.SIT',
+      version: '2026.02.CD1.SIT',
       generatedAt: DateTime.now().toIso8601String(),
       commits: [
         CommitInfo(
