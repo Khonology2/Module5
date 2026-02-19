@@ -439,17 +439,10 @@ service cloud.firestore {
     // Audit entries for tracking system events
     match /audit_entries/{entryId} {
       // Allow reading own audit entries or all if admin/manager
-      allow read: if isSignedIn() && (
-        userId() == resource.data.userId ||
-        isManager() ||
-        isAdmin()
-      );
+      allow read: if isSignedIn();
       
-      // Allow creating audit entries for system events
-      allow create: if isSignedIn() && (
-        // Admin/manager can create audit entries
-        isAdmin() || isManager()
-      );
+      // Allow creating audit entries for any user action
+      allow create: if isSignedIn();
       
       // Only admins can modify audit entries
       allow update, delete: if isAdmin();
@@ -457,6 +450,8 @@ service cloud.firestore {
       // Allow listing for admins and managers
       allow list: if isSignedIn() && (isManager() || isAdmin());
     }
+    
+    // Milestone audit entries now use unified audit_entries collection (no separate rules needed)
     
     match /seasons/{seasonId} {
       allow read: if isSignedIn();
@@ -503,21 +498,6 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn();
-      allow list: if isSignedIn();
-    }
-
-    match /audit_entries/{auditId} {
-      allow read: if isSignedIn() && (
-        userId() == resource.data.userId ||
-        isManager() ||
-        isAdmin()
-      );
-      allow create: if isEmployee() && request.resource.data.userId == userId();
-      allow update, delete: if isManager() || isAdmin();
-
-      match /timeline/{timelineId} {
-        allow read, create, list: if isSignedIn();
-      }
       allow list: if isSignedIn();
     }
 

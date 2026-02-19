@@ -5,6 +5,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/milestone_audit_service.dart';
 import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/alert.dart';
@@ -994,6 +995,30 @@ class DatabaseService {
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
+
+    // Log milestone creation to audit trail
+    try {
+      // Get goal title for audit
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      await MilestoneAuditService.logMilestoneCreation(
+        goalId: goalId,
+        goalTitle: goalTitle,
+        milestoneId: docRef.id,
+        changeReason: 'Milestone created',
+      );
+    } catch (auditError) {
+      developer.log(
+        'Failed to log milestone creation audit: $auditError',
+        name: 'DatabaseService',
+      );
+      // Don't throw - audit logging shouldn't break the main flow
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
@@ -1012,6 +1037,8 @@ class DatabaseService {
   }) async {
     Map<String, dynamic>? goalData;
     bool goalCompleted = false;
+    GoalMilestone? previousMilestone;
+
     try {
       final goalSnap = await FirebaseFirestore.instance
           .collection('goals')
@@ -1033,7 +1060,8 @@ class DatabaseService {
     try {
       final beforeSnap = await docRef.get();
       if (beforeSnap.exists) {
-        previousStatus = GoalMilestone.fromFirestore(beforeSnap).status;
+        previousMilestone = GoalMilestone.fromFirestore(beforeSnap);
+        previousStatus = previousMilestone.status;
       }
     } catch (_) {}
 
@@ -1071,12 +1099,34 @@ class DatabaseService {
         updates['completedAt'] = null;
       }
     }
+
     await docRef.update(updates);
     final afterSnap = await docRef.get();
-    final milestone = GoalMilestone.fromFirestore(afterSnap);
+    final updatedMilestone = GoalMilestone.fromFirestore(afterSnap);
+
+    // Log milestone changes to audit trail
+    if (previousMilestone != null) {
+      try {
+        await MilestoneAuditService.logMilestoneUpdate(
+          goalId: goalId,
+          goalTitle: goalData?['title'] ?? 'Unknown Goal',
+          milestoneId: milestoneId,
+          previousMilestone: previousMilestone,
+          updatedMilestone: updatedMilestone,
+          changeReason: 'Milestone updated via edit form',
+        );
+      } catch (auditError) {
+        developer.log(
+          'Failed to log milestone audit: $auditError',
+          name: 'DatabaseService',
+        );
+        // Don't throw - audit logging shouldn't break the main flow
+      }
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
-      milestone: milestone,
+      milestone: updatedMilestone,
       previousStatus: previousStatus,
     );
   }
