@@ -294,10 +294,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildNotificationSection(effectiveSettings),
                       const SizedBox(height: 24),
                       _buildAppSection(effectiveSettings),
-                      if (isManager) ...[
-                        const SizedBox(height: 24),
-                        _buildManagerSection(effectiveSettings),
-                      ],
                       const SizedBox(height: 24),
                       _buildAccountSection(),
                     ],
@@ -728,91 +724,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildManagerSection(UserSettings? settings) {
-    if (settings == null) return const SizedBox.shrink();
-
-    return _buildSectionCard(
-      title: 'Manager Tools',
-      icon: Icons.admin_panel_settings_outlined,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.download, color: AppColors.activeColor),
-          title: Text(
-            'Export Team Data',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            'Download team performance data',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: AppColors.textMuted,
-            size: 16,
-          ),
-          onTap: _exportTeamData,
-        ),
-        const Divider(color: AppColors.borderColor),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.analytics, color: AppColors.activeColor),
-          title: Text(
-            'Team Analytics',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            'View detailed team performance metrics',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: AppColors.textMuted,
-            size: 16,
-          ),
-          onTap: _viewTeamAnalytics,
-        ),
-      ],
-    );
-  }
-
   Widget _buildAccountSection() {
     return _buildSectionCard(
-      title: 'Account Actions',
+      title: 'Data Management',
       icon: Icons.account_circle_outlined,
       children: [
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
+          child: ElevatedButton.icon(
             onPressed: _exportUserData,
             icon: const Icon(Icons.download),
             label: Text(AppLocalizations.of(context).export_my_data),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFC10D00),
-              side: const BorderSide(color: Color(0xFFC10D00)),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _resetPassword,
-            icon: const Icon(Icons.lock_reset),
-            label: Text(AppLocalizations.of(context).send_password_reset_email),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.activeColor,
-              side: BorderSide(color: AppColors.activeColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC10D00),
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
@@ -1243,40 +1168,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _resetPassword() async {
-    if (!mounted) return;
-
-    String? emailText = FirebaseAuth.instance.currentUser?.email;
-    emailText = emailText?.trim();
-
-    if (emailText == null || emailText.isEmpty) {
-      await _showCenterNotice(
-        context,
-        'We could not determine your account email. Please sign in again and try resetting your password from the sign-in screen.',
-      );
-      return;
-    }
-
-    _showLoadingDialog(context, message: 'Sending password reset email...');
-
-    try {
-      await SettingsService.resetPassword(emailText);
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(
-        context,
-        'If an account exists for $emailText, a password reset email has been sent.',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(
-        context,
-        'Error sending password reset email: $e',
-      );
-    }
-  }
-
   Future<void> _exportUserData() async {
     if (!mounted) return;
 
@@ -1298,7 +1189,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Navigator.of(context, rootNavigator: true).pop(); // Close current dialog
       _showLoadingDialog(context, message: 'Saving PDF...');
 
-      final fileName = 'pdh-export-${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final fileName =
+          'pdh-export-${DateTime.now().millisecondsSinceEpoch}.pdf';
       final pdfBytes = await pdf.save();
 
       // Save or download depending on platform
@@ -1365,7 +1257,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final pdf = pw.Document();
 
     // Load a Unicode-capable font from assets (Poppins is bundled in pubspec.yaml)
-    final fontData = await rootBundle.load('assets/fonts/poppins/Poppins-Regular.ttf');
+    final fontData = await rootBundle.load(
+      'assets/fonts/poppins/Poppins-Regular.ttf',
+    );
     final ttfFont = pw.Font.ttf(fontData);
 
     // Try to load a header and footer logo asset (optional)
@@ -1389,7 +1283,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (url == null) return null;
       try {
         final uri = Uri.parse(url);
-        final resp = await http.get(uri, headers: {'Cache-Control': 'no-cache'}).timeout(const Duration(seconds: 6));
+        final resp = await http
+            .get(uri, headers: {'Cache-Control': 'no-cache'})
+            .timeout(const Duration(seconds: 6));
         if (resp.statusCode == 200) {
           return pw.MemoryImage(resp.bodyBytes);
         }
@@ -1398,8 +1294,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
 
     final profile = data['profile'] as Map<String, dynamic>? ?? {};
-    final goals = (data['goals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
-    final activities = (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? <Map<String, dynamic>>[];
+    final goals =
+        (data['goals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+        <Map<String, dynamic>>[];
+    final activities =
+        (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+        <Map<String, dynamic>>[];
     final badges = (data['badges'] as List<dynamic>?) ?? <dynamic>[];
 
     // Append a cache-busting parameter so recently-updated profile photos are fetched
@@ -1415,7 +1315,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
 
-    final profilePhoto = await loadProfilePhoto(cacheBustedUrl(profile['photoURL']?.toString()));
+    final profilePhoto = await loadProfilePhoto(
+      cacheBustedUrl(profile['photoURL']?.toString()),
+    );
 
     // Compute goals overview stats
     int totalGoals = goals.length;
@@ -1427,7 +1329,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     for (final g in goals) {
       final status = (g['status'] ?? 'unknown').toString();
       byStatus[status] = (byStatus[status] ?? 0) + 1;
-      if (status.toLowerCase() == 'completed' || status.toLowerCase() == 'done') completedGoals++;
+
+      if (status.toLowerCase() == 'completed' ||
+          status.toLowerCase() == 'done') {
+        completedGoals++;
+      }
       final cat = (g['category'] ?? 'Uncategorized').toString();
       byCategory[cat] = (byCategory[cat] ?? 0) + 1;
       final pri = (g['priority'] ?? 'Medium').toString();
@@ -1439,7 +1345,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return pw.Container(
         alignment: pw.Alignment.centerRight,
         margin: const pw.EdgeInsets.only(top: 10),
-        child: pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount} • Generated ${DateTime.now().toIso8601String()}', style: pw.TextStyle(font: ttfFont, fontSize: 8)),
+        child: pw.Text(
+          'Page ${ctx.pageNumber} of ${ctx.pagesCount} • Generated ${DateTime.now().toIso8601String()}',
+          style: pw.TextStyle(font: ttfFont, fontSize: 8),
+        ),
       );
     }
 
@@ -1461,17 +1370,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                if (logoImage != null)
-                  pw.Image(logoImage, width: 80),
+                if (logoImage != null) pw.Image(logoImage, width: 80),
                 pw.Expanded(
                   child: pw.Container(
                     alignment: pw.Alignment.centerRight,
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.end,
                       children: [
-                        pw.Text('Employee Development Report', style: pw.TextStyle(font: ttfFont, fontSize: 20, fontWeight: pw.FontWeight.bold, color: headerColor)),
+                        pw.Text(
+                          'Employee Development Report',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                            color: headerColor,
+                          ),
+                        ),
                         pw.SizedBox(height: 4),
-                        pw.Text('Generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}', style: pw.TextStyle(font: ttfFont, fontSize: 9, color: PdfColors.grey)),
+                        pw.Text(
+                          'Generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 9,
+                            color: PdfColors.grey,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1484,15 +1407,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           widgets.add(pw.Divider(thickness: 1, color: PdfColors.grey300));
 
           // Profile Banner (Hero Box)
-          final profileName = (profile['displayName'] ?? profile['name'] ?? 'Unknown Employee').toString();
+          final profileName =
+              (profile['displayName'] ?? profile['name'] ?? 'Unknown Employee')
+                  .toString();
           final profileEmail = (profile['email'] ?? '').toString();
-          final profileJob = (profile['jobTitle'] ?? profile['title'] ?? '').toString();
+          final profileJob = (profile['jobTitle'] ?? profile['title'] ?? '')
+              .toString();
 
           widgets.add(
             pw.Container(
               width: double.infinity,
               padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFF4F4F4), borderRadius: pw.BorderRadius.circular(6)),
+              decoration: pw.BoxDecoration(
+                color: PdfColor.fromInt(0xFFF4F4F4),
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
@@ -1500,10 +1429,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text(profileName, style: pw.TextStyle(font: ttfFont, fontSize: 18, fontWeight: pw.FontWeight.bold, color: headerColor)),
+                        pw.Text(
+                          profileName,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                            color: headerColor,
+                          ),
+                        ),
                         pw.SizedBox(height: 6),
-                        pw.Text(profileEmail, style: pw.TextStyle(font: ttfFont, fontSize: 10, color: PdfColors.grey700)),
-                        pw.Text(profileJob, style: pw.TextStyle(font: ttfFont, fontSize: 10, color: PdfColors.grey700)),
+                        pw.Text(
+                          profileEmail,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                        pw.Text(
+                          profileJob,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1514,11 +1465,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: pw.BoxDecoration(
                         borderRadius: pw.BorderRadius.circular(6),
                         border: pw.Border.all(color: PdfColors.grey300),
-                        image: pw.DecorationImage(image: profilePhoto, fit: pw.BoxFit.cover),
+                        image: pw.DecorationImage(
+                          image: profilePhoto,
+                          fit: pw.BoxFit.cover,
+                        ),
                       ),
                     )
                   else
-                    pw.Container(width: 64, height: 64, alignment: pw.Alignment.center, child: pw.Text('No photo', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
+                    pw.Container(
+                      width: 64,
+                      height: 64,
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        'No photo',
+                        style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1527,7 +1489,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           widgets.add(pw.SizedBox(height: 12));
 
           // Goals Overview Header
-          widgets.add(pw.Header(level: 1, child: pw.Text('Goals Overview', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold, color: headerColor))));
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Goals Overview',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: headerColor,
+                ),
+              ),
+            ),
+          );
           widgets.add(pw.SizedBox(height: 6));
 
           // Key Metrics Grid: Total Goals / Completed / Points
@@ -1538,19 +1513,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 pw.Expanded(
                   child: pw.Container(
                     padding: const pw.EdgeInsets.all(8),
-                    child: pw.Column(children: [pw.Text(totalGoals.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 20, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 4), pw.Text('Total Goals', style: pw.TextStyle(font: ttfFont, fontSize: 10))]),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          totalGoals.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Total Goals',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 pw.Expanded(
                   child: pw.Container(
                     padding: const pw.EdgeInsets.all(8),
-                    child: pw.Column(children: [pw.Text(completedGoals.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 20, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 4), pw.Text('Completed', style: pw.TextStyle(font: ttfFont, fontSize: 10))]),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          completedGoals.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Completed',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 pw.Expanded(
                   child: pw.Container(
                     padding: const pw.EdgeInsets.all(8),
-                    child: pw.Column(children: [pw.Text(points.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 20, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 4), pw.Text('Points', style: pw.TextStyle(font: ttfFont, fontSize: 10))]),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          points.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Points',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1561,33 +1584,137 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // Goals by category
           if (byCategory.isNotEmpty) {
-            widgets.add(pw.Text('Goals by category:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
-            widgets.add(pw.Column(children: byCategory.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(
+              pw.Text(
+                'Goals by category:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byCategory.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
             widgets.add(pw.SizedBox(height: 6));
           }
 
           // Goals by priority
           if (byPriority.isNotEmpty) {
-            widgets.add(pw.Text('Goals by priority:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
-            widgets.add(pw.Column(children: byPriority.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(
+              pw.Text(
+                'Goals by priority:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byPriority.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
             widgets.add(pw.SizedBox(height: 6));
           }
 
           // Status breakdown
           if (byStatus.isNotEmpty) {
-            widgets.add(pw.Text('Status breakdown:', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
-            widgets.add(pw.Column(children: byStatus.entries.map((e) => pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text(e.key, style: pw.TextStyle(font: ttfFont, fontSize: 10)), pw.Text(e.value.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10))])).toList()));
+            widgets.add(
+              pw.Text(
+                'Status breakdown:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byStatus.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
             widgets.add(pw.SizedBox(height: 6));
           }
 
           widgets.add(pw.SizedBox(height: 8));
 
           // Detailed Goals Section
-          widgets.add(pw.Header(level: 1, child: pw.Text('Detailed Goals', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Detailed Goals',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
           widgets.add(pw.SizedBox(height: 6));
 
           if (goals.isEmpty) {
-            widgets.add(pw.Text('No goals found', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+            widgets.add(
+              pw.Text(
+                'No goals found',
+                style: pw.TextStyle(font: ttfFont, fontSize: 10),
+              ),
+            );
           } else {
             for (final g in goals) {
               final title = g['title'] ?? g['name'] ?? 'Untitled Goal';
@@ -1595,67 +1722,254 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final category = g['category'] ?? 'Uncategorized';
               final priority = g['priority'] ?? 'Medium';
               final status = g['status'] ?? 'Unknown';
-              final progress = (g['progress'] is num) ? (g['progress'] as num).toDouble() : double.tryParse((g['progress'] ?? '0').toString()) ?? 0.0;
-              final target = g['targetDate']?.toString() ?? g['dueDate']?.toString() ?? 'N/A';
+              final progress = (g['progress'] is num)
+                  ? (g['progress'] as num).toDouble()
+                  : double.tryParse((g['progress'] ?? '0').toString()) ?? 0.0;
+              final target =
+                  g['targetDate']?.toString() ??
+                  g['dueDate']?.toString() ??
+                  'N/A';
               final points = g['points']?.toString() ?? '0';
               final approval = g['approvalStatus'] ?? g['approved'] ?? 'N/A';
               final approver = g['approver'] ?? g['approvedBy'] ?? 'N/A';
-              final evidence = (g['evidence'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+              final evidence =
+                  (g['evidence'] as List?)?.map((e) => e.toString()).toList() ??
+                  <String>[];
               final kpa = g['kpa'] ?? 'N/A';
               final created = _formatTimestamp(g['createdAt']);
               final approvedAt = _formatTimestamp(g['approvedAt']);
 
-              widgets.add(pw.Container(padding: const pw.EdgeInsets.symmetric(vertical: 6), decoration: pw.BoxDecoration(border: const pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300))), child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(title.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 4),
-                pw.Text(desc.toString(), style: pw.TextStyle(font: ttfFont, fontSize: 10)),
-                pw.SizedBox(height: 6),
-                pw.Row(children: [
-                  pw.Expanded(child: pw.Text('Category: $category', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                  pw.Expanded(child: pw.Text('Priority: $priority', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                  pw.Expanded(child: pw.Text('Status: $status', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                ]),
-                pw.SizedBox(height: 4),
-                pw.Row(children: [
-                  pw.Expanded(child: pw.Text('Progress: ${progress.toStringAsFixed(0)}%', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                  pw.Expanded(child: pw.Text('Target: $target', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                  pw.Expanded(child: pw.Text('Points: $points', style: pw.TextStyle(font: ttfFont, fontSize: 9))),
-                ]),
-                pw.SizedBox(height: 4),
-                pw.Row(children: [pw.Text('Approval: $approval', style: pw.TextStyle(font: ttfFont, fontSize: 9)), pw.Spacer(), pw.Text('Approver: $approver', style: pw.TextStyle(font: ttfFont, fontSize: 9))]),
-                if (evidence.isNotEmpty) pw.SizedBox(height: 6),
-                if (evidence.isNotEmpty) pw.Text('Evidence:', style: pw.TextStyle(font: ttfFont, fontSize: 9, fontWeight: pw.FontWeight.bold)),
-                if (evidence.isNotEmpty) pw.Column(children: evidence.map((e) => pw.Text('- $e', style: pw.TextStyle(font: ttfFont, fontSize: 9))).toList()),
-                pw.SizedBox(height: 6),
-                pw.Text('KPA: $kpa • Created: $created • Approved: $approvedAt', style: pw.TextStyle(font: ttfFont, fontSize: 8, color: PdfColors.grey700)),
-              ])));
+              widgets.add(
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    border: const pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.grey300),
+                    ),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        title.toString(),
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        desc.toString(),
+                        style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Category: $category',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Priority: $priority',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Status: $status',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Progress: ${progress.toStringAsFixed(0)}%',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Target: $target',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Points: $points',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text(
+                            'Approval: $approval',
+                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                          ),
+                          pw.Spacer(),
+                          pw.Text(
+                            'Approver: $approver',
+                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                          ),
+                        ],
+                      ),
+                      if (evidence.isNotEmpty) pw.SizedBox(height: 6),
+                      if (evidence.isNotEmpty)
+                        pw.Text(
+                          'Evidence:',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      if (evidence.isNotEmpty)
+                        pw.Column(
+                          children: evidence
+                              .map(
+                                (e) => pw.Text(
+                                  '- $e',
+                                  style: pw.TextStyle(
+                                    font: ttfFont,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      pw.SizedBox(height: 6),
+                      pw.Text(
+                        'KPA: $kpa • Created: $created • Approved: $approvedAt',
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 8,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             }
           }
 
           widgets.add(pw.SizedBox(height: 12));
 
           // Activities & Performance
-          widgets.add(pw.Header(level: 1, child: pw.Text('Activities & Performance', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Activities & Performance',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
           widgets.add(pw.SizedBox(height: 6));
 
-          widgets.add(pw.Text('Total activities: ${activities.length}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(
+            pw.Text(
+              'Total activities: ${activities.length}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
           if (activities.isNotEmpty) {
             final recent = activities.take(10).toList();
             widgets.add(pw.SizedBox(height: 6));
-            widgets.add(pw.Text('Recent activity timeline (latest first):', style: pw.TextStyle(font: ttfFont, fontSize: 10, fontWeight: pw.FontWeight.bold)));
-            widgets.add(pw.Column(children: recent.map((a) => pw.Row(children: [pw.Expanded(child: pw.Text(a['description']?.toString() ?? 'No description', style: pw.TextStyle(font: ttfFont, fontSize: 9))), pw.Text(_formatTimestamp(a['createdAt']), style: pw.TextStyle(font: ttfFont, fontSize: 8, color: PdfColors.grey))])).toList()));
+            widgets.add(
+              pw.Text(
+                'Recent activity timeline (latest first):',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: recent
+                    .map(
+                      (a) => pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              a['description']?.toString() ?? 'No description',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Text(
+                            _formatTimestamp(a['createdAt']),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              fontSize: 8,
+                              color: PdfColors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
           }
 
           widgets.add(pw.SizedBox(height: 12));
 
           // Performance Metrics
-          widgets.add(pw.Header(level: 1, child: pw.Text('Performance Metrics', style: pw.TextStyle(font: ttfFont, fontSize: 14, fontWeight: pw.FontWeight.bold))));
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Performance Metrics',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
           widgets.add(pw.SizedBox(height: 6));
-          widgets.add(pw.Text('Points: ${profile['points'] ?? 0}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
-          widgets.add(pw.Text('Current streak: ${profile['currentStreak'] ?? 0}', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+          widgets.add(
+            pw.Text(
+              'Points: ${profile['points'] ?? 0}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Current streak: ${profile['currentStreak'] ?? 0}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
           widgets.add(pw.SizedBox(height: 8));
           if (badges.isNotEmpty) {
-            widgets.add(pw.Text('Badges earned:', style: pw.TextStyle(font: ttfFont, fontSize: 12, fontWeight: pw.FontWeight.bold, color: headerColor)));
+            widgets.add(
+              pw.Text(
+                'Badges earned:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: headerColor,
+                ),
+              ),
+            );
             // Render badges as chips (wrap). Skip badges without an active checkbox.
             final visibleBadges = badges.where((b) {
               try {
@@ -1676,17 +1990,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   spacing: 6,
                   runSpacing: 6,
                   children: visibleBadges.map<pw.Widget>((b) {
-                    final name = (b is Map ? (b['name'] ?? b.toString()) : b).toString();
+                    final name = (b is Map ? (b['name'] ?? b.toString()) : b)
+                        .toString();
                     return pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE6F0FF), borderRadius: pw.BorderRadius.circular(12)),
-                      child: pw.Text(name, style: pw.TextStyle(font: ttfFont, fontSize: 9, color: PdfColor.fromInt(0xFF0B3D91))),
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromInt(0xFFE6F0FF),
+                        borderRadius: pw.BorderRadius.circular(12),
+                      ),
+                      child: pw.Text(
+                        name,
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 9,
+                          color: PdfColor.fromInt(0xFF0B3D91),
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),
               );
             } else {
-              widgets.add(pw.Text('No badges to display.', style: pw.TextStyle(font: ttfFont, fontSize: 10)));
+              widgets.add(
+                pw.Text(
+                  'No badges to display.',
+                  style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                ),
+              );
             }
           }
 
@@ -1697,14 +2030,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (bottomLogoImage != null) {
             widgets.add(
               pw.Center(
-                child: pw.Image(bottomLogoImage, width: 160, height: 36, fit: pw.BoxFit.contain),
+                child: pw.Image(
+                  bottomLogoImage,
+                  width: 160,
+                  height: 36,
+                  fit: pw.BoxFit.contain,
+                ),
               ),
             );
           }
           widgets.add(pw.SizedBox(height: 6));
-          widgets.add(pw.Text('Export generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
-          widgets.add(pw.Text('Data retention: This export contains personal data. Handle securely.', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
-          widgets.add(pw.Text('Support: support@example.com', style: pw.TextStyle(font: ttfFont, fontSize: 8)));
+          widgets.add(
+            pw.Text(
+              'Export generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Data retention: This export contains personal data. Handle securely.',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Support: support@example.com',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
 
           return widgets;
         },
@@ -1715,9 +2068,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ignore: unused_element
-  pw.Widget _buildPdfSection(String section, dynamic data, {required pw.Font font}) {
+  pw.Widget _buildPdfSection(
+    String section,
+    dynamic data, {
+    required pw.Font font,
+  }) {
     if (data == null) {
-      return pw.Text('No data available for this section.', style: pw.TextStyle(font: font, fontSize: 10));
+      return pw.Text(
+        'No data available for this section.',
+        style: pw.TextStyle(font: font, fontSize: 10),
+      );
     }
 
     if (data is Map) {
@@ -1737,10 +2097,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 pw.Text(
                   key.toString().replaceAll('_', ' ').toUpperCase(),
-                  style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 12),
+                  style: pw.TextStyle(
+                    font: font,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
                 pw.SizedBox(height: 4),
-                pw.Text(displayValue, style: pw.TextStyle(font: font, fontSize: 10)),
+                pw.Text(
+                  displayValue,
+                  style: pw.TextStyle(font: font, fontSize: 10),
+                ),
                 pw.Divider(),
               ],
             ),
@@ -1756,7 +2123,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           items.add(
             pw.Text(
               'Item ${i + 1}:',
-              style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold, fontSize: 12),
+              style: pw.TextStyle(
+                font: font,
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           );
           item.forEach((k, v) {
@@ -1795,7 +2166,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return pw.Column(children: items);
     } else {
       final sanitizedValue = _sanitizeValue(data);
-      return pw.Text(sanitizedValue.toString(), style: pw.TextStyle(font: font, fontSize: 10));
+      return pw.Text(
+        sanitizedValue.toString(),
+        style: pw.TextStyle(font: font, fontSize: 10),
+      );
     }
   }
 
@@ -1818,9 +2192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       // Handle Lists
       if (value is List) {
-        return value
-            .map((item) => _sanitizeValue(item))
-            .toList();
+        return value.map((item) => _sanitizeValue(item)).toList();
       }
 
       // Handle Maps
@@ -1880,7 +2252,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (dt == null) return ts.toString();
 
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       final m = months[dt.month - 1];
       return '$m ${dt.day}, ${dt.year}';
     } catch (_) {
@@ -1898,10 +2283,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         dt = DateTime.parse(v);
       } else if (v is int) {
         // seconds vs milliseconds
-        dt = v > 1000000000000 ? DateTime.fromMillisecondsSinceEpoch(v) : DateTime.fromMillisecondsSinceEpoch(v * 1000);
+        dt = v > 1000000000000
+            ? DateTime.fromMillisecondsSinceEpoch(v)
+            : DateTime.fromMillisecondsSinceEpoch(v * 1000);
       } else if (v is Map && v.containsKey('seconds')) {
         final s = v['seconds'];
-        dt = DateTime.fromMillisecondsSinceEpoch((s is int ? s : int.tryParse(s.toString()) ?? 0) * 1000);
+        dt = DateTime.fromMillisecondsSinceEpoch(
+          (s is int ? s : int.tryParse(s.toString()) ?? 0) * 1000,
+        );
       } else {
         return v.toString();
       }
@@ -1911,16 +2300,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (_) {
       return v.toString();
     }
-  }
-
-  Future<void> _exportTeamData() async {
-    // Placeholder for team data export
-    await _showCenterNotice(context, 'Team data export feature coming soon!');
-  }
-
-  Future<void> _viewTeamAnalytics() async {
-    // Placeholder for team analytics
-    await _showCenterNotice(context, 'Team analytics feature coming soon!');
   }
 
   // Dialog helpers

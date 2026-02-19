@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer
+import 'package:pdh/widgets/version_control_widget.dart'; // Import VersionControlWidget
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -32,10 +33,12 @@ class PersonalDevelopmentHubScreen extends StatefulWidget {
   const PersonalDevelopmentHubScreen({super.key});
 
   @override
-  State<PersonalDevelopmentHubScreen> createState() => _PersonalDevelopmentHubScreenState();
+  State<PersonalDevelopmentHubScreen> createState() =>
+      _PersonalDevelopmentHubScreenState();
 }
 
-class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScreen> {
+class _PersonalDevelopmentHubScreenState
+    extends State<PersonalDevelopmentHubScreen> {
   late List<String> inspirationalLines;
   int _currentLineIndex = 0;
   late Timer _timer;
@@ -106,7 +109,10 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
           // Background image
           Positioned.fill(
             child: ColorFiltered(
-              colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.4), BlendMode.darken),
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.4),
+                BlendMode.darken,
+              ),
               child: Image.asset(
                 'assets/khono_bg.png',
                 fit: BoxFit.cover,
@@ -167,9 +173,15 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                         Navigator.pushNamed(context, '/sign_in');
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFC10D00), // Use the new red color
-                        padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                        shape: const StadiumBorder(), // Changed to StadiumBorder
+                        backgroundColor: Color(
+                          0xFFC10D00,
+                        ), // Use the new red color
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 40,
+                          vertical: 15,
+                        ),
+                        shape:
+                            const StadiumBorder(), // Changed to StadiumBorder
                       ),
                       child: const Text(
                         'GET STARTED',
@@ -181,9 +193,17 @@ class _PersonalDevelopmentHubScreenState extends State<PersonalDevelopmentHubScr
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
+          ),
+          // Version Control Widget - Positioned at bottom center
+          Positioned(
+            bottom: 24,
+            left: 0,
+            right: 0,
+            child: const Center(child: VersionControlWidget()),
           ),
         ],
       ),
