@@ -9,7 +9,7 @@ import 'package:pdh/services/commit_service.dart';
 class VersionControlWidget extends StatefulWidget {
   const VersionControlWidget({
     super.key,
-    this.version = 'Ver. 2026.02.CD1.0.SIT',
+    this.version = 'Ver. 2026.02.CD1.SIT',
     this.fontSize = 12.0,
     this.textColor = Colors.white70,
     this.hoverColor = Colors.white,
