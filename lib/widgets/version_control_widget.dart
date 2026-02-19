@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pdh/services/commit_service.dart';
 
@@ -24,7 +25,7 @@ class VersionControlWidget extends StatefulWidget {
 }
 
 class _VersionControlWidgetState extends State<VersionControlWidget>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<Color?> _colorAnimation;
@@ -34,6 +35,9 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
 
   /// Loading state
   bool _isLoading = true;
+
+  /// Timer for periodic data refresh (every 30 minutes)
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -58,12 +62,60 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
 
     // Load commit data on initialization
     _loadCommitData();
+
+    // Setup auto-refresh mechanisms
+    _setupAutoRefresh();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Setup auto-refresh mechanisms
+  void _setupAutoRefresh() {
+    // Register app lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+
+    // Setup periodic refresh every 30 minutes
+    _refreshTimer = Timer.periodic(
+      const Duration(minutes: 30),
+      (_) => _refreshCommitData(),
+    );
+  }
+
+  /// Refresh commit data from service
+  Future<void> _refreshCommitData() async {
+    try {
+      final commitData = await CommitService.refreshCommitData();
+      if (mounted) {
+        setState(() {
+          _commitData = commitData;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Keep existing data if refresh fails
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Refresh data when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      _refreshCommitData();
+    }
   }
 
   /// Load commit data from the bundled JSON file

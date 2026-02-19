@@ -61,9 +61,11 @@ class CommitService {
     );
   }
 
-  /// Clear cached data (useful for testing or force refresh)
-  static void clearCache() {
+  /// Refresh commit data from bundled JSON file (force reload)
+  static Future<CommitData> refreshCommitData() async {
+    // Clear cache to force reload
     _cachedCommitData = null;
+    return loadCommitData();
   }
 }
 
