@@ -35,7 +35,7 @@ jobs:
         )
 
         # Get commits from today only and format as proper JSON array
-        COMMITS_JSON="[
+        COMMITS_JSON="["
         first=true
 
         git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | while IFS='|' read -r author message timestamp; do
