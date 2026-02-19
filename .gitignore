@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated localization files
+lib/generated/
+/lib/l10n/*.dart
+.dart_tool/flutter_gen/gen_l10n/
