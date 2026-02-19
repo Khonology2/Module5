@@ -164,6 +164,7 @@ class _VersionControlWidgetState extends State<VersionControlWidget>
       onExit: (_) => _onHover(false),
       child: Tooltip(
         message: tooltipMessage,
+        preferBelow: false,
         textAlign: TextAlign.center,
         padding: const EdgeInsets.all(16),
         margin: const EdgeInsets.symmetric(horizontal: 20),
