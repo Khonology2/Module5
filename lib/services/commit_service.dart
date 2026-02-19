@@ -151,7 +151,7 @@ class CommitData {
 
     for (final commit in commits) {
       if (!seenAuthors.contains(commit.author) &&
-          commit.message.contains('Feature')) {
+          commit.message.toLowerCase().contains('feature')) {
         seenAuthors.add(commit.author);
         latestCommits.add(commit);
       }
