@@ -2,7 +2,7 @@ name: Generate Daily Commits
 
 on:
   push:
-    branches: [ main, develop, MAIN ]
+    branches: ['*'] # Include ALL branches, including new ones created by developers
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -34,25 +34,24 @@ jobs:
           # Add more mappings as needed
         )
 
-        # Get commits from today only and format as JSON
-        COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'{"author": "%an", "message": "%s", "timestamp": "%aI"}' --no-merges | \
-        # Map git author names to GitHub usernames
-        while IFS= read -r line; do
-          # Extract author from JSON line
-          author=$(echo "$line" | sed -n 's/.*"author": "\([^"]*\)".*/\1/p')
-          
+        # Get commits from today only and format as proper JSON array
+        COMMITS_JSON="["
+        first=true
+
+        git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | while IFS='|' read -r author message timestamp; do
           # Map to GitHub username if exists
           github_username="${AUTHOR_MAP[$author]:-$author}"
-          
-          # Replace author in JSON
-          echo "$line" | sed "s/\"author\": \"$author\"/\"author\": \"$github_username\"/"
-        done | \
-        # Format each commit as JSON object
-        sed 's/}/},/g' | \
-        # Remove trailing comma from last item
-        sed '$ s/,$//' | \
-        # Wrap in array
-        sed '1s/^/[/; $s/$/]/')
+
+          if [ "$first" = true ]; then
+            first=false;
+          else
+            COMMITS_JSON="$COMMITS_JSON,"
+          fi
+
+          # Use jq to properly escape and format JSON
+          COMMITS_JSON="$COMMITS_JSON"$(jq -n --arg author "$github_username" --arg msg "$message" --arg ts "$timestamp" '{author: $author, message: $msg, timestamp: $ts}')
+        done
+        COMMITS_JSON="$COMMITS_JSON]"
 
         # Count commits
         COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
@@ -63,19 +62,29 @@ jobs:
           COMMIT_COUNT=0
         fi
 
-        # Get current version from pubspec.yaml (fallback if not found)
-        VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//' | tr -d ' ' || echo "2026.02.DD1_SIT")
+        # Get current version in YYYY-MM-WD-N.SIT format
+        YEAR=$(date -u +"%Y")
+        MONTH=$(date -u +"%m")
+        WEEK_OF_MONTH=$(date -u +"%V") # Week number of the year
+        WEEK_OF_MONTH_SINGLE=$(echo $WEEK_OF_MONTH | tail -c 2) # Last digit for single character
+        DAY_OF_WEEK=$(date -u +"%u") # 1=Monday, 7=Sunday
+        DAY_LETTER=$(date -u +"%A" | head -c 1) # First letter of weekday (M, T, W, T, F, S, S)
+        VERSION="${YEAR}.${MONTH}.${WEEK_OF_MONTH_SINGLE}${DAY_LETTER}${COMMIT_COUNT}.SIT"
 
-        # Create the JSON structure
-        cat > assets/data/daily-commits.json << EOF
-        {
-          "version": "$VERSION",
-          "generated_at": "$TIMESTAMP",
-          "commits": $COMMITS_JSON,
-          "total_commits": $COMMIT_COUNT,
-          "date_range": "$TODAY"
-        }
-        EOF
+        # Create the JSON structure using jq for proper formatting
+        jq -n \
+          --arg version "$VERSION" \
+          --arg generated_at "$TIMESTAMP" \
+          --argjson commits "$COMMITS_JSON" \
+          --arg total_commits "$COMMIT_COUNT" \
+          --arg date_range "$TODAY" \
+          '{
+            version: $version,
+            generated_at: $generated_at,
+            commits: $commits,
+            total_commits: ($total_commits | tonumber),
+            date_range: $date_range
+          }' > assets/data/daily-commits.json
 
         echo "Generated commit data for $TODAY with $COMMIT_COUNT commits"
 
