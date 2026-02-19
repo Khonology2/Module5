@@ -301,6 +301,7 @@ class StreakService {
 
         // After alerts and points, update badges progress/awards
         await BadgeService.checkAndAwardBadges(userId);
+        await BadgeService.checkAndAwardBadgesV2(userId);
         break;
       }
     }

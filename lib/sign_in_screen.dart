@@ -206,6 +206,7 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           scope: currentRole == 'manager' ? 'manager' : 'employee',
         );
         await BadgeService.checkAndAwardBadges(user.uid);
+        await BadgeService.checkAndAwardBadgesV2(user.uid);
       }
 
       // Only enable tutorial for NEW employees (first time login)
