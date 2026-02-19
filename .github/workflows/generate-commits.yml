@@ -29,32 +29,14 @@ jobs:
         TODAY=$(date -u +"%Y-%m-%d")
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        # Create author mapping (git name -> GitHub username)
-        declare -A AUTHOR_MAP=(
-          ["Nathi"]="Nathi2266"
-          ["Lihle"]="creator745"
-          ["Sipho"]="BhutSipho"
-          # Add more mappings as needed
-        )
-
-        # Get commits from today only and format as proper JSON array
-        COMMITS_JSON="["
-        first=true
-
-        git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | while IFS='|' read -r author message timestamp; do
-          # Map to GitHub username if exists
-          github_username="${AUTHOR_MAP[$author]:-$author}"
-
-          if [ "$first" = true ]; then
-            first=false;
-          else
-            COMMITS_JSON="$COMMITS_JSON,"
-          fi
-
-          # Use jq to properly escape and format JSON
-          COMMITS_JSON="$COMMITS_JSON"$(jq -n --arg author "$github_username" --arg msg "$message" --arg ts "$timestamp" '{author: $author, message: $msg, timestamp: $ts}')
-        done
-        COMMITS_JSON="$COMMITS_JSON]"
+        # Get commits from today only and format as proper JSON array using jq
+        COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
+          jq -R -s '
+            split("\n") |
+            map(select(length > 0)) |
+            map(split("|") | {author: .[0], message: .[1], timestamp: .[2]}) |
+            map(.author |= (if . == "Nathi" then "Nathi2266" elif . == "Lihle" then "creator745" elif . == "Sipho" then "BhutSipho" else . end))
+          ')
 
         # Count commits
         COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
@@ -116,5 +98,6 @@ jobs:
           git config --local user.name "GitHub Action"
           git add assets/data/daily-commits.json
           git commit -m "Update daily commits data [${TODAY}]" || echo "No changes to commit"
+          git pull --rebase origin MAIN || git pull origin MAIN || echo "Pull failed, attempting push anyway"
           git push || echo "Push failed - likely due to no changes or permissions"
         fi
