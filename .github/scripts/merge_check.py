@@ -273,7 +273,7 @@ def main():
     print(f"Current branch: {current_branch}")
     
     # Define target branch
-    target_branch = "MAIN"
+    target_branch = "Nathi-S11"
     print(f"Target branch: {target_branch}")
     
     # Don't run if already on target branch
