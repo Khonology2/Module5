@@ -1,6 +1,6 @@
 {
-  "report_id": "2026-02-20T21:11:50.765909",
-  "generated_at": "2026-02-20T21:11:50.765909",
+  "report_type": "merge_conflict_check",
+  "generated_at": "2026-02-20T21:21:41.451419Z",
   "source_branch": "Conflict-Test",
   "target_branch": "MAIN",
   "status": "conflicts_detected",
@@ -12,25 +12,42 @@
         {
           "start_line": 2,
           "end_line": 8,
-          "code": "<<<<<<< HEAD\n  \"version\": \"2026.02.DE54.SIT\",\n  \"generated_at\": \"2026-02-20T20:45:41Z\",\n=======\n  \"version\": \"2026.02.AD45.SIT\",\n  \"generated_at\": \"2026-02-19T11:44:52Z\",\n>>>>>>> origin/MAIN\n"
+          "lines": [
+            "<<<<<<< HEAD\n",
+            "  \"version\": \"2026.02.DE54.SIT\",\n",
+            "  \"generated_at\": \"2026-02-20T20:45:41Z\",\n",
+            "=======\n",
+            "  \"version\": \"2026.02.AD45.SIT\",\n",
+            "  \"generated_at\": \"2026-02-19T11:44:52Z\",\n",
+            ">>>>>>> origin/MAIN\n"
+          ]
         },
         {
           "start_line": 286,
           "end_line": 292,
-          "code": "<<<<<<< HEAD\n  \"total_commits\": 54,\n  \"date_range\": \"2026-02-20\"\n=======\n  \"total_commits\": 45,\n  \"date_range\": \"2026-02-19\"\n>>>>>>> origin/MAIN\n"
+          "lines": [
+            "<<<<<<< HEAD\n",
+            "  \"total_commits\": 54,\n",
+            "  \"date_range\": \"2026-02-20\"\n",
+            "=======\n",
+            "  \"total_commits\": 45,\n",
+            "  \"date_range\": \"2026-02-19\"\n",
+            ">>>>>>> origin/MAIN\n"
+          ]
         }
       ]
     }
   ],
-  "developer_guidance": {
-    "message": "Resolve highlighted lines",
-    "fix_steps": [
-      "Open file",
-      "Search <<<<<<<",
-      "Edit code",
-      "git add .",
-      "git commit",
-      "git push"
+  "summary": {
+    "message": "Found 1 merge conflict(s) when merging Conflict-Test into MAIN",
+    "action_required": "Please resolve conflicts listed below and push again",
+    "resolution_steps": [
+      "1. Check out your branch: git checkout {current_branch}",
+      "2. Pull latest changes: git pull origin {target_branch}",
+      "3. Resolve conflicts in the files listed above",
+      "4. Stage resolved files: git add <resolved-files>",
+      "5. Commit the merge: git commit",
+      "6. Push your changes: git push origin {current_branch}"
     ]
   }
 }
