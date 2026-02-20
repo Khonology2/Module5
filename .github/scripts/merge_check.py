@@ -175,7 +175,7 @@ def main():
         # Abort the no-commit merge
         abort_merge()
         print("✅ Merge check completed successfully!")
-        sys.exit(0)
+        sys.exit(0) 
 
 if __name__ == "__main__":
     main()
