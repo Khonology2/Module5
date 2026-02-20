@@ -11,6 +11,36 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 
+Color _categoryAccent(badge_model.BadgeCategory category) {
+  switch (category) {
+    case badge_model.BadgeCategory.achievement:
+      return const Color(0xFFB388FF);
+    case badge_model.BadgeCategory.streak:
+      return AppColors.warningColor;
+    case badge_model.BadgeCategory.goals:
+      return AppColors.activeColor;
+    case badge_model.BadgeCategory.collaboration:
+      return const Color(0xFF4DA3FF);
+    case badge_model.BadgeCategory.innovation:
+      return const Color(0xFF2EC4B6);
+    case badge_model.BadgeCategory.leadership:
+      return const Color(0xFFFFB703);
+    case badge_model.BadgeCategory.learning:
+      return AppColors.successColor;
+    case badge_model.BadgeCategory.community:
+      return const Color(0xFFFF5DA2);
+    // ===== v2 category groups (employee-focused) =====
+    case badge_model.BadgeCategory.goalMastery:
+      return AppColors.activeColor;
+    case badge_model.BadgeCategory.consistency:
+      return AppColors.warningColor;
+    case badge_model.BadgeCategory.growth:
+      return AppColors.successColor;
+    case badge_model.BadgeCategory.milestones:
+      return const Color(0xFFFFD700);
+  }
+}
+
 class BadgeCategoryDetailScreen extends StatelessWidget {
   final badge_model.BadgeCategory category;
   final String title;
@@ -26,6 +56,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final accent = _categoryAccent(category);
     return AppScaffold(
       title: title,
       showAppBar: false,
@@ -62,6 +93,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                 padding: AppSpacing.screenPadding,
                 children: [
                   _BackToBadgesButton(
+                    accentColor: accent,
                     onPressed: () {
                       final nav = Navigator.of(context);
                       if (nav.canPop()) {
@@ -72,7 +104,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  _Header(title: title),
+                  _Header(title: title, accentColor: accent),
                   const SizedBox(height: AppSpacing.lg),
                   if (user == null)
                     _EmptyState(
@@ -145,7 +177,11 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
 
 class _BackToBadgesButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const _BackToBadgesButton({required this.onPressed});
+  final Color accentColor;
+  const _BackToBadgesButton({
+    required this.onPressed,
+    required this.accentColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,13 +197,13 @@ class _BackToBadgesButton extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.activeColor, width: 2),
+              border: Border.all(color: accentColor, width: 2),
               color: Colors.black.withValues(alpha: 0.10),
             ),
-            child: const Center(
+            child: Center(
               child: Icon(
                 Icons.arrow_back,
-                color: AppColors.activeColor,
+                color: accentColor,
                 size: 20,
               ),
             ),
@@ -180,7 +216,8 @@ class _BackToBadgesButton extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final String title;
-  const _Header({required this.title});
+  final Color accentColor;
+  const _Header({required this.title, required this.accentColor});
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +230,7 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.category, color: AppColors.activeColor),
+          Icon(Icons.category, color: accentColor),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
