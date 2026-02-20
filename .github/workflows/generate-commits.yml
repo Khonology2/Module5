@@ -29,8 +29,18 @@ jobs:
         TODAY=$(date -u +"%Y-%m-%d")
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+        # Initialize previous commits as empty array
+        PREVIOUS_COMMITS="[]"
+        
+        # Read existing daily-commits.json if it exists and has commits
+        if [ -f "assets/data/daily-commits.json" ]; then
+          if command -v jq &> /dev/null && jq -e '.commits | length > 0' assets/data/daily-commits.json &>/dev/null; then
+            PREVIOUS_COMMITS=$(jq '.commits' assets/data/daily-commits.json)
+          fi
+        fi
+
         # Get commits from today only and format as proper JSON array using jq
-        COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
+        TODAY_COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
           jq -R -s '
             split("\n") |
             map(select(length > 0)) |
@@ -38,14 +48,24 @@ jobs:
             map(.author |= (if . == "Nathi" then "Nathi2266" elif . == "Lihle" then "creator745" elif . == "Sipho" then "BhutSipho" else . end))
           ')
 
-        # Count commits
-        COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
+        # Count today's commits
+        TODAY_COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
 
-        # If no commits today, create empty array
-        if [ "$COMMIT_COUNT" -eq 0 ]; then
-          COMMITS_JSON="[]"
-          COMMIT_COUNT=0
-        fi
+        # Merge today's commits with previous commits
+        # Keep previous commits for authors who didn't push today, replace with today's commit for those who did
+        MERGED_COMMITS=$(jq -n \
+          --argjson previous "$PREVIOUS_COMMITS" \
+          --argjson today "$TODAY_COMMITS_JSON" \
+          '
+          # Create a map of today'\''s commits by author
+          def today_authors: $today | map(.author) | unique;
+          
+          # Filter out previous commits for authors who pushed today, then add today'\''s commits
+          ($previous | map(select(.author as $a | today_authors | index($a) | not))) + $today
+          ')
+
+        # Count total commits (merged)
+        TOTAL_COMMIT_COUNT=$(echo "$MERGED_COMMITS" | jq 'length')
 
         # Calculate week of month based on calendar weeks (Monday-Sunday)
         # Find the first Monday of the month
@@ -91,14 +111,14 @@ jobs:
           7) DAY_LETTER="G" ;; # Sunday
         esac
         
-        VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}${DAY_LETTER}${COMMIT_COUNT}.SIT"
+        VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}${DAY_LETTER}${TOTAL_COMMIT_COUNT}.SIT"
 
         # Create the JSON structure using jq for proper formatting
         jq -n \
           --arg version "$VERSION" \
           --arg generated_at "$TIMESTAMP" \
-          --argjson commits "$COMMITS_JSON" \
-          --arg total_commits "$COMMIT_COUNT" \
+          --argjson commits "$MERGED_COMMITS" \
+          --arg total_commits "$TOTAL_COMMIT_COUNT" \
           --arg date_range "$TODAY" \
           '{
             version: $version,
@@ -108,7 +128,7 @@ jobs:
             date_range: $date_range
           }' > assets/data/daily-commits.json
 
-        echo "Generated commit data for $TODAY with $COMMIT_COUNT commits"
+        echo "Generated merged commit data for $TODAY with $TOTAL_COMMIT_COUNT total commits ($TODAY_COMMIT_COUNT from today)"
 
     - name: Verify JSON is valid
       run: |
