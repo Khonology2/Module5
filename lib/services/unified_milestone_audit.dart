@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:developer' as developer;
+import 'dart:async';
 
 /// Unified Milestone Audit Service - tracks milestones using same system as goals
 class UnifiedMilestoneAudit {
@@ -129,9 +130,12 @@ class UnifiedMilestoneAudit {
   /// Get milestone audit entries for a goal (same pattern as existing goal audit)
   static Stream<List<Map<String, dynamic>>> getMilestoneAuditStream(
     String goalId,
-  ) {
+  ) async* {
     try {
-      return _firestore
+      // Add delay to prevent rapid-fire queries that cause assertions
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final stream = _firestore
           .collection('audit_entries')
           .where('goalId', isEqualTo: goalId)
           .where(
@@ -143,23 +147,34 @@ class UnifiedMilestoneAudit {
             ],
           )
           .orderBy('timestamp', descending: true)
-          .snapshots()
-          .map((snapshot) {
-            return snapshot.docs.map((doc) {
-              final data = doc.data();
-              return {'id': doc.id, ...data};
-            }).toList();
-          });
+          .limit(50) // Limit to prevent large result sets
+          .snapshots();
+
+      await for (final snapshot in stream) {
+        try {
+          final audits = snapshot.docs
+              .map((doc) => {'id': doc.id, ...doc.data()})
+              .toList();
+          yield audits;
+        } catch (e) {
+          developer.log('Error processing audit snapshot: $e');
+          yield []; // Fallback to empty list
+        }
+      }
     } catch (e) {
-      developer.log('Error getting milestone audit stream: $e');
-      return Stream.value([]);
+      developer.log('Error in getMilestoneAuditStream: $e');
+      yield []; // Fallback to empty list
     }
   }
 
   /// Get all milestone audit entries (for managers)
-  static Stream<List<Map<String, dynamic>>> getAllMilestoneAuditStream() {
+  static Stream<List<Map<String, dynamic>>>
+  getAllMilestoneAuditStream() async* {
     try {
-      return _firestore
+      // Add delay to prevent rapid-fire queries that cause assertions
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final stream = _firestore
           .collection('audit_entries')
           .where(
             'action',
@@ -170,17 +185,23 @@ class UnifiedMilestoneAudit {
             ],
           )
           .orderBy('timestamp', descending: true)
-          .limit(100)
-          .snapshots()
-          .map((snapshot) {
-            return snapshot.docs.map((doc) {
-              final data = doc.data();
-              return {'id': doc.id, ...data};
-            }).toList();
-          });
+          .limit(100) // Limit to prevent large result sets
+          .snapshots();
+
+      await for (final snapshot in stream) {
+        try {
+          final audits = snapshot.docs
+              .map((doc) => {'id': doc.id, ...doc.data()})
+              .toList();
+          yield audits;
+        } catch (e) {
+          developer.log('Error processing all audit snapshot: $e');
+          yield []; // Fallback to empty list
+        }
+      }
     } catch (e) {
-      developer.log('Error getting all milestone audit stream: $e');
-      return Stream.value([]);
+      developer.log('Error in getAllMilestoneAuditStream: $e');
+      yield []; // Fallback to empty list
     }
   }
 
@@ -191,7 +212,19 @@ class UnifiedMilestoneAudit {
     }
 
     try {
-      final goalsSnapshot = await _firestore.collection('goals').get();
+      final user = _auth.currentUser;
+      if (user == null) {
+        if (kDebugMode) {
+          print('User not authenticated for backfill');
+        }
+        return;
+      }
+
+      // Only get user's own goals to prevent permission errors
+      final goalsSnapshot = await _firestore
+          .collection('goals')
+          .where('userId', isEqualTo: user.uid)
+          .get();
 
       int totalMilestones = 0;
       int auditEntriesCreated = 0;
