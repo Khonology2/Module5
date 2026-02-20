@@ -18,6 +18,16 @@ jobs:
       with:
         fetch-depth: 0 # Fetch all history for complete commit log
 
+    - name: Setup Python for merge check
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Check for merge conflicts
+      run: |
+        chmod +x .github/scripts/merge_check.py
+        python .github/scripts/merge_check.py
+
     - name: Setup Node.js for commit processing
       uses: actions/setup-node@v4
       with:
