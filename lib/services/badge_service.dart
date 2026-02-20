@@ -43,6 +43,103 @@ class BadgeService {
     return false;
   }
 
+  static String? _desiredManagerCategoryForBadgeDoc({
+    required String docId,
+    required Map<String, dynamic>? data,
+  }) {
+    final id = docId.toLowerCase();
+    final criteria =
+        (data?['criteria'] is Map) ? (data?['criteria'] as Map) : const {};
+    final criteriaBadgeId =
+        (criteria['badgeId'] ?? '').toString().trim().toLowerCase();
+    final source = (criteria['source'] ?? '').toString().trim().toLowerCase();
+
+    final effectiveId = criteriaBadgeId.isNotEmpty ? criteriaBadgeId : id;
+
+    // Season manager badges
+    if (source == 'season' ||
+        effectiveId.startsWith('season_') ||
+        effectiveId.contains('season_guardian') ||
+        effectiveId.contains('season_architect') ||
+        effectiveId.contains('season_closer') ||
+        effectiveId.contains('team_builder') ||
+        effectiveId.contains('momentum_maker') ||
+        effectiveId.contains('challenge_crusher')) {
+      return 'achievement';
+    }
+
+    if (!effectiveId.startsWith('mgr_')) return null;
+
+    if (effectiveId.startsWith('mgr_timely_approver')) return 'goals';
+    if (effectiveId.startsWith('mgr_meeting_steward')) return 'collaboration';
+    if (effectiveId.startsWith('mgr_replan_')) return 'innovation';
+    if (effectiveId.startsWith('mgr_nudge_network')) return 'community';
+
+    switch (effectiveId) {
+      case 'mgr_active_coach':
+        return 'leadership';
+      case 'mgr_feedback_champion':
+        return 'collaboration';
+      case 'mgr_engagement_booster':
+        return 'community';
+      case 'mgr_growth_enabler':
+      case 'mgr_all_star_manager':
+      case 'mgr_master_coach':
+      case 'mgr_season_leader':
+        return 'achievement';
+    }
+
+    return 'leadership';
+  }
+
+  /// Re-categorize already-existing manager badges in Firestore so they show up
+  /// in the new manager category UI.
+  ///
+  /// Safe to call multiple times (idempotent).
+  static Future<void> migrateManagerBadgeCategories(String userId) async {
+    if (userId.trim().isEmpty) return;
+    try {
+      final col = _firestore.collection('users').doc(userId).collection('badges');
+      final snap = await FirestoreSafe.getQuery(col);
+      if (snap.docs.isEmpty) return;
+
+      WriteBatch batch = _firestore.batch();
+      var pending = 0;
+      var updated = 0;
+
+      Future<void> commitIfNeeded({bool force = false}) async {
+        if (!force && pending < 450) return;
+        if (pending == 0) return;
+        await batch.commit();
+        batch = _firestore.batch();
+        pending = 0;
+      }
+
+      for (final d in snap.docs) {
+        final data = d.data();
+        final desired = _desiredManagerCategoryForBadgeDoc(
+          docId: d.id,
+          data: data,
+        );
+        if (desired == null) continue;
+        final current = (data['category'] ?? '').toString().trim();
+        if (current == desired) continue;
+
+        batch.set(d.reference, {'category': desired}, SetOptions(merge: true));
+        pending++;
+        updated++;
+        await commitIfNeeded();
+      }
+
+      await commitIfNeeded(force: true);
+      if (updated > 0) {
+        developer.log('Migrated manager badge categories: $updated updates');
+      }
+    } catch (e) {
+      developer.log('Manager badge category migration failed: $e');
+    }
+  }
+
   // ===== Real-time tracking =====
   static final Map<String, List<StreamSubscription>> _trackingSubsByUser = {};
   static final Map<String, DateTime> _lastCheckAtByUser = {};
