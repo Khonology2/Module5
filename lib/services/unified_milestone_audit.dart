@@ -167,35 +167,47 @@ class UnifiedMilestoneAudit {
     }
   }
 
-  /// Get all milestone audit entries (for managers)
+  /// Get all milestone audit entries (for current user's goals only)
   static Stream<List<Map<String, dynamic>>>
   getAllMilestoneAuditStream() async* {
     try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        yield [];
+        return;
+      }
+
       // Add delay to prevent rapid-fire queries that cause assertions
       await Future.delayed(const Duration(milliseconds: 100));
 
+      // Most basic query - get all audit entries and filter client-side
+      // This avoids any permission issues with complex queries
       final stream = _firestore
           .collection('audit_entries')
-          .where(
-            'action',
-            whereIn: [
-              'milestone_created',
-              'milestone_updated',
-              'milestone_status_changed',
-            ],
-          )
           .orderBy('timestamp', descending: true)
-          .limit(100) // Limit to prevent large result sets
+          .limit(50) // Smaller limit to prevent overwhelming
           .snapshots();
 
       await for (final snapshot in stream) {
         try {
           final audits = snapshot.docs
               .map((doc) => {'id': doc.id, ...doc.data()})
+              .where((audit) {
+                // Client-side filtering for user's own milestone actions
+                final action = audit['action'] as String? ?? '';
+                final userId = audit['userId'] as String? ?? '';
+
+                return [
+                      'milestone_created',
+                      'milestone_updated',
+                      'milestone_status_changed',
+                    ].contains(action) &&
+                    userId == user.uid;
+              })
               .toList();
           yield audits;
         } catch (e) {
-          developer.log('Error processing all audit snapshot: $e');
+          developer.log('Error processing audit snapshot: $e');
           yield []; // Fallback to empty list
         }
       }
