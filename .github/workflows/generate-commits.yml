@@ -47,14 +47,25 @@ jobs:
           COMMIT_COUNT=0
         fi
 
-        # Get current version in YYYY.MM.WL.DL.COUNT.SIT format
+        # Calculate week of month based on calendar weeks (Monday-Sunday)
+        # Find the first Monday of the month
         YEAR=$(date -u +"%Y")
         MONTH=$(date -u +"%m")
+        DAY=$(date -u +"%d")
         
-        # Calculate week of month (1-5)
-        FIRST_DAY_OF_MONTH=$(date -u -d "$(date -u +%Y-%m-01)" +"%V")
-        CURRENT_WEEK=$(date -u +"%V")
-        WEEK_OF_MONTH=$((CURRENT_WEEK - FIRST_DAY_OF_MONTH + 1))
+        # Get the weekday of the 1st of the month (1=Monday, 7=Sunday)
+        FIRST_DAY_WEEKDAY=$(date -u -d "${YEAR}-${MONTH}-01" +"%u")
+        
+        # Calculate offset to get to the previous Monday
+        # If 1st is Monday (1), offset = 0
+        # If 1st is Tuesday (2), offset = 1, etc.
+        OFFSET_TO_MONDAY=$(((FIRST_DAY_WEEKDAY - 1) % 7))
+        
+        # Calculate days since the first Monday of the month
+        DAYS_SINCE_FIRST_MONDAY=$((DAY + OFFSET_TO_MONDAY - 1))
+        
+        # Calculate week number (1-based)
+        WEEK_OF_MONTH=$(((DAYS_SINCE_FIRST_MONDAY / 7) + 1))
         
         # Map week number to letter (A=1, B=2, C=3, D=4, E=5)
         case $WEEK_OF_MONTH in
