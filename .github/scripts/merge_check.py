@@ -124,18 +124,37 @@ def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_
 
 def save_conflict_report(report: Dict[str, Any]):
     """Save the conflict report to assets/data/merge-conflicts.json"""
-    os.makedirs('assets/data', exist_ok=True)
-    filepath = 'assets/data/merge-conflicts.json'
-    
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(report, f, indent=2, ensure_ascii=False)
-    
-    print(f"Conflict report saved to {filepath}")
-    
-    # Stage the file for commit
-    result = run_command(['git', 'add', filepath])
-    if result.returncode != 0:
-        print(f"Warning: Could not stage conflict report: {result.stderr}")
+    try:
+        os.makedirs('assets/data', exist_ok=True)
+        filepath = 'assets/data/merge-conflicts.json'
+        
+        print(f"DEBUG: Saving conflict report to {filepath}")
+        print(f"DEBUG: Report status: {report.get('status', 'unknown')}")
+        print(f"DEBUG: Total conflicts: {report.get('total_conflicts', 0)}")
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Conflict report saved to {filepath}")
+        
+        # Verify file was written
+        if os.path.exists(filepath):
+            print(f"DEBUG: File exists and size: {os.path.getsize(filepath)} bytes")
+        else:
+            print(f"ERROR: File was not created at {filepath}")
+        
+        # Stage the file for commit
+        print("DEBUG: Staging file for commit")
+        result = run_command(['git', 'add', filepath])
+        if result.returncode != 0:
+            print(f"Warning: Could not stage conflict report: {result.stderr}")
+        else:
+            print("✅ File staged successfully")
+            
+    except Exception as e:
+        print(f"ERROR: Failed to save conflict report: {e}")
+        import traceback
+        traceback.print_exc()
 
 def main():
     """Main function to perform merge conflict check."""
