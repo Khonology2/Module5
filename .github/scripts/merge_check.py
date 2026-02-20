@@ -143,14 +143,8 @@ def save_conflict_report(report: Dict[str, Any]):
         else:
             print(f"ERROR: File was not created at {filepath}")
         
-        # Stage the file for commit
-        print("DEBUG: Staging file for commit")
-        result = run_command(['git', 'add', filepath])
-        if result.returncode != 0:
-            print(f"Warning: Could not stage conflict report: {result.stderr}")
-        else:
-            print("✅ File staged successfully")
-            
+        # Note: File is saved but not staged - workflow will handle staging
+        
     except Exception as e:
         print(f"ERROR: Failed to save conflict report: {e}")
         import traceback
