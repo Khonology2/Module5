@@ -11,7 +11,6 @@ import 'package:pdh/widgets/app_scaffold.dart';
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/models/alert.dart';
-import 'package:pdh/services/manager_level_service.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/services/badge_celebration_service.dart';
@@ -20,6 +19,7 @@ import 'package:pdh/services/season_service.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
 import 'package:pdh/widgets/badge_celebration_dialog.dart';
+import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
 
 class ManagerBadgesPointsScreen extends StatefulWidget {
   final bool embedded;
@@ -51,6 +51,11 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     // Ensure season-earned points/badges are synced into the manager profile before rendering.
     Future.microtask(() => SeasonService.syncCurrentManagerSeasonPoints());
     Future.microtask(() => SeasonService.syncCurrentManagerSeasonBadges());
+    Future.microtask(() async {
+      final user = _auth.currentUser;
+      if (user == null) return;
+      await BadgeService.migrateManagerBadgeCategories(user.uid);
+    });
     Future.microtask(_startBadgeCelebrationListener);
   }
 
@@ -93,6 +98,23 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         return AppColors.warningColor;
       case badge_model.BadgeRarity.legendary:
         return const Color(0xFFFFD700);
+    }
+  }
+
+  static Color _categoryAccent(badge_model.BadgeCategory category) {
+    switch (category) {
+      case badge_model.BadgeCategory.leadership:
+        return const Color(0xFFFFB703);
+      case badge_model.BadgeCategory.collaboration:
+        return const Color(0xFF4DA3FF);
+      case badge_model.BadgeCategory.innovation:
+        return const Color(0xFF2EC4B6);
+      case badge_model.BadgeCategory.community:
+        return const Color(0xFFFF5DA2);
+      case badge_model.BadgeCategory.achievement:
+        return const Color(0xFFFFD700);
+      default:
+        return AppColors.activeColor;
     }
   }
 
@@ -215,79 +237,43 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  // Helper method to infer manager level from a badge
-  static int? _inferManagerLevel(badge_model.Badge b) {
-    final ml = b.criteria['managerLevel'];
-    if (ml is int) return ml;
-    if (ml is num) return ml.round();
-
-    // Check if it's a season badge
-    final source = b.criteria['source'];
-    if (source == 'season' || b.id.startsWith('season_')) {
-      // Extract the base season badge ID (e.g., 'season_guardian_abc123' -> 'season_guardian')
-      final baseId = b.id.split('_').take(2).join('_');
-      switch (baseId) {
-        case 'season_guardian':
-          return 2; // Level 2: Supporting team by extending seasons
-        case 'season_architect':
-          return 3; // Level 3: Creating growth opportunities
-        case 'season_closer':
-          return 4; // Level 4: Strategic leadership in completing seasons
-        default:
-          return 4; // Default season badges to Level 4
-      }
-    }
-
-    // Fallback based on known manager badge IDs
-    switch (b.id) {
-      case 'mgr_timely_approver_1':
-        return 2;
-      case 'mgr_timely_approver_2':
-        return 3;
-      case 'mgr_meeting_steward_1':
-        return 3;
-      case 'mgr_meeting_steward_2':
-        return 4;
-      case 'mgr_replan_closer_2':
-        return 4;
-      case 'mgr_active_coach':
-        return 1;
-      case 'mgr_feedback_champion':
-      case 'mgr_growth_enabler':
-        return 2;
-      case 'mgr_all_star_manager':
-      case 'mgr_engagement_booster':
-      case 'mgr_replan_hero':
-        return 3;
-      case 'mgr_season_leader':
-        return 4;
-      case 'mgr_master_coach':
-        return 5;
-    }
-    return null;
-  }
-
-  // ===== Manager grouped badges (levels 1-5) =====
-  Widget _buildManagerGroupedBadges(_ManagerMetrics m, int totalPoints) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          'Please sign in to view badges',
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
-    }
-
-    final currentLevel = ManagerLevelService.getInfoForPoints(
-      totalPoints,
-    ).level;
+  Widget _buildManagerBadgeCategories(String userId) {
+    final categories = <_ManagerCategoryMeta>[
+      _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.leadership,
+        title: 'Leadership',
+        subtitle: 'Coaching, guidance, and leading by example',
+        icon: Icons.verified,
+      ),
+      _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.collaboration,
+        title: 'Collaboration',
+        subtitle: '1:1s, feedback, and building team rhythm',
+        icon: Icons.groups,
+      ),
+      _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.innovation,
+        title: 'Innovation',
+        subtitle: 'Unlock progress through smart replans and improvements',
+        icon: Icons.build,
+      ),
+      _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.community,
+        title: 'Community',
+        subtitle: 'Engage and re-activate your team consistently',
+        icon: Icons.diversity_3,
+      ),
+      _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.achievement,
+        title: 'Achievements',
+        subtitle: 'Big milestones across points and seasons',
+        icon: Icons.emoji_events,
+      ),
+    ];
 
     return StreamBuilder<List<badge_model.Badge>>(
-      stream: BadgeService.getUserBadgesStream(user.uid),
+      stream: BadgeService.getUserBadgesStream(userId),
+      initialData: const [],
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -297,126 +283,110 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
           );
         }
 
-        final allBadges = (snapshot.data ?? <badge_model.Badge>[])
-          ..removeWhere((b) => b.id == 'init');
+        final allBadges = (snapshot.data ?? const <badge_model.Badge>[])
+            .where((b) => b.id != 'init')
+            .where(BadgeService.isManagerBadge)
+            .toList();
 
-        List<badge_model.Badge> forLevel(int lvl) =>
-            allBadges.where((b) {
-              final inferred = _inferManagerLevel(b);
-              return inferred == lvl;
-            }).toList()..sort((a, b) {
-              // Sort season badges first, then by name
-              final aIsSeason =
-                  a.criteria['source'] == 'season' ||
-                  a.id.startsWith('season_');
-              final bIsSeason =
-                  b.criteria['source'] == 'season' ||
-                  b.id.startsWith('season_');
-              if (aIsSeason != bIsSeason) return aIsSeason ? -1 : 1;
-              return a.name.compareTo(b.name);
-            });
+        if (allBadges.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.emoji_events_outlined,
+                  size: 56,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No manager badges yet',
+                  style: AppTypography.heading4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Start acknowledging goals and supporting your team to earn badges.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
 
         return Column(
           children: [
-            _buildLevelOvalSection(
-              level: 1,
-              title: 'Level 1 · Starter Coach',
-              subtitle: 'Initial coaching and acknowledgements',
-              badges: forLevel(1),
-              isActive: currentLevel == 1,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(
-              level: 2,
-              title: 'Level 2 · Active Coach',
-              subtitle: 'Consistent feedback & check-ins',
-              badges: forLevel(2),
-              isActive: currentLevel == 2,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(
-              level: 3,
-              title: 'Level 3 · Growth Enabler',
-              subtitle: 'Team motivation, replans & engagement',
-              badges: forLevel(3),
-              isActive: currentLevel == 3,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(
-              level: 4,
-              title: 'Level 4 · Strategic Mentor',
-              subtitle: 'Growth Seasons leadership',
-              badges: forLevel(4),
-              isActive: currentLevel == 4,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _buildLevelOvalSection(
-              level: 5,
-              title: 'Level 5 · Master Coach',
-              subtitle: 'Elite mentoring & results',
-              badges: forLevel(5),
-              isActive: currentLevel >= 5,
-            ),
+            for (final meta in categories) ...[
+              _buildCategoryCard(
+                meta: meta,
+                badges: allBadges
+                    .where((b) => b.category == meta.category)
+                    .toList(),
+              ),
+              const SizedBox(height: 10),
+            ],
           ],
         );
       },
     );
   }
 
-  Widget _buildLevelOvalSection({
-    required int level,
-    required String title,
-    required String subtitle,
+  Widget _buildCategoryCard({
+    required _ManagerCategoryMeta meta,
     required List<badge_model.Badge> badges,
-    bool isActive = false,
   }) {
-    final baseColor = isActive
-        ? AppColors.activeColor
-        : AppColors.textSecondary;
-    final earnedCount = badges.where((b) => b.isEarned).length;
+    final earned = badges.where((b) => b.isEarned).length;
     final total = badges.length;
+    final progress = total == 0 ? 0.0 : (earned / total).clamp(0.0, 1.0);
+    final accent = _categoryAccent(meta.category);
 
-    final double lift = isActive ? 4 : 0;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+    return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: isActive ? 2 : 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isActive ? 0.25 : 0.15),
-            blurRadius: isActive ? 16 : 12,
-            offset: Offset(0, 4 - lift),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
       ),
-      transform: Matrix4.translationValues(0, -lift, 0),
       child: InkWell(
-        borderRadius: BorderRadius.circular(32),
-        onTap: () => _openLevelBadges(level: level, title: title),
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ManagerBadgeCategoryDetailScreen(
+                category: meta.category,
+                title: meta.title,
+                embedded: widget.embedded,
+              ),
+            ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: baseColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: baseColor.withValues(alpha: 0.6)),
+                    color: accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: accent.withValues(alpha: 0.6)),
                   ),
-                  child: const Icon(
-                    Icons.workspace_premium,
-                    color: Colors.white,
-                  ),
+                  child: Icon(meta.icon, color: accent),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -424,14 +394,14 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        meta.title,
                         style: AppTypography.heading4.copyWith(
                           color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        subtitle,
+                        meta.subtitle,
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -440,397 +410,29 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   ),
                 ),
                 Text(
-                  total == 0 ? '0/0' : '$earnedCount/$total',
+                  total == 0 ? '0/0' : '$earned/$total',
                   style: AppTypography.bodySmall.copyWith(
-                    color: baseColor,
-                    fontWeight: FontWeight.w600,
+                    color: accent,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(Icons.chevron_right, color: baseColor),
+                Icon(Icons.chevron_right, color: accent),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              total == 0
-                  ? 'No badges available in this level'
-                  : 'Tap to view all badges in this level',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  void _openLevelBadges({required int level, required String title}) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      builder: (ctx) {
-        final user = FirebaseAuth.instance.currentUser;
-        return FutureBuilder<void>(
-          future: () async {
-            if (user != null) {
-              await ManagerBadgeEvaluator.evaluate(user.uid);
-            }
-          }(),
-          builder: (context, snap) {
-            return Dialog(
-              backgroundColor: Colors.black.withValues(alpha: 0.85),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  width: 1,
-                ),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final maxHeight = (MediaQuery.of(ctx).size.height * 0.8)
-                      .clamp(360.0, 800.0);
-                  return SizedBox(
-                    width: 520,
-                    height: maxHeight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.max,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.3),
-                                  ),
-                                ),
-                                child: Icon(
-                                  Icons.workspace_premium,
-                                  color: AppColors.activeColor,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: AppTypography.heading4.copyWith(
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () => Navigator.pop(ctx),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          if (user == null)
-                            Expanded(
-                              child: Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 24,
-                                  ),
-                                  child: Text(
-                                    'Please sign in to view badges',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            )
-                          else
-                            Expanded(
-                              child: StreamBuilder<List<badge_model.Badge>>(
-                                stream: BadgeService.getUserBadgesStream(
-                                  user.uid,
-                                ),
-                                builder: (context, snapshot) {
-                                  final all =
-                                      (snapshot.data ??
-                                            const <badge_model.Badge>[])
-                                        ..removeWhere((b) => b.id == 'init');
-
-                                  final badges =
-                                      all.where((b) {
-                                        final inferred = _inferManagerLevel(b);
-                                        return inferred == level;
-                                      }).toList()..sort((a, b) {
-                                        // Sort season badges first, then by name
-                                        final aIsSeason =
-                                            a.criteria['source'] == 'season' ||
-                                            a.id.startsWith('season_');
-                                        final bIsSeason =
-                                            b.criteria['source'] == 'season' ||
-                                            b.id.startsWith('season_');
-                                        if (aIsSeason != bIsSeason) {
-                                          return aIsSeason ? -1 : 1;
-                                        }
-                                        return a.name.compareTo(b.name);
-                                      });
-
-                                  if (snapshot.connectionState ==
-                                          ConnectionState.waiting &&
-                                      badges.isEmpty) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              AppColors.activeColor,
-                                            ),
-                                      ),
-                                    );
-                                  }
-
-                                  final earnedCount = badges
-                                      .where((b) => b.isEarned)
-                                      .length;
-                                  final total = badges.length;
-                                  final progress = total == 0
-                                      ? 0.0
-                                      : (earnedCount / total).clamp(0.0, 1.0);
-
-                                  return SizedBox.expand(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.max,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Progress',
-                                          style: AppTypography.bodyMedium
-                                              .copyWith(
-                                                color: AppColors.textPrimary,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          child: LinearProgressIndicator(
-                                            value: progress,
-                                            minHeight: 6,
-                                            backgroundColor: Colors.white
-                                                .withValues(alpha: 0.15),
-                                            valueColor:
-                                                const AlwaysStoppedAnimation<
-                                                  Color
-                                                >(AppColors.activeColor),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              '$earnedCount / $total badges',
-                                              style: AppTypography.bodySmall
-                                                  .copyWith(
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                            ),
-                                            Text(
-                                              '${(progress * 100).toStringAsFixed(0)}%',
-                                              style: AppTypography.bodySmall
-                                                  .copyWith(
-                                                    color:
-                                                        AppColors.activeColor,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'Badges in this level',
-                                          style: AppTypography.bodyMedium
-                                              .copyWith(
-                                                color: AppColors.textPrimary,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Expanded(
-                                          child: badges.isEmpty
-                                              ? Center(
-                                                  child: Text(
-                                                    'No badges in this level yet',
-                                                    style: AppTypography
-                                                        .bodyMedium
-                                                        .copyWith(
-                                                          color: AppColors
-                                                              .textSecondary,
-                                                        ),
-                                                  ),
-                                                )
-                                              : ListView.separated(
-                                                  itemCount: badges.length,
-                                                  separatorBuilder: (_, _) =>
-                                                      const SizedBox(height: 8),
-                                                  itemBuilder: (context, i) {
-                                                    final b = badges[i];
-                                                    final earned = b.isEarned;
-                                                    return Container(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            12,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.black
-                                                            .withValues(
-                                                              alpha: 0.6,
-                                                            ),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
-                                                        border: Border.all(
-                                                          color: Colors.white
-                                                              .withValues(
-                                                                alpha: earned
-                                                                    ? 0.3
-                                                                    : 0.2,
-                                                              ),
-                                                          width: earned ? 2 : 1,
-                                                        ),
-                                                      ),
-                                                      child: Row(
-                                                        children: [
-                                                          Container(
-                                                            width: 40,
-                                                            height: 40,
-                                                            decoration: BoxDecoration(
-                                                              color: Colors
-                                                                  .black
-                                                                  .withValues(
-                                                                    alpha: 0.4,
-                                                                  ),
-                                                              borderRadius:
-                                                                  BorderRadius.circular(
-                                                                    20,
-                                                                  ),
-                                                              border: Border.all(
-                                                                color: Colors
-                                                                    .white
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.3,
-                                                                    ),
-                                                              ),
-                                                            ),
-                                                            child: Icon(
-                                                              Icons
-                                                                  .workspace_premium,
-                                                              color: AppColors
-                                                                  .activeColor,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 12,
-                                                          ),
-                                                          Expanded(
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                Text(
-                                                                  b.name,
-                                                                  style: AppTypography
-                                                                      .bodyLarge
-                                                                      .copyWith(
-                                                                        color: AppColors
-                                                                            .textPrimary,
-                                                                        fontWeight:
-                                                                            FontWeight.w600,
-                                                                      ),
-                                                                ),
-                                                                const SizedBox(
-                                                                  height: 2,
-                                                                ),
-                                                                Text(
-                                                                  b.description,
-                                                                  style: AppTypography
-                                                                      .bodySmall
-                                                                      .copyWith(
-                                                                        color: AppColors
-                                                                            .textSecondary,
-                                                                      ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          if (earned)
-                                                            const Icon(
-                                                              Icons
-                                                                  .check_circle,
-                                                              color: AppColors
-                                                                  .successColor,
-                                                            )
-                                                          else
-                                                            const Icon(
-                                                              Icons
-                                                                  .lock_outline,
-                                                              color: AppColors
-                                                                  .textSecondary,
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          child: TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            child: const Text(
-                                              'Close',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
@@ -905,8 +507,6 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   );
                 }
 
-                final m = snapshot.data!;
-
                 return RefreshIndicator(
                   onRefresh: () async {
                     await ManagerBadgeEvaluator.evaluate(manager.uid);
@@ -917,10 +517,10 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
                   child: ListView(
                     padding: AppSpacing.screenPadding,
                     children: [
-                      _buildPointsCard(m, totalPoints: totalPoints),
+                      _buildPointsCard(totalPoints: totalPoints),
                       const SizedBox(height: AppSpacing.xl),
                       _buildSectionHeader('Your Badges'),
-                      _buildManagerGroupedBadges(m, totalPoints),
+                      _buildManagerBadgeCategories(manager.uid),
                       const SizedBox(height: AppSpacing.xl),
                     ],
                   ),
@@ -943,152 +543,49 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     );
   }
 
-  Widget _buildPointsCard(_ManagerMetrics m, {required int totalPoints}) {
+  Widget _buildPointsCard({required int totalPoints}) {
     final points = totalPoints;
-    final info = ManagerLevelService.getInfoForPoints(points);
-    // Determine next level threshold and remaining points
-    int? nextThreshold;
-    int nextLevel = info.level;
-    if (points < 500) {
-      nextThreshold = 500; // to Level 2
-      nextLevel = 2;
-    } else if (points < 1000) {
-      nextThreshold = 1000; // to Level 3
-      nextLevel = 3;
-    } else if (points < 2000) {
-      nextThreshold = 2000; // to Level 4
-      nextLevel = 4;
-    } else if (points < 3500) {
-      nextThreshold = 3500; // to Level 5
-      nextLevel = 5;
-    } else {
-      nextThreshold = null; // max level reached
-    }
-    final remaining = nextThreshold != null
-        ? (nextThreshold - points).clamp(0, nextThreshold)
-        : 0;
-    final progressToNext = nextThreshold != null
-        ? (points -
-                  (nextLevel == 2
-                      ? 0
-                      : (nextLevel == 3
-                            ? 500
-                            : (nextLevel == 4 ? 1000 : 2000)))) /
-              (nextThreshold -
-                  (nextLevel == 2
-                      ? 0
-                      : (nextLevel == 3
-                            ? 500
-                            : (nextLevel == 4 ? 1000 : 2000))))
-        : 1.0;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.activeColor,
-            const Color(0xFF8B0000),
-            const Color(0xFF2D1B1B),
-            const Color(0xFF1A1A1A),
-          ],
-          stops: const [0.0, 0.3, 0.7, 1.0],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.black.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: AppColors.activeColor.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$points',
-                    style: AppTypography.heading1.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$points',
+                  style: AppTypography.heading1.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
                   ),
-                  Text(
-                    'Total Points',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary.withValues(alpha: 0.8),
-                    ),
+                ),
+                Text(
+                  'Total Points',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textPrimary.withValues(alpha: 0.8),
                   ),
-                  const SizedBox(height: 6),
-                  if (nextThreshold != null)
-                    Text(
-                      '$remaining to Level $nextLevel',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textPrimary.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    )
-                  else
-                    Text(
-                      'Max level reached',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    children: [
-                      Text(info.theme, style: const TextStyle(fontSize: 18)),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Level ${info.level}',
-                        style: AppTypography.heading4.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    info.title,
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Progress to next level
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progressToNext.clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: Colors.white.withValues(alpha: 0.15),
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            info.description,
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textPrimary.withValues(alpha: 0.85),
-            ),
+          const SizedBox(width: 16),
+          const Icon(
+            Icons.stars,
+            color: AppColors.textPrimary,
+            size: 40,
           ),
         ],
       ),
@@ -1320,5 +817,18 @@ class _RecentManagerAction {
     required this.type,
     required this.title,
     required this.timeLabel,
+  });
+}
+
+class _ManagerCategoryMeta {
+  final badge_model.BadgeCategory category;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  const _ManagerCategoryMeta({
+    required this.category,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
   });
 }
