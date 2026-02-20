@@ -165,13 +165,13 @@ def main():
     print(f"Attempting merge from {current_branch} to {dev_main_branch}...")
     result = run_command(['git', 'merge', '--no-commit', '--no-ff', f'origin/{dev_main_branch}'])
     
-    if result.returncode != 0:
+    # Check for conflicts regardless of merge result
+    conflicted_files = get_conflicted_files()
+    
+    if result.returncode != 0 and not conflicted_files:
         print(f"Merge failed: {result.stderr}")
         abort_merge()
         sys.exit(1)
-    
-    # Check for conflicts
-    conflicted_files = get_conflicted_files()
     
     if conflicted_files:
         print("\n" + "="*80)
