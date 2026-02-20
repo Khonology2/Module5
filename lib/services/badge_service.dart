@@ -2310,8 +2310,13 @@ class BadgeService {
         'message': 'Congratulations! You earned the "${badge.name}" badge.',
         'actionText': 'View Badge',
         'actionRoute': '/badges_points',
+        'actionData': {
+          'badgeId': badge.id,
+          'badgeCategory': badge.category.name,
+        },
         'createdAt': FieldValue.serverTimestamp(),
         'badgeId': badge.id,
+        'badgeCategory': badge.category.name,
         'badgeRarity': badge.rarity.name,
         'isRead': false,
         'isDismissed': false,

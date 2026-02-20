@@ -41,30 +41,179 @@ Color _categoryAccent(badge_model.BadgeCategory category) {
   }
 }
 
-class BadgeCategoryDetailScreen extends StatelessWidget {
+class BadgeCategoryDetailScreen extends StatefulWidget {
   final badge_model.BadgeCategory category;
   final String title;
   final bool embedded;
+  final String? initialBadgeId;
 
   const BadgeCategoryDetailScreen({
     super.key,
     required this.category,
     required this.title,
     this.embedded = false,
+    this.initialBadgeId,
   });
+
+  @override
+  State<BadgeCategoryDetailScreen> createState() =>
+      _BadgeCategoryDetailScreenState();
+}
+
+class _BadgeCategoryDetailScreenState extends State<BadgeCategoryDetailScreen> {
+  bool _didAutoOpen = false;
+
+  Color _rarityColor(badge_model.BadgeRarity r) {
+    switch (r) {
+      case badge_model.BadgeRarity.common:
+        return AppColors.textSecondary;
+      case badge_model.BadgeRarity.rare:
+        return AppColors.activeColor;
+      case badge_model.BadgeRarity.epic:
+        return AppColors.warningColor;
+      case badge_model.BadgeRarity.legendary:
+        return const Color(0xFFFFD700);
+    }
+  }
+
+  void _maybeAutoOpenBadge(List<badge_model.Badge> list) {
+    if (_didAutoOpen) return;
+    final targetId = widget.initialBadgeId?.trim();
+    if (targetId == null || targetId.isEmpty) return;
+
+    badge_model.Badge? target;
+    for (final b in list) {
+      if (b.id == targetId) {
+        target = b;
+        break;
+      }
+      final criteriaId = (b.criteria['badgeId'] ?? '').toString().trim();
+      if (criteriaId.isNotEmpty && criteriaId == targetId) {
+        target = b;
+        break;
+      }
+    }
+    if (target == null) return;
+
+    _didAutoOpen = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showBadgeDetail(target!, _rarityColor(target.rarity));
+    });
+  }
+
+  void _showBadgeDetail(
+    badge_model.Badge badge,
+    Color accent,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.elevatedBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.workspace_premium, color: accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                badge.name,
+                style: AppTypography.heading4.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                badge.rarity.name.toUpperCase(),
+                style: AppTypography.bodySmall.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              badge.description,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (badge.isEarned)
+              Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle,
+                    color: AppColors.successColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Earned',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.successColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              Text(
+                'Progress: ${badge.progress}/${badge.maxProgress}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: badge.progressPercentage,
+                  minHeight: 8,
+                  backgroundColor: AppColors.borderColor,
+                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: AppColors.activeColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final accent = _categoryAccent(category);
+    final accent = _categoryAccent(widget.category);
     return AppScaffold(
-      title: title,
+      title: widget.title,
       showAppBar: false,
-      embedded: embedded,
+      embedded: widget.embedded,
       items: SidebarConfig.employeeItems,
       currentRouteName: '/badges_points',
       onNavigate: (route) {
-        if (embedded) return;
+        if (widget.embedded) return;
         final current = ModalRoute.of(context)?.settings.name;
         if (current != route) Navigator.pushNamed(context, route);
       },
@@ -104,7 +253,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                     },
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  _Header(title: title, accentColor: accent),
+                  _Header(title: widget.title, accentColor: accent),
                   const SizedBox(height: AppSpacing.lg),
                   if (user == null)
                     _EmptyState(
@@ -126,7 +275,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                             .where((b) => b.id != 'init')
                             .toList();
                         final list = all
-                          .where((b) => b.category == category)
+                          .where((b) => b.category == widget.category)
                           .toList()
                           ..sort((a, b) {
                             if (a.isEarned != b.isEarned) {
@@ -162,6 +311,7 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                           );
                         }
 
+                        _maybeAutoOpenBadge(list);
                         return _BadgeGrid(badges: list);
                       },
                     ),

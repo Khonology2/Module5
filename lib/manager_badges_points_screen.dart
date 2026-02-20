@@ -246,6 +246,12 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         icon: Icons.verified,
       ),
       _ManagerCategoryMeta(
+        category: badge_model.BadgeCategory.goals,
+        title: 'Goals',
+        subtitle: 'Fast approvals and supporting goal progress',
+        icon: Icons.flag,
+      ),
+      _ManagerCategoryMeta(
         category: badge_model.BadgeCategory.collaboration,
         title: 'Collaboration',
         subtitle: '1:1s, feedback, and building team rhythm',
