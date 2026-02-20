@@ -101,6 +101,21 @@ class Alert {
   factory Alert.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final rawActionData = data['actionData'];
+    final actionData = rawActionData is Map
+        ? Map<String, dynamic>.from(rawActionData)
+        : <String, dynamic>{};
+
+    // Backwards-compatible: older badge-earned alerts store badge fields at the
+    // top level (not in actionData). Merge them in so UIs can deep-link.
+    final topBadgeId = data['badgeId'];
+    if (topBadgeId != null && actionData['badgeId'] == null) {
+      actionData['badgeId'] = topBadgeId.toString();
+    }
+    final topBadgeCategory = data['badgeCategory'];
+    if (topBadgeCategory != null && actionData['badgeCategory'] == null) {
+      actionData['badgeCategory'] = topBadgeCategory.toString();
+    }
+
     return Alert(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -113,9 +128,7 @@ class Alert {
       message: data['message'] ?? '',
       actionText: data['actionText'],
       actionRoute: data['actionRoute'],
-      actionData: rawActionData is Map
-          ? Map<String, dynamic>.from(rawActionData)
-          : null,
+      actionData: actionData.isEmpty ? null : actionData,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isRead: data['isRead'] ?? false,
       isDismissed: data['isDismissed'] ?? false,
