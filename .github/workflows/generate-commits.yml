@@ -23,6 +23,11 @@ jobs:
       with:
         python-version: '3.9'
 
+    - name: Set up Git user
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
     - name: Check for merge conflicts
       run: |
         # Skip merge check for MAIN branch (it's the target)
