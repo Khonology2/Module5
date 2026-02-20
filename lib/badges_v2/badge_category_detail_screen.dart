@@ -8,6 +8,7 @@ import 'package:pdh/design_system/sidebar_config.dart';
 import 'package:pdh/models/badge.dart' as badge_model;
 import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/badge_service.dart';
+import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 
 class BadgeCategoryDetailScreen extends StatelessWidget {
@@ -83,6 +84,12 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                       stream: BadgeService.getUserBadgesV2Stream(user.uid),
                       initialData: const [],
                       builder: (context, snap) {
+                        if (FirestoreWebCircuitBreaker.isBroken) {
+                          return _FirestoreBrokenState(
+                            onReload: FirestoreWebCircuitBreaker.forceReload,
+                          );
+                        }
+
                         final all = (snap.data ?? const <badge_model.Badge>[])
                             .where((b) => b.id != 'init')
                             .toList();
@@ -227,6 +234,70 @@ class _EmptyState extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FirestoreBrokenState extends StatelessWidget {
+  final VoidCallback onReload;
+  const _FirestoreBrokenState({required this.onReload});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.cloud_off_outlined,
+            size: 56,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Badges are temporarily unavailable',
+            style: AppTypography.heading4.copyWith(
+              color: AppColors.textPrimary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'We hit a Firestore web connection issue. Reloading the page fixes it.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed: onReload,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.activeColor,
+                side: const BorderSide(color: AppColors.activeColor, width: 2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+              ),
+              icon: const Icon(Icons.refresh),
+              label: Text(
+                'Reload',
+                style: AppTypography.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
         ],
       ),
