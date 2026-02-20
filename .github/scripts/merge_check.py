@@ -271,10 +271,11 @@ def main():
     # Get current branch
     current_branch = get_current_branch()
     print(f"Current branch: {current_branch}")
-    
+    ################Target Branch Configuration##############################################################################################################################
     # Define target branch
     target_branch = "Nathi-S11"
     print(f"Target branch: {target_branch}")
+    ##############################################################################################################################################################
     
     # Don't run if already on target branch
     if current_branch == target_branch:
