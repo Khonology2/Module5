@@ -42,8 +42,8 @@ jobs:
 
     - name: Commit conflict report (if any)
       run: |
-        # Check if there are changes to commit (the conflict report)
-        if git diff --quiet assets/data/merge-conflicts.json; then
+        # Check if there are staged changes to commit (the conflict report)
+        if git diff --cached --quiet assets/data/merge-conflicts.json; then
           echo "No conflict report changes to commit"
         else
           echo "Committing conflict report"
