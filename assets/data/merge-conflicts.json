@@ -1,0 +1,14 @@
+{
+  "report_type": "merge_conflict_check",
+  "generated_at": "2026-02-20T21:15:30.000Z",
+  "source_branch": "initial",
+  "target_branch": "MAIN",
+  "status": "no_conflicts",
+  "total_conflicts": 0,
+  "conflicts": [],
+  "summary": {
+    "message": "No merge conflicts detected",
+    "action_required": "No action required",
+    "resolution_steps": []
+  }
+}
