@@ -117,25 +117,7 @@ def main():
         print(f"Error fetching changes: {result.stderr}")
         sys.exit(1)
     
-    # Ensure dev-main branch is up to date
-    print(f"Updating {dev_main_branch} branch...")
-    result = run_command(['git', 'checkout', dev_main_branch])
-    if result.returncode != 0:
-        print(f"Error checking out {dev_main_branch}: {result.stderr}")
-        sys.exit(1)
-    
-    result = run_command(['git', 'pull', 'origin', dev_main_branch])
-    if result.returncode != 0:
-        print(f"Error pulling {dev_main_branch}: {result.stderr}")
-        sys.exit(1)
-    
-    # Switch back to current branch
-    result = run_command(['git', 'checkout', current_branch])
-    if result.returncode != 0:
-        print(f"Error checking out {current_branch}: {result.stderr}")
-        sys.exit(1)
-    
-    # Attempt no-commit merge
+    # Attempt no-commit merge using remote branches (avoid local branch switching)
     print(f"Attempting merge from {current_branch} to {dev_main_branch}...")
     result = run_command(['git', 'merge', '--no-commit', '--no-ff', f'origin/{dev_main_branch}'])
     
@@ -180,7 +162,7 @@ def main():
         print("\n5. Complete the merge:")
         print("   git commit")
         print("\n6. Push your changes:")
-        print("   git push origin {current_branch}")
+        print(f"   git push origin {current_branch}")
         print("\n7. After fixing conflicts, push again to trigger this check.")
         print("="*80)
         
