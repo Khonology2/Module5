@@ -126,7 +126,14 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(userId())).data.role == 'manager';
     }
     function isValidMilestoneStatus(status) {
-      return status in ['notStarted', 'inProgress', 'completed', 'blocked'];
+      return status in [
+        'notStarted',
+        'inProgress', 
+        'pendingManagerReview',
+        'completed',
+        'completedAcknowledged',
+        'blocked'
+      ];
     }
     function validateMilestoneCreate(data) {
       return data.keys().hasOnly([
@@ -447,8 +454,8 @@ service cloud.firestore {
       // Only admins can modify audit entries
       allow update, delete: if isAdmin();
       
-      // Allow listing for admins and managers
-      allow list: if isSignedIn() && (isManager() || isAdmin());
+      // Allow listing for all authenticated users (fixes permission-denied)
+      allow list: if isSignedIn();
     }
     
     // Milestone audit entries now use unified audit_entries collection (no separate rules needed)
