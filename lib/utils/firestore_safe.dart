@@ -114,7 +114,21 @@ class FirestoreSafe {
           controller.add,
           onError: (error, stack) {
             _hookError(error);
-            // Swallow the error to avoid UI stack traces.
+            // Swallow errors to avoid UI stack traces, but ensure we don't leave
+            // widgets stuck in ConnectionState.waiting forever.
+            //
+            // Firestore Web internal assertion failures are unrecoverable without
+            // a full reload; stop the stream so StreamBuilder can render a
+            // fallback state (and our circuit breaker can prompt reload).
+            if (_isInternalUnexpectedState(error)) {
+              try {
+                sub?.cancel();
+              } catch (_) {}
+              sub = null;
+              try {
+                controller.close();
+              } catch (_) {}
+            }
           },
           onDone: controller.close,
         );
