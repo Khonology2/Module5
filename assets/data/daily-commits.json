@@ -1,13 +1,78 @@
 {
-  "version": "2026.02.AE1.SIT",
-  "generated_at": "2026-02-20T11:30:19Z",
+  "version": "2026.02.AE14.SIT",
+  "generated_at": "2026-02-20T14:10:08Z",
   "commits": [
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T12:48:06Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Enhance Alerts and Badges Integration: Implement badge navigation from alerts, add badge category detail screens for both employees and managers, and ensure backward compatibility for badge data in alerts. This update improves user experience by allowing direct access to badge details from alerts and streamlines badge categorization across the application.",
+      "timestamp": "2026-02-20T14:47:13+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T12:10:18Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Enhance ManagerBadgesPointsScreen: Integrate new badge category detail screen, implement badge category migration logic, and update badge categorization for improved user experience and consistency across the application.",
+      "timestamp": "2026-02-20T14:09:24+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T11:30:19Z"
+    },
     {
       "author": "BhutSipho",
       "message": "Milestone Audit Trail - Permission Denied Resolution",
       "timestamp": "2026-02-20T13:29:26+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T10:03:49Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Refactor BadgePointsScreen: Remove level-up animation logic and related state management for a cleaner implementation. Update BadgeCategoryDetailScreen: Introduce category-specific accent colors for improved UI consistency.",
+      "timestamp": "2026-02-20T12:02:29+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T08:43:07Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Add Firestore connection error handling to BadgeCategoryDetailScreen, including a user-friendly fallback state and reload option.",
+      "timestamp": "2026-02-20T10:42:24+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T08:36:17Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Refactor BadgeGrid layout to be responsive based on screen width, adjusting grid item count and aspect ratio for improved display on various devices.",
+      "timestamp": "2026-02-20T10:35:20+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T08:05:05Z"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature - Add back navigation button to Badge Category Detail screen for improved user experience.",
+      "timestamp": "2026-02-20T10:03:43+02:00"
     }
   ],
-  "total_commits": 1,
+  "total_commits": 14,
   "date_range": "2026-02-20"
 }
