@@ -25,8 +25,13 @@ jobs:
 
     - name: Check for merge conflicts
       run: |
-        chmod +x .github/scripts/merge_check.py
-        python .github/scripts/merge_check.py
+        # Skip merge check for MAIN branch (it's the target)
+        if [[ "${{ github.ref_name }}" == "MAIN" ]]; then
+          echo "Skipping merge check for MAIN branch (target branch)"
+        else
+          chmod +x .github/scripts/merge_check.py
+          python .github/scripts/merge_check.py
+        fi
 
     - name: Setup Node.js for commit processing
       uses: actions/setup-node@v4
