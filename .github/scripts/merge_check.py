@@ -151,7 +151,8 @@ def main():
     if current_branch == dev_main_branch:
         print("Already on dev-main branch, no merge check needed.")
         # Set output for no conflicts
-        print("::set-output name=conflicts_found::false")
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write('conflicts_found=false\n')
         sys.exit(0)
     
     # Fetch latest changes
@@ -196,7 +197,8 @@ def main():
         save_conflict_report(report)
         
         # Set output indicating conflicts were found
-        print("::set-output name=conflicts_found::true")
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write('conflicts_found=true\n')
         
         print("\n" + "="*80)
         print("🔧 HOW TO FIX:")
@@ -230,7 +232,8 @@ def main():
         save_conflict_report(report)
         
         # Set output for no conflicts
-        print("::set-output name=conflicts_found::false")
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write('conflicts_found=false\n')
         
         # Abort the no-commit merge
         abort_merge()
