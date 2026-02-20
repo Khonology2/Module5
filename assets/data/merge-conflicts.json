@@ -1,6 +1,6 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-20T21:21:41.451419Z",
+  "generated_at": "2026-02-20T21:30:48.363449Z",
   "source_branch": "Conflict-Test",
   "target_branch": "MAIN",
   "status": "conflicts_detected",
@@ -38,16 +38,40 @@
       ]
     }
   ],
+  "codebase_issues": [
+    {
+      "type": "ASYNC_ISSUE",
+      "message": "Future detected but missing async/await",
+      "file": "./lib/utils/pdf_saver.dart",
+      "line": 4,
+      "suggestion": "Add async keyword or await the Future"
+    },
+    {
+      "type": "ASYNC_ISSUE",
+      "message": "Future detected but missing async/await",
+      "file": "./lib/services/notification_service.dart",
+      "line": 4,
+      "suggestion": "Add async keyword or await the Future"
+    },
+    {
+      "type": "ASYNC_ISSUE",
+      "message": "Future detected but missing async/await",
+      "file": "./lib/services/notification_service.dart",
+      "line": 5,
+      "suggestion": "Add async keyword or await the Future"
+    }
+  ],
   "summary": {
-    "message": "Found 1 merge conflict(s) when merging Conflict-Test into MAIN",
-    "action_required": "Please resolve conflicts listed below and push again",
+    "message": "Found 1 merge conflict(s) and 3 codebase issue(s) when merging Conflict-Test into MAIN",
+    "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
       "1. Check out your branch: git checkout {current_branch}",
       "2. Pull latest changes: git pull origin {target_branch}",
-      "3. Resolve conflicts in the files listed above",
-      "4. Stage resolved files: git add <resolved-files>",
-      "5. Commit the merge: git commit",
-      "6. Push your changes: git push origin {current_branch}"
+      "3. Resolve conflicts in files listed above",
+      "4. Fix codebase issues highlighted below",
+      "5. Stage resolved files: git add <resolved-files>",
+      "6. Commit the merge: git commit",
+      "7. Push your changes: git push origin {current_branch}"
     ]
   }
 }
