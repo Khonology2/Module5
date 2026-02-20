@@ -1,20 +1,64 @@
 {
-  "report_id": "2026-02-20T21:15:30.000Z",
-  "generated_at": "2026-02-20T21:15:30.000Z",
-  "source_branch": "initial",
+  "report_id": "2026-02-20T22:00:00",
+
+  "generated_at": "2026-02-20T22:00:00",
+
+  "source_branch": "creator",
+
   "target_branch": "MAIN",
-  "status": "no_conflicts",
-  "total_conflicts": 0,
-  "conflicts": [],
-  "developer_guidance": {
-    "message": "Pull latest MAIN and resolve conflicts locally",
-    "commands": [
-      "git checkout initial",
-      "git pull origin MAIN",
-      "resolve conflicts",
-      "git add .",
-      "git commit",
-      "git push origin initial"
+
+  "status": "conflicts_detected",
+
+  "total_conflicts": 1,
+
+  "conflicts": [
+
+    {
+
+      "file": "src/app.js",
+
+      "conflicts": [
+
+        {
+
+          "start_line": 10,
+
+          "end_line": 18,
+
+          "code":
+
+"<<<<<<< HEAD\nconst a = 5;\n=======\nconst a = 10;\n>>>>>>> MAIN"
+
+        }
+
+      ]
+
+    }
+
+  ],
+
+  "developer_guidance":
+
+  {
+
+    "message": "Resolve highlighted lines",
+
+    "fix_steps":
+
+    [
+
+      "Open file",
+
+      "Search <<<<<<<",
+
+      "Fix code",
+
+      "Commit",
+
+      "Push"
+
     ]
+
   }
+
 }
