@@ -1,185 +1,163 @@
 #!/usr/bin/env python3
-"""
-Production GitHub Action Merge Conflict Detection Script
-
-Fully compatible with testMergeConflicts.yml workflow.
-
-Features:
-• Safe no-commit merge
-• Detailed JSON conflict report
-• Always generates unique JSON (prevents Git "no changes" issue)
-• Sets GitHub Actions outputs correctly
-• Fully CI/CD safe
-"""
 
 import subprocess
-import sys
-import os
 import json
+import os
+import sys
 from datetime import datetime
-from typing import List, Dict, Any
 
 
 REPORT_FILE = "assets/data/merge-conflicts.json"
+
 TARGET_BRANCH = "MAIN"
 
 
-# ---------------------------------------------------
-# Utilities
-# ---------------------------------------------------
+def run(cmd):
 
-def run_command(cmd: List[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def write_output(conflicts_found: bool):
+def get_branch():
 
-    github_output = os.getenv("GITHUB_OUTPUT")
-
-    if github_output:
-        with open(github_output, "a") as f:
-            f.write(f"conflicts_found={'true' if conflicts_found else 'false'}\n")
-
-
-# ---------------------------------------------------
-# Git helpers
-# ---------------------------------------------------
-
-def get_current_branch():
-
-    result = run_command(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-
-    if result.returncode != 0:
-        print(result.stderr)
-        sys.exit(1)
-
-    return result.stdout.strip()
+    return run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"]
+    ).stdout.strip()
 
 
 def fetch():
 
-    run_command(["git", "fetch", "origin"])
+    run(["git", "fetch", "origin"])
 
 
-def abort_merge():
+def merge():
 
-    run_command(["git", "merge", "--abort"])
-
-
-def merge_target():
-
-    return run_command(
+    return run(
         ["git", "merge", "--no-commit", "--no-ff", f"origin/{TARGET_BRANCH}"]
     )
 
 
-# ---------------------------------------------------
-# Conflict Detection
-# ---------------------------------------------------
+def abort():
 
-def get_conflicted_files():
+    run(["git", "merge", "--abort"])
 
-    result = run_command(["git", "status", "--porcelain"])
+
+def get_conflicts():
+
+    output = run(
+        ["git", "status", "--porcelain"]
+    ).stdout
+
+
+    files = []
+
+
+    for line in output.splitlines():
+
+        if line.startswith("UU"):
+
+            files.append(line[3:])
+
+
+    return files
+
+
+def extract(file):
 
     conflicts = []
 
-    for line in result.stdout.splitlines():
+    with open(file, encoding="utf8") as f:
 
-        if line.startswith(("UU", "AA", "DD")):
-
-            conflicts.append(line[3:])
-
-    return conflicts
+        lines = f.readlines()
 
 
-def parse_conflicts(file_path):
+    start = None
 
-    conflict_blocks = []
+    current = []
 
-    try:
 
-        with open(file_path, encoding="utf-8") as f:
+    for i, line in enumerate(lines, 1):
 
-            lines = f.readlines()
+        if line.startswith("<<<<<<<"):
 
-        start = None
+            start = i
 
-        for i, line in enumerate(lines, 1):
+            current = [line]
 
-            if line.startswith("<<<<<<<"):
 
-                start = i
+        elif start:
 
-            elif line.startswith(">>>>>>>") and start:
+            current.append(line)
 
-                conflict_blocks.append({
+
+            if line.startswith(">>>>>>>"):
+
+                conflicts.append({
+
                     "start_line": start,
-                    "end_line": i
+
+                    "end_line": i,
+
+                    "code": "".join(current)
+
                 })
 
                 start = None
 
-    except Exception as e:
-
-        return {
-
-            "file": file_path,
-            "error": str(e),
-            "conflicts": []
-
-        }
 
     return {
 
-        "file": file_path,
-        "conflicts": conflict_blocks
+        "file": file,
+
+        "conflicts": conflicts
 
     }
 
 
-# ---------------------------------------------------
-# Report Generation
-# ---------------------------------------------------
+def create_report(branch, conflicts):
 
-def generate_report(conflicts, source):
+    now = datetime.utcnow().isoformat()
 
-    timestamp = datetime.utcnow().isoformat()
 
     return {
 
-        "report_id": timestamp,
+        "report_id": now,
 
-        "generated_at": timestamp,
+        "generated_at": now,
 
-        "source_branch": source,
+        "source_branch": branch,
 
         "target_branch": TARGET_BRANCH,
 
-        "status": "conflicts_detected" if conflicts else "no_conflicts",
+        "status":
+
+        "conflicts_detected" if conflicts else "no_conflicts",
+
 
         "total_conflicts": len(conflicts),
 
         "conflicts": conflicts,
 
+
         "developer_guidance": {
 
             "message":
 
-            "Pull latest MAIN and resolve conflicts locally",
+            "Resolve highlighted lines",
 
-            "commands": [
 
-                f"git checkout {source}",
+            "fix_steps": [
 
-                f"git pull origin {TARGET_BRANCH}",
+                "Open file",
 
-                "resolve conflicts",
+                "Search <<<<<<<",
+
+                "Edit code",
 
                 "git add .",
 
                 "git commit",
 
-                f"git push origin {source}"
+                "git push"
 
             ]
 
@@ -188,77 +166,65 @@ def generate_report(conflicts, source):
     }
 
 
-def save_report(report):
+def save(report):
 
     os.makedirs("assets/data", exist_ok=True)
 
-    with open(REPORT_FILE, "w", encoding="utf-8") as f:
+
+    with open(REPORT_FILE, "w") as f:
 
         json.dump(report, f, indent=2)
 
-    print(f"Report saved: {REPORT_FILE}")
 
-    print(f"Size: {os.path.getsize(REPORT_FILE)} bytes")
+def set_output(conflict):
 
+    output = os.getenv("GITHUB_OUTPUT")
 
-# ---------------------------------------------------
-# Main
-# ---------------------------------------------------
+    if output:
+
+        with open(output, "a") as f:
+
+            f.write(f"conflicts_found={'true' if conflict else 'false'}\n")
+
 
 def main():
 
-    branch = get_current_branch()
-
-    print(f"Source branch: {branch}")
+    branch = get_branch()
 
 
     if branch == TARGET_BRANCH:
 
-        print("Skipping MAIN")
+        set_output(False)
 
-        write_output(False)
-
-        sys.exit(0)
+        return
 
 
     fetch()
 
-    merge_target()
+    merge()
 
-    conflicted_files = get_conflicted_files()
+
+    files = get_conflicts()
 
 
     conflicts = []
 
-    for file in conflicted_files:
 
-        conflicts.append(parse_conflicts(file))
+    for f in files:
 
-
-    report = generate_report(conflicts, branch)
-
-    save_report(report)
+        conflicts.append(extract(f))
 
 
-    abort_merge()
+    report = create_report(branch, conflicts)
 
 
-    if conflicts:
-
-        print("Conflicts detected")
-
-        write_output(True)
-
-    else:
-
-        print("No conflicts")
-
-        write_output(False)
+    save(report)
 
 
-    sys.exit(0)
+    abort()
 
 
-if __name__ == "__main__":
+    set_output(len(conflicts) > 0)
 
-    main()
+
+main()

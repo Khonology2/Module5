@@ -2,83 +2,68 @@ name: Test Merge Conflicts
 
 on:
   push:
-    branches: ['*']  # Include all branches, including new ones created by devs
-  workflow_dispatch:  # Allow manual trigger
+    branches: ['**']
+  workflow_dispatch:
 
 permissions:
-  contents: write  # Allow workflow to push commits back to the repository
+  contents: write
 
 jobs:
-  test-merge-conflicts:
+  merge-conflict-check:
+
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Fetch full history for merge detection
 
-      - name: Setup Python for merge check
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Set up Git user
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Check for merge conflicts
-        id: conflict_check
-        run: |
-          # Skip merge check for MAIN branch (target branch)
-          if [[ "${{ github.ref_name }}" == "MAIN" ]]; then
-            echo "Skipping merge check for MAIN branch (target branch)"
-            echo "conflicts_found=false" >> $GITHUB_OUTPUT
-          else
-            chmod +x .github/scripts/merge_check.py
-            python .github/scripts/merge_check.py
-            # Set output to flag if conflicts found
-            if [ -s assets/data/merge-conflicts.json ]; then
-              echo "conflicts_found=true" >> $GITHUB_OUTPUT
-            else
-              echo "conflicts_found=false" >> $GITHUB_OUTPUT
-            fi
-          fi
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
 
-      - name: Verify conflict report JSON is valid
-        run: |
-          if command -v jq &> /dev/null; then
-            jq . assets/data/merge-conflicts.json
-            echo "JSON is valid"
-          else
-            echo "jq not available, skipping validation"
-          fi
 
-      - name: Display generated conflict report
-        run: |
-          echo "Generated conflict report:"
-          cat assets/data/merge-conflicts.json | jq . 2>/dev/null || cat assets/data/merge-conflicts.json
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
 
-      - name: Commit conflict report (if any)
-        run: |
-          if [ "${{ steps.conflict_check.outputs.conflicts_found }}" == "true" ]; then
-            if git diff --quiet assets/data/merge-conflicts.json; then
-              echo "No changes to commit data"
-            else
-              echo "Committing updated conflict report"
-              git config --local user.email "action@github.com"
-              git config --local user.name "GitHub Action"
-              git add assets/data/merge-conflicts.json
-              git commit -m "Update merge conflict report [${{ github.ref_name }}]"
-              git push || echo "Push failed - likely due to no changes or permissions"
-            fi
-          else
-            echo "No conflicts found, no report committed."
-          fi
 
-      - name: Fail job if conflicts were found
-        if: steps.conflict_check.outputs.conflicts_found == 'true'
-        run: |
-          echo "❌ Merge conflicts detected! Check the conflict report at assets/data/merge-conflicts.json"
-          exit 1
+    - name: Run Merge Conflict Detection
+      id: conflict_check
+      run: |
+
+        chmod +x .github/scripts/merge_check.py
+
+        python .github/scripts/merge_check.py
+
+
+    - name: Show JSON report
+      run: |
+
+        echo "------ MERGE REPORT ------"
+
+        cat assets/data/merge-conflicts.json
+
+
+    - name: Commit and Push Report
+      run: |
+
+        git add assets/data/merge-conflicts.json
+
+        git diff --staged --quiet || git commit -m "Auto update merge conflict report"
+
+        git push
+
+
+    - name: Fail if conflicts exist
+      if: steps.conflict_check.outputs.conflicts_found == 'true'
+      run: |
+
+        echo "Merge conflicts detected"
+
+        exit 1
