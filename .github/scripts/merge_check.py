@@ -11,6 +11,7 @@ import sys
 import os
 import json
 from typing import List, Dict, Any
+from datetime import datetime
 
 def run_command(cmd: List[str], capture_output: bool = True) -> subprocess.CompletedProcess:
     """Run a shell command and return the result."""
@@ -95,6 +96,47 @@ def abort_merge():
     if result.returncode != 0:
         print(f"Warning: Could not abort merge: {result.stderr}")
 
+def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_branch: str) -> Dict[str, Any]:
+    """Generate a detailed conflict report JSON structure."""
+    timestamp = datetime.utcnow().isoformat() + 'Z'
+    
+    return {
+        "report_type": "merge_conflict_check",
+        "generated_at": timestamp,
+        "source_branch": current_branch,
+        "target_branch": target_branch,
+        "status": "conflicts_detected" if conflicts else "no_conflicts",
+        "total_conflicts": len(conflicts),
+        "conflicts": conflicts,
+        "summary": {
+            "message": f"Found {len(conflicts)} merge conflict(s) when merging {current_branch} into {target_branch}",
+            "action_required": "Please resolve the conflicts listed below and push again" if conflicts else "No action required",
+            "resolution_steps": [
+                "1. Check out your branch: git checkout {current_branch}",
+                "2. Pull latest changes: git pull origin {target_branch}",
+                "3. Resolve conflicts in the files listed above",
+                "4. Stage resolved files: git add <resolved-files>",
+                "5. Commit the merge: git commit",
+                "6. Push your changes: git push origin {current_branch}"
+            ] if conflicts else []
+        }
+    }
+
+def save_conflict_report(report: Dict[str, Any]):
+    """Save the conflict report to assets/data/merge-conflicts.json"""
+    os.makedirs('assets/data', exist_ok=True)
+    filepath = 'assets/data/merge-conflicts.json'
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+    
+    print(f"Conflict report saved to {filepath}")
+    
+    # Stage the file for commit
+    result = run_command(['git', 'add', filepath])
+    if result.returncode != 0:
+        print(f"Warning: Could not stage conflict report: {result.stderr}")
+
 def main():
     """Main function to perform merge conflict check."""
     # Get current branch
@@ -147,6 +189,10 @@ def main():
                 for i, conflict in enumerate(details['conflicts'], 1):
                     print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
         
+        # Generate and save conflict report
+        report = generate_conflict_report(conflict_details, current_branch, dev_main_branch)
+        save_conflict_report(report)
+        
         print("\n" + "="*80)
         print("🔧 HOW TO FIX:")
         print("="*80)
@@ -171,6 +217,10 @@ def main():
         sys.exit(1)
     else:
         print("✅ No merge conflicts detected!")
+        
+        # Generate and save no-conflict report
+        report = generate_conflict_report([], current_branch, dev_main_branch)
+        save_conflict_report(report)
         
         # Abort the no-commit merge
         abort_merge()
