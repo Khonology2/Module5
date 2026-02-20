@@ -18,6 +18,14 @@
       ]
     },
     {
+      "collectionGroup": "audit_entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "milestones",
       "queryScope": "COLLECTION", 
       "fields": [
