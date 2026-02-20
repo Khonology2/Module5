@@ -105,6 +105,8 @@ Future<void> _clearFirestoreCache() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // CONFLICT TEST: This line will conflict with MAIN branch
+  print('CONFLICT TEST: This modification will create a merge conflict');
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
     try {
