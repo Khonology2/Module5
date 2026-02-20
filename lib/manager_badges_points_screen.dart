@@ -153,7 +153,9 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
         builder: (dialogContext) {
           Future.delayed(const Duration(seconds: 4), () {
             try {
-              Navigator.of(dialogContext).pop();
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
             } catch (_) {}
           });
 

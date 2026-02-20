@@ -458,6 +458,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
       final first = _newlyEarnedBadges.first;
       final moreCount = (_newlyEarnedBadges.length - 1).clamp(0, 99);
 
+      if (!mounted) return;
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -465,7 +466,9 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
           // Auto-close after a short celebration window.
           Future.delayed(const Duration(seconds: 4), () {
             try {
-              Navigator.of(dialogContext).pop();
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
             } catch (_) {}
           });
 

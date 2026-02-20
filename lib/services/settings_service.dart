@@ -220,17 +220,19 @@ class SettingsService {
     final existing = _initInFlightByUserId[uid];
     if (existing != null) return existing;
 
-    final fut = FirestoreSafe.setDoc<Map<String, dynamic>>(
-      _firestore.collection('users').doc(uid),
-      defaultSettings.toFirestore(),
-      options: SetOptions(merge: true),
-    )
-        .catchError((e) {
-      developer.log('Error initializing user settings: $e');
-      throw e;
-    }).whenComplete(() {
-      _initInFlightByUserId.remove(uid);
-    });
+    final fut =
+        FirestoreSafe.setDoc<Map<String, dynamic>>(
+              _firestore.collection('users').doc(uid),
+              defaultSettings.toFirestore(),
+              options: SetOptions(merge: true),
+            )
+            .catchError((e) {
+              developer.log('Error initializing user settings: $e');
+              throw e;
+            })
+            .whenComplete(() {
+              _initInFlightByUserId.remove(uid);
+            });
 
     _initInFlightByUserId[uid] = fut;
     return fut;
@@ -264,39 +266,40 @@ class SettingsService {
     // Create new broadcast stream for this user
     _cachedUserId = user.uid;
     try {
-      _cachedSettingsStream = FirestoreSafe.stream(
-        _firestore.collection('users').doc(user.uid).snapshots(),
-      )
-          .asyncMap((snapshot) async {
-            if (!snapshot.exists) {
-              // Initialize default settings for new users
-              final defaultSettings = getDefaultSettings(user);
-              // Ensure only one initialization write happens at a time.
-              // This avoids overlapping writes during active listeners (notably on web).
-              try {
-                await _ensureUserSettingsDocInitialized(
-                  user.uid,
-                  defaultSettings,
-                );
-              } catch (_) {
-                // Non-fatal: still return defaults so UI can render.
-              }
-              return defaultSettings;
-            }
-            try {
-              return UserSettings.fromFirestore(snapshot);
-            } catch (e) {
-              developer.log('Error parsing user settings: $e');
-              return getDefaultSettings(user);
-            }
-          })
-          .handleError((error) {
-            developer.log('Error in user settings stream: $error');
-            FirestoreWebCircuitBreaker.maybeReload(error);
-            // Return default settings if there's an error
-            return getDefaultSettings(user);
-          })
-          .asBroadcastStream();
+      _cachedSettingsStream =
+          FirestoreSafe.stream(
+                _firestore.collection('users').doc(user.uid).snapshots(),
+              )
+              .asyncMap((snapshot) async {
+                if (!snapshot.exists) {
+                  // Initialize default settings for new users
+                  final defaultSettings = getDefaultSettings(user);
+                  // Ensure only one initialization write happens at a time.
+                  // This avoids overlapping writes during active listeners (notably on web).
+                  try {
+                    await _ensureUserSettingsDocInitialized(
+                      user.uid,
+                      defaultSettings,
+                    );
+                  } catch (_) {
+                    // Non-fatal: still return defaults so UI can render.
+                  }
+                  return defaultSettings;
+                }
+                try {
+                  return UserSettings.fromFirestore(snapshot);
+                } catch (e) {
+                  developer.log('Error parsing user settings: $e');
+                  return getDefaultSettings(user);
+                }
+              })
+              .handleError((error) {
+                developer.log('Error in user settings stream: $error');
+                FirestoreWebCircuitBreaker.maybeReload(error);
+                // Return default settings if there's an error
+                return getDefaultSettings(user);
+              })
+              .asBroadcastStream();
     } catch (e) {
       developer.log('Error creating settings stream: $e');
       clearCache();
@@ -312,8 +315,9 @@ class SettingsService {
     if (user == null) return null;
 
     try {
-      final snapshot =
-          await FirestoreSafe.getDoc(_firestore.collection('users').doc(user.uid));
+      final snapshot = await FirestoreSafe.getDoc(
+        _firestore.collection('users').doc(user.uid),
+      );
       if (!snapshot.exists) {
         // Ensure defaults exist for new users.
         final defaults = getDefaultSettings(user);
@@ -437,9 +441,9 @@ class SettingsService {
       // Update Firestore document
       await _firestore.collection('users').doc(user.uid).update({
         'displayName': displayName,
-        if (photoURL != null) 'photoURL': photoURL,
-        if (department != null) 'department': department,
-        if (jobTitle != null) 'jobTitle': jobTitle,
+        if (photoURL != null) ...{'photoURL': photoURL},
+        if (department != null) ...{'department': department},
+        if (jobTitle != null) ...{'jobTitle': jobTitle},
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -574,19 +578,81 @@ class SettingsService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
-      final userData = await _firestore.collection('users').doc(user.uid).get();
-      final goalsQuery = await _firestore
-          .collection('goals')
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) {
+        throw Exception(
+          'User profile not found. Please complete your profile setup.',
+        );
+      }
+
+      // Fetch full set of goals (with a safety cap)
+      late final QuerySnapshot goalsQuery;
+      late final QuerySnapshot activitiesQuery;
+      try {
+        goalsQuery = await _firestore
+            .collection('goals')
+            .where('userId', isEqualTo: user.uid)
+            .limit(200)
+            .get();
+
+        // Fetch recent activities (safely capped)
+        // Avoid server-side ordering to reduce risk of Firestore watch/index issues on web SDK.
+        activitiesQuery = await _firestore
+          .collection('activities')
           .where('userId', isEqualTo: user.uid)
+          .limit(200)
           .get();
+      } on FirebaseException catch (e) {
+        // If Firestore requires a composite index, the server returns a URL
+        final msg = e.message ?? e.toString();
+        final urlMatch = RegExp(r'https?://[^\s]+create_composite[^\s]+').firstMatch(msg);
+        if (urlMatch != null) {
+          throw Exception('Firestore index required for this export. Create it here: ${urlMatch.group(0)}');
+        }
+        // Surface internal assertion failures with clearer guidance
+        if (msg.contains('INTERNAL ASSERTION') || msg.contains('Unexpected state')) {
+          throw Exception('Firestore internal error occurred during export. Try again, and consider upgrading your Firebase SDKs. Technical details: $msg');
+        }
+        throw Exception('Firestore query failed during export: $msg');
+      }
+
+      // Fetch badges from user subcollection if present
+      List<Map<String, dynamic>> badges = [];
+      try {
+        final badgeSnapshot = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('badges')
+            .get();
+        badges = badgeSnapshot.docs.map((d) => d.data()).toList();
+      } catch (_) {
+        // ignore - not all installations use user subcollection badges
+      }
+
+      final profileData = userDoc.data();
+      final filteredProfile = {
+        'displayName': profileData?['displayName'],
+        'email': profileData?['email'],
+        'department': profileData?['department'],
+        'jobTitle': profileData?['jobTitle'],
+        'photoURL': profileData?['photoURL'],
+        'userId': user.uid,
+        'createdAt': profileData?['createdAt']?.toString(),
+        'lastUpdated': profileData?['lastUpdated']?.toString(),
+        'currentStreak': profileData?['currentStreak'] ?? 0,
+        'points': profileData?['points'] ?? 0,
+      };
 
       return {
-        'profile': userData.data(),
+        'profile': filteredProfile,
         'goals': goalsQuery.docs.map((doc) => doc.data()).toList(),
+        'activities': activitiesQuery.docs.map((doc) => doc.data()).toList(),
+        'badges': badges,
         'exportDate': DateTime.now().toIso8601String(),
       };
     } catch (e) {
       developer.log('Error exporting user data: $e');
+      // If it's a low-level FirebaseException, rethrow to UI for user guidance
       rethrow;
     }
   }

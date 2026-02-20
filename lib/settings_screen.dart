@@ -1,13 +1,21 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:pdh/utils/pdf_saver.dart' show savePdfBytes;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:http/http.dart' as http;
+import 'package:open_file/open_file.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
 import 'package:pdh/design_system/app_colors.dart';
-import 'package:pdh/utils/download_helper.dart';
 import 'package:pdh/services/sound_service.dart';
 import 'package:pdh/services/notification_service.dart' as notif;
 import 'package:pdh/services/employee_tutorial_service.dart';
@@ -130,8 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       privateGoals: m['privateGoals'] as bool? ?? false,
       managerOnly: m['managerOnly'] as bool? ?? false,
       teamShare: m['teamShare'] as bool? ?? true,
-      leaderboardParticipation:
-          m['leaderboardParticipation'] as bool? ?? false,
+      leaderboardParticipation: m['leaderboardParticipation'] as bool? ?? false,
       profileVisible: m['profileVisible'] as bool? ?? true,
       pushNotifications: m['pushNotifications'] as bool? ?? true,
       emailNotifications: m['emailNotifications'] as bool? ?? true,
@@ -139,8 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       goalReminders: m['goalReminders'] as bool? ?? true,
       weeklyReports: m['weeklyReports'] as bool? ?? false,
       darkMode: m['darkMode'] as bool? ?? true,
-      speechRecognitionEnabled:
-          m['speechRecognitionEnabled'] as bool? ?? false,
+      speechRecognitionEnabled: m['speechRecognitionEnabled'] as bool? ?? false,
       celebrationFeed: m['celebrationFeed'] as bool? ?? true,
       autoSync: m['autoSync'] as bool? ?? true,
       language: m['language'] as String? ?? 'en',
@@ -148,8 +154,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       tutorialEnabled: m['tutorialEnabled'] as bool? ?? false,
       twoFactorAuth: m['twoFactorAuth'] as bool? ?? false,
       sessionTimeout: m['sessionTimeout'] as bool? ?? false,
-      sessionTimeoutMinutes:
-          m['sessionTimeoutMinutes'] as int? ?? 30,
+      sessionTimeoutMinutes: m['sessionTimeoutMinutes'] as int? ?? 30,
       biometricAuth: m['biometricAuth'] as bool? ?? false,
     );
   }
@@ -179,8 +184,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
           child: StreamBuilder<UserSettings?>(
             key: const ValueKey('settings_stream'),
-            stream: SettingsService.getUserSettingsStream(),
-            initialData: _currentSettings, // use cached settings to avoid spinner
+            stream: _safeSettingsStream(),
+            initialData:
+                _currentSettings, // use cached settings to avoid spinner
             builder: (context, settingsSnapshot) {
               // Prefer last known settings to avoid full-screen flicker while waiting
               if (settingsSnapshot.hasError && _currentSettings == null) {
@@ -288,10 +294,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _buildNotificationSection(effectiveSettings),
                       const SizedBox(height: 24),
                       _buildAppSection(effectiveSettings),
-                      if (isManager) ...[
-                        const SizedBox(height: 24),
-                        _buildManagerSection(effectiveSettings),
-                      ],
                       const SizedBox(height: 24),
                       _buildAccountSection(),
                     ],
@@ -303,6 +305,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Wrap the raw settings stream with a safe async generator that logs
+  /// errors and yields `null` on stream errors so the UI doesn't crash
+  /// when Firestore emits internal assertion errors on web.
+  Stream<UserSettings?> _safeSettingsStream() async* {
+    try {
+      final base = SettingsService.getUserSettingsStream();
+      // Log and suppress errors coming from Firestore internals
+      await for (final s in base.handleError((e, st) {
+        developer.log('Settings stream error', error: e, stackTrace: st);
+      })) {
+        yield s;
+      }
+    } catch (e, st) {
+      developer.log('Fatal error in settings stream', error: e, stackTrace: st);
+      // Yield null once so UI can fall back to cached settings
+      yield null;
+    }
   }
 
   Widget _buildErrorState(String error) {
@@ -703,91 +724,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Widget _buildManagerSection(UserSettings? settings) {
-    if (settings == null) return const SizedBox.shrink();
-
-    return _buildSectionCard(
-      title: 'Manager Tools',
-      icon: Icons.admin_panel_settings_outlined,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.download, color: AppColors.activeColor),
-          title: Text(
-            'Export Team Data',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            'Download team performance data',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: AppColors.textMuted,
-            size: 16,
-          ),
-          onTap: _exportTeamData,
-        ),
-        const Divider(color: AppColors.borderColor),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.analytics, color: AppColors.activeColor),
-          title: Text(
-            'Team Analytics',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            'View detailed team performance metrics',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: AppColors.textMuted,
-            size: 16,
-          ),
-          onTap: _viewTeamAnalytics,
-        ),
-      ],
-    );
-  }
-
   Widget _buildAccountSection() {
     return _buildSectionCard(
-      title: 'Account Actions',
+      title: 'Data Management',
       icon: Icons.account_circle_outlined,
       children: [
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
+          child: ElevatedButton.icon(
             onPressed: _exportUserData,
             icon: const Icon(Icons.download),
             label: Text(AppLocalizations.of(context).export_my_data),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFC10D00),
-              side: const BorderSide(color: Color(0xFFC10D00)),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _resetPassword,
-            icon: const Icon(Icons.lock_reset),
-            label: Text(AppLocalizations.of(context).send_password_reset_email),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.activeColor,
-              side: BorderSide(color: AppColors.activeColor),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC10D00),
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
@@ -1019,7 +969,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (mounted) {
             // Hide low-signal internal Firestore errors from the UI; show a friendly message instead.
             final msg = e.toString();
-            final isTransient = msg.toLowerCase().contains('unavailable') ||
+            final isTransient =
+                msg.toLowerCase().contains('unavailable') ||
                 msg.toLowerCase().contains('offline') ||
                 msg.toLowerCase().contains('network') ||
                 msg.toLowerCase().contains('failed-precondition') ||
@@ -1079,10 +1030,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return current.copyWith(twoFactorAuth: value as bool);
       case 'sessionTimeout':
         return current.copyWith(sessionTimeout: value as bool);
-      case 'language':
-        return current.copyWith(language: value as String);
       case 'sessionTimeoutMinutes':
         return current.copyWith(sessionTimeoutMinutes: value as int);
+      case 'biometricAuth':
+        return current.copyWith(biometricAuth: value as bool);
       default:
         return null;
     }
@@ -1217,75 +1168,1138 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _resetPassword() async {
+  Future<void> _exportUserData() async {
     if (!mounted) return;
 
-    String? emailText = FirebaseAuth.instance.currentUser?.email;
-    emailText = emailText?.trim();
-
-    if (emailText == null || emailText.isEmpty) {
-      await _showCenterNotice(
-        context,
-        'We could not determine your account email. Please sign in again and try resetting your password from the sign-in screen.',
-      );
-      return;
-    }
-
-    _showLoadingDialog(context, message: 'Sending password reset email...');
-
     try {
-      await SettingsService.resetPassword(emailText);
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(
-        context,
-        'If an account exists for $emailText, a password reset email has been sent.',
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(
-        context,
-        'Error sending password reset email: $e',
-      );
-    }
-  }
+      // Show loading dialog
+      _showLoadingDialog(context, message: 'Preparing your data export...');
 
-  Future<void> _exportUserData() async {
-    try {
-      // Show blocking loading dialog centred on screen
-      _showLoadingDialog(context, message: 'Exporting your data...');
       final data = await SettingsService.exportUserData();
       if (!mounted) return;
-      // Close loading
-      Navigator.of(context, rootNavigator: true).pop();
-      // Trigger JSON file download on web
-      if (kIsWeb) {
-        final filename =
-            'pdh-export-${DateTime.now().millisecondsSinceEpoch}.json';
-        downloadJsonFile(filename, _prettyJson(data));
-      }
-      // Show success dialog centred
-      await _showCenterNotice(
-        context,
-        'Data exported successfully! ${data.keys.length} sections included.',
-      );
-    } catch (e) {
+
+      // Update loading message
+      Navigator.of(context, rootNavigator: true).pop(); // Close current dialog
+      _showLoadingDialog(context, message: 'Generating PDF...');
+
+      final pdf = await _generatePdf(data);
       if (!mounted) return;
-      // Close loading if still open
+
+      // Update loading message
+      Navigator.of(context, rootNavigator: true).pop(); // Close current dialog
+      _showLoadingDialog(context, message: 'Saving PDF...');
+
+      final fileName =
+          'pdh-export-${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final pdfBytes = await pdf.save();
+
+      // Save or download depending on platform
+      final savedPath = await savePdfBytes(fileName, pdfBytes);
+      if (!mounted) return;
+
+      // Close loading dialog
       Navigator.of(context, rootNavigator: true).pop();
-      await _showCenterNotice(context, 'Error exporting data: $e');
+
+      try {
+        if (kIsWeb) {
+          await _showCenterNotice(context, 'PDF download started.');
+        } else {
+          // Try to open the saved file on non-web platforms
+          final result = await OpenFile.open(savedPath);
+          if (result.type != ResultType.done) {
+            await _showCenterNotice(context, 'PDF saved to: $savedPath');
+          } else {
+            await _showCenterNotice(
+              context,
+              'Data exported successfully as PDF! ${data.keys.length} sections included.',
+            );
+          }
+        }
+      } catch (e) {
+        // If there's an error opening the file, just show the success message
+        final msgPath = kIsWeb ? 'your device' : savedPath;
+        await _showCenterNotice(
+          context,
+          'PDF saved to: $msgPath\n\nYou can find your exported data here.',
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log('Error exporting data', error: e, stackTrace: stackTrace);
+      if (!mounted) return;
+
+      // Close any open loading dialog
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      String errorMessage = 'An error occurred while exporting your data.';
+      if (e is FileSystemException) {
+        errorMessage =
+            'Could not save the PDF file. Please check storage permissions.';
+      } else if (e is MissingPluginException) {
+        errorMessage = 'A required feature is not available on this device.';
+      } else if (e.toString().contains('TooManyPagesException')) {
+        errorMessage =
+            'Your data is too large to export in a single PDF. Consider reducing the amount of data or contact support.';
+      } else if (e.toString().contains('INTERNAL ASSERTION FAILED')) {
+        errorMessage =
+            'A temporary database error occurred. Please refresh the page and try again.';
+      } else if (e.toString().contains('_Namespace')) {
+        errorMessage =
+            'A system error occurred during export. Please try again with a smaller data set.';
+      }
+
+      await _showCenterNotice(context, '$errorMessage\n\nError details: $e');
     }
   }
 
-  Future<void> _exportTeamData() async {
-    // Placeholder for team data export
-    await _showCenterNotice(context, 'Team data export feature coming soon!');
+  Future<pw.Document> _generatePdf(Map<String, dynamic> data) async {
+    final pdf = pw.Document();
+
+    // Load a Unicode-capable font from assets (Poppins is bundled in pubspec.yaml)
+    final fontData = await rootBundle.load(
+      'assets/fonts/poppins/Poppins-Regular.ttf',
+    );
+    final ttfFont = pw.Font.ttf(fontData);
+
+    // Try to load a header and footer logo asset (optional)
+    pw.MemoryImage? logoImage;
+    pw.MemoryImage? bottomLogoImage;
+    try {
+      final logoData = await rootBundle.load('assets/khono.png');
+      logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (_) {
+      logoImage = null;
+    }
+    try {
+      final bottomData = await rootBundle.load('assets/discs.png');
+      bottomLogoImage = pw.MemoryImage(bottomData.buffer.asUint8List());
+    } catch (_) {
+      bottomLogoImage = null;
+    }
+
+    // Helper to render profile photo (try network then skip)
+    Future<pw.MemoryImage?> loadProfilePhoto(String? url) async {
+      if (url == null) return null;
+      try {
+        final uri = Uri.parse(url);
+        final resp = await http
+            .get(uri, headers: {'Cache-Control': 'no-cache'})
+            .timeout(const Duration(seconds: 6));
+        if (resp.statusCode == 200) {
+          return pw.MemoryImage(resp.bodyBytes);
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    final profile = data['profile'] as Map<String, dynamic>? ?? {};
+    final goals =
+        (data['goals'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+        <Map<String, dynamic>>[];
+    final activities =
+        (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+        <Map<String, dynamic>>[];
+    final badges = (data['badges'] as List<dynamic>?) ?? <dynamic>[];
+
+    // Append a cache-busting parameter so recently-updated profile photos are fetched
+    String? cacheBustedUrl(String? url) {
+      if (url == null) return null;
+      try {
+        final uri = Uri.parse(url);
+        final params = Map<String, String>.from(uri.queryParameters);
+        params['cb'] = DateTime.now().millisecondsSinceEpoch.toString();
+        return uri.replace(queryParameters: params).toString();
+      } catch (_) {
+        return '$url?cb=${DateTime.now().millisecondsSinceEpoch}';
+      }
+    }
+
+    final profilePhoto = await loadProfilePhoto(
+      cacheBustedUrl(profile['photoURL']?.toString()),
+    );
+
+    // Compute goals overview stats
+    int totalGoals = goals.length;
+    int completedGoals = 0;
+    final Map<String, int> byCategory = {};
+    final Map<String, int> byPriority = {};
+    final Map<String, int> byStatus = {};
+
+    for (final g in goals) {
+      final status = (g['status'] ?? 'unknown').toString();
+      byStatus[status] = (byStatus[status] ?? 0) + 1;
+
+      if (status.toLowerCase() == 'completed' ||
+          status.toLowerCase() == 'done') {
+        completedGoals++;
+      }
+      final cat = (g['category'] ?? 'Uncategorized').toString();
+      byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+      final pri = (g['priority'] ?? 'Medium').toString();
+      byPriority[pri] = (byPriority[pri] ?? 0) + 1;
+    }
+
+    // Footer builder (Page X of Y)
+    pw.Widget buildFooter(pw.Context ctx) {
+      return pw.Container(
+        alignment: pw.Alignment.centerRight,
+        margin: const pw.EdgeInsets.only(top: 10),
+        child: pw.Text(
+          'Page ${ctx.pageNumber} of ${ctx.pagesCount} • Generated ${DateTime.now().toIso8601String()}',
+          style: pw.TextStyle(font: ttfFont, fontSize: 8),
+        ),
+      );
+    }
+
+    // PDF brand color (dark charcoal)
+    final headerColor = PdfColor.fromInt(0xFF333333);
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        // Use 1 inch margins (72 points)
+        margin: const pw.EdgeInsets.all(72),
+        footer: (ctx) => buildFooter(ctx),
+        build: (pw.Context ctx) {
+          final widgets = <pw.Widget>[];
+
+          // Header & Branding: left logo (exactly 80px width), right title
+          widgets.add(
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                if (logoImage != null) pw.Image(logoImage, width: 80),
+                pw.Expanded(
+                  child: pw.Container(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                      children: [
+                        pw.Text(
+                          'Employee Development Report',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                            color: headerColor,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 9,
+                            color: PdfColors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          widgets.add(pw.SizedBox(height: 8));
+          widgets.add(pw.Divider(thickness: 1, color: PdfColors.grey300));
+
+          // Profile Banner (Hero Box)
+          final profileName =
+              (profile['displayName'] ?? profile['name'] ?? 'Unknown Employee')
+                  .toString();
+          final profileEmail = (profile['email'] ?? '').toString();
+          final profileJob = (profile['jobTitle'] ?? profile['title'] ?? '')
+              .toString();
+
+          widgets.add(
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColor.fromInt(0xFFF4F4F4),
+                borderRadius: pw.BorderRadius.circular(6),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          profileName,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                            color: headerColor,
+                          ),
+                        ),
+                        pw.SizedBox(height: 6),
+                        pw.Text(
+                          profileEmail,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                        pw.Text(
+                          profileJob,
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (profilePhoto != null)
+                    pw.Container(
+                      width: 64,
+                      height: 64,
+                      decoration: pw.BoxDecoration(
+                        borderRadius: pw.BorderRadius.circular(6),
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        image: pw.DecorationImage(
+                          image: profilePhoto,
+                          fit: pw.BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else
+                    pw.Container(
+                      width: 64,
+                      height: 64,
+                      alignment: pw.Alignment.center,
+                      child: pw.Text(
+                        'No photo',
+                        style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Goals Overview Header
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Goals Overview',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: headerColor,
+                ),
+              ),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 6));
+
+          // Key Metrics Grid: Total Goals / Completed / Points
+          final points = profile['points'] ?? 0;
+          widgets.add(
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          totalGoals.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Total Goals',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          completedGoals.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Completed',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Column(
+                      children: [
+                        pw.Text(
+                          points.toString(),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Points',
+                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          widgets.add(pw.SizedBox(height: 6));
+
+          // Goals by category
+          if (byCategory.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                'Goals by category:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byCategory.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          // Goals by priority
+          if (byPriority.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                'Goals by priority:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byPriority.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          // Status breakdown
+          if (byStatus.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                'Status breakdown:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: byStatus.entries
+                    .map(
+                      (e) => pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            e.key,
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                          pw.Text(
+                            e.value.toString(),
+                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+            widgets.add(pw.SizedBox(height: 6));
+          }
+
+          widgets.add(pw.SizedBox(height: 8));
+
+          // Detailed Goals Section
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Detailed Goals',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 6));
+
+          if (goals.isEmpty) {
+            widgets.add(
+              pw.Text(
+                'No goals found',
+                style: pw.TextStyle(font: ttfFont, fontSize: 10),
+              ),
+            );
+          } else {
+            for (final g in goals) {
+              final title = g['title'] ?? g['name'] ?? 'Untitled Goal';
+              final desc = (g['description'] ?? '').toString();
+              final category = g['category'] ?? 'Uncategorized';
+              final priority = g['priority'] ?? 'Medium';
+              final status = g['status'] ?? 'Unknown';
+              final progress = (g['progress'] is num)
+                  ? (g['progress'] as num).toDouble()
+                  : double.tryParse((g['progress'] ?? '0').toString()) ?? 0.0;
+              final target =
+                  g['targetDate']?.toString() ??
+                  g['dueDate']?.toString() ??
+                  'N/A';
+              final points = g['points']?.toString() ?? '0';
+              final approval = g['approvalStatus'] ?? g['approved'] ?? 'N/A';
+              final approver = g['approver'] ?? g['approvedBy'] ?? 'N/A';
+              final evidence =
+                  (g['evidence'] as List?)?.map((e) => e.toString()).toList() ??
+                  <String>[];
+              final kpa = g['kpa'] ?? 'N/A';
+              final created = _formatTimestamp(g['createdAt']);
+              final approvedAt = _formatTimestamp(g['approvedAt']);
+
+              widgets.add(
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    border: const pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.grey300),
+                    ),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        title.toString(),
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        desc.toString(),
+                        style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Category: $category',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Priority: $priority',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Status: $status',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Progress: ${progress.toStringAsFixed(0)}%',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Target: $target',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              'Points: $points',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Row(
+                        children: [
+                          pw.Text(
+                            'Approval: $approval',
+                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                          ),
+                          pw.Spacer(),
+                          pw.Text(
+                            'Approver: $approver',
+                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                          ),
+                        ],
+                      ),
+                      if (evidence.isNotEmpty) pw.SizedBox(height: 6),
+                      if (evidence.isNotEmpty)
+                        pw.Text(
+                          'Evidence:',
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      if (evidence.isNotEmpty)
+                        pw.Column(
+                          children: evidence
+                              .map(
+                                (e) => pw.Text(
+                                  '- $e',
+                                  style: pw.TextStyle(
+                                    font: ttfFont,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      pw.SizedBox(height: 6),
+                      pw.Text(
+                        'KPA: $kpa • Created: $created • Approved: $approvedAt',
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 8,
+                          color: PdfColors.grey700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Activities & Performance
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Activities & Performance',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 6));
+
+          widgets.add(
+            pw.Text(
+              'Total activities: ${activities.length}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
+          if (activities.isNotEmpty) {
+            final recent = activities.take(10).toList();
+            widgets.add(pw.SizedBox(height: 6));
+            widgets.add(
+              pw.Text(
+                'Recent activity timeline (latest first):',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            );
+            widgets.add(
+              pw.Column(
+                children: recent
+                    .map(
+                      (a) => pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              a['description']?.toString() ?? 'No description',
+                              style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            ),
+                          ),
+                          pw.Text(
+                            _formatTimestamp(a['createdAt']),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              fontSize: 8,
+                              color: PdfColors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
+          }
+
+          widgets.add(pw.SizedBox(height: 12));
+
+          // Performance Metrics
+          widgets.add(
+            pw.Header(
+              level: 1,
+              child: pw.Text(
+                'Performance Metrics',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(
+            pw.Text(
+              'Points: ${profile['points'] ?? 0}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Current streak: ${profile['currentStreak'] ?? 0}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 10),
+            ),
+          );
+          widgets.add(pw.SizedBox(height: 8));
+          if (badges.isNotEmpty) {
+            widgets.add(
+              pw.Text(
+                'Badges earned:',
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: headerColor,
+                ),
+              ),
+            );
+            // Render badges as chips (wrap). Skip badges without an active checkbox.
+            final visibleBadges = badges.where((b) {
+              try {
+                final cb = b is Map ? b['checkbox'] : null;
+                if (cb == null) return false;
+                if (cb is bool) return cb == true;
+                final s = cb.toString();
+                return s.isNotEmpty && s.toLowerCase() != 'false';
+              } catch (_) {
+                return false;
+              }
+            }).toList();
+
+            if (visibleBadges.isNotEmpty) {
+              widgets.add(pw.SizedBox(height: 6));
+              widgets.add(
+                pw.Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: visibleBadges.map<pw.Widget>((b) {
+                    final name = (b is Map ? (b['name'] ?? b.toString()) : b)
+                        .toString();
+                    return pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromInt(0xFFE6F0FF),
+                        borderRadius: pw.BorderRadius.circular(12),
+                      ),
+                      child: pw.Text(
+                        name,
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          fontSize: 9,
+                          color: PdfColor.fromInt(0xFF0B3D91),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            } else {
+              widgets.add(
+                pw.Text(
+                  'No badges to display.',
+                  style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                ),
+              );
+            }
+          }
+
+          widgets.add(pw.SizedBox(height: 20));
+
+          // Footer metadata and bottom logo
+          widgets.add(pw.Divider());
+          if (bottomLogoImage != null) {
+            widgets.add(
+              pw.Center(
+                child: pw.Image(
+                  bottomLogoImage,
+                  width: 160,
+                  height: 36,
+                  fit: pw.BoxFit.contain,
+                ),
+              ),
+            );
+          }
+          widgets.add(pw.SizedBox(height: 6));
+          widgets.add(
+            pw.Text(
+              'Export generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Data retention: This export contains personal data. Handle securely.',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
+          widgets.add(
+            pw.Text(
+              'Support: support@example.com',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          );
+
+          return widgets;
+        },
+      ),
+    );
+
+    return pdf;
   }
 
-  Future<void> _viewTeamAnalytics() async {
-    // Placeholder for team analytics
-    await _showCenterNotice(context, 'Team analytics feature coming soon!');
+  // ignore: unused_element
+  pw.Widget _buildPdfSection(
+    String section,
+    dynamic data, {
+    required pw.Font font,
+  }) {
+    if (data == null) {
+      return pw.Text(
+        'No data available for this section.',
+        style: pw.TextStyle(font: font, fontSize: 10),
+      );
+    }
+
+    if (data is Map) {
+      final items = <pw.Widget>[];
+      data.forEach((key, value) {
+        // Sanitize the value to remove non-serializable objects
+        final sanitizedValue = _sanitizeValue(value);
+        String displayValue = sanitizedValue.toString();
+        if (displayValue.length > 100) {
+          displayValue = '${displayValue.substring(0, 100)}...';
+        }
+        items.add(
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(bottom: 8),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  key.toString().replaceAll('_', ' ').toUpperCase(),
+                  style: pw.TextStyle(
+                    font: font,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  displayValue,
+                  style: pw.TextStyle(font: font, fontSize: 10),
+                ),
+                pw.Divider(),
+              ],
+            ),
+          ),
+        );
+      });
+      return pw.Column(children: items);
+    } else if (data is List) {
+      final items = <pw.Widget>[];
+      for (int i = 0; i < data.length; i++) {
+        final item = data[i];
+        if (item is Map) {
+          items.add(
+            pw.Text(
+              'Item ${i + 1}:',
+              style: pw.TextStyle(
+                font: font,
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          );
+          item.forEach((k, v) {
+            final sanitizedValue = _sanitizeValue(v);
+            String displayValue = sanitizedValue.toString();
+            if (k == 'evidence' && sanitizedValue is List) {
+              displayValue = sanitizedValue.take(3).join(', ');
+              if (sanitizedValue.length > 3) displayValue += '...';
+            } else if (displayValue.length > 50) {
+              displayValue = '${displayValue.substring(0, 50)}...';
+            }
+            items.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 16, bottom: 4),
+                child: pw.Text(
+                  '$k: $displayValue',
+                  style: pw.TextStyle(font: font, fontSize: 10),
+                ),
+              ),
+            );
+          });
+          items.add(pw.SizedBox(height: 10));
+        } else {
+          final sanitizedValue = _sanitizeValue(item);
+          items.add(
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Text(
+                '${i + 1}. ${sanitizedValue.toString()}',
+                style: pw.TextStyle(font: font, fontSize: 10),
+              ),
+            ),
+          );
+        }
+      }
+      return pw.Column(children: items);
+    } else {
+      final sanitizedValue = _sanitizeValue(data);
+      return pw.Text(
+        sanitizedValue.toString(),
+        style: pw.TextStyle(font: font, fontSize: 10),
+      );
+    }
+  }
+
+  /// Sanitizes values to remove non-serializable Firestore objects
+  dynamic _sanitizeValue(dynamic value) {
+    try {
+      if (value == null) {
+        return 'N/A';
+      }
+
+      // Handle basic types
+      if (value is String || value is int || value is double || value is bool) {
+        return value;
+      }
+
+      // Handle DateTime
+      if (value is DateTime) {
+        return value.toIso8601String();
+      }
+
+      // Handle Lists
+      if (value is List) {
+        return value.map((item) => _sanitizeValue(item)).toList();
+      }
+
+      // Handle Maps
+      if (value is Map) {
+        final sanitized = <String, dynamic>{};
+        value.forEach((k, v) {
+          sanitized[k.toString()] = _sanitizeValue(v);
+        });
+        return sanitized;
+      }
+
+      // For any other type (including Firestore internal types),
+      // convert to string and filter out problematic characters
+      final stringValue = value.toString();
+
+      // Skip if it looks like an internal Firestore object
+      if (stringValue.contains('_Namespace') ||
+          stringValue.contains('Instance of') ||
+          stringValue.startsWith('_')) {
+        return '[Complex Object - Not Serializable]';
+      }
+
+      return stringValue;
+    } catch (_) {
+      return '[Unable to Serialize]';
+    }
+  }
+
+  /// Formats Firestore-like timestamps (and other date representations) into readable strings.
+  String _formatTimestamp(dynamic ts) {
+    try {
+      if (ts == null) return 'N/A';
+      DateTime? dt;
+
+      if (ts is DateTime) {
+        dt = ts;
+      } else if (ts is int) {
+        // Could be seconds or milliseconds - heuristics
+        if (ts > 1000000000000) {
+          dt = DateTime.fromMillisecondsSinceEpoch(ts);
+        } else {
+          dt = DateTime.fromMillisecondsSinceEpoch(ts * 1000);
+        }
+      } else if (ts is Map) {
+        // Firestore Timestamp-like map: {seconds: ..., nanoseconds: ...}
+        if (ts.containsKey('seconds')) {
+          final s = ts['seconds'];
+          if (s is int) dt = DateTime.fromMillisecondsSinceEpoch(s * 1000);
+        }
+      } else if (ts is String) {
+        try {
+          dt = DateTime.parse(ts);
+        } catch (_) {
+          dt = null;
+        }
+      }
+
+      if (dt == null) return ts.toString();
+
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final m = months[dt.month - 1];
+      return '$m ${dt.day}, ${dt.year}';
+    } catch (_) {
+      return ts.toString();
+    }
+  }
+
+  /// Format export date/time for header/footer, removing milliseconds.
+  String _formatExportDate(dynamic v) {
+    try {
+      DateTime dt;
+      if (v is DateTime) {
+        dt = v;
+      } else if (v is String) {
+        dt = DateTime.parse(v);
+      } else if (v is int) {
+        // seconds vs milliseconds
+        dt = v > 1000000000000
+            ? DateTime.fromMillisecondsSinceEpoch(v)
+            : DateTime.fromMillisecondsSinceEpoch(v * 1000);
+      } else if (v is Map && v.containsKey('seconds')) {
+        final s = v['seconds'];
+        dt = DateTime.fromMillisecondsSinceEpoch(
+          (s is int ? s : int.tryParse(s.toString()) ?? 0) * 1000,
+        );
+      } else {
+        return v.toString();
+      }
+      // Remove fractional seconds
+      final iso = dt.toIso8601String();
+      return iso.split('.').first;
+    } catch (_) {
+      return v.toString();
+    }
   }
 
   // Dialog helpers
@@ -1396,11 +2410,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ignore: unused_element
   String _prettyJson(Map<String, dynamic> data) {
     try {
       return const JsonEncoder.withIndent('  ').convert(data);
     } catch (_) {
       return data.toString();
+    }
+  }
+
+  // ignore: unused_element
+  Future<File> _savePdfFile(String fileName, pw.Document pdf) async {
+    final safeFileName = fileName.replaceAll(RegExp(r'[<>:\"|?*]'), '_');
+
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final safePath = '${directory.path}/$safeFileName'.replaceAll('\\', '/');
+      final file = File(safePath);
+      await file.writeAsBytes(await pdf.save());
+      return file;
+    } catch (e) {
+      developer.log('Error saving PDF file: $e');
+      rethrow;
     }
   }
 }
