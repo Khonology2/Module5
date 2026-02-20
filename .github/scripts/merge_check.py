@@ -150,6 +150,8 @@ def main():
     # Don't run if already on dev-main branch
     if current_branch == dev_main_branch:
         print("Already on dev-main branch, no merge check needed.")
+        # Set output for no conflicts
+        print("::set-output name=conflicts_found::false")
         sys.exit(0)
     
     # Fetch latest changes
@@ -193,6 +195,9 @@ def main():
         report = generate_conflict_report(conflict_details, current_branch, dev_main_branch)
         save_conflict_report(report)
         
+        # Set output indicating conflicts were found
+        print("::set-output name=conflicts_found::true")
+        
         print("\n" + "="*80)
         print("🔧 HOW TO FIX:")
         print("="*80)
@@ -212,15 +217,20 @@ def main():
         print("\n7. After fixing conflicts, push again to trigger this check.")
         print("="*80)
         
-        # Abort the merge
+        # Abort the merge but don't exit with error yet
         abort_merge()
-        sys.exit(1)
+        
+        # Exit with success so workflow continues to commit step
+        sys.exit(0)
     else:
         print("✅ No merge conflicts detected!")
         
         # Generate and save no-conflict report
         report = generate_conflict_report([], current_branch, dev_main_branch)
         save_conflict_report(report)
+        
+        # Set output for no conflicts
+        print("::set-output name=conflicts_found::false")
         
         # Abort the no-commit merge
         abort_merge()
