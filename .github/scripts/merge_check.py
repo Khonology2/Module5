@@ -96,7 +96,121 @@ def abort_merge():
     if result.returncode != 0:
         print(f"Warning: Could not abort merge: {result.stderr}")
 
-def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_branch: str) -> Dict[str, Any]:
+def analyze_codebase_issues() -> List[Dict[str, Any]]:
+    """Analyze codebase for common issues and errors."""
+    issues = []
+    
+    # Check for common Dart/Flutter issues
+    dart_files = []
+    try:
+        result = run_command(['find', '.', '-name', '*.dart', '-type', 'f'])
+        if result.returncode == 0:
+            dart_files = result.stdout.strip().split('\n')
+    except:
+        pass
+    
+    for dart_file in dart_files:
+        if dart_file.startswith('./.git/') or dart_file.startswith('./build/'):
+            continue
+            
+        try:
+            with open(dart_file, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                lines = content.split('\n')
+                
+                for i, line in enumerate(lines, 1):
+                    line_stripped = line.strip()
+                    
+                    # Check for undefined references
+                    if 'TeamChatButton(' in line and 'TeamChatButton' not in content:
+                        issues.append({
+                            'type': 'UNDEFINED_REFERENCE',
+                            'message': 'TeamChatButton is not defined',
+                            'file': dart_file,
+                            'line': i,
+                            'suggestion': 'Import or define TeamChatButton widget'
+                        })
+                    
+                    # Check for missing imports
+                    if 'import ' in line and ';' in line:
+                        import_match = line.strip().split("import ")[1].split(";")[0].strip()
+                        if import_match and not any(import_match in content for imp in content.split('\n') if 'import ' in imp):
+                            issues.append({
+                                'type': 'MISSING_IMPORT',
+                                'message': f'Import {import_match} may be missing or unused',
+                                'file': dart_file,
+                                'line': i,
+                                'suggestion': 'Check import statement and file existence'
+                            })
+                    
+                    # Check for syntax errors
+                    if line_stripped.endswith(')') and not line_stripped.endswith(';') and 'class ' in line:
+                        issues.append({
+                            'type': 'SYNTAX_ERROR',
+                            'message': 'Missing semicolon after class declaration',
+                            'file': dart_file,
+                            'line': i,
+                            'suggestion': 'Add semicolon at end of line'
+                        })
+                    
+                    # Check for missing async/await
+                    if 'Future<' in line and 'await ' not in content and 'async ' not in content:
+                        issues.append({
+                            'type': 'ASYNC_ISSUE',
+                            'message': 'Future detected but missing async/await',
+                            'file': dart_file,
+                            'line': i,
+                            'suggestion': 'Add async keyword or await the Future'
+                        })
+                        
+        except Exception as e:
+            issues.append({
+                'type': 'FILE_READ_ERROR',
+                'message': f'Cannot read file {dart_file}: {str(e)}',
+                'file': dart_file,
+                'line': 0,
+                'suggestion': 'Check file permissions and encoding'
+            })
+    
+    # Check for workflow issues
+    workflow_files = ['.github/workflows/test-merge-conflicts.yml', '.github/workflows/generate-commits.yml']
+    for workflow_file in workflow_files:
+        try:
+            with open(workflow_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+                # Check for deprecated set-output
+                if '::set-output' in content and 'GITHUB_OUTPUT' not in content:
+                    issues.append({
+                        'type': 'DEPRECATED_GITHUB_ACTION',
+                        'message': 'Using deprecated ::set-output command',
+                        'file': workflow_file,
+                        'line': 0,
+                        'suggestion': 'Use GITHUB_OUTPUT file instead'
+                    })
+                    
+                # Check for missing permissions
+                if 'contents: write' not in content and 'git push' in content:
+                    issues.append({
+                        'type': 'MISSING_PERMISSIONS',
+                        'message': 'Workflow missing contents: write permission',
+                        'file': workflow_file,
+                        'line': 0,
+                        'suggestion': 'Add permissions: contents: write'
+                    })
+                    
+        except Exception as e:
+            issues.append({
+                'type': 'WORKFLOW_READ_ERROR',
+                'message': f'Cannot read workflow {workflow_file}: {str(e)}',
+                'file': workflow_file,
+                'line': 0,
+                'suggestion': 'Check workflow file syntax'
+            })
+    
+    return issues
+
+def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_branch: str, codebase_issues: List[Dict] = None) -> Dict[str, Any]:
     """Generate a detailed conflict report JSON structure."""
     timestamp = datetime.utcnow().isoformat() + 'Z'
     
@@ -105,20 +219,22 @@ def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_
         "generated_at": timestamp,
         "source_branch": current_branch,
         "target_branch": target_branch,
-        "status": "conflicts_detected" if conflicts else "no_conflicts",
+        "status": "conflicts_detected" if conflicts or codebase_issues else "no_conflicts",
         "total_conflicts": len(conflicts),
         "conflicts": conflicts,
+        "codebase_issues": codebase_issues or [],
         "summary": {
-            "message": f"Found {len(conflicts)} merge conflict(s) when merging {current_branch} into {target_branch}",
-            "action_required": "Please resolve conflicts listed below and push again" if conflicts else "No action required",
+            "message": f"Found {len(conflicts)} merge conflict(s) and {len(codebase_issues or [])} codebase issue(s) when merging {current_branch} into {target_branch}",
+            "action_required": "Please resolve conflicts and fix codebase issues listed below" if conflicts or codebase_issues else "No action required",
             "resolution_steps": [
                 "1. Check out your branch: git checkout {current_branch}",
                 "2. Pull latest changes: git pull origin {target_branch}",
-                "3. Resolve conflicts in the files listed above",
-                "4. Stage resolved files: git add <resolved-files>",
-                "5. Commit the merge: git commit",
-                "6. Push your changes: git push origin {current_branch}"
-            ] if conflicts else []
+                "3. Resolve conflicts in files listed above",
+                "4. Fix codebase issues highlighted below",
+                "5. Stage resolved files: git add <resolved-files>",
+                "6. Commit the merge: git commit",
+                "7. Push your changes: git push origin {current_branch}"
+            ] if conflicts or codebase_issues else []
         }
     }
 
@@ -205,8 +321,20 @@ def main():
                 for i, conflict in enumerate(details['conflicts'], 1):
                     print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
         
+        # Check for additional codebase issues
+        print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
+        codebase_issues = analyze_codebase_issues()
+        if codebase_issues:
+            print(f"📋 Found {len(codebase_issues)} codebase issues:")
+            for issue in codebase_issues:
+                print(f"   - {issue['type']}: {issue['message']}")
+                print(f"     File: {issue['file']}")
+                print(f"     Line: {issue['line']}")
+                if 'suggestion' in issue:
+                    print(f"     Fix: {issue['suggestion']}")
+        
         # Generate and save conflict report
-        report = generate_conflict_report(conflict_details, current_branch, target_branch)
+        report = generate_conflict_report(conflict_details, current_branch, target_branch, codebase_issues)
         save_conflict_report(report)
         
         # Set output indicating conflicts were found
