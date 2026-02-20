@@ -1,64 +1,36 @@
 {
-  "report_id": "2026-02-20T22:00:00",
-
-  "generated_at": "2026-02-20T22:00:00",
-
-  "source_branch": "creator",
-
+  "report_id": "2026-02-20T21:11:50.765909",
+  "generated_at": "2026-02-20T21:11:50.765909",
+  "source_branch": "Conflict-Test",
   "target_branch": "MAIN",
-
   "status": "conflicts_detected",
-
   "total_conflicts": 1,
-
   "conflicts": [
-
     {
-
-      "file": "src/app.js",
-
+      "file": "assets/data/daily-commits.json",
       "conflicts": [
-
         {
-
-          "start_line": 10,
-
-          "end_line": 18,
-
-          "code":
-
-"<<<<<<< HEAD\nconst a = 5;\n=======\nconst a = 10;\n>>>>>>> MAIN"
-
+          "start_line": 2,
+          "end_line": 8,
+          "code": "<<<<<<< HEAD\n  \"version\": \"2026.02.DE54.SIT\",\n  \"generated_at\": \"2026-02-20T20:45:41Z\",\n=======\n  \"version\": \"2026.02.AD45.SIT\",\n  \"generated_at\": \"2026-02-19T11:44:52Z\",\n>>>>>>> origin/MAIN\n"
+        },
+        {
+          "start_line": 286,
+          "end_line": 292,
+          "code": "<<<<<<< HEAD\n  \"total_commits\": 54,\n  \"date_range\": \"2026-02-20\"\n=======\n  \"total_commits\": 45,\n  \"date_range\": \"2026-02-19\"\n>>>>>>> origin/MAIN\n"
         }
-
       ]
-
     }
-
   ],
-
-  "developer_guidance":
-
-  {
-
+  "developer_guidance": {
     "message": "Resolve highlighted lines",
-
-    "fix_steps":
-
-    [
-
+    "fix_steps": [
       "Open file",
-
       "Search <<<<<<<",
-
-      "Fix code",
-
-      "Commit",
-
-      "Push"
-
+      "Edit code",
+      "git add .",
+      "git commit",
+      "git push"
     ]
-
   }
-
 }
