@@ -6,7 +6,7 @@ on:
   workflow_dispatch: # Allow manual trigger
 
 permissions:
-  contents: read # Only need read access for conflict testing
+  contents: write # Allow the workflow to push commits back to the repository
 
 jobs:
   test-merge-conflicts:
@@ -36,4 +36,16 @@ jobs:
         else
           chmod +x .github/scripts/merge_check.py
           python .github/scripts/merge_check.py
+        fi
+
+    - name: Commit conflict report (if any)
+      run: |
+        # Check if there are changes to commit (the conflict report)
+        if git diff --quiet assets/data/merge-conflicts.json; then
+          echo "No conflict report changes to commit"
+        else
+          echo "Committing conflict report"
+          git add assets/data/merge-conflicts.json
+          git commit -m "Update merge conflict report [${{ github.ref_name }}]" || echo "No changes to commit"
+          git push || echo "Push failed - likely due to no changes or permissions"
         fi
