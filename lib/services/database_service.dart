@@ -5,6 +5,7 @@ import 'package:pdh/models/goal.dart';
 import 'package:pdh/models/goal_milestone.dart';
 import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/models/season.dart';
+import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/services/milestone_evidence_service.dart';
 import 'package:pdh/services/alert_service.dart';
 import 'package:pdh/models/alert.dart';
@@ -995,6 +996,39 @@ class DatabaseService {
     });
     final snapshot = await docRef.get();
     final milestone = GoalMilestone.fromFirestore(snapshot);
+
+    // Log milestone creation to audit trail (unified system only)
+    try {
+      // Get goal title for audit
+      final goalSnap = await FirebaseFirestore.instance
+          .collection('goals')
+          .doc(goalId)
+          .get();
+      final goalTitle = goalSnap.data()?['title'] ?? 'Unknown Goal';
+
+      // NEW: Unified audit system
+      await UnifiedMilestoneAudit.logMilestoneCreated(
+        goalId: goalId,
+        goalTitle: goalTitle,
+        milestoneId: docRef.id,
+        milestoneTitle: title,
+      );
+
+      // OLD: Legacy audit system DISABLED to prevent permission errors
+      // await MilestoneAuditService.logMilestoneCreation(
+      //   goalId: goalId,
+      //   goalTitle: goalTitle,
+      //   milestoneId: docRef.id,
+      //   changeReason: 'Milestone created',
+      // );
+    } catch (auditError) {
+      developer.log(
+        'Failed to log milestone creation audit: $auditError',
+        name: 'DatabaseService',
+      );
+      // Don't throw - audit logging shouldn't break the main flow
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
       milestone: milestone,
@@ -1013,6 +1047,8 @@ class DatabaseService {
   }) async {
     Map<String, dynamic>? goalData;
     bool goalCompleted = false;
+    GoalMilestone? previousMilestone;
+
     try {
       final goalSnap = await FirebaseFirestore.instance
           .collection('goals')
@@ -1034,7 +1070,8 @@ class DatabaseService {
     try {
       final beforeSnap = await docRef.get();
       if (beforeSnap.exists) {
-        previousStatus = GoalMilestone.fromFirestore(beforeSnap).status;
+        previousMilestone = GoalMilestone.fromFirestore(beforeSnap);
+        previousStatus = previousMilestone.status;
       }
     } catch (_) {}
 
@@ -1072,12 +1109,69 @@ class DatabaseService {
         updates['completedAt'] = null;
       }
     }
+
     await docRef.update(updates);
     final afterSnap = await docRef.get();
-    final milestone = GoalMilestone.fromFirestore(afterSnap);
+    final updatedMilestone = GoalMilestone.fromFirestore(afterSnap);
+
+    // Log milestone changes to audit trail (unified system only)
+    if (previousMilestone != null) {
+      try {
+        // Calculate what changed
+        final changes = <String, dynamic>{};
+        if (title != null && title != previousMilestone.title) {
+          changes['title'] = {'old': previousMilestone.title, 'new': title};
+        }
+        if (description != null &&
+            description != previousMilestone.description) {
+          changes['description'] = {
+            'old': previousMilestone.description,
+            'new': description,
+          };
+        }
+        if (dueDate != null && dueDate != previousMilestone.dueDate) {
+          changes['dueDate'] = {
+            'old': previousMilestone.dueDate.toIso8601String(),
+            'new': dueDate.toIso8601String(),
+          };
+        }
+        if (status != null && status != previousMilestone.status) {
+          changes['status'] = {
+            'old': previousMilestone.status.name,
+            'new': status.name,
+          };
+        }
+
+        // NEW: Unified audit system
+        await UnifiedMilestoneAudit.logMilestoneUpdated(
+          goalId: goalId,
+          goalTitle: goalData?['title'] ?? 'Unknown Goal',
+          milestoneId: milestoneId,
+          milestoneTitle: updatedMilestone.title,
+          changes: changes,
+        );
+
+        // OLD: Legacy audit system DISABLED to prevent permission errors
+        // await MilestoneAuditService.logMilestoneUpdate(
+        //   goalId: goalId,
+        //   goalTitle: goalData?['title'] ?? 'Unknown Goal',
+        //   milestoneId: milestoneId,
+        //   previousMilestone: previousMilestone,
+        //   updatedMilestone: updatedMilestone,
+        //   changeReason: 'Milestone updated via edit form',
+        // );
+      } catch (auditError) {
+        developer.log(
+          'Failed to log milestone audit: $auditError',
+          name: 'DatabaseService',
+        );
+        // Don't throw - audit logging shouldn't break the main flow
+      }
+    }
+
     await _afterMilestoneMutation(
       goalId: goalId,
-      milestone: milestone,
+      milestone: updatedMilestone,
       previousStatus: previousStatus,
     );
   }
