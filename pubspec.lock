@@ -1430,10 +1430,17 @@ packages:
     dependency: transitive
     description:
       name: video_player_android
+<<<<<<< HEAD
       sha256: "9862c67c4661c98f30fe707bc1a4f97d6a0faa76784f485d282668e4651a7ac3"
       url: "https://pub.dev"
     source: hosted
     version: "2.9.4"
+=======
+      sha256: e726b33894526cf96a3eefe61af054b0c3e7d254443b3695b3c142dc277291be
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.3"
+>>>>>>> 17af9e9a2d5bd0ae4ce0c6cfca29e6f58dbe53ce
   video_player_avfoundation:
     dependency: transitive
     description:
