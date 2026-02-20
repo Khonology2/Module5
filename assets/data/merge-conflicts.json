@@ -1,14 +1,20 @@
 {
-  "report_type": "merge_conflict_check",
+  "report_id": "2026-02-20T21:15:30.000Z",
   "generated_at": "2026-02-20T21:15:30.000Z",
   "source_branch": "initial",
   "target_branch": "MAIN",
   "status": "no_conflicts",
   "total_conflicts": 0,
   "conflicts": [],
-  "summary": {
-    "message": "No merge conflicts detected",
-    "action_required": "No action required",
-    "resolution_steps": []
+  "developer_guidance": {
+    "message": "Pull latest MAIN and resolve conflicts locally",
+    "commands": [
+      "git checkout initial",
+      "git pull origin MAIN",
+      "resolve conflicts",
+      "git add .",
+      "git commit",
+      "git push origin initial"
+    ]
   }
 }
