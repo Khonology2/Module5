@@ -715,6 +715,14 @@ class MyNavigatorObserver extends NavigatorObserver {
     currentRouteNotifier.value = newRoute?.settings.name;
   }
 
+  // ADDITIONAL CONFLICT TEST: This method will conflict with MAIN branch
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    currentRouteNotifier.value = previousRoute?.settings.name;
+    // Added extra logging for conflict testing
+    debugPrint('Route removed: ${route.settings.name}');
+  }
+
   @override
   void didPop(Route route, Route? previousRoute) {
     currentRouteNotifier.value = previousRoute?.settings.name;
