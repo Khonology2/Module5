@@ -42,11 +42,13 @@ jobs:
 
     - name: Commit conflict report (if any)
       run: |
-        # Check if there are unstaged changes to commit (the conflict report)
+        # Check if there are changes to commit
         if git diff --quiet assets/data/merge-conflicts.json; then
-          echo "No conflict report changes to commit"
+          echo "No changes to commit data"
         else
-          echo "Committing conflict report"
+          echo "Committing updated conflict report"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
           git add assets/data/merge-conflicts.json
           git commit -m "Update merge conflict report [${{ github.ref_name }}]" || echo "No changes to commit"
           git push || echo "Push failed - likely due to no changes or permissions"
