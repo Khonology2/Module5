@@ -60,6 +60,17 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
               child: ListView(
                 padding: AppSpacing.screenPadding,
                 children: [
+                  _BackToBadgesButton(
+                    onPressed: () {
+                      final nav = Navigator.of(context);
+                      if (nav.canPop()) {
+                        nav.pop();
+                      } else {
+                        nav.pushReplacementNamed('/badges_points');
+                      }
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   _Header(title: title),
                   const SizedBox(height: AppSpacing.lg),
                   if (user == null)
@@ -116,6 +127,41 @@ class BadgeCategoryDetailScreen extends StatelessWidget {
                       },
                     ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackToBadgesButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _BackToBadgesButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.activeColor, width: 2),
+              color: Colors.black.withValues(alpha: 0.10),
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.arrow_back,
+                color: AppColors.activeColor,
+                size: 20,
               ),
             ),
           ),
