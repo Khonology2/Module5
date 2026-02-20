@@ -1,7 +1,7 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-20T22:19:08.431779Z",
-  "source_branch": "Conflict-Test",
+  "generated_at": "2026-02-20T22:33:19.732688Z",
+  "source_branch": "Nathi-S11",
   "target_branch": "MAIN",
   "status": "conflicts_detected",
   "total_conflicts": 1,
@@ -62,7 +62,7 @@
     }
   ],
   "summary": {
-    "message": "Found 1 merge conflict(s) and 3 codebase issue(s) when merging Conflict-Test into MAIN",
+    "message": "Found 1 merge conflict(s) and 3 codebase issue(s) when merging Nathi-S11 into MAIN",
     "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
       "1. Check out your branch: git checkout {current_branch}",
