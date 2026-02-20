@@ -1,7 +1,17 @@
 {
-  "version": "2026.02.DE38.SIT",
-  "generated_at": "2026-02-20T19:19:04Z",
+  "version": "2026.02.DE40.SIT",
+  "generated_at": "2026-02-20T19:29:43Z",
   "commits": [
+    {
+      "author": "Nathi2266",
+      "message": "fix: update script to use modern GITHUB_OUTPUT instead of deprecated set-output",
+      "timestamp": "2026-02-20T21:28:54+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-20T19:19:04Z"
+    },
     {
       "author": "Nathi2266",
       "message": "fix: ensure conflict detection runs even when merge fails",
@@ -193,6 +203,6 @@
       "timestamp": "2026-02-20T10:03:43+02:00"
     }
   ],
-  "total_commits": 38,
+  "total_commits": 40,
   "date_range": "2026-02-20"
 }
