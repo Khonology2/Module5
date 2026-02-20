@@ -4,6 +4,10 @@ on:
   push:
     branches: ['*'] # Include ALL branches, including new ones created by developers
   workflow_dispatch: # Allow manual trigger
+  workflow_run:
+    workflows: ["Test Merge Conflicts"]
+    types:
+      - completed
 
 permissions:
   contents: write # Allow the workflow to push commits back to the repository
@@ -11,6 +15,7 @@ permissions:
 jobs:
   generate-commits:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
 
     steps:
     - name: Checkout repository
