@@ -148,17 +148,3 @@ jobs:
       run: |
         echo "Generated commit data:"
         cat assets/data/daily-commits.json | jq . 2>/dev/null || cat assets/data/daily-commits.json
-
-    - name: Commit and push changes (if any)
-      run: |
-        # Check if there are changes to commit
-        if git diff --quiet assets/data/daily-commits.json; then
-          echo "No changes to commit data"
-        else
-          echo "Committing updated commit data"
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add assets/data/daily-commits.json
-          git commit -m "Update daily commits data [${TODAY}]" || echo "No changes to commit"
-          git push || echo "Push failed - likely due to no changes or permissions"
-        fi
