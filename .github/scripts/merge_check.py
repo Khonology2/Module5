@@ -96,6 +96,15 @@ def abort_merge():
     if result.returncode != 0:
         print(f"Warning: Could not abort merge: {result.stderr}")
 
+def create_github_annotation(conflict):
+    """Create GitHub Actions annotation for inline PR errors."""
+    print(
+        f"::error file={conflict['file']},"
+        f"line={conflict['line']},"
+        f"title=Merge Conflict::"
+        f"{conflict['message']} ({conflict['marker']})"
+    )
+
 def analyze_codebase_issues() -> List[Dict[str, Any]]:
     """Analyze codebase for common issues and errors."""
     issues = []
@@ -321,8 +330,32 @@ def main():
                 print(f"   Conflicts found: {len(details['conflicts'])}")
                 for i, conflict in enumerate(details['conflicts'], 1):
                     print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
-        
-        # Check for additional codebase issues
+                    
+                    # Create GitHub annotations for each conflict marker
+                    conflict_lines = conflict.get('lines', [])
+                    for line_idx, line_content in enumerate(conflict_lines):
+                        actual_line = conflict['start_line'] + line_idx
+                        if line_content.startswith('<<<<<<<'):
+                            create_github_annotation({
+                                'file': file_path,
+                                'line': actual_line,
+                                'marker': '<<<<<<<',
+                                'message': 'Incoming change marker'
+                            })
+                        elif line_content.startswith('======='):
+                            create_github_annotation({
+                                'file': file_path,
+                                'line': actual_line,
+                                'marker': '=======',
+                                'message': 'Conflict separator'
+                            })
+                        elif line_content.startswith('>>>>>>>'):
+                            create_github_annotation({
+                                'file': file_path,
+                                'line': actual_line,
+                                'marker': '>>>>>>>',
+                                'message': 'Current branch marker'
+                            })
         print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
         codebase_issues = analyze_codebase_issues()
         if codebase_issues:
