@@ -228,29 +228,103 @@ def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_
     """Generate a detailed conflict report JSON structure."""
     timestamp = datetime.utcnow().isoformat() + 'Z'
     
+    # Generate comprehensive AI prompt for all conflicts
+    ai_system_prompt = generate_comprehensive_ai_prompt(conflicts, current_branch, target_branch, codebase_issues)
+    
     return {
         "report_type": "merge_conflict_check",
         "generated_at": timestamp,
         "source_branch": current_branch,
         "target_branch": target_branch,
         "status": "conflicts_detected" if conflicts or codebase_issues else "no_conflicts",
-        "total_conflicts": len(conflicts),
+        "total_conflicts": len([c for c in conflicts if c['marker'] == '<<<<<<<']),
+        "highlight_exact_broken_lines": True,
         "conflicts": conflicts,
-        "codebase_issues": codebase_issues or [],
+        "codebase_issues": codebase_issues if codebase_issues else [],
         "summary": {
-            "message": f"Found {len(conflicts)} merge conflict(s) and {len(codebase_issues or [])} codebase issue(s) when merging {current_branch} into {target_branch}",
-            "action_required": "Please resolve conflicts and fix codebase issues listed below" if conflicts or codebase_issues else "No action required",
+            "message": f"Found {len([c for c in conflicts if c['marker'] == '<<<<<<<'])} merge conflict(s) and {len(codebase_issues) if codebase_issues else 0} codebase issue(s) when merging {current_branch} into {target_branch}",
+            "action_required": "Please resolve conflicts and fix codebase issues listed below",
             "resolution_steps": [
-                "1. Check out your branch: git checkout {current_branch}",
-                "2. Pull latest changes: git pull origin {target_branch}",
+                "1. Check out your branch: git checkout " + current_branch,
+                "2. Pull latest changes: git pull origin " + target_branch,
                 "3. Resolve conflicts in files listed above",
                 "4. Fix codebase issues highlighted below",
                 "5. Stage resolved files: git add <resolved-files>",
                 "6. Commit the merge: git commit",
-                "7. Push your changes: git push origin {current_branch}"
-            ] if conflicts or codebase_issues else []
+                "7. Push your changes: git push origin " + current_branch
+            ],
+            "ai_system_prompt": ai_system_prompt
         }
     }
+
+def generate_comprehensive_ai_prompt(conflicts: List[Dict], current_branch: str, target_branch: str, codebase_issues: List[Dict] = None) -> str:
+    """Generate a comprehensive AI prompt to resolve all conflicts in one go."""
+    
+    # Group conflicts by file and extract only the actual conflict blocks
+    conflict_blocks = {}
+    for conflict in conflicts:
+        if conflict['marker'] == '<<<<<<<':
+            file_path = conflict['file']
+            if file_path not in conflict_blocks:
+                conflict_blocks[file_path] = []
+            
+            conflict_blocks[file_path].append({
+                'line': conflict['line'],
+                'your_code': conflict['your_code'],
+                'target_code': conflict['target_code'],
+                'context_lines': conflict['context_lines'],
+                'risk_level': conflict['risk_level'],
+                'suggested_action': conflict['suggested_action']
+            })
+    
+    prompt = f"""I have merge conflicts when merging branch '{current_branch}' into '{target_branch}'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.
+
+CONFLICTS TO RESOLVE:
+
+"""
+    
+    # Add each conflict with full context
+    for file_path, blocks in conflict_blocks.items():
+        prompt += f"FILE: {file_path}\n"
+        prompt += "=" * 60 + "\n"
+        
+        for i, block in enumerate(blocks, 1):
+            prompt += f"\nConflict {i} (Line {block['line']}):\n"
+            prompt += f"Risk Level: {block['risk_level']}\n"
+            prompt += f"Suggested Action: {block['suggested_action']}\n\n"
+            
+            prompt += "CURRENT CONFLICT BLOCK:\n"
+            prompt += "<<<<<<< HEAD\n"
+            for line in block['your_code']:
+                prompt += f"{line}\n"
+            prompt += "=======\n"
+            for line in block['target_code']:
+                prompt += f"{line}\n"
+            prompt += ">>>>>>> origin/" + target_branch + "\n\n"
+            
+            prompt += "CONTEXT (surrounding code):\n"
+            for j, context_line in enumerate(block['context_lines']):
+                if context_line.strip().startswith('<<<<<<<') or context_line.strip().startswith('=======') or context_line.strip().startswith('>>>>>>>'):
+                    continue
+                prompt += f"  {context_line}\n"
+            prompt += "\n"
+    
+    prompt += "RESOLUTION REQUIREMENTS:\n"
+    prompt += "1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n"
+    prompt += "2. Consider the risk level and suggested action for each conflict\n"
+    prompt += "3. Ensure the merged code maintains functionality from both branches\n"
+    prompt += "4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n"
+    prompt += "5. Provide the complete resolved code for each file\n\n"
+    
+    prompt += "OUTPUT FORMAT:\n"
+    prompt += "For each file, provide:\n"
+    prompt += "1. Brief explanation of the resolution approach\n"
+    prompt += "2. The complete resolved code block to replace the conflict\n"
+    prompt += "3. Any notes about potential issues or testing needed\n\n"
+    
+    prompt += "Please provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    
+    return prompt
 
 def save_conflict_report(report: Dict[str, Any]):
     """Save conflict report to assets/data/merge-conflicts.json"""
