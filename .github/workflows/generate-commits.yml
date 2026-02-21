@@ -6,9 +6,9 @@ on:
   pull_request:
     branches: ['*']
   workflow_dispatch: # Allow manual trigger
-    schedule:
-      # Run every 5 minutes to ensure updates
-      - cron: '*/5 * * * *'
+  schedule:
+    # Run every 5 minutes to ensure updates
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write # Allow the workflow to push commits back to the repository
