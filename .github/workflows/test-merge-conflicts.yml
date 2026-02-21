@@ -29,8 +29,12 @@ jobs:
 
     - name: Configure Git
       run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@github.com"
+        # Get the author of the last commit (the actual developer)
+        AUTHOR_EMAIL=$(git log -1 --pretty=format:'%ae')
+        AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
+        
+        git config --global user.name "$AUTHOR_NAME"
+        git config --global user.email "$AUTHOR_EMAIL"
 
 
     - name: Run Merge Conflict Detection
@@ -52,10 +56,11 @@ jobs:
 
     - name: Commit and Push Report
       run: |
-
+        
         git add assets/data/merge-conflicts.json
-
-        git diff --staged --quiet || git commit -m "Auto update merge conflict report"
+        
+        # Commit with developer attribution
+        git diff --staged --quiet || git commit -m "Auto update merge conflict report [ci skip]"
 
         git push
 
