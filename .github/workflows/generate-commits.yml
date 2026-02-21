@@ -175,25 +175,17 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Commit and Push Daily Commits JSON
+    - name: Commit and Push daily commits JSON
       run: |
         echo "📝 Committing daily commits JSON..."
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
         git add assets/data/daily-commits.json
-        git status --porcelain
-        git commit -m "docs: update daily commits data [skip ci]" || echo "Commit completed (no new changes)"
-        
+        git commit -m "docs: update daily commits data [skip ci]" || echo "No changes"
+        echo "� Pulling latest changes to avoid stale push..."
+        git pull origin ${GITHUB_REF_NAME} --rebase
         echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
-        if git push origin ${GITHUB_REF_NAME} --force-with-lease; then
-          echo "✅ Daily commits JSON successfully committed and pushed"
-          echo "🔗 Developers can now pull this branch to see updated commit data locally"
-          echo "🌐 Deployed app will now show updated version control data"
-        else
-          echo "⚠️  Push failed - JSON saved locally in runner only"
-          echo "🔍 Debug: Checking git status"
-          git status
-          echo "🔍 Debug: Checking remote status"
-          git remote -v
-        fi
+        git push origin ${GITHUB_REF_NAME}
 
     - name: Upload Daily Commits Artifact
       uses: actions/upload-artifact@v4
