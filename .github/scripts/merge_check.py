@@ -39,8 +39,12 @@ def run(cmd):
 
 def current_branch():
     """Get current git branch."""
-    result = run("git rev-parse --abbrev-ref HEAD")
-    return result.stdout.strip()
+    result = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+    if result.returncode == 0:
+        return result.stdout.strip()
+    else:
+        print(f"Error getting current branch: {result.stderr}")
+        return ""
 
 
 def simulate_merge(branch):
