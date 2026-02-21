@@ -227,30 +227,32 @@ def main():
             print(f"\n📁 File: {file_path}")
             print(f"   Conflicts found: {len(conflicts)}")
             for i, conflict in enumerate(conflicts, 1):
-                print(f"   Conflict {i}: Line {conflict['line']} - {conflict['marker']} ({conflict['message']})")
+                marker_type = conflict['marker']
+                line_num = conflict['line']
                 
-                # Create GitHub annotations for each conflict marker
-                if conflict['marker'] == '<<<<<<<':
-                    create_github_annotation({
-                        'file': file_path,
-                        'line': conflict['line'],
-                        'marker': conflict['marker'],
-                        'message': conflict['message']
-                    })
-                elif conflict['marker'] == '=======':
-                    create_github_annotation({
-                        'file': file_path,
-                        'line': conflict['line'],
-                        'marker': conflict['marker'],
-                        'message': conflict['message']
-                    })
-                elif conflict['marker'] == '>>>>>>>':
-                    create_github_annotation({
-                        'file': file_path,
-                        'line': conflict['line'],
-                        'marker': conflict['marker'],
-                        'message': conflict['message']
-                    })
+                # Provide detailed descriptions for each conflict type
+                if marker_type == '<<<<<<<':
+                    description = "CONFLICT START: This marks the beginning of a merge conflict. The code between this marker and '=======' comes from your branch (Nathi-S11)."
+                    solution = "Remove this marker and choose which code to keep - either from your branch or MAIN branch."
+                    github_message = f"Merge Conflict Start: Code from your branch conflicts with MAIN. Remove conflict markers and choose correct code."
+                    
+                elif marker_type == '=======':
+                    description = "CONFLICT SEPARATOR: This divides your branch's changes from the MAIN branch's changes."
+                    solution = "Everything above this line is from your branch, below is from MAIN. Choose one version or combine them."
+                    github_message = f"Conflict Separator: Choose code above (your branch) or below (MAIN branch), or merge them manually."
+                    
+                elif marker_type == '>>>>>>>':
+                    description = "CONFLICT END: This marks the end of a merge conflict. The code above this marker comes from the MAIN branch."
+                    solution = "Remove this marker after resolving the conflict above. Ensure no conflict markers remain."
+                    github_message = f"Merge Conflict End: Resolve the conflict above and remove this marker. Test your code after fixing."
+                
+                print(f"   Conflict {i}: Line {line_num} - {marker_type}")
+                print(f"   Description: {description}")
+                print(f"   Solution: {solution}")
+                print()
+                
+                # Create detailed GitHub annotations
+                print(f"::error file={file_path},line={line_num},title=Merge Conflict Detected::{github_message}")
             print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
         codebase_issues = analyze_codebase_issues()
         if codebase_issues:
@@ -271,22 +273,65 @@ def main():
             f.write('conflicts_found=true\n')
         
         print("\n" + "="*80)
-        print("🔧 HOW TO FIX:")
+        print("🔧 HOW TO FIX MERGE CONFLICTS - STEP BY STEP GUIDE")
         print("="*80)
-        print("1. Locally checkout your branch:")
-        print(f"   git checkout {current_branch}")
-        print("\n2. Pull latest changes from MAIN:")
-        print(f"   git pull origin {target_branch}")
-        print("\n3. Resolve conflicts in the files listed above:")
-        for file_path in conflicted_files:
-            print(f"   - {file_path}")
-        print("\n4. Stage resolved files:")
-        print("   git add <resolved-files>")
-        print("\n5. Complete the merge:")
-        print("   git commit")
-        print("\n6. Push your changes:")
-        print(f"   git push origin {current_branch}")
-        print("\n7. After fixing conflicts, push again to trigger this check.")
+        print()
+        print("📋 UNDERSTANDING MERGE CONFLICTS:")
+        print("   • Git couldn't automatically merge your changes with MAIN branch")
+        print("   • You have conflicting code that needs manual resolution")
+        print("   • Conflict markers show you exactly what changed")
+        print()
+        print("🛠️  RESOLUTION STEPS:")
+        print()
+        print("   1. 📥 PULL LATEST CHANGES:")
+        print("      git checkout Nathi-S11")
+        print("      git pull origin MAIN  # Get latest from MAIN")
+        print()
+        print("   2. 🔍 EXAMINE CONFLICTED FILES:")
+        print("      git status  # See which files have conflicts")
+        print("      Open each conflicted file in your editor")
+        print()
+        print("   3. 📖 READ THE CONFLICT MARKERS:")
+        print("      <<<<<<< HEAD (or your branch name)")
+        print("      =======  (separator)")
+        print("      >>>>>>> MAIN (or other branch)")
+        print()
+        print("   4. ✏️  RESOLVE EACH CONFLICT:")
+        print("      • Choose your version (above =======")
+        print("      • Choose MAIN version (below =======") 
+        print("      • Combine both versions manually")
+        print("      • Remove ALL conflict markers (<<<<<<<, ======, >>>>>>>)")
+        print()
+        print("   5. ✅ TEST YOUR CHANGES:")
+        print("      • Save the file")
+        print("      • Run: flutter analyze  # Check for syntax errors")
+        print("      • Run: flutter test     # Run tests if available")
+        print("      • Build the app to ensure it works")
+        print()
+        print("   6. 📝 STAGE AND COMMIT:")
+        print("      git add <resolved-file>")
+        print("      git commit -m 'Resolve merge conflicts'")
+        print()
+        print("   7. 🚀 PUSH AND CREATE PR:")
+        print("      git push origin Nathi-S11")
+        print("      Create pull request to merge into MAIN")
+        print()
+        print("💡 PRO TIPS:")
+        print("   • Don't rush - carefully review each change")
+        print("   • Test thoroughly before committing")
+        print("   • Ask for help if unsure about complex conflicts")
+        print("   • Use git diff to see what changed")
+        print()
+        print("🔍 EXAMPLE CONFLICT RESOLUTION:")
+        print("   BEFORE:")
+        print("   <<<<<<< HEAD")
+        print("       debugPrint('My version');")
+        print("   =======")
+        print("       debugPrint('MAIN version');")
+        print("   >>>>>>> MAIN")
+        print()
+        print("   AFTER (choose one or combine):")
+        print("       debugPrint('Combined version with both features');")
         print("="*80)
         
         # Abort the merge but don't exit with error yet
