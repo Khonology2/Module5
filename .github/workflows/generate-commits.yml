@@ -46,7 +46,7 @@ jobs:
 
         # Get commits from today only, excluding GitHub Actions commits
         TODAY_COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
-          grep -v "github-actions" | \
+          grep -v -i "github" | \
           jq -R -s '
             split("\n") |
             map(select(length > 0)) |
