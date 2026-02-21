@@ -246,7 +246,12 @@ def main():
                     })
                 elif conflict['marker'] == '>>>>>>>':
                     create_github_annotation({
-        print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
+                        'file': file_path,
+                        'line': conflict['line'],
+                        'marker': conflict['marker'],
+                        'message': conflict['message']
+                    })
+            print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
         codebase_issues = analyze_codebase_issues()
         if codebase_issues:
             print(f"📋 Found {len(codebase_issues)} codebase issues:")
