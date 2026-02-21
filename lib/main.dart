@@ -718,8 +718,11 @@ class MyNavigatorObserver extends NavigatorObserver {
   @override
   void didRemove(Route route, Route? previousRoute) {
     currentRouteNotifier.value = previousRoute?.settings.name;
-    // Added extra logging for conflict testing
+    // Added extra logging for conflict testing - BRANCH Nathi-S11 VERSION
     debugPrint('Route removed: ${route.settings.name}');
+    debugPrint('Previous route: ${previousRoute?.settings.name}');
+    debugPrint('Current route after removal: ${currentRouteNotifier.value}');
+    debugPrint('Navigation stack updated in Nathi-S11 branch');
   }
 
   @override
