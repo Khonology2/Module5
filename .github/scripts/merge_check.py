@@ -75,119 +75,50 @@ def get_conflicted_files():
 
 
 def extract_conflict_lines(file_path):
-    """Extract conflict details from a file."""
+    """Extract actual merge conflict markers from a file."""
     conflicts = []
-    issues = []
-    
-    # Check for common Dart/Flutter issues
-    dart_files = []
+
     try:
-        result = run_command(['find', '.', '-name', '*.dart', '-type', 'f'])
-        if result.returncode == 0:
-            dart_files = result.stdout.strip().split('\n')
-    except:
-        pass
-    
-    for dart_file in dart_files:
-        if dart_file.startswith('./.git/') or dart_file.startswith('./build/'):
-            continue
-            
-        try:
-            with open(dart_file, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-                lines = content.split('\n')
-                
-                for i, line in enumerate(lines, 1):
-                    line_stripped = line.strip()
-                    
-                    # Check for undefined references
-                    if 'TeamChatButton(' in line and 'TeamChatButton' not in content:
-                        issues.append({
-                            'type': 'UNDEFINED_REFERENCE',
-                            'message': 'TeamChatButton is not defined',
-                            'file': dart_file,
-                            'line': i,
-                            'suggestion': 'Import or define TeamChatButton widget'
-                        })
-                    
-                    # Check for missing imports
-                    if 'import ' in line and ';' in line:
-                        import_match = line.strip().split("import ")[1].split(";")[0].strip()
-                        if import_match and not any(import_match in content for imp in content.split('\n') if 'import ' in imp):
-                            issues.append({
-                                'type': 'MISSING_IMPORT',
-                                'message': f'Import {import_match} may be missing or unused',
-                                'file': dart_file,
-                                'line': i,
-                                'suggestion': 'Check import statement and file existence'
-                            })
-                    
-                    # Check for syntax errors
-                    if line_stripped.endswith(')') and not line_stripped.endswith(';') and 'class ' in line:
-                        issues.append({
-                            'type': 'SYNTAX_ERROR',
-                            'message': 'Missing semicolon after class declaration',
-                            'file': dart_file,
-                            'line': i,
-                            'suggestion': 'Add semicolon at end of line'
-                        })
-                    
-                    # Check for missing async/await
-                    if 'Future<' in line and 'await ' not in content and 'async ' not in content:
-                        issues.append({
-                            'type': 'ASYNC_ISSUE',
-                            'message': 'Future detected but missing async/await',
-                            'file': dart_file,
-                            'line': i,
-                            'suggestion': 'Add async keyword or await the Future'
-                        })
-                        
-        except Exception as e:
-            issues.append({
-                'type': 'FILE_READ_ERROR',
-                'message': f'Cannot read file {dart_file}: {str(e)}',
-                'file': dart_file,
-                'line': 0,
-                'suggestion': 'Check file permissions and encoding'
-            })
-    
-    # Check for workflow issues
-    workflow_files = ['.github/workflows/test-merge-conflicts.yml', '.github/workflows/generate-commits.yml']
-    for workflow_file in workflow_files:
-        try:
-            with open(workflow_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                
-                # Check for deprecated set-output
-                if '::set-output' in content and 'GITHUB_OUTPUT' not in content:
-                    issues.append({
-                        'type': 'DEPRECATED_GITHUB_ACTION',
-                        'message': 'Using deprecated ::set-output command',
-                        'file': workflow_file,
-                        'line': 0,
-                        'suggestion': 'Use GITHUB_OUTPUT file instead'
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+
+            conflict_start = None
+            for i, line in enumerate(lines, start=1):
+                line_content = line.rstrip('\n\r')
+
+                if line_content.startswith('<<<<<<<'):
+                    if conflict_start is None:
+                        conflict_start = i
+                    conflicts.append({
+                        'file': file_path,
+                        'line': i,
+                        'marker': '<<<<<<<',
+                        'message': 'Incoming change marker'
                     })
-                    
-                # Check for missing permissions
-                if 'contents: write' not in content and 'git push' in content:
-                    issues.append({
-                        'type': 'MISSING_PERMISSIONS',
-                        'message': 'Workflow missing contents: write permission',
-                        'file': workflow_file,
-                        'line': 0,
-                        'suggestion': 'Add permissions: contents: write'
+                    print(f"::error file={file_path},line={i}::Merge conflict: Incoming change marker")
+
+                elif line_content.startswith('======='):
+                    conflicts.append({
+                        'file': file_path,
+                        'line': i,
+                        'marker': '=======',
+                        'message': 'Conflict separator'
                     })
-                    
-        except Exception as e:
-            issues.append({
-                'type': 'WORKFLOW_READ_ERROR',
-                'message': f'Cannot read workflow {workflow_file}: {str(e)}',
-                'file': workflow_file,
-                'line': 0,
-                'suggestion': 'Check workflow file syntax'
-            })
-    
-    return issues
+                    print(f"::error file={file_path},line={i}::Merge conflict: Conflict separator")
+
+                elif line_content.startswith('>>>>>>>'):
+                    conflicts.append({
+                        'file': file_path,
+                        'line': i,
+                        'marker': '>>>>>>>',
+                        'message': 'Current branch marker'
+                    })
+                    print(f"::error file={file_path},line={i}::Merge conflict: Current branch marker")
+
+    except Exception as e:
+        print(f"::error file={file_path},line=0::Failed to read file: {str(e)}")
+
+    return conflicts
 
 def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_branch: str, codebase_issues: List[Dict] = None) -> Dict[str, Any]:
     """Generate a detailed conflict report JSON structure."""
@@ -248,7 +179,7 @@ def save_conflict_report(report: Dict[str, Any]):
 def main():
     """Main function to perform merge conflict check."""
     # Get current branch
-    current_branch = get_current_branch()
+    current_branch = current_branch()
     print(f"Current branch: {current_branch}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
@@ -296,61 +227,25 @@ def main():
             print(f"\n📁 File: {file_path}")
             print(f"   Conflicts found: {len(conflicts)}")
             for i, conflict in enumerate(conflicts, 1):
-                print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
+                print(f"   Conflict {i}: Line {conflict['line']} - {conflict['marker']} ({conflict['message']})")
                 
                 # Create GitHub annotations for each conflict marker
-                conflict_lines = conflict.get('lines', [])
-                for line_idx, line_content in enumerate(conflict_lines):
-                    actual_line = conflict['start_line'] + line_idx
-                    if line_content.startswith('<<<<<<<'):
-                        create_github_annotation({
-                            'file': file_path,
-                            'line': actual_line,
-                            'marker': '<<<<<<<',
-                            'message': 'Incoming change marker'
-                        })
-                    elif line_content.startswith('======='):
-                        create_github_annotation({
-                            'file': file_path,
-                            'line': actual_line,
-                            'marker': '=======',
-                            'message': 'Conflict separator'
-                        })
-                    elif line_content.startswith('>>>>>>>'):
-                        create_github_annotation({
-                            'file': file_path,
-                            'line': actual_line,
-                            'marker': '>>>>>>>',
-                            'message': 'Current branch marker'
-                        })
-                for i, conflict in enumerate(details['conflicts'], 1):
-                    print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
-                    
-                    # Create GitHub annotations for each conflict marker
-                    conflict_lines = conflict.get('lines', [])
-                    for line_idx, line_content in enumerate(conflict_lines):
-                        actual_line = conflict['start_line'] + line_idx
-                        if line_content.startswith('<<<<<<<'):
-                            create_github_annotation({
-                                'file': file_path,
-                                'line': actual_line,
-                                'marker': '<<<<<<<',
-                                'message': 'Incoming change marker'
-                            })
-                        elif line_content.startswith('======='):
-                            create_github_annotation({
-                                'file': file_path,
-                                'line': actual_line,
-                                'marker': '=======',
-                                'message': 'Conflict separator'
-                            })
-                        elif line_content.startswith('>>>>>>>'):
-                            create_github_annotation({
-                                'file': file_path,
-                                'line': actual_line,
-                                'marker': '>>>>>>>',
-                                'message': 'Current branch marker'
-                            })
+                if conflict['marker'] == '<<<<<<<':
+                    create_github_annotation({
+                        'file': file_path,
+                        'line': conflict['line'],
+                        'marker': conflict['marker'],
+                        'message': conflict['message']
+                    })
+                elif conflict['marker'] == '=======':
+                    create_github_annotation({
+                        'file': file_path,
+                        'line': conflict['line'],
+                        'marker': conflict['marker'],
+                        'message': conflict['message']
+                    })
+                elif conflict['marker'] == '>>>>>>>':
+                    create_github_annotation({
         print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
         codebase_issues = analyze_codebase_issues()
         if codebase_issues:
@@ -361,9 +256,9 @@ def main():
                 print(f"     Line: {issue['line']}")
                 if 'suggestion' in issue:
                     print(f"     Fix: {issue['suggestion']}")
-        
+
         # Generate and save conflict report
-        report = generate_conflict_report(conflict_details, current_branch, target_branch, codebase_issues)
+        report = generate_conflict_report(all_conflicts, current_branch, target_branch, codebase_issues)
         save_conflict_report(report)
         
         # Set output indicating conflicts were found
