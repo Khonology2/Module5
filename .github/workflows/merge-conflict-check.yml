@@ -51,12 +51,11 @@ jobs:
         else
           echo "📝 Committing merge conflict report..."
           git add assets/data/merge-conflicts.json
-          git commit -m "docs: merge conflict report for ${GITHUB_REF_NAME} [skip ci]" || echo "No changes to commit"
-          
+          git commit -m "docs: merge conflict report for ${GITHUB_REF_NAME} [skip ci]"
           echo "🚀 Pushing report to branch: ${GITHUB_REF_NAME}"
           if git push origin ${GITHUB_REF_NAME}; then
             echo "✅ Report successfully committed and pushed"
-            echo "🔗 Developers can now pull this branch to see the conflict report locally"
+            echo "🔗 Developers can now pull this branch to see conflict report locally"
           else
             echo "⚠️  Push failed - report saved locally in runner only"
           fi
