@@ -1,68 +1,51 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-21T09:59:39.337238Z",
+  "generated_at": "2026-02-21T11:15:27.555591Z",
   "source_branch": "Nathi-S11",
   "target_branch": "MAIN",
   "status": "conflicts_detected",
-  "total_conflicts": 1,
+  "total_conflicts": 6,
   "conflicts": [
     {
       "file": "assets/data/daily-commits.json",
-      "conflicts": [
-        {
-          "start_line": 2,
-          "end_line": 8,
-          "lines": [
-            "<<<<<<< HEAD\n",
-            "  \"version\": \"2026.02.DE66.SIT\",\n",
-            "  \"generated_at\": \"2026-02-20T22:16:03Z\",\n",
-            "=======\n",
-            "  \"version\": \"2026.02.AD45.SIT\",\n",
-            "  \"generated_at\": \"2026-02-19T11:44:52Z\",\n",
-            ">>>>>>> origin/MAIN\n"
-          ]
-        },
-        {
-          "start_line": 346,
-          "end_line": 352,
-          "lines": [
-            "<<<<<<< HEAD\n",
-            "  \"total_commits\": 66,\n",
-            "  \"date_range\": \"2026-02-20\"\n",
-            "=======\n",
-            "  \"total_commits\": 45,\n",
-            "  \"date_range\": \"2026-02-19\"\n",
-            ">>>>>>> origin/MAIN\n"
-          ]
-        }
-      ]
-    }
-  ],
-  "codebase_issues": [
-    {
-      "type": "ASYNC_ISSUE",
-      "message": "Future detected but missing async/await",
-      "file": "./lib/utils/pdf_saver.dart",
-      "line": 4,
-      "suggestion": "Add async keyword or await the Future"
+      "line": 2,
+      "marker": "<<<<<<<",
+      "message": "Incoming change marker"
     },
     {
-      "type": "ASYNC_ISSUE",
-      "message": "Future detected but missing async/await",
-      "file": "./lib/services/notification_service.dart",
-      "line": 4,
-      "suggestion": "Add async keyword or await the Future"
-    },
-    {
-      "type": "ASYNC_ISSUE",
-      "message": "Future detected but missing async/await",
-      "file": "./lib/services/notification_service.dart",
+      "file": "assets/data/daily-commits.json",
       "line": 5,
-      "suggestion": "Add async keyword or await the Future"
+      "marker": "=======",
+      "message": "Conflict separator"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 8,
+      "marker": ">>>>>>>",
+      "message": "Current branch marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 346,
+      "marker": "<<<<<<<",
+      "message": "Incoming change marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 349,
+      "marker": "=======",
+      "message": "Conflict separator"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 352,
+      "marker": ">>>>>>>",
+      "message": "Current branch marker"
     }
   ],
+  "codebase_issues": [],
   "summary": {
-    "message": "Found 1 merge conflict(s) and 3 codebase issue(s) when merging Nathi-S11 into MAIN",
+    "message": "Found 6 merge conflict(s) and 0 codebase issue(s) when merging Nathi-S11 into MAIN",
     "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
       "1. Check out your branch: git checkout {current_branch}",
