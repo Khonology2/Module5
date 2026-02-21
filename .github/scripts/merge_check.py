@@ -200,7 +200,7 @@ def main():
     print(f"✅ Confirmed working on branch: {current_branch_name}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
-    target_branch = "MAIN"
+    target_branch = "Conflict-Test"
     print(f"🎯 Target branch for merge check: {target_branch}")
     ##############################################################################################################################################################
     
