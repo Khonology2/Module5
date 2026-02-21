@@ -182,15 +182,20 @@ jobs:
       run: |
         echo "📝 Committing daily commits JSON..."
         git add assets/data/daily-commits.json
-        git commit -m "docs: update daily commits data [skip ci]" || echo "No changes to commit"
+        git status --porcelain
+        git commit -m "docs: update daily commits data [skip ci]" || echo "Commit completed (no new changes)"
         
         echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
-        if git push origin ${GITHUB_REF_NAME}; then
+        if git push origin ${GITHUB_REF_NAME} --force-with-lease; then
           echo "✅ Daily commits JSON successfully committed and pushed"
           echo "🔗 Developers can now pull this branch to see updated commit data locally"
           echo "🌐 Deployed app will now show updated version control data"
         else
           echo "⚠️  Push failed - JSON saved locally in runner only"
+          echo "🔍 Debug: Checking git status"
+          git status
+          echo "🔍 Debug: Checking remote status"
+          git remote -v
         fi
 
     - name: Upload Daily Commits Artifact
