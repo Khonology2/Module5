@@ -1,6 +1,6 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-21T13:15:32.476528Z",
+  "generated_at": "2026-02-21T14:08:51.734522Z",
   "source_branch": "Nathi-S11",
   "target_branch": "Sprint9",
   "status": "conflicts_detected",
@@ -10,37 +10,126 @@
       "file": "assets/data/daily-commits.json",
       "line": 2,
       "marker": "<<<<<<<",
-      "message": "Incoming change marker"
+      "message": "Incoming change marker",
+      "your_code": [
+        "  \"version\": \"2026.02.DF76.SIT\",",
+        "  \"generated_at\": \"2026-02-21T13:15:32Z\","
+      ],
+      "target_code": [
+        "  \"version\": \"2026.02.AE6.SIT\",",
+        "  \"generated_at\": \"2026-02-20T23:14:05Z\","
+      ],
+      "context_lines": [
+        "{",
+        "<<<<<<< HEAD",
+        "  \"version\": \"2026.02.DF76.SIT\",",
+        "  \"generated_at\": \"2026-02-21T13:15:32Z\",",
+        "=======",
+        "  \"version\": \"2026.02.AE6.SIT\",",
+        "  \"generated_at\": \"2026-02-20T23:14:05Z\",",
+        ">>>>>>> origin/Sprint9",
+        "  \"commits\": [",
+        "    {",
+        "      \"author\": \"github-actions\","
+      ],
+      "resolution_prompt": {
+        "message": "Code logic conflict - manual review required",
+        "risk_level": "medium",
+        "suggested_action": "manual_merge",
+        "explanation": "Both branches have different code logic - carefully review and merge manually"
+      },
+      "risk_level": "medium",
+      "suggested_action": "manual_merge"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 5,
+      "line": 4,
       "marker": "=======",
-      "message": "Conflict separator"
+      "message": "Conflict separator",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 8,
+      "line": 7,
       "marker": ">>>>>>>",
-      "message": "Current branch marker"
+      "message": "Current branch marker",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 411,
+      "line": 416,
       "marker": "<<<<<<<",
-      "message": "Incoming change marker"
+      "message": "Incoming change marker",
+      "your_code": [
+        "  \"total_commits\": 76,",
+        "  \"date_range\": \"2026-02-21\""
+      ],
+      "target_code": [
+        "  \"total_commits\": 6,",
+        "  \"date_range\": \"2026-02-20\""
+      ],
+      "context_lines": [
+        "    }",
+        "  ],",
+        "<<<<<<< HEAD",
+        "  \"total_commits\": 76,",
+        "  \"date_range\": \"2026-02-21\"",
+        "=======",
+        "  \"total_commits\": 6,",
+        "  \"date_range\": \"2026-02-20\"",
+        ">>>>>>> origin/Sprint9",
+        "}"
+      ],
+      "resolution_prompt": {
+        "message": "Code logic conflict - manual review required",
+        "risk_level": "medium",
+        "suggested_action": "manual_merge",
+        "explanation": "Both branches have different code logic - carefully review and merge manually"
+      },
+      "risk_level": "medium",
+      "suggested_action": "manual_merge"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 414,
+      "line": 418,
       "marker": "=======",
-      "message": "Conflict separator"
+      "message": "Conflict separator",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 417,
+      "line": 421,
       "marker": ">>>>>>>",
-      "message": "Current branch marker"
+      "message": "Current branch marker",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
     }
   ],
   "codebase_issues": [],
