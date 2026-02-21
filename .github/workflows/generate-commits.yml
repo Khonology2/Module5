@@ -1,4 +1,4 @@
-name: Generate Daily Commits
+name: Version Control Data
 
 on:
   push:
