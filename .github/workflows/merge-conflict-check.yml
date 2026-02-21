@@ -1,4 +1,4 @@
-name: Merge Conflict Tracking System
+name: Merge Conflict Tracking
 
 on:
   push:
