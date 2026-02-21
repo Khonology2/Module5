@@ -1,15 +1,60 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-21T12:49:25.320830Z",
+  "generated_at": "2026-02-21T13:15:32.476528Z",
   "source_branch": "Nathi-S11",
-  "target_branch": "S11",
-  "status": "no_conflicts",
-  "total_conflicts": 0,
-  "conflicts": [],
+  "target_branch": "Sprint9",
+  "status": "conflicts_detected",
+  "total_conflicts": 6,
+  "conflicts": [
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 2,
+      "marker": "<<<<<<<",
+      "message": "Incoming change marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 5,
+      "marker": "=======",
+      "message": "Conflict separator"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 8,
+      "marker": ">>>>>>>",
+      "message": "Current branch marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 411,
+      "marker": "<<<<<<<",
+      "message": "Incoming change marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 414,
+      "marker": "=======",
+      "message": "Conflict separator"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 417,
+      "marker": ">>>>>>>",
+      "message": "Current branch marker"
+    }
+  ],
   "codebase_issues": [],
   "summary": {
-    "message": "Found 0 merge conflict(s) and 0 codebase issue(s) when merging Nathi-S11 into S11",
-    "action_required": "No action required",
-    "resolution_steps": []
+    "message": "Found 6 merge conflict(s) and 0 codebase issue(s) when merging Nathi-S11 into Sprint9",
+    "action_required": "Please resolve conflicts and fix codebase issues listed below",
+    "resolution_steps": [
+      "1. Check out your branch: git checkout {current_branch}",
+      "2. Pull latest changes: git pull origin {target_branch}",
+      "3. Resolve conflicts in files listed above",
+      "4. Fix codebase issues highlighted below",
+      "5. Stage resolved files: git add <resolved-files>",
+      "6. Commit the merge: git commit",
+      "7. Push your changes: git push origin {current_branch}"
+    ]
   }
 }
