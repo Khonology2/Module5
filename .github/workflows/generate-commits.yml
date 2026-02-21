@@ -175,21 +175,17 @@ jobs:
 
     - name: Commit and Push Daily Commits JSON
       run: |
-        echo "Checking for daily-commits.json changes..."
-        if git diff --quiet assets/data/daily-commits.json 2>/dev/null; then
-          echo "ℹ️  No daily commits JSON changes detected"
+        echo "📝 Committing daily commits JSON..."
+        git add assets/data/daily-commits.json
+        git commit -m "docs: update daily commits data [skip ci]" || echo "No changes to commit"
+        
+        echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
+        if git push origin ${GITHUB_REF_NAME}; then
+          echo "✅ Daily commits JSON successfully committed and pushed"
+          echo "🔗 Developers can now pull this branch to see updated commit data locally"
+          echo "🌐 Deployed app will now show updated version control data"
         else
-          echo "📝 Committing daily commits JSON..."
-          git add assets/data/daily-commits.json
-          git commit -m "docs: update daily commits data [skip ci]" || echo "No changes to commit"
-          
-          echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
-          if git push origin ${GITHUB_REF_NAME}; then
-            echo "✅ Daily commits JSON successfully committed and pushed"
-            echo "🔗 Developers can now pull this branch to see updated commit data locally"
-          else
-            echo "⚠️  Push failed - JSON saved locally in runner only"
-          fi
+          echo "⚠️  Push failed - JSON saved locally in runner only"
         fi
 
     - name: Upload Daily Commits Artifact
