@@ -65,6 +65,15 @@ def get_conflict_files():
     return files
 
 
+def get_conflicted_files():
+    """Get list of conflicted files."""
+    result = run_command(['git', 'diff', '--name-only', '--diff-filter=U'])
+    if result.returncode == 0:
+        files = result.stdout.strip().splitlines()
+        return [f for f in files if f.strip()]
+    return []
+
+
 def extract_conflict_lines(file_path):
     """Extract conflict details from a file."""
     conflicts = []
