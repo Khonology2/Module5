@@ -3,6 +3,8 @@ name: Generate Daily Commits
 on:
   push:
     branches: ['*'] # Include ALL branches, including new ones created by developers
+  pull_request:
+    branches: ['*']
   workflow_dispatch: # Allow manual trigger
   workflow_run:
     workflows: ["Test Merge Conflicts"]
@@ -11,6 +13,7 @@ on:
 
 permissions:
   contents: write # Allow the workflow to push commits back to the repository
+  pull-requests: write # Allow PR annotations
 
 jobs:
   generate-commits:
@@ -148,3 +151,23 @@ jobs:
       run: |
         echo "Generated commit data:"
         cat assets/data/daily-commits.json | jq . 2>/dev/null || cat assets/data/daily-commits.json
+
+    - name: Create PR Annotations (if PR)
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "Creating inline success annotations for daily commits..."
+        
+        # Read version and commits from generated JSON
+        VERSION=$(jq -r '.version' assets/data/daily-commits.json 2>/dev/null || echo "unknown")
+        TOTAL_COMMITS=$(jq -r '.total_commits' assets/data/daily-commits.json 2>/dev/null || echo "0")
+        
+        # Create version annotation
+        echo "::notice title=Daily Commits Generated::Version: $VERSION | Total Commits: $TOTAL_COMMITS"
+        
+        # Create annotations for each commit
+        jq -c '.commits[]' assets/data/daily-commits.json 2>/dev/null | while read -r commit; do
+          AUTHOR=$(echo "$commit" | jq -r '.author')
+          MESSAGE=$(echo "$commit" | jq -r '.message')
+          TIMESTAMP=$(echo "$commit" | jq -r '.timestamp')
+          echo "::notice title=Commit by $AUTHOR::$MESSAGE (at $TIMESTAMP)"
+        done
