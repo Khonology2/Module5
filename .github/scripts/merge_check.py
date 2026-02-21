@@ -300,7 +300,7 @@ def main():
     print(f"✅ Confirmed working on branch: {current_branch_name}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
-    target_branch = "Sprint9"
+    target_branch = "test-1"
     print(f"🎯 Target branch for merge check: {target_branch}")
     ##############################################################################################################################################################
     
