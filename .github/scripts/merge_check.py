@@ -415,7 +415,7 @@ Target branch comments:
 How do I safely merge both comment blocks? Please provide the exact code to replace the conflict markers with."""
                 
                 elif conflict['suggested_action'] == 'format_and_merge':
-                    ai_prompt = f"""I have a formatting conflict in {file_path} at line {conflict['line]}. 
+                    ai_prompt = f"""I have a formatting conflict in {file_path} at line {conflict['line']}. 
 
 Your branch code:
 {chr(10).join(conflict['your_code'])}
