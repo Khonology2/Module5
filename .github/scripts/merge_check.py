@@ -10,6 +10,7 @@ import subprocess
 import sys
 import os
 import json
+import textwrap
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -78,51 +79,150 @@ def get_conflicted_files():
     return []
 
 
-def extract_conflict_lines(file_path):
-    """Extract actual merge conflict markers from a file."""
+def extract_conflict_details(file_path):
+    """Extract detailed conflict information including code content and resolution suggestions."""
     conflicts = []
-
+    
     try:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
 
-            conflict_start = None
-            for i, line in enumerate(lines, start=1):
-                line_content = line.rstrip('\n\r')
-
-                if line_content.startswith('<<<<<<<'):
-                    if conflict_start is None:
-                        conflict_start = i
-                    conflicts.append({
-                        'file': file_path,
-                        'line': i,
-                        'marker': '<<<<<<<',
-                        'message': 'Incoming change marker'
-                    })
-                    print(f"::error file={file_path},line={i}::Merge conflict: Incoming change marker")
-
-                elif line_content.startswith('======='):
-                    conflicts.append({
-                        'file': file_path,
-                        'line': i,
-                        'marker': '=======',
-                        'message': 'Conflict separator'
-                    })
-                    print(f"::error file={file_path},line={i}::Merge conflict: Conflict separator")
-
-                elif line_content.startswith('>>>>>>>'):
-                    conflicts.append({
-                        'file': file_path,
-                        'line': i,
-                        'marker': '>>>>>>>',
-                        'message': 'Current branch marker'
-                    })
-                    print(f"::error file={file_path},line={i}::Merge conflict: Current branch marker")
-
+        i = 0
+        while i < len(lines):
+            line_content = lines[i].rstrip('\n\r')
+            
+            if line_content.startswith('<<<<<<<'):
+                # Extract conflict details
+                conflict_start = i + 1
+                
+                # Get your branch code
+                your_code = []
+                i += 1
+                while i < len(lines) and not lines[i].startswith('======='):
+                    your_code.append(lines[i].rstrip())
+                    i += 1
+                
+                # Get target branch code
+                target_code = []
+                i += 1  # Skip =======
+                while i < len(lines) and not lines[i].startswith('>>>>>>>'):
+                    target_code.append(lines[i].rstrip())
+                    i += 1
+                
+                # Get context lines (3 before and 3 after)
+                context_start = max(0, conflict_start - 3)
+                context_end = min(len(lines), i + 4)
+                context_lines = [lines[j].rstrip() for j in range(context_start, context_end)]
+                
+                # Analyze conflict and provide resolution suggestion
+                resolution_prompt = analyze_conflict_and_suggest_resolution(file_path, your_code, target_code)
+                
+                conflicts.append({
+                    'file': file_path,
+                    'line': conflict_start,
+                    'marker': '<<<<<<<',
+                    'message': 'Incoming change marker',
+                    'your_code': your_code,
+                    'target_code': target_code,
+                    'context_lines': context_lines,
+                    'resolution_prompt': resolution_prompt,
+                    'risk_level': resolution_prompt['risk_level'],
+                    'suggested_action': resolution_prompt['suggested_action']
+                })
+                
+                # Add markers for conflict boundaries
+                conflicts.append({
+                    'file': file_path,
+                    'line': conflict_start + len(your_code),
+                    'marker': '=======',
+                    'message': 'Conflict separator',
+                    'your_code': [],
+                    'target_code': [],
+                    'context_lines': [],
+                    'resolution_prompt': {'message': 'Conflict separator - your code above, target code below'},
+                    'risk_level': 'info',
+                    'suggested_action': 'choose_version'
+                })
+                
+                conflicts.append({
+                    'file': file_path,
+                    'line': i,
+                    'marker': '>>>>>>>',
+                    'message': 'Current branch marker',
+                    'your_code': [],
+                    'target_code': [],
+                    'context_lines': [],
+                    'resolution_prompt': {'message': 'Conflict end marker - remove after resolving'},
+                    'risk_level': 'info',
+                    'suggested_action': 'remove_marker'
+                })
+                
+                print(f"::error file={file_path},line={conflict_start}::Merge Conflict Detected: {resolution_prompt['message']}")
+            else:
+                i += 1
+                
     except Exception as e:
         print(f"::error file={file_path},line=0::Failed to read file: {str(e)}")
-
+    
     return conflicts
+
+def analyze_conflict_and_suggest_resolution(file_path, your_code, target_code):
+    """Analyze conflict and provide intelligent resolution suggestions."""
+    
+    # Basic conflict analysis
+    your_code_str = '\n'.join(your_code).strip()
+    target_code_str = '\n'.join(target_code).strip()
+    
+    # Check for common conflict patterns
+    if not your_code_str and target_code_str:
+        return {
+            'message': 'Target branch has new code, your branch has deletion',
+            'risk_level': 'medium',
+            'suggested_action': 'keep_target',
+            'explanation': 'Your branch deleted code that exists in target branch'
+        }
+    elif your_code_str and not target_code_str:
+        return {
+            'message': 'Your branch has new code, target branch has deletion',
+            'risk_level': 'low',
+            'suggested_action': 'keep_your',
+            'explanation': 'Your branch added new code that target branch doesn\'t have'
+        }
+    
+    # Check for import conflicts
+    if any('import' in line for line in your_code + target_code):
+        return {
+            'message': 'Import conflict detected',
+            'risk_level': 'low',
+            'suggested_action': 'merge_imports',
+            'explanation': 'Combine imports from both branches to ensure all dependencies are available'
+        }
+    
+    # Check for comment conflicts
+    if all(line.strip().startswith('//') or line.strip().startswith('/*') or line.strip().startswith('*') for line in your_code + target_code if line.strip()):
+        return {
+            'message': 'Comment-only conflict',
+            'risk_level': 'very_low',
+            'suggested_action': 'keep_both',
+            'explanation': 'Only comments differ - safe to merge both versions'
+        }
+    
+    # Check for whitespace/formatting conflicts
+    if your_code_str.replace(' ', '').replace('\n', '').replace('\t', '') == target_code_str.replace(' ', '').replace('\n', '').replace('\t', ''):
+        return {
+            'message': 'Formatting/whitespace conflict only',
+            'risk_level': 'very_low',
+            'suggested_action': 'format_and_merge',
+            'explanation': 'Same code with different formatting - use consistent formatting'
+        }
+    
+    # Default safe suggestion
+    return {
+        'message': 'Code logic conflict - manual review required',
+        'risk_level': 'medium',
+        'suggested_action': 'manual_merge',
+        'explanation': 'Both branches have different code logic - carefully review and merge manually'
+    }
 
 def generate_conflict_report(conflicts: List[Dict], current_branch: str, target_branch: str, codebase_issues: List[Dict] = None) -> Dict[str, Any]:
     """Generate a detailed conflict report JSON structure."""
@@ -240,38 +340,111 @@ def main():
         
         all_conflicts = []
         for file_path in conflicted_files:
-            conflicts = extract_conflict_lines(file_path)
+            conflicts = extract_conflict_details(file_path)
             all_conflicts.extend(conflicts)
             
             print(f"\n📁 File: {file_path}")
-            print(f"   Conflicts found: {len(conflicts)}")
-            for i, conflict in enumerate(conflicts, 1):
-                marker_type = conflict['marker']
-                line_num = conflict['line']
+            print(f"   Conflicts found: {len([c for c in conflicts if c['marker'] == '<<<<<<<'])}")
+            
+            # Group conflicts by conflict blocks
+            conflict_blocks = [c for c in conflicts if c['marker'] == '<<<<<<<']
+            for i, conflict in enumerate(conflict_blocks, 1):
+                print(f"\n   🔍 Conflict {i}: Line {conflict['line']}")
+                print(f"      📋 Type: {conflict['resolution_prompt']['message']}")
+                print(f"      ⚠️  Risk Level: {conflict['risk_level']}")
+                print(f"      💡 Suggested Action: {conflict['suggested_action']}")
+                print(f"      📖 Explanation: {conflict['resolution_prompt'].get('explanation', 'No explanation available')}")
                 
-                # Provide detailed descriptions for each conflict type
-                if marker_type == '<<<<<<<':
-                    description = "CONFLICT START: This marks the beginning of a merge conflict. The code between this marker and '=======' comes from your branch (Nathi-S11)."
-                    solution = "Remove this marker and choose which code to keep - either from your branch or MAIN branch."
-                    github_message = f"Merge Conflict Start: Code from your branch conflicts with MAIN. Remove conflict markers and choose correct code."
-                    
-                elif marker_type == '=======':
-                    description = "CONFLICT SEPARATOR: This divides your branch's changes from the MAIN branch's changes."
-                    solution = "Everything above this line is from your branch, below is from MAIN. Choose one version or combine them."
-                    github_message = f"Conflict Separator: Choose code above (your branch) or below (MAIN branch), or merge them manually."
-                    
-                elif marker_type == '>>>>>>>':
-                    description = "CONFLICT END: This marks the end of a merge conflict. The code above this marker comes from the MAIN branch."
-                    solution = "Remove this marker after resolving the conflict above. Ensure no conflict markers remain."
-                    github_message = f"Merge Conflict End: Resolve the conflict above and remove this marker. Test your code after fixing."
+                print(f"\n      📝 Your Branch Code:")
+                for line in conflict['your_code'][:3]:  # Show first 3 lines
+                    print(f"         {line}")
+                if len(conflict['your_code']) > 3:
+                    print(f"         ... ({len(conflict['your_code']) - 3} more lines)")
                 
-                print(f"   Conflict {i}: Line {line_num} - {marker_type}")
-                print(f"   Description: {description}")
-                print(f"   Solution: {solution}")
-                print()
+                print(f"\n      📝 Target Branch Code:")
+                for line in conflict['target_code'][:3]:  # Show first 3 lines
+                    print(f"         {line}")
+                if len(conflict['target_code']) > 3:
+                    print(f"         ... ({len(conflict['target_code']) - 3} more lines)")
                 
-                # Create detailed GitHub annotations
-                print(f"::error file={file_path},line={line_num},title=Merge Conflict Detected::{github_message}")
+                print(f"\n      🎯 AI Chat Prompt (Copy & Paste):")
+                print(f"      " + "="*60)
+                
+                if conflict['suggested_action'] == 'keep_your':
+                    ai_prompt = f"""I have a merge conflict in {file_path} at line {conflict['line']}. 
+
+Your branch code:
+{chr(10).join(conflict['your_code'])}
+
+Target branch code:
+{chr(10).join(conflict['target_code'])}
+
+My branch adds new functionality that doesn't exist in target. How do I resolve this conflict by keeping my changes without breaking existing functionality? Please provide the exact code to replace the conflict markers with."""
+                
+                elif conflict['suggested_action'] == 'keep_target':
+                    ai_prompt = f"""I have a merge conflict in {file_path} at line {conflict['line']}. 
+
+Your branch code:
+{chr(10).join(conflict['your_code'])}
+
+Target branch code:
+{chr(10).join(conflict['target_code'])}
+
+My branch deleted code that exists in target branch. How do I resolve this by keeping the target branch code without losing my other changes? Please provide the exact code to replace the conflict markers with."""
+                
+                elif conflict['suggested_action'] == 'merge_imports':
+                    ai_prompt = f"""I have an import conflict in {file_path} at line {conflict['line']}. 
+
+Your branch imports:
+{chr(10).join([line for line in conflict['your_code'] if 'import' in line])}
+
+Target branch imports:
+{chr(10).join([line for line in conflict['target_code'] if 'import' in line])}
+
+How do I merge these imports without breaking dependencies? Please provide the exact combined import statements to replace the conflict markers with."""
+                
+                elif conflict['suggested_action'] == 'keep_both':
+                    ai_prompt = f"""I have a comment-only conflict in {file_path} at line {conflict['line']}. 
+
+Your branch comments:
+{chr(10).join(conflict['your_code'])}
+
+Target branch comments:
+{chr(10).join(conflict['target_code'])}
+
+How do I safely merge both comment blocks? Please provide the exact code to replace the conflict markers with."""
+                
+                elif conflict['suggested_action'] == 'format_and_merge':
+                    ai_prompt = f"""I have a formatting conflict in {file_path} at line {conflict['line]}. 
+
+Your branch code:
+{chr(10).join(conflict['your_code'])}
+
+Target branch code:
+{chr(10).join(conflict['target_code'])}
+
+The code is the same but formatted differently. How do I resolve this with consistent formatting? Please provide the exact formatted code to replace the conflict markers with."""
+                
+                else:
+                    ai_prompt = f"""I have a complex code conflict in {file_path} at line {conflict['line']}. 
+
+Your branch code:
+{chr(10).join(conflict['your_code'])}
+
+Target branch code:
+{chr(10).join(conflict['target_code'])}
+
+Both branches have different logic. How do I resolve this without breaking functionality? Please analyze both versions and provide the exact merged code to replace the conflict markers with, explaining any compromises made."""
+                
+                # Wrap the prompt for better display
+                wrapped_prompt = textwrap.fill(ai_prompt, width=55, subsequent_indent='      ')
+                print(wrapped_prompt)
+                
+                print(f"\n      " + "="*60)
+                print(f"      💡 Copy the prompt above and paste into AI chat")
+                print(f"      🤖 The AI will give you exact code to fix the conflict")
+                print(f"      ✅ Paste the AI response back into your file")
+                print(f"      🧪 Test your code before committing")
             print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
             codebase_issues = []  # Placeholder for future codebase analysis
             if codebase_issues:
