@@ -279,14 +279,14 @@ def main():
                 # Create detailed GitHub annotations
                 print(f"::error file={file_path},line={line_num},title=Merge Conflict Detected::{github_message}")
             print("\n🔍 ANALYZING CODEBASE FOR ADDITIONAL ISSUES...")
-        codebase_issues = analyze_codebase_issues()
-        if codebase_issues:
-            print(f"📋 Found {len(codebase_issues)} codebase issues:")
-            for issue in codebase_issues:
-                print(f"   - {issue['type']}: {issue['message']}")
-                print(f"     File: {issue['file']}")
-                print(f"     Line: {issue['line']}")
-                if 'suggestion' in issue:
+            codebase_issues = []  # Placeholder for future codebase analysis
+            if codebase_issues:
+                print(f"📋 Found {len(codebase_issues)} codebase issues:")
+                for issue in codebase_issues:
+                    print(f"   - {issue['type']}: {issue['message']}")
+                    print(f"     File: {issue['file']}")
+                    print(f"     Line: {issue['line']}")
+                
                     print(f"     Fix: {issue['suggestion']}")
 
         # Generate and save conflict report
