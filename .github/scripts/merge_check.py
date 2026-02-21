@@ -179,8 +179,8 @@ def save_conflict_report(report: Dict[str, Any]):
 def main():
     """Main function to perform merge conflict check."""
     # Get current branch
-    current_branch = current_branch()
-    print(f"Current branch: {current_branch}")
+    current_branch_name = current_branch()
+    print(f"Current branch: {current_branch_name}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
     target_branch = "MAIN"
@@ -188,7 +188,7 @@ def main():
     ##############################################################################################################################################################
     
     # Don't run if already on target branch
-    if current_branch == target_branch:
+    if current_branch_name == target_branch:
         print("Already on MAIN branch, no merge check needed.")
         # Set output for no conflicts
         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -203,7 +203,7 @@ def main():
         sys.exit(1)
     
     # Attempt no-commit merge using remote branches
-    print(f"Attempting merge from {current_branch} to {target_branch}...")
+    print(f"Attempting merge from {current_branch_name} to {target_branch}...")
     result = run_command(['git', 'merge', '--no-commit', '--no-ff', f'origin/{target_branch}'])
     
     # Check for conflicts regardless of merge result
@@ -265,7 +265,7 @@ def main():
                     print(f"     Fix: {issue['suggestion']}")
 
         # Generate and save conflict report
-        report = generate_conflict_report(all_conflicts, current_branch, target_branch, codebase_issues)
+        report = generate_conflict_report(all_conflicts, current_branch_name, target_branch, codebase_issues)
         save_conflict_report(report)
         
         # Set output indicating conflicts were found
@@ -343,7 +343,7 @@ def main():
         print("✅ No merge conflicts detected!")
         
         # Generate and save no-conflict report
-        report = generate_conflict_report([], current_branch, target_branch)
+        report = generate_conflict_report([], current_branch_name, target_branch)
         save_conflict_report(report)
         
         # Set output for no conflicts
