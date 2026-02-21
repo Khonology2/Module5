@@ -279,16 +279,41 @@ def main():
         print("🚨 MERGE CONFLICTS DETECTED!")
         print("="*80)
         
-        conflict_details = []
+        all_conflicts = []
         for file_path in conflicted_files:
-            details = parse_conflict_details(file_path)
-            conflict_details.append(details)
+            conflicts = extract_conflict_lines(file_path)
+            all_conflicts.extend(conflicts)
             
             print(f"\n📁 File: {file_path}")
-            if 'error' in details:
-                print(f"   Error reading file: {details['error']}")
-            else:
-                print(f"   Conflicts found: {len(details['conflicts'])}")
+            print(f"   Conflicts found: {len(conflicts)}")
+            for i, conflict in enumerate(conflicts, 1):
+                print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
+                
+                # Create GitHub annotations for each conflict marker
+                conflict_lines = conflict.get('lines', [])
+                for line_idx, line_content in enumerate(conflict_lines):
+                    actual_line = conflict['start_line'] + line_idx
+                    if line_content.startswith('<<<<<<<'):
+                        create_github_annotation({
+                            'file': file_path,
+                            'line': actual_line,
+                            'marker': '<<<<<<<',
+                            'message': 'Incoming change marker'
+                        })
+                    elif line_content.startswith('======='):
+                        create_github_annotation({
+                            'file': file_path,
+                            'line': actual_line,
+                            'marker': '=======',
+                            'message': 'Conflict separator'
+                        })
+                    elif line_content.startswith('>>>>>>>'):
+                        create_github_annotation({
+                            'file': file_path,
+                            'line': actual_line,
+                            'marker': '>>>>>>>',
+                            'message': 'Current branch marker'
+                        })
                 for i, conflict in enumerate(details['conflicts'], 1):
                     print(f"   Conflict {i}: Lines {conflict['start_line']}-{conflict['end_line']}")
                     
