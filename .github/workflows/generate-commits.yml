@@ -47,8 +47,9 @@ jobs:
           fi
         fi
 
-        # Get commits from today only and format as proper JSON array using jq
+        # Get commits from today only, excluding GitHub Actions commits
         TODAY_COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
+          grep -v "github-actions" | \
           jq -R -s '
             split("\n") |
             map(select(length > 0)) |
@@ -171,3 +172,28 @@ jobs:
           TIMESTAMP=$(echo "$commit" | jq -r '.timestamp')
           echo "::notice title=Commit by $AUTHOR::$MESSAGE (at $TIMESTAMP)"
         done
+
+    - name: Commit and Push Daily Commits JSON
+      run: |
+        echo "Checking for daily-commits.json changes..."
+        if git diff --quiet assets/data/daily-commits.json 2>/dev/null; then
+          echo "ℹ️  No daily commits JSON changes detected"
+        else
+          echo "📝 Committing daily commits JSON..."
+          git add assets/data/daily-commits.json
+          git commit -m "docs: update daily commits data [skip ci]" || echo "No changes to commit"
+          
+          echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
+          if git push origin ${GITHUB_REF_NAME}; then
+            echo "✅ Daily commits JSON successfully committed and pushed"
+            echo "🔗 Developers can now pull this branch to see updated commit data locally"
+          else
+            echo "⚠️  Push failed - JSON saved locally in runner only"
+          fi
+        fi
+
+    - name: Upload Daily Commits Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: daily-commits-report
+        path: assets/data/daily-commits.json
