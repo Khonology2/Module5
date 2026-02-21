@@ -166,14 +166,8 @@ def save_conflict_report(report: Dict[str, Any]):
             json.dump(report, f, indent=2, ensure_ascii=False)
         
         print(f"✅ Conflict report saved to {filepath}")
-        
-        # Verify file was written
-        if os.path.exists(filepath):
-            print(f"DEBUG: File exists and size: {os.path.getsize(filepath)} bytes")
-        else:
-            print(f"ERROR: File was not created at {filepath}")
-        
-        # Note: File is saved but not staged - workflow will handle staging
+        print(f"📤 This report will be committed to the repository for team visibility")
+        print(f"🔗 Team members can pull this branch to see conflict details locally")
         
     except Exception as e:
         print(f"ERROR: Failed to save conflict report: {e}")
