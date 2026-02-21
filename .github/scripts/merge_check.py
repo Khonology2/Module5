@@ -29,84 +29,45 @@ def run_command(cmd: List[str], capture_output: bool = True) -> subprocess.Compl
 
 def get_current_branch() -> str:
     """Get current git branch name."""
-    result = run_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    if result.returncode != 0:
-        print(f"Error getting current branch: {result.stderr}")
-        sys.exit(1)
+
+
+def run(cmd):
+    """Run shell command and return result."""
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return result.stdout.strip()
 
-def get_conflicted_files() -> List[str]:
-    """Get list of conflicted files from git status."""
-    result = run_command(['git', 'status', '--porcelain'])
-    if result.returncode != 0:
-        print(f"Error getting git status: {result.stderr}")
-        sys.exit(1)
-    
-    conflicted_files = []
-    for line in result.stdout.strip().split('\n'):
-        if line.startswith('UU ') or line.startswith('AA ') or line.startswith('DD '):
-            # UU = both modified, AA = both added, DD = both deleted
-            conflicted_files.append(line[3:])
-    
-    return conflicted_files
 
-def parse_conflict_details(file_path: str) -> Dict[str, Any]:
-    """Parse conflict details from a conflicted file."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        conflicts = []
-        in_conflict = False
-        conflict_start = 0
-        conflict_lines = []
-        
-        for i, line in enumerate(lines, 1):
-            if line.startswith('<<<<<<<'):
-                in_conflict = True
-                conflict_start = i
-                conflict_lines = [line]
-            elif line.startswith('======='):
-                conflict_lines.append(line)
-            elif line.startswith('>>>>>>>'):
-                conflict_lines.append(line)
-                conflicts.append({
-                    'start_line': conflict_start,
-                    'end_line': i,
-                    'lines': conflict_lines.copy()
-                })
-                in_conflict = False
-            elif in_conflict:
-                conflict_lines.append(line)
-        
-        return {
-            'file': file_path,
-            'conflicts': conflicts
-        }
-    except Exception as e:
-        return {
-            'file': file_path,
-            'error': str(e),
-            'conflicts': []
-        }
+def current_branch():
+    """Get current git branch."""
+    result = run("git rev-parse --abbrev-ref HEAD")
+    return result.stdout.strip()
+
+
+def simulate_merge(branch):
+    """Simulate merge from current branch to target branch."""
+    print(f"Checking out target branch: {TARGET_BRANCH}")
+    run(f"git checkout {TARGET_BRANCH}")
+    
+    print(f"Merging {branch} into {TARGET_BRANCH}...")
+    result = run(f"git merge origin/{branch} --no-commit --no-ff")
+    return result.returncode
+
 
 def abort_merge():
     """Abort current merge operation."""
-    result = run_command(['git', 'merge', '--abort'])
-    if result.returncode != 0:
-        print(f"Warning: Could not abort merge: {result.stderr}")
+    run("git merge --abort")
 
-def create_github_annotation(conflict):
-    """Create GitHub Actions annotation for inline PR errors."""
-    print(
-        f"::error file={conflict['file']},"
-        f"line={conflict['line']},"
-        f"title=Merge Conflict::"
-        f"{conflict['message']} ({conflict['marker']})"
-    )
 
-def analyze_codebase_issues() -> List[Dict[str, Any]]:
-    """Analyze codebase for common issues and errors."""
+def get_conflict_files():
+    """Get list of conflicted files."""
+    result = run("git diff --name-only --diff-filter=U")
+    files = result.stdout.strip().splitlines()
+    return files
+
+
+def extract_conflict_lines(file_path):
+    """Extract conflict details from a file."""
+    conflicts = []
     issues = []
     
     # Check for common Dart/Flutter issues

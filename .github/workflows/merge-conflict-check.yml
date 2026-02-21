@@ -1,0 +1,64 @@
+name: Merge Conflict Tracking System
+
+on:
+  push:
+    branches-ignore:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  merge-conflict-check:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
+
+    - name: Fetch all branches
+      run: git fetch origin
+
+    - name: Run Merge Conflict Script
+      id: merge_check
+      run: python .github/scripts/merge_check.py
+
+    - name: Show JSON Report
+      run: cat assets/data/merge-conflicts.json
+
+    - name: Commit and Push Report
+      run: |
+        if git diff --quiet assets/data/merge-conflicts.json; then
+          echo "No report changes"
+        else
+          git add assets/data/merge-conflicts.json
+          git commit -m "Merge conflict report for ${{ github.ref_name }}"
+          git push
+        fi
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: merge-conflict-report
+        path: assets/data/merge-conflicts.json
+
+    - name: Fail if conflicts exist
+      if: failure()
+      run: exit 1
