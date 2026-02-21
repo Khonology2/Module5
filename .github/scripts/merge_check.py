@@ -178,18 +178,37 @@ def save_conflict_report(report: Dict[str, Any]):
 
 def main():
     """Main function to perform merge conflict check."""
-    # Get current branch
+    # Get and verify current branch
     current_branch_name = current_branch()
-    print(f"Current branch: {current_branch_name}")
+    print(f"🔍 Detected current branch: '{current_branch_name}'")
+    
+    # Verify branch name is not empty or None
+    if not current_branch_name or current_branch_name == "":
+        print("❌ ERROR: Could not detect current branch name!")
+        print("This might indicate an issue with the git repository state.")
+        sys.exit(1)
+    
+    # Additional verification - check if we're on a valid branch
+    try:
+        verify_result = run("git branch --show-current")
+        if verify_result.stdout.strip() != current_branch_name:
+            print(f"⚠️  WARNING: Branch name mismatch detected!")
+            print(f"   git rev-parse: '{current_branch_name}'")
+            print(f"   git branch: '{verify_result.stdout.strip()}'")
+            print("   Using git rev-parse result...")
+    except:
+        print("⚠️  WARNING: Could not verify branch name with git branch command")
+    
+    print(f"✅ Confirmed working on branch: {current_branch_name}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
     target_branch = "MAIN"
-    print(f"Target branch: {target_branch}")
+    print(f"🎯 Target branch for merge check: {target_branch}")
     ##############################################################################################################################################################
     
     # Don't run if already on target branch
     if current_branch_name == target_branch:
-        print("Already on MAIN branch, no merge check needed.")
+        print(f"ℹ️  Skipping merge check - already on {target_branch} branch")
         # Set output for no conflicts
         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             f.write('conflicts_found=false\n')
@@ -203,7 +222,9 @@ def main():
         sys.exit(1)
     
     # Attempt no-commit merge using remote branches
-    print(f"Attempting merge from {current_branch_name} to {target_branch}...")
+    print(f"🔄 Simulating merge: {current_branch_name} ← {target_branch}")
+    print(f"   This checks if merging {target_branch} into {current_branch_name} would cause conflicts")
+    print(f"   (Which is equivalent to checking if {current_branch_name} can be merged into {target_branch})")
     result = run_command(['git', 'merge', '--no-commit', '--no-ff', f'origin/{target_branch}'])
     
     # Check for conflicts regardless of merge result
