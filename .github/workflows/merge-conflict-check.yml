@@ -45,21 +45,15 @@ jobs:
 
     - name: Commit and Push Report
       run: |
-        echo "Checking for merge conflict report changes..."
-        if git diff --quiet assets/data/merge-conflicts.json 2>/dev/null; then
-          echo "ℹ️  No merge conflict report changes detected"
-        else
-          echo "📝 Committing merge conflict report..."
-          git add assets/data/merge-conflicts.json
-          git commit -m "docs: merge conflict report for ${GITHUB_REF_NAME} [skip ci]"
-          echo "🚀 Pushing report to branch: ${GITHUB_REF_NAME}"
-          if git push origin ${GITHUB_REF_NAME}; then
-            echo "✅ Report successfully committed and pushed"
-            echo "🔗 Developers can now pull this branch to see conflict report locally"
-          else
-            echo "⚠️  Push failed - report saved locally in runner only"
-          fi
-        fi
+        echo "📝 Committing merge conflict report..."
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add assets/data/merge-conflicts.json
+        git commit -m "docs: merge conflict report for ${GITHUB_REF_NAME} [skip ci]" || echo "No changes"
+        echo "🔄 Pulling latest changes to avoid stale push..."
+        git pull origin ${GITHUB_REF_NAME} --rebase
+        echo "🚀 Pushing report to branch: ${GITHUB_REF_NAME}"
+        git push origin ${GITHUB_REF_NAME}
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
