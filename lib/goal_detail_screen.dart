@@ -109,9 +109,10 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
 
   Widget _buildKpaSelector() {
     final String? formattedKpa =
-        (currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
-        ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
-        : null;
+        Goal.kpaLabel(currentGoal.kpa) ??
+        ((currentGoal.kpa != null && currentGoal.kpa!.isNotEmpty)
+            ? currentGoal.kpa![0].toUpperCase() + currentGoal.kpa!.substring(1)
+            : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

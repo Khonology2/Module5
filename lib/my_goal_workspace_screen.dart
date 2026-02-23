@@ -50,7 +50,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
   // Dropdown selected values
   String? _goalCategory;
   String? _currentStatus;
-  String? _kpa; // 'operational' | 'customer' | 'financial'
+  String? _kpa; // 'operational' | 'customer' | 'financial' | 'organisational' | 'people'
   String? _customCategory; // For "Other" category custom input
   bool _isOtherCategorySelected = false;
 
@@ -62,7 +62,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
     'Finance',
     'Other',
   ];
-  final List<String> _kpaOptions = ['Operational', 'Customer', 'Financial'];
+  final List<String> _kpaOptions = Goal.kpaKeys
+      .map((k) => Goal.kpaKeyToLabel[k] ?? k)
+      .toList(growable: false);
 
   @override
   void initState() {
@@ -324,13 +326,11 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
                       ),
                       _buildDropdownField(
                         hintText: 'Select Key Performance Area',
-                        value: _kpa != null
-                            ? (_kpa![0].toUpperCase() + _kpa!.substring(1))
-                            : null,
+                        value: Goal.kpaLabel(_kpa),
                         items: _kpaOptions,
                         onChanged: (String? newValue) {
                           setState(() {
-                            _kpa = newValue?.toLowerCase();
+                            _kpa = Goal.normalizeKpaKey(newValue);
                           });
                         },
                       ),
@@ -1117,9 +1117,9 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           'Based on the goal description provided, you must suggest:\n'
           '1. Category: Choose ONE from these exact options: Career, Skills, Wellness, Finance, or Other. If it does not fit any of the first four, suggest "Other".\n'
           '2. Priority: Choose ONE from these exact options: High, Medium, or Low.\n'
-          '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational, Customer, or Financial.\n\n'
+          '3. Key Performance Area (KPA): Choose ONE from these exact options: Operational Excellence, Customer Excellence, Financial Excellence, Organisational Excellence, or People Excellence.\n\n'
           'Respond ONLY with a JSON object in this exact format (no other text):\n'
-          '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational|Customer|Financial"}',
+          '{"category": "Career|Skills|Wellness|Finance|Other", "priority": "High|Medium|Low", "kpa": "Operational Excellence|Customer Excellence|Financial Excellence|Organisational Excellence|People Excellence"}',
         ),
       );
 
@@ -1209,9 +1209,8 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
           }
 
           final kpa = suggestions['kpa']?.toString().trim();
-          if (kpa != null && _kpaOptions.contains(kpa)) {
-            _kpa = kpa.toLowerCase();
-          }
+          final normalizedKpa = Goal.normalizeKpaKey(kpa);
+          if (normalizedKpa != null) _kpa = normalizedKpa;
         });
 
         // Show success message in centered dialog
