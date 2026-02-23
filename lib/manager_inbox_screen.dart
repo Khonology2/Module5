@@ -16,6 +16,8 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
+import 'package:pdh/models/badge.dart' as badge_model;
 
 @immutable
 class _NudgeFeedback {
@@ -148,6 +150,96 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           ],
         );
       },
+    );
+  }
+
+  badge_model.BadgeCategory? _managerCategoryFromName(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    try {
+      return badge_model.BadgeCategory.values.firstWhere((e) => e.name == s);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _managerCategoryTitle(badge_model.BadgeCategory c) {
+    switch (c) {
+      case badge_model.BadgeCategory.leadership:
+        return 'Leadership';
+      case badge_model.BadgeCategory.goals:
+        return 'Goals';
+      case badge_model.BadgeCategory.collaboration:
+        return 'Collaboration';
+      case badge_model.BadgeCategory.innovation:
+        return 'Innovation';
+      case badge_model.BadgeCategory.community:
+        return 'Community';
+      case badge_model.BadgeCategory.achievement:
+        return 'Achievements';
+      default:
+        return 'Badges';
+    }
+  }
+
+  Future<void> _openManagerBadgeFromAlert(Alert alert) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    final data = alert.actionData ?? const <String, dynamic>{};
+    final badgeId =
+        (data['badgeId'] ?? data['badgeDocId'] ?? '').toString().trim();
+    if (badgeId.isEmpty) {
+      Navigator.pushNamed(
+        context,
+        '/manager_portal',
+        arguments: {'initialRoute': '/manager_badges_points'},
+      );
+      return;
+    }
+
+    String? categoryName = data['badgeCategory']?.toString().trim();
+    if (categoryName == null || categoryName.isEmpty) {
+      try {
+        final doc = await FirestoreSafe.getDoc(
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('badges')
+              .doc(badgeId),
+        );
+        categoryName = doc.data()?['category']?.toString().trim();
+      } catch (_) {}
+    }
+    if (categoryName == null || categoryName.isEmpty) {
+      // Fallback for alerts that store a base badge id where the actual doc id differs.
+      try {
+        final q = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('badges')
+            .where('criteria.badgeId', isEqualTo: badgeId)
+            .limit(1)
+            .get();
+        if (q.docs.isNotEmpty) {
+          categoryName = q.docs.first.data()['category']?.toString().trim();
+        }
+      } catch (_) {}
+    }
+    final category = _managerCategoryFromName(categoryName) ??
+        badge_model.BadgeCategory.leadership;
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManagerBadgeCategoryDetailScreen(
+          category: category,
+          title: _managerCategoryTitle(category),
+          embedded: widget.embedded,
+          initialBadgeId: badgeId,
+        ),
+      ),
     );
   }
 
@@ -295,7 +387,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                           children: [
                             _chip('Category', goal.category.name),
                             if (goal.kpa != null && goal.kpa!.isNotEmpty)
-                              _chip('KPA', goal.kpa!.toUpperCase()),
+                              _chip(
+                                'KPA',
+                                Goal.kpaLabel(goal.kpa) ??
+                                    (goal.kpa![0].toUpperCase() +
+                                        goal.kpa!.substring(1)),
+                              ),
                             _chip('Created', _fmtDateTime(goal.createdAt)),
                             _chip('Target', _fmtDate(goal.targetDate)),
                           ],
@@ -1273,13 +1370,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.type == AlertType.badgeEarned ||
                   alert.type == AlertType.achievementUnlocked)
                 TextButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_portal',
-                      arguments: {'initialRoute': '/manager_badges_points'},
-                    );
-                  },
+                  onPressed: () => _openManagerBadgeFromAlert(alert),
                   icon: const Icon(Icons.emoji_events),
                   label: const Text('View Badges'),
                 )

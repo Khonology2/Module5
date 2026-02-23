@@ -484,6 +484,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   await BadgeService.checkAndAwardBadges(
                                     userCredential.user!.uid,
                                   );
+                                  await BadgeService.checkAndAwardBadgesV2(
+                                    userCredential.user!.uid,
+                                  );
                                 } catch (e) {
                                   debugPrint('Error initializing badges: $e');
                                   // Continue even if badges fail - registration should succeed

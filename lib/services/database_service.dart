@@ -594,6 +594,7 @@ class DatabaseService {
     Future(() async {
       try {
         await BadgeService.checkAndAwardBadges(goal.userId);
+        await BadgeService.checkAndAwardBadgesV2(goal.userId);
       } catch (_) {}
     });
     return doc.id;
@@ -1406,6 +1407,7 @@ class DatabaseService {
       if (user != null) {
         await StreakService.recordDailyActivity(user.uid, 'goal_progress');
         await BadgeService.checkAndAwardBadges(user.uid);
+        await BadgeService.checkAndAwardBadgesV2(user.uid);
       }
     } catch (e) {
       developer.log('updateGoalProgress post-activity failed: $e');
@@ -1581,6 +1583,7 @@ class DatabaseService {
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_started');
     await BadgeService.checkAndAwardBadges(userId);
+    await BadgeService.checkAndAwardBadgesV2(userId);
   }
 
   static Future<void> completeGoal(String goalId, String userId) async {
@@ -1681,6 +1684,7 @@ class DatabaseService {
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
     await BadgeService.checkAndAwardBadges(userId);
+    await BadgeService.checkAndAwardBadgesV2(userId);
     // Backfill any missed milestone badges and align level
     try {
       await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);

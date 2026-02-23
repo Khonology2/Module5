@@ -23,6 +23,9 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
+import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
+import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/utils/firestore_safe.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -1416,6 +1419,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   Future<void> _handleAlertNavigation(Alert alert) async {
     final navigator = Navigator.of(context);
 
+    if (alert.type == AlertType.badgeEarned) {
+      final opened = await _openBadgeFromAlert(alert);
+      if (opened) return;
+    }
+
     // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
     final goalId = alert.actionData != null
         ? (alert.actionData!['goalId'] as String?)
@@ -1589,6 +1597,103 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           duration: Duration(seconds: 2),
         ),
       );
+    }
+  }
+
+  badge_model.BadgeCategory? _employeeCategoryFromName(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    try {
+      final c = badge_model.BadgeCategory.values.firstWhere((e) => e.name == s);
+      switch (c) {
+        case badge_model.BadgeCategory.goalMastery:
+        case badge_model.BadgeCategory.consistency:
+        case badge_model.BadgeCategory.growth:
+        case badge_model.BadgeCategory.milestones:
+        case badge_model.BadgeCategory.collaboration:
+          return c;
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _employeeCategoryTitle(badge_model.BadgeCategory c) {
+    switch (c) {
+      case badge_model.BadgeCategory.goalMastery:
+        return 'Goal Mastery';
+      case badge_model.BadgeCategory.consistency:
+        return 'Consistency';
+      case badge_model.BadgeCategory.growth:
+        return 'Growth';
+      case badge_model.BadgeCategory.milestones:
+        return 'Milestones';
+      case badge_model.BadgeCategory.collaboration:
+        return 'Collaboration';
+      default:
+        return 'Badges';
+    }
+  }
+
+  Future<bool> _openBadgeFromAlert(Alert alert) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return false;
+
+      final data = alert.actionData ?? const <String, dynamic>{};
+      final badgeId = (data['badgeId'] ?? data['badgeDocId'] ?? '')
+          .toString()
+          .trim();
+      if (badgeId.isEmpty) return false;
+
+      String? categoryName = data['badgeCategory']?.toString().trim();
+      if (categoryName == null || categoryName.isEmpty) {
+        try {
+          final doc = await FirestoreSafe.getDoc(
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('badges')
+                .doc(badgeId),
+          );
+          categoryName = doc.data()?['category']?.toString().trim();
+        } catch (_) {}
+      }
+      if (categoryName == null || categoryName.isEmpty) {
+        // Fallback for alerts that store a base badge id (e.g. season badges)
+        // where the actual doc id differs.
+        try {
+          final q = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('badges')
+              .where('criteria.badgeId', isEqualTo: badgeId)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            categoryName = q.docs.first.data()['category']?.toString().trim();
+          }
+        } catch (_) {}
+      }
+
+      final category = _employeeCategoryFromName(categoryName);
+      if (category == null) return false;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BadgeCategoryDetailScreen(
+            category: category,
+            title: _employeeCategoryTitle(category),
+            embedded: widget.embedded,
+            initialBadgeId: badgeId,
+          ),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
