@@ -99,13 +99,13 @@ class _MyPdpScreenState extends State<MyPdpScreen>
   bool _isOperationalExpanded = true;
   bool _isCustomerExpanded = true;
   bool _isFinancialExpanded = true;
+  bool _isOrganisationalExpanded = true;
+  bool _isPeopleExpanded = true;
 
   String _mapGoalToExcellence(Goal goal) {
     // Prefer explicit kpa if available
-    final kpa = (goal.kpa ?? '').toLowerCase();
-    if (kpa == 'operational') return 'Operational Excellence';
-    if (kpa == 'customer') return 'Customer Excellence';
-    if (kpa == 'financial') return 'Financial Excellence';
+    final explicit = Goal.kpaLabel(goal.kpa);
+    if (explicit != null) return explicit;
     // Temporary mapping based on category/title keywords
     final title = goal.title.toLowerCase();
     switch (goal.category) {
@@ -975,6 +975,19 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                 title: 'Financial Excellence',
                 expanded: _isFinancialExpanded,
                 onToggle: (v) => setState(() => _isFinancialExpanded = v),
+              ),
+              const SizedBox(height: 20),
+              _buildExcellenceArea(
+                title: 'Organisational Excellence',
+                expanded: _isOrganisationalExpanded,
+                onToggle: (v) =>
+                    setState(() => _isOrganisationalExpanded = v),
+              ),
+              const SizedBox(height: 20),
+              _buildExcellenceArea(
+                title: 'People Excellence',
+                expanded: _isPeopleExpanded,
+                onToggle: (v) => setState(() => _isPeopleExpanded = v),
               ),
               const SizedBox(height: 80),
             ],

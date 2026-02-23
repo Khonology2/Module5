@@ -1035,7 +1035,6 @@ class SeasonService {
           final userBadgeRef = userRef.collection('badges').doc(userBadgeId);
           final existing = await userBadgeRef.get();
           final alreadyEarned = existing.data()?['isEarned'] == true;
-          if (alreadyEarned) continue;
 
           int managerLevel = 4;
           switch (badgeId) {
@@ -1059,11 +1058,19 @@ class SeasonService {
               break;
           }
 
+          // Keep metadata (like category) in sync without re-awarding.
+          if (alreadyEarned) {
+            batch.set(userBadgeRef, {
+              'category': 'achievement',
+            }, SetOptions(merge: true));
+            continue;
+          }
+
           batch.set(userBadgeRef, {
             'name': badge.name,
             'description': '${badge.description} - $seasonTitle',
             'iconName': 'emoji_events',
-            'category': 'leadership',
+            'category': 'achievement',
             'rarity': 'common',
             'pointsRequired': badge.points,
             'criteria': {
