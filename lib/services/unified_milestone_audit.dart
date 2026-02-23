@@ -19,11 +19,37 @@ class UnifiedMilestoneAudit {
   }) async {
     try {
       final user = _auth.currentUser;
+      final actualUserId = userId ?? user?.uid ?? 'system';
+
+      // Fetch user details for richer audit trail
+      String userName = 'System';
+      String userRole = 'system';
+      String userDepartment = 'system';
+
+      if (user != null && userId == null) {
+        // Current user creating milestone
+        userName = user.displayName ?? 'Unknown User';
+        final userDetails = await _getUserDetails(user.uid);
+        userName =
+            userDetails['displayName'] ?? user.displayName ?? 'Unknown User';
+        userRole = userDetails['role'] ?? 'employee';
+        userDepartment = userDetails['department'] ?? 'unknown';
+      } else if (userId != null && userId != 'system') {
+        // Another user created milestone (backfill case)
+        final userDetails = await _getUserDetails(userId);
+        userName = userDetails['displayName'] ?? 'Unknown User';
+        userRole = userDetails['role'] ?? 'employee';
+        userDepartment = userDetails['department'] ?? 'unknown';
+      }
+
       final event = {
         'action': 'milestone_created',
         'goalId': goalId,
         'milestoneId': milestoneId,
-        'userId': userId ?? user?.uid ?? 'system',
+        'userId': actualUserId,
+        'userName': userName,
+        'userRole': userRole,
+        'userDepartment': userDepartment,
         'timestamp': FieldValue.serverTimestamp(),
         'description':
             'Milestone created: $milestoneTitle for goal: $goalTitle',
@@ -186,11 +212,11 @@ class UnifiedMilestoneAudit {
       }
 
       // Add delay to prevent rapid-fire queries that cause assertions
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 200));
 
       try {
         if (kDebugMode) {
-          print('DEBUG: Getting audit entries for user: ${user.uid}');
+          developer.log('DEBUG: Getting audit entries for user: ${user.uid}');
         }
 
         // RESTORED: Use orderBy now that indexes will be created manually
@@ -203,8 +229,14 @@ class UnifiedMilestoneAudit {
 
         await for (final snapshot in stream) {
           try {
+            // Check if stream is still valid
+            if (snapshot.metadata.isFromCache) {
+              // Skip cache-only results to prevent assertion failures
+              continue;
+            }
+
             if (kDebugMode) {
-              print(
+              developer.log(
                 'DEBUG: Got ${snapshot.docs.length} audit entries from Firestore',
               );
             }
@@ -218,10 +250,14 @@ class UnifiedMilestoneAudit {
                     'milestone_created',
                     'milestone_updated',
                     'milestone_status_changed',
+                    'milestone_pending_review',
+                    'milestone_acknowledged',
+                    'milestone_rejected',
+                    'milestone_dismissed',
                   ].contains(action);
 
                   if (kDebugMode && isMilestoneAction) {
-                    print(
+                    developer.log(
                       'DEBUG: Found milestone audit entry: ${audit['action']} for ${audit['goalId']}',
                     );
                   }
@@ -231,12 +267,15 @@ class UnifiedMilestoneAudit {
                 .toList();
 
             if (kDebugMode) {
-              print(
+              developer.log(
                 'DEBUG: Filtered to ${audits.length} milestone audit entries',
               );
             }
 
             yield audits;
+
+            // Add small delay between yields to prevent rapid updates
+            await Future.delayed(const Duration(milliseconds: 100));
           } catch (e) {
             developer.log('Error processing audit snapshot: $e');
             yield []; // Fallback to empty list
@@ -246,7 +285,7 @@ class UnifiedMilestoneAudit {
         // If collection doesn't exist or permission error, return mock data for consistent UI
         developer.log('Audit entries collection not accessible: $e');
         if (kDebugMode) {
-          print('DEBUG: Audit entries collection not accessible: $e');
+          developer.log('DEBUG: Audit entries collection not accessible: $e');
         }
         yield [];
       }
@@ -338,5 +377,22 @@ class UnifiedMilestoneAudit {
       }
       rethrow;
     }
+  }
+
+  /// Helper method to get user details
+  static Future<Map<String, dynamic>> _getUserDetails(String userId) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        return userDoc.data() ?? {};
+      }
+    } catch (e) {
+      developer.log('Error fetching user details: $e');
+    }
+    return {
+      'displayName': 'Unknown User',
+      'role': 'employee',
+      'department': 'unknown',
+    };
   }
 }
