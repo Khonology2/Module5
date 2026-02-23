@@ -7,6 +7,7 @@ class UserProfile {
   final int totalPoints;
   final int level;
   final List<String> badges;
+  final List<String> badgesV2;
   final String role; // Added for user roles (e.g., 'employee', 'manager')
 
   // New fields from EmployeeProfileScreen
@@ -37,6 +38,7 @@ class UserProfile {
     required this.totalPoints,
     required this.level,
     required this.badges,
+    this.badgesV2 = const [],
     this.role = 'employee', // Default role
     // Initialize new fields
     this.jobTitle = '',
@@ -92,6 +94,7 @@ class UserProfile {
       totalPoints: (data?['totalPoints'] ?? 0) as int,
       level: (data?['level'] ?? 1) as int,
       badges: List<String>.from(data?['badges'] ?? const []),
+      badgesV2: List<String>.from(data?['badgesV2'] ?? const []),
       role: data?['role'] ?? 'employee', // Deserialize role
       jobTitle: data?['jobTitle'] ?? '',
       department: data?['department'] ?? '',
@@ -130,6 +133,7 @@ class UserProfile {
       'totalPoints': totalPoints,
       'level': level,
       'badges': badges,
+      'badgesV2': badgesV2,
       'role': role, // Serialize role
       'jobTitle': jobTitle,
       'department': department,
@@ -166,6 +170,7 @@ class UserProfile {
     int? totalPoints,
     int? level,
     List<String>? badges,
+    List<String>? badgesV2,
     String? role, // Add role to copyWith
     String? jobTitle,
     String? department,
@@ -194,6 +199,7 @@ class UserProfile {
       totalPoints: totalPoints ?? this.totalPoints,
       level: level ?? this.level,
       badges: badges ?? this.badges,
+      badgesV2: badgesV2 ?? this.badgesV2,
       role: role ?? this.role, // Update role in copyWith
       jobTitle: jobTitle ?? this.jobTitle,
       department: department ?? this.department,
@@ -227,6 +233,7 @@ class UserProfile {
       totalPoints: (map['totalPoints'] ?? 0) as int,
       level: (map['level'] ?? 1) as int,
       badges: List<String>.from(map['badges'] ?? const []),
+      badgesV2: List<String>.from(map['badgesV2'] ?? const []),
       role: map['role'] ?? 'employee',
       jobTitle: map['jobTitle'] ?? '',
       department: map['department'] ?? '',

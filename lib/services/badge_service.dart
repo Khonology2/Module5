@@ -157,7 +157,6 @@ class BadgeService {
       if (last != null && now.difference(last) < _throttleDuration) return;
       _lastCheckAtByUser[userId] = now;
       try {
-        await checkAndAwardBadges(userId);
         await checkAndAwardBadgesV2(userId);
       } catch (e) {
         developer.log('Realtime badge check failed: $e');
@@ -2077,11 +2076,35 @@ class BadgeService {
         // Safely extract badge count
         int badgeCount = 0;
         try {
+          // Prefer v2 badge summary/counts (category-based badge system)
+          final badgeV2Summary = data['badgeV2Summary'];
+          if (badgeV2Summary is Map<String, dynamic>) {
+            final earned = badgeV2Summary['earned'];
+            if (earned is num) {
+              badgeCount = earned.toInt();
+            } else if (earned is String) {
+              badgeCount = int.tryParse(earned) ?? 0;
+            }
+          }
+          if (badgeCount == 0) {
+            final badgesV2Field = data['badgesV2'];
+            if (badgesV2Field is List) {
+              badgeCount = badgesV2Field.length;
+            } else if (badgesV2Field is num) {
+              badgeCount = badgesV2Field.toInt();
+            } else if (badgesV2Field is String) {
+              badgeCount = int.tryParse(badgesV2Field) ?? 0;
+            }
+          }
+
+          // Legacy fallback (kept for managers/older data)
           final badgesField = data['badges'];
-          if (badgesField is List) {
-            badgeCount = badgesField.length;
-          } else if (badgesField is num) {
-            badgeCount = badgesField.toInt();
+          if (badgeCount == 0) {
+            if (badgesField is List) {
+              badgeCount = badgesField.length;
+            } else if (badgesField is num) {
+              badgeCount = badgesField.toInt();
+            }
           }
 
           if (badgeCount == 0) {

@@ -399,13 +399,37 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
+          // Prefer v2 badge summary/counts (category-based badge system)
+          final badgeV2Summary = data['badgeV2Summary'];
+          if (badgeV2Summary is Map<String, dynamic>) {
+            final earned = badgeV2Summary['earned'];
+            if (earned is num) {
+              badgeCount = earned.toInt();
+            } else if (earned is String) {
+              badgeCount = int.tryParse(earned) ?? 0;
+            }
+          }
+          if (badgeCount == 0) {
+            final badgesV2Field = data['badgesV2'];
+            if (badgesV2Field is List) {
+              badgeCount = badgesV2Field.length;
+            } else if (badgesV2Field is num) {
+              badgeCount = badgesV2Field.toInt();
+            } else if (badgesV2Field is String) {
+              badgeCount = int.tryParse(badgesV2Field) ?? 0;
+            }
+          }
+
+          // Legacy fallback (kept for managers/older data)
           final badgesField = data['badges'];
-          if (badgesField is List) {
-            badgeCount = badgesField.length;
-          } else if (badgesField is num) {
-            badgeCount = badgesField.toInt();
-          } else if (badgesField is String) {
-            badgeCount = int.tryParse(badgesField) ?? 0;
+          if (badgeCount == 0) {
+            if (badgesField is List) {
+              badgeCount = badgesField.length;
+            } else if (badgesField is num) {
+              badgeCount = badgesField.toInt();
+            } else if (badgesField is String) {
+              badgeCount = int.tryParse(badgesField) ?? 0;
+            }
           }
 
           if (badgeCount == 0) {
@@ -428,7 +452,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           }
 
           if (_currentUser != null && docId == _currentUser!.uid) {
-            badgeCount = max(badgeCount, _currentUser!.badges.length);
+            badgeCount = max(badgeCount, _currentUser!.badgesV2.length);
           }
         } catch (e) {
           developer.log('Error processing badges for user $docId: $e');
@@ -1148,7 +1172,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         'userId': currentUserId,
         'name': _currentUser!.displayName,
         'points': _currentUser!.totalPoints,
-        'badges': _currentUser!.badges.length,
+          'badges': _currentUser!.badgesV2.length,
         'department': _currentUser!.department,
       },
     );
