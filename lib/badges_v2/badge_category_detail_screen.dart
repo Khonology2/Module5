@@ -11,35 +11,7 @@ import 'package:pdh/services/badge_service.dart';
 import 'package:pdh/utils/firestore_web_circuit_breaker.dart';
 import 'package:pdh/widgets/app_scaffold.dart';
 
-Color _categoryAccent(badge_model.BadgeCategory category) {
-  switch (category) {
-    case badge_model.BadgeCategory.achievement:
-      return const Color(0xFFB388FF);
-    case badge_model.BadgeCategory.streak:
-      return AppColors.warningColor;
-    case badge_model.BadgeCategory.goals:
-      return AppColors.activeColor;
-    case badge_model.BadgeCategory.collaboration:
-      return const Color(0xFF4DA3FF);
-    case badge_model.BadgeCategory.innovation:
-      return const Color(0xFF2EC4B6);
-    case badge_model.BadgeCategory.leadership:
-      return const Color(0xFFFFB703);
-    case badge_model.BadgeCategory.learning:
-      return AppColors.successColor;
-    case badge_model.BadgeCategory.community:
-      return const Color(0xFFFF5DA2);
-    // ===== v2 category groups (employee-focused) =====
-    case badge_model.BadgeCategory.goalMastery:
-      return AppColors.activeColor;
-    case badge_model.BadgeCategory.consistency:
-      return AppColors.warningColor;
-    case badge_model.BadgeCategory.growth:
-      return AppColors.successColor;
-    case badge_model.BadgeCategory.milestones:
-      return const Color(0xFFFFD700);
-  }
-}
+Color _categoryAccent(badge_model.BadgeCategory _) => AppColors.activeColor;
 
 class BadgeCategoryDetailScreen extends StatefulWidget {
   final badge_model.BadgeCategory category;

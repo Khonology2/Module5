@@ -647,28 +647,28 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             title: 'Consistency',
             subtitle: 'Build streaks and momentum',
             icon: Icons.local_fire_department,
-            accentColor: AppColors.warningColor,
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.growth,
             title: 'Growth',
             subtitle: 'Develop through learning and improvement',
             icon: Icons.trending_up,
-            accentColor: AppColors.successColor,
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.milestones,
             title: 'Milestones',
             subtitle: 'Big moments and major achievements',
             icon: Icons.emoji_events,
-            accentColor: const Color(0xFFFFD700),
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.collaboration,
             title: 'Collaboration',
             subtitle: 'Work with others and contribute',
             icon: Icons.handshake,
-            accentColor: const Color(0xFF4DA3FF),
+            accentColor: AppColors.activeColor,
           ),
         ];
 

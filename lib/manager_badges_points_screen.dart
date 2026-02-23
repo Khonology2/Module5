@@ -101,22 +101,8 @@ class _ManagerBadgesPointsScreenState extends State<ManagerBadgesPointsScreen> {
     }
   }
 
-  static Color _categoryAccent(badge_model.BadgeCategory category) {
-    switch (category) {
-      case badge_model.BadgeCategory.leadership:
-        return const Color(0xFFFFB703);
-      case badge_model.BadgeCategory.collaboration:
-        return const Color(0xFF4DA3FF);
-      case badge_model.BadgeCategory.innovation:
-        return const Color(0xFF2EC4B6);
-      case badge_model.BadgeCategory.community:
-        return const Color(0xFFFF5DA2);
-      case badge_model.BadgeCategory.achievement:
-        return const Color(0xFFFFD700);
-      default:
-        return AppColors.activeColor;
-    }
-  }
+  static Color _categoryAccent(badge_model.BadgeCategory _) =>
+      AppColors.activeColor;
 
   Widget _iconForBadge(String iconName) {
     switch (iconName) {

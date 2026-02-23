@@ -5,7 +5,7 @@ import 'package:pdh/services/database_service.dart';
 
 /// Test page to verify milestone audit functionality
 class MilestoneAuditTestPage extends StatefulWidget {
-  const MilestoneAuditTestPage({Key? key}) : super(key: key);
+  const MilestoneAuditTestPage({super.key});
 
   @override
   State<MilestoneAuditTestPage> createState() => _MilestoneAuditTestPageState();
@@ -14,7 +14,7 @@ class MilestoneAuditTestPage extends StatefulWidget {
 class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
   bool _isLoading = false;
   String _status = 'Ready to test';
-  List<String> _testResults = [];
+  final List<String> _testResults = [];
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +88,7 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
 
           // Test audit stream
           final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
-            testGoal.id!,
+            testGoal.id,
           );
 
           await for (final audits in auditStream) {
