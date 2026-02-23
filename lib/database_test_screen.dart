@@ -170,7 +170,6 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
               _buildInfoCard('Email', userProfile!.email),
               _buildInfoCard('Display Name', userProfile!.displayName),
               _buildInfoCard('Total Points', userProfile!.totalPoints.toString()),
-              _buildInfoCard('Level', userProfile!.level.toString()),
               _buildInfoCard('Badges', userProfile!.badges.length.toString()),
             ] else if (!isLoading) ...[
               const Text(

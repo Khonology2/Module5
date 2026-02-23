@@ -1701,7 +1701,6 @@ class DatabaseService {
     // Get current user data to check for level up
     final userDoc = await userRef.get();
     final currentPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
-    final currentLevel = (userDoc.data()?['level'] ?? 1) as int;
 
     final newPoints = currentPoints + points;
     final newLevel = _calculateLevel(newPoints);
@@ -1712,11 +1711,6 @@ class DatabaseService {
     batch.update(userRef, {'totalPoints': newPoints, 'level': newLevel});
 
     await batch.commit();
-
-    // Check if user leveled up
-    if (newLevel > currentLevel) {
-      await AlertService.createLevelUpAlert(userId: userId, newLevel: newLevel);
-    }
   }
 
   static int _calculateLevel(int points) {
