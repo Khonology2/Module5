@@ -2815,7 +2815,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: audits.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   const Divider(color: AppColors.borderColor),
               itemBuilder: (context, index) {
                 final audit = audits[index];

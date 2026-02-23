@@ -181,7 +181,7 @@ class _AuditEntryCard extends StatelessWidget {
                   field: fieldEntry.key,
                   change: fieldEntry.value,
                 );
-              }).toList(),
+              }),
             ],
 
             // Change reason
