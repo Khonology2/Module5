@@ -170,7 +170,7 @@ class _DatabaseTestScreenState extends State<DatabaseTestScreen> {
               _buildInfoCard('Email', userProfile!.email),
               _buildInfoCard('Display Name', userProfile!.displayName),
               _buildInfoCard('Total Points', userProfile!.totalPoints.toString()),
-              _buildInfoCard('Badges', userProfile!.badges.length.toString()),
+              _buildInfoCard('Badges (v2)', userProfile!.badgesV2.length.toString()),
             ] else if (!isLoading) ...[
               const Text(
                 'No user profile found',
