@@ -1,12 +1,17 @@
-name: Generate Daily Commits
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Version Control Data
 
 on:
   push:
     branches: ['*'] # Include ALL branches, including new ones created by developers
+  pull_request:
+    branches: ['*']
   workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: write # Allow the workflow to push commits back to the repository
+  pull-requests: write # Allow PR annotations
 
 jobs:
   generate-commits:
@@ -29,8 +34,19 @@ jobs:
         TODAY=$(date -u +"%Y-%m-%d")
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        # Get commits from today only and format as proper JSON array using jq
-        COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
+        # Initialize previous commits as empty array
+        PREVIOUS_COMMITS="[]"
+        
+        # Read existing daily-commits.json if it exists and has commits
+        if [ -f "assets/data/daily-commits.json" ]; then
+          if command -v jq &> /dev/null && jq -e '.commits | length > 0' assets/data/daily-commits.json &>/dev/null; then
+            PREVIOUS_COMMITS=$(jq '.commits' assets/data/daily-commits.json)
+          fi
+        fi
+
+        # Get commits from today only, excluding GitHub Actions commits
+        TODAY_COMMITS_JSON=$(git log --since="${TODAY}T00:00:00Z" --pretty=format:'%an|%s|%aI' --no-merges | \
+          grep -v -i "github" | \
           jq -R -s '
             split("\n") |
             map(select(length > 0)) |
@@ -38,23 +54,44 @@ jobs:
             map(.author |= (if . == "Nathi" then "Nathi2266" elif . == "Lihle" then "creator745" elif . == "Sipho" then "BhutSipho" else . end))
           ')
 
-        # Count commits
-        COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
+        # Count today's commits
+        TODAY_COMMIT_COUNT=$(git log --since="${TODAY}T00:00:00Z" --oneline --no-merges | wc -l)
 
-        # If no commits today, create empty array
-        if [ "$COMMIT_COUNT" -eq 0 ]; then
-          COMMITS_JSON="[]"
-          COMMIT_COUNT=0
-        fi
+        # Merge today's commits with previous commits
+        # Keep previous commits for authors who didn't push today, replace with today's commit for those who did
+        MERGED_COMMITS=$(jq -n \
+          --argjson previous "$PREVIOUS_COMMITS" \
+          --argjson today "$TODAY_COMMITS_JSON" \
+          '
+          # Create a map of today'\''s commits by author
+          def today_authors: $today | map(.author) | unique;
+          
+          # Filter out previous commits for authors who pushed today, then add today'\''s commits
+          ($previous | map(select(.author as $a | today_authors | index($a) | not))) + $today
+          ')
 
-        # Get current version in YYYY.MM.WL.DL.COUNT.SIT format
+        # Count total commits (merged)
+        TOTAL_COMMIT_COUNT=$(echo "$MERGED_COMMITS" | jq 'length')
+
+        # Calculate week of month based on calendar weeks (Monday-Sunday)
+        # Find the first Monday of the month
         YEAR=$(date -u +"%Y")
         MONTH=$(date -u +"%m")
+        DAY=$(date -u +"%d")
         
-        # Calculate week of month (1-5)
-        FIRST_DAY_OF_MONTH=$(date -u -d "$(date -u +%Y-%m-01)" +"%V")
-        CURRENT_WEEK=$(date -u +"%V")
-        WEEK_OF_MONTH=$((CURRENT_WEEK - FIRST_DAY_OF_MONTH + 1))
+        # Get the weekday of the 1st of the month (1=Monday, 7=Sunday)
+        FIRST_DAY_WEEKDAY=$(date -u -d "${YEAR}-${MONTH}-01" +"%u")
+        
+        # Calculate offset to get to the previous Monday
+        # If 1st is Monday (1), offset = 0
+        # If 1st is Tuesday (2), offset = 1, etc.
+        OFFSET_TO_MONDAY=$(((FIRST_DAY_WEEKDAY - 1) % 7))
+        
+        # Calculate days since the first Monday of the month
+        DAYS_SINCE_FIRST_MONDAY=$((DAY + OFFSET_TO_MONDAY - 1))
+        
+        # Calculate week number (1-based)
+        WEEK_OF_MONTH=$(((DAYS_SINCE_FIRST_MONDAY / 7) + 1))
         
         # Map week number to letter (A=1, B=2, C=3, D=4, E=5)
         case $WEEK_OF_MONTH in
@@ -80,14 +117,14 @@ jobs:
           7) DAY_LETTER="G" ;; # Sunday
         esac
         
-        VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}${DAY_LETTER}${COMMIT_COUNT}.SIT"
+        VERSION="${YEAR}.${MONTH}.${WEEK_LETTER}${DAY_LETTER}${TOTAL_COMMIT_COUNT}.SIT"
 
         # Create the JSON structure using jq for proper formatting
         jq -n \
           --arg version "$VERSION" \
           --arg generated_at "$TIMESTAMP" \
-          --argjson commits "$COMMITS_JSON" \
-          --arg total_commits "$COMMIT_COUNT" \
+          --argjson commits "$MERGED_COMMITS" \
+          --arg total_commits "$TOTAL_COMMIT_COUNT" \
           --arg date_range "$TODAY" \
           '{
             version: $version,
@@ -97,7 +134,7 @@ jobs:
             date_range: $date_range
           }' > assets/data/daily-commits.json
 
-        echo "Generated commit data for $TODAY with $COMMIT_COUNT commits"
+        echo "Generated merged commit data for $TODAY with $TOTAL_COMMIT_COUNT total commits ($TODAY_COMMIT_COUNT from today)"
 
     - name: Verify JSON is valid
       run: |
@@ -113,16 +150,45 @@ jobs:
         echo "Generated commit data:"
         cat assets/data/daily-commits.json | jq . 2>/dev/null || cat assets/data/daily-commits.json
 
-    - name: Commit and push changes (if any)
+    - name: Create PR Annotations (if PR)
+      if: github.event_name == 'pull_request'
       run: |
-        # Check if there are changes to commit
-        if git diff --quiet assets/data/daily-commits.json; then
-          echo "No changes to commit data"
-        else
-          echo "Committing updated commit data"
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add assets/data/daily-commits.json
-          git commit -m "Update daily commits data [${TODAY}]" || echo "No changes to commit"
-          git push || echo "Push failed - likely due to no changes or permissions"
-        fi
+        echo "Creating inline success annotations for daily commits..."
+        
+        # Read version and commits from generated JSON
+        VERSION=$(jq -r '.version' assets/data/daily-commits.json 2>/dev/null || echo "unknown")
+        TOTAL_COMMITS=$(jq -r '.total_commits' assets/data/daily-commits.json 2>/dev/null || echo "0")
+        
+        # Create version annotation
+        echo "::notice title=Daily Commits Generated::Version: $VERSION | Total Commits: $TOTAL_COMMITS"
+        
+        # Create annotations for each commit
+        jq -c '.commits[]' assets/data/daily-commits.json 2>/dev/null | while read -r commit; do
+          AUTHOR=$(echo "$commit" | jq -r '.author')
+          MESSAGE=$(echo "$commit" | jq -r '.message')
+          TIMESTAMP=$(echo "$commit" | jq -r '.timestamp')
+          echo "::notice title=Commit by $AUTHOR::$MESSAGE (at $TIMESTAMP)"
+        done
+
+    - name: Configure Git for Commit
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Commit and Push daily commits JSON
+      run: |
+        echo "📝 Committing daily commits JSON..."
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add assets/data/daily-commits.json
+        git commit -m "docs: update daily commits data [skip ci]" || echo "No changes"
+        echo "� Pulling latest changes to avoid stale push..."
+        git pull origin ${GITHUB_REF_NAME} --rebase
+        echo "🚀 Pushing daily commits JSON to branch: ${GITHUB_REF_NAME}"
+        git push origin ${GITHUB_REF_NAME}
+
+    - name: Upload Daily Commits Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: daily-commits-report
+        path: assets/data/daily-commits.json
