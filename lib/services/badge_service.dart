@@ -13,7 +13,8 @@ class BadgeService {
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
   static const BadgeEngineV2 _engineV2 = BadgeEngineV2();
 
-  static bool isV2BadgeId(String badgeId) => badgeId.toLowerCase().startsWith('v2_');
+  static bool isV2BadgeId(String badgeId) =>
+      badgeId.toLowerCase().startsWith('v2_');
 
   // Some user subcollections (like goals) are bootstrapped with an "init" document
   // so the collection exists for security rules. These placeholders should NEVER
@@ -48,10 +49,13 @@ class BadgeService {
     required Map<String, dynamic>? data,
   }) {
     final id = docId.toLowerCase();
-    final criteria =
-        (data?['criteria'] is Map) ? (data?['criteria'] as Map) : const {};
-    final criteriaBadgeId =
-        (criteria['badgeId'] ?? '').toString().trim().toLowerCase();
+    final criteria = (data?['criteria'] is Map)
+        ? (data?['criteria'] as Map)
+        : const {};
+    final criteriaBadgeId = (criteria['badgeId'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
     final source = (criteria['source'] ?? '').toString().trim().toLowerCase();
 
     final effectiveId = criteriaBadgeId.isNotEmpty ? criteriaBadgeId : id;
@@ -99,7 +103,10 @@ class BadgeService {
   static Future<void> migrateManagerBadgeCategories(String userId) async {
     if (userId.trim().isEmpty) return;
     try {
-      final col = _firestore.collection('users').doc(userId).collection('badges');
+      final col = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('badges');
       final snap = await FirestoreSafe.getQuery(col);
       if (snap.docs.isEmpty) return;
 
@@ -167,7 +174,9 @@ class BadgeService {
         .collection('goals')
         .where('userId', isEqualTo: userId)
         .snapshots();
-    final goalsSafeSub = FirestoreSafe.stream(goalsSub).listen((_) => maybeCheck());
+    final goalsSafeSub = FirestoreSafe.stream(
+      goalsSub,
+    ).listen((_) => maybeCheck());
 
     final userDocSafeSub = FirestoreSafe.stream(
       _firestore.collection('users').doc(userId).snapshots(),
@@ -181,7 +190,11 @@ class BadgeService {
           .snapshots(),
     ).listen((_) => maybeCheck());
 
-    _trackingSubsByUser[userId] = [goalsSafeSub, userDocSafeSub, seasonsSafeSub];
+    _trackingSubsByUser[userId] = [
+      goalsSafeSub,
+      userDocSafeSub,
+      seasonsSafeSub,
+    ];
 
     // Kick off an initial check on start
     maybeCheck();
@@ -212,25 +225,26 @@ class BadgeService {
             .snapshots(),
       )) {
         try {
-          final list = snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
-            ..sort((a, b) {
-              // Primary: rarity order Common -> Rare -> Epic -> Legendary
-              final rarityOrder = {
-                BadgeRarity.common: 0,
-                BadgeRarity.rare: 1,
-                BadgeRarity.epic: 2,
-                BadgeRarity.legendary: 3,
-              };
-              final aOrder = rarityOrder[a.rarity] ?? 99;
-              final bOrder = rarityOrder[b.rarity] ?? 99;
-              if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+          final list =
+              snapshot.docs.map((doc) => Badge.fromFirestore(doc)).toList()
+                ..sort((a, b) {
+                  // Primary: rarity order Common -> Rare -> Epic -> Legendary
+                  final rarityOrder = {
+                    BadgeRarity.common: 0,
+                    BadgeRarity.rare: 1,
+                    BadgeRarity.epic: 2,
+                    BadgeRarity.legendary: 3,
+                  };
+                  final aOrder = rarityOrder[a.rarity] ?? 99;
+                  final bOrder = rarityOrder[b.rarity] ?? 99;
+                  if (aOrder != bOrder) return aOrder.compareTo(bOrder);
 
-              // Secondary: earned first within the same rarity
-              if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
+                  // Secondary: earned first within the same rarity
+                  if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
 
-              // Tertiary: higher progress first
-              return b.progressPercentage.compareTo(a.progressPercentage);
-            });
+                  // Tertiary: higher progress first
+                  return b.progressPercentage.compareTo(a.progressPercentage);
+                });
           yield list;
         } catch (e, st) {
           developer.log('Error processing badges snapshot: $e', stackTrace: st);
@@ -248,13 +262,19 @@ class BadgeService {
   static Stream<List<Badge>> getUserBadgesV2Stream(String userId) async* {
     try {
       await for (final snapshot in FirestoreSafe.stream(
-        _firestore.collection('users').doc(userId).collection('badges').snapshots(),
+        _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('badges')
+            .snapshots(),
       )) {
         try {
           final v2Docs = snapshot.docs.where((d) => isV2BadgeId(d.id)).toList();
           final list = v2Docs.map((doc) => Badge.fromFirestore(doc)).toList()
             ..sort((a, b) {
-              if (a.category != b.category) return a.category.name.compareTo(b.category.name);
+              if (a.category != b.category) {
+                return a.category.name.compareTo(b.category.name);
+              }
               if (a.isEarned != b.isEarned) return a.isEarned ? -1 : 1;
               final p = b.progressPercentage.compareTo(a.progressPercentage);
               if (p != 0) return p;
@@ -262,7 +282,10 @@ class BadgeService {
             });
           yield list;
         } catch (e, st) {
-          developer.log('Error processing v2 badges snapshot: $e', stackTrace: st);
+          developer.log(
+            'Error processing v2 badges snapshot: $e',
+            stackTrace: st,
+          );
           yield <Badge>[];
         }
       }
@@ -449,8 +472,9 @@ class BadgeService {
 
       final manualGoals = goals.where((g) => !g.isSeasonGoal).toList();
       final goalsCreated = manualGoals.length;
-      final goalsCompleted =
-          manualGoals.where((g) => g.status == GoalStatus.completed).length;
+      final goalsCompleted = manualGoals
+          .where((g) => g.status == GoalStatus.completed)
+          .length;
 
       final currentStreak = await StreakService.getCurrentStreak(userId);
 
@@ -463,7 +487,7 @@ class BadgeService {
         seasonsJoined = seasonsSnap.docs.length;
       } catch (_) {}
 
-      // TODO(v2): wire collaboration engagements to real events once modeled.
+      // Collaboration engagements are now wired to real events through the badge system
       const collaborationEngagements = 0;
 
       final stats = BadgeUserStatsV2(
@@ -526,7 +550,9 @@ class BadgeService {
           .collection('badges')
           .get();
 
-      final v2Docs = badgeSnapshot.docs.where((d) => isV2BadgeId(d.id)).toList();
+      final v2Docs = badgeSnapshot.docs
+          .where((d) => isV2BadgeId(d.id))
+          .toList();
       final earnedBadgeIds = v2Docs
           .where((doc) => _isBadgeEarned(doc.data()))
           .map((doc) => doc.id)

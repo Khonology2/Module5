@@ -106,6 +106,7 @@ Future<void> _clearFirestoreCache() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
     try {
@@ -712,6 +713,17 @@ class MyNavigatorObserver extends NavigatorObserver {
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
     currentRouteNotifier.value = newRoute?.settings.name;
+  }
+
+  // ADDITIONAL CONFLICT TEST: This method will conflict with MAIN branch
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    currentRouteNotifier.value = previousRoute?.settings.name;
+    // Added extra logging for conflict testing - BRANCH Nathi-S11 VERSION
+    debugPrint('Route removed: ${route.settings.name}');
+    debugPrint('Previous route: ${previousRoute?.settings.name}');
+    debugPrint('Current route after removal: ${currentRouteNotifier.value}');
+    debugPrint('Navigation stack updated in Nathi-S11 branch');
   }
 
   @override

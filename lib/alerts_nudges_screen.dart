@@ -388,11 +388,12 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         // - hide meetings whose time window has already passed
         // - keep unconfirmed/action-needed at the top
         final now = DateTime.now();
-        final visible = meetings
-            .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
-            .where((m) => !_isMeetingPast(m, now))
-            .toList()
-          ..sort((a, b) => _compareMeetingsForDisplay(a, b, now));
+        final visible =
+            meetings
+                .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
+                .where((m) => !_isMeetingPast(m, now))
+                .toList()
+              ..sort((a, b) => _compareMeetingsForDisplay(a, b, now));
 
         // Keep this section compact.
         final top = visible.take(5).toList();
@@ -1680,6 +1681,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
 
       final category = _employeeCategoryFromName(categoryName);
       if (category == null) return false;
+
+      if (!mounted) return false;
 
       Navigator.of(context).push(
         MaterialPageRoute(
