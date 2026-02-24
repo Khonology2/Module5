@@ -234,10 +234,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   // Run badge updates in the background without blocking UI
   Future<void> _updateBadgesInBackground(String userId) async {
     try {
-      // Run badge checks sequentially (retroactive first, then current checks)
-      // These operations can be slow, so we run them in background after UI loads
-      await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
-      await BadgeService.checkAndAwardBadges(userId);
+      // Employees use v2-only badges; managers may still use legacy.
+      // Keep this lightweight and non-blocking; badge docs update via realtime listeners too.
       await BadgeService.checkAndAwardBadgesV2(userId);
 
       // Check for newly earned badges after updates (one-time celebration)
@@ -647,28 +645,28 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
             title: 'Consistency',
             subtitle: 'Build streaks and momentum',
             icon: Icons.local_fire_department,
-            accentColor: AppColors.warningColor,
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.growth,
             title: 'Growth',
             subtitle: 'Develop through learning and improvement',
             icon: Icons.trending_up,
-            accentColor: AppColors.successColor,
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.milestones,
             title: 'Milestones',
             subtitle: 'Big moments and major achievements',
             icon: Icons.emoji_events,
-            accentColor: const Color(0xFFFFD700),
+            accentColor: AppColors.activeColor,
           ),
           _BadgeCategoryMeta(
             category: badge_model.BadgeCategory.collaboration,
             title: 'Collaboration',
             subtitle: 'Work with others and contribute',
             icon: Icons.handshake,
-            accentColor: const Color(0xFF4DA3FF),
+            accentColor: AppColors.activeColor,
           ),
         ];
 
@@ -1687,7 +1685,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               Expanded(
                 child: _buildStatItem(
                   'Badges Earned',
-                  (safeUserProfile?.badges.length ?? 0).toString(),
+                  (safeUserProfile?.badgesV2.length ?? 0).toString(),
                   iconWidget: SizedBox(
                     width: 40,
                     height: 40,
@@ -1847,9 +1845,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       try {
-                        await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(
-                          user.uid,
-                        );
+                        await BadgeService.checkAndAwardBadgesV2(user.uid);
                         await _loadData(); // Reload data to show updates
 
                         if (mounted) {

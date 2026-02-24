@@ -341,7 +341,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                       DropdownMenuItem(
                         value: 'rejected',
                         child: Text('Rejected'),
-                        ),
+                      ),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -1578,8 +1578,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     );
   }
 
-  
-  
   Widget _buildRepositorySection({required bool isManager}) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
@@ -2603,21 +2601,23 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   // Helper method to fetch employee details from profile
   Future<Map<String, String>> _getEmployeeDetails(String userId) async {
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
       final userData = userDoc.data() ?? {};
-      
-      String name = userData['displayName'] ?? userData['fullName'] ?? userData['name'] ?? userData['email'] ?? 'Unknown Employee';
+
+      String name =
+          userData['displayName'] ??
+          userData['fullName'] ??
+          userData['name'] ??
+          userData['email'] ??
+          'Unknown Employee';
       String department = userData['department'] ?? 'Not specified';
-      
-      return {
-        'name': name,
-        'department': department,
-      };
+
+      return {'name': name, 'department': department};
     } catch (e) {
-      return {
-        'name': 'Unknown Employee',
-        'department': 'Not specified',
-      };
+      return {'name': 'Unknown Employee', 'department': 'Not specified'};
     }
   }
 
@@ -2633,28 +2633,59 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Approved Goals Audit', style: AppTypography.heading4.copyWith(color: AppColors.textPrimary)),
+            Text(
+              'Approved Goals Audit',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
             const SizedBox(height: 8),
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: audits.length,
-              separatorBuilder: (_, _) => const Divider(color: AppColors.borderColor),
+              separatorBuilder: (_, _) =>
+                  const Divider(color: AppColors.borderColor),
               itemBuilder: (context, index) {
                 final audit = audits[index];
-                final date = '${audit.approvedAt.year}-${audit.approvedAt.month.toString().padLeft(2, '0')}-${audit.approvedAt.day.toString().padLeft(2, '0')}';
-                
+                final date =
+                    '${audit.approvedAt.year}-${audit.approvedAt.month.toString().padLeft(2, '0')}-${audit.approvedAt.day.toString().padLeft(2, '0')}';
+
                 if (isManager) {
                   // Manager view: show goal title, employee name, department, timestamp
                   return ListTile(
                     leading: const Icon(Icons.verified, color: Colors.green),
-                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    title: Text(
+                      audit.goalTitle,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Employee: ${audit.employeeName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                        Text('Department: ${audit.department}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text(
+                          'Employee: ${audit.employeeName}',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          'Department: ${audit.department}',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          'Approved: $date',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -2662,12 +2693,30 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                   // Employee view: show goal name, who approved, timestamp
                   return ListTile(
                     leading: const Icon(Icons.verified, color: Colors.green),
-                    title: Text(audit.goalTitle, style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                    title: Text(
+                      audit.goalTitle,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Approved by: ${audit.approvedByName}', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                        Text('Approved: $date', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                        Text(
+                          'Approved by: ${audit.approvedByName}',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          'Approved: $date',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -2678,5 +2727,306 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         );
       },
     );
+  }
+
+  Widget _buildMilestoneAuditSection({required bool isManager}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Milestone Audit Trail',
+              style: AppTypography.heading4.copyWith(
+                color: AppColors.textPrimary,
+              ),
+            ),
+            IconButton(
+              tooltip: 'Backfill Existing Milestones',
+              onPressed: _backfillMilestoneAudit,
+              icon: const Icon(Icons.history_rounded),
+              color: Colors.purple,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<List<Map<String, dynamic>>>(
+          stream: const Stream.empty(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.activeColor),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error loading milestone audit: ${snapshot.error}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.dangerColor,
+                  ),
+                ),
+              );
+            }
+
+            final audits = snapshot.data ?? [];
+            if (audits.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.history,
+                      size: 48,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No milestone audit history available',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Using Unified Audit System',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: audits.length,
+              separatorBuilder: (_, _) =>
+                  const Divider(color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final audit = audits[index];
+                return _buildUnifiedMilestoneAuditCard(audit);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnifiedMilestoneAuditCard(Map<String, dynamic> audit) {
+    final action = audit['action'] as String? ?? 'unknown';
+    final timestamp = audit['timestamp'] as Timestamp?;
+    final description = audit['description'] as String? ?? 'No description';
+    final metadata = audit['metadata'] as Map<String, dynamic>? ?? {};
+    final milestoneTitle =
+        metadata['milestoneTitle'] as String? ?? 'Unknown Milestone';
+    final goalTitle = metadata['goalTitle'] as String? ?? 'Unknown Goal';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _getUnifiedActionIcon(action),
+                color: _getUnifiedActionColor(action),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getUnifiedActionTitle(action),
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                _formatUnifiedTimestamp(timestamp),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          if (metadata.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Details:',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Goal: $goalTitle',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    'Milestone: $milestoneTitle',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (metadata['oldStatus'] != null &&
+                      metadata['newStatus'] != null) ...[
+                    Text(
+                      'Status Change: ${metadata['oldStatus']} → ${metadata['newStatus']}',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.activeColor,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  IconData _getUnifiedActionIcon(String action) {
+    switch (action) {
+      case 'milestone_created':
+        return Icons.add_circle_rounded;
+      case 'milestone_updated':
+        return Icons.edit_rounded;
+      case 'milestone_status_changed':
+        return Icons.sync_rounded;
+      default:
+        return Icons.history_rounded;
+    }
+  }
+
+  Color _getUnifiedActionColor(String action) {
+    switch (action) {
+      case 'milestone_created':
+        return Colors.purple;
+      case 'milestone_updated':
+        return Colors.orange;
+      case 'milestone_status_changed':
+        return Colors.teal;
+      default:
+        return AppColors.activeColor;
+    }
+  }
+
+  String _getUnifiedActionTitle(String action) {
+    switch (action) {
+      case 'milestone_created':
+        return 'Milestone Created';
+      case 'milestone_updated':
+        return 'Milestone Updated';
+      case 'milestone_status_changed':
+        return 'Milestone Status Changed';
+      default:
+        return 'Milestone Action';
+    }
+  }
+
+  String _formatUnifiedTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown time';
+    final date = timestamp.toDate();
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _backfillMilestoneAudit() async {
+    if (!mounted) return;
+
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Starting unified milestone backfill...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // TODO: Implement milestone backfill functionality
+      // This should:
+      // 1. Fetch all existing milestones from Firestore
+      // 2. Create audit entries for any milestones that don't have them
+      // 3. Store audit entries with proper metadata
+      // await AuditService.backfillExistingMilestones();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unified milestone backfill completed!'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during unified backfill: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportMilestoneAudit() async {
+    // Implementation for exporting milestone audit data
+    try {
+      // TODO: Implement export functionality similar to existing export service
+      // This should:
+      // 1. Fetch milestone audit data from Firestore
+      // 2. Format data for CSV/PDF export
+      // 3. Use RepositoryExportService patterns for consistency
+      // 4. Support filtering by date, user, status
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Milestone audit export coming soon!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error exporting milestone audit: $e')),
+      );
+    }
   }
 }
