@@ -4,8 +4,13 @@
   "commits": [
     {
       "author": "BhutSipho",
-      "message": "changes",
-      "timestamp": "2026-02-21T01:11:13+02:00"
+      "message": "Milestones Trail - Updated UI and Permissions",
+      "timestamp": "2026-02-23T10:16:32+02:00"
+    },
+    {
+      "author": "GitHub Action",
+      "message": "Update daily commits data []",
+      "timestamp": "2026-02-23T08:26:22Z"
     },
     {
       "author": "Thembelihle",
@@ -35,27 +40,7 @@
     {
       "author": "GitHub Action",
       "message": "Update daily commits data []",
-      "timestamp": "2026-02-23T08:26:22Z"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Composite Indexes - Milestone Trail",
-      "timestamp": "2026-02-20T18:19:45+02:00"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Clean Implentation: Milestone Trail",
-      "timestamp": "2026-02-20T15:06:47+02:00"
-    },
-    {
-      "author": "GitHub Action",
-      "message": "Update daily commits data []",
-      "timestamp": "2026-02-20T11:30:19Z"
-    },
-    {
-      "author": "BhutSipho",
-      "message": "Milestone Audit Trail - Permission Denied Resolution",
-      "timestamp": "2026-02-20T13:29:26+02:00"
+      "timestamp": "2026-02-23T07:53:21Z"
     },
     {
       "author": "Thembelihle",
@@ -63,6 +48,6 @@
       "timestamp": "2026-02-23T09:52:27+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 5,
   "date_range": "2026-02-23"
 }
