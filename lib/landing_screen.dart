@@ -6,6 +6,7 @@ import 'package:pdh/services/backend_auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pdh/widgets/floating_circles_particle_animation.dart';
+import 'package:pdh/widgets/version_control_widget.dart';
 
 // The main entry point for the Flutter application.
 // void main() {
@@ -41,19 +42,38 @@ class PersonalDevelopmentHubScreen extends StatefulWidget {
 }
 
 class _PersonalDevelopmentHubScreenState
-    extends State<PersonalDevelopmentHubScreen> {
+    extends State<PersonalDevelopmentHubScreen>
+    with SingleTickerProviderStateMixin {
   late List<String> inspirationalLines;
   int _currentLineIndex = 0;
   late Timer _timer;
   bool _isCheckingToken = false;
   bool _isProcessingButton = false;
   bool _isSlowNetwork = false;
+
+  // Animation controller for bounce effect
+  late AnimationController _bounceController;
+  late Animation<double> _bounceAnimation;
   bool _isRedirecting = false;
   final TextEditingController _tokenController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+
+    // Initialize bounce animation
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _bounceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _bounceController, curve: Curves.bounceOut),
+    );
+
+    // Start initial bounce animation when screen loads
+    _bounceController.forward();
+
     _checkTokenAndAutoLogin();
 
     inspirationalLines = [
@@ -113,6 +133,9 @@ class _PersonalDevelopmentHubScreenState
         _isCheckingToken = true;
         _isSlowNetwork = false;
       });
+      // Trigger bounce animation when starting token check
+      _bounceController.reset();
+      _bounceController.forward();
       Future.delayed(const Duration(seconds: 5), () {
         if (!mounted) return;
         if (_isCheckingToken) {
@@ -129,7 +152,7 @@ class _PersonalDevelopmentHubScreenState
 
       if (token == null || token.isEmpty) {
         debugPrint('Landing screen: No token found in URL');
-        
+
         // Only check for existing user if we're not doing manual token login
         if (manualToken == null) {
           final user = FirebaseAuth.instance.currentUser;
@@ -142,6 +165,9 @@ class _PersonalDevelopmentHubScreenState
                 _isSlowNetwork = false;
                 _isRedirecting = true;
               });
+              // Trigger bounce animation when starting token validation
+              _bounceController.reset();
+              _bounceController.forward();
               if (role == 'manager') {
                 Navigator.pushReplacementNamed(context, '/manager_dashboard');
               } else {
@@ -151,7 +177,7 @@ class _PersonalDevelopmentHubScreenState
             return;
           }
         }
-        
+
         if (mounted) {
           setState(() {
             _isCheckingToken = false;
@@ -170,6 +196,9 @@ class _PersonalDevelopmentHubScreenState
         setState(() {
           _isCheckingToken = true;
         });
+        // Trigger bounce animation when starting button processing
+        _bounceController.reset();
+        _bounceController.forward();
       }
 
       BackendAuthService.instance.warmUpBackend();
@@ -295,13 +324,16 @@ class _PersonalDevelopmentHubScreenState
           }
 
           try {
-            await FirebaseFirestore.instance.collection('users').doc(userId).set({
-              'email': email,
-              'role': internalRole,
-              'pdhRole': pdhRole,
-              'tokenAuthenticated': true,
-              'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId)
+                .set({
+                  'email': email,
+                  'role': internalRole,
+                  'pdhRole': pdhRole,
+                  'tokenAuthenticated': true,
+                  'tokenAuthenticatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
           } catch (e) {
             debugPrint('Landing screen: Firestore write failed: $e');
           }
@@ -350,27 +382,6 @@ class _PersonalDevelopmentHubScreenState
         });
       }
     }
-  }
-
-  /// Handle manual token login when user clicks login button
-  Future<void> _handleManualTokenLogin() async {
-    final token = _tokenController.text.trim();
-    
-    if (token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a token'),
-          backgroundColor: Color(0xFFC10D00),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _isProcessingButton = true;
-    });
-
-    await _checkTokenAndAutoLogin(manualToken: token);
   }
 
   /// Navigate to appropriate dashboard based on role
@@ -431,10 +442,12 @@ class _PersonalDevelopmentHubScreenState
   void dispose() {
     _timer.cancel();
     _tokenController.dispose();
+    _bounceController.dispose();
     super.dispose();
   }
 
-  final GlobalKey<FloatingCirclesParticleAnimationState> _animationKey = GlobalKey();
+  final GlobalKey<FloatingCirclesParticleAnimationState> _animationKey =
+      GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +469,7 @@ class _PersonalDevelopmentHubScreenState
               ),
             ),
           ),
-          
+
           // Particle Animation
           Positioned.fill(
             child: FloatingCirclesParticleAnimation(
@@ -466,7 +479,7 @@ class _PersonalDevelopmentHubScreenState
               maxParticleSize: 6.0,
             ),
           ),
-          
+
           // Content overlay
           Positioned.fill(
             child: Center(
@@ -478,7 +491,8 @@ class _PersonalDevelopmentHubScreenState
                     Center(
                       child: GestureDetector(
                         onTap: () {
-                          _animationKey.currentState?.triggerParticleExplosion();
+                          _animationKey.currentState
+                              ?.triggerParticleExplosion();
                         },
                         child: Image.asset(
                           'assets/khono.png',
@@ -517,103 +531,47 @@ class _PersonalDevelopmentHubScreenState
                         ),
                       ),
                     ),
-                    const SizedBox(height: 48),
-                    // Token input field and login button
-                    if (!_isCheckingToken) ...[
-                      // Token input field
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: TextField(
-                          controller: _tokenController,
-                          decoration: InputDecoration(
-                            hintText: 'Enter your authentication token',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withAlpha(128),
+                    const SizedBox(height: 24),
+                    // Show AI Avatar GIF with bounce animation only when checking token
+                    if (_isCheckingToken) ...[
+                      AnimatedBuilder(
+                        animation: _bounceAnimation,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(
+                              0,
+                              -20 * (1 - _bounceAnimation.value),
                             ),
-                            filled: true,
-                            fillColor: Colors.white.withAlpha(26),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.white.withAlpha(51),
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFC10D00), // Red border
+                                  width: 3,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/videos/Ai_Avatar.gif',
+                                  fit: BoxFit.cover,
+                                ),
                               ),
                             ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: Colors.white.withAlpha(51),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFC10D00),
-                                width: 2,
-                              ),
-                            ),
-                            prefixIcon: Icon(
-                              Icons.vpn_key,
-                              color: Colors.white.withAlpha(179),
-                            ),
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                          obscureText: false,
-                          maxLines: 1,
-                        ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
-                      // Login button
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: ElevatedButton(
-                          onPressed: _isProcessingButton ? null : _handleManualTokenLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFC10D00),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: _isProcessingButton
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : const Text(
-                                  'Login',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
                     ],
                     // Show subtle loading indicator when checking token
                     if (_isCheckingToken) ...[
-                      const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFFC10D00),
-                        ),
-                        strokeWidth: 2,
-                      ),
-                      const SizedBox(height: 12),
                       Text(
                         _isRedirecting
                             ? 'Redirecting to your dashboard...'
                             : (_isSlowNetwork
-                                ? 'We\'re Are Signing You In... Just  A Moment'
-                                : 'Validating token...'),
+                                  ? 'We\'re Are Signing You In... Just  A Moment'
+                                  : 'Validating token...'),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -622,6 +580,20 @@ class _PersonalDevelopmentHubScreenState
                     ],
                   ],
                 ),
+              ),
+            ),
+          ),
+
+          // Version Control Widget - Bottom of screen
+          Positioned(
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: VersionControlWidget(
+                fontSize: 12.0,
+                textColor: Colors.white70,
+                hoverColor: Colors.white,
               ),
             ),
           ),
