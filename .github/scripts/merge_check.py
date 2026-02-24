@@ -374,7 +374,7 @@ def main():
     print(f"✅ Confirmed working on branch: {current_branch_name}")
     ################Target Branch Configuration##############################################################################################################################
     # Define target branch
-    target_branch = "last-ticket"
+    target_branch = "pdh-deployed-backup"
     print(f"🎯 Target branch for merge check: {target_branch}")
     ##############################################################################################################################################################
     
