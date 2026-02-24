@@ -11,6 +11,46 @@ import 'package:pdh/utils/firestore_safe.dart';
 class AlertService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  /// Determine alert audience based on type and context
+  static AlertAudience _determineAudience(
+    AlertType type, {
+    bool isForManager = false,
+  }) {
+    // Personal alerts (manager-as-user)
+    if (isForManager) {
+      switch (type) {
+        case AlertType.goalApprovalRequested:
+        case AlertType.badgeEarned:
+        case AlertType.pointsEarned:
+        case AlertType.levelUp:
+        case AlertType.oneOnOneRequested:
+        case AlertType.oneOnOneProposed:
+        case AlertType.oneOnOneAccepted:
+        case AlertType.oneOnOneRescheduled:
+        case AlertType.oneOnOneCancelled:
+        case AlertType.managerGeneral:
+          return AlertAudience.personal;
+        default:
+          return AlertAudience.personal;
+      }
+    }
+
+    // Team alerts (manager-as-supervisor)
+    switch (type) {
+      case AlertType.goalOverdue:
+      case AlertType.inactivity:
+      case AlertType.milestoneRisk:
+      case AlertType.seasonJoined:
+      case AlertType.seasonProgressUpdate:
+      case AlertType.seasonCompleted:
+      case AlertType.goalMilestoneCompleted:
+      case AlertType.milestoneDeletionRequest:
+        return AlertAudience.team;
+      default:
+        return AlertAudience.personal;
+    }
+  }
+
   static String _formatMeetingTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
@@ -22,18 +62,61 @@ class AlertService {
     String time(DateTime d) => '${two(d.hour)}:${two(d.minute)}';
 
     final sameDay =
-        start.year == end.year && start.month == end.month && start.day == end.day;
+        start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day;
     if (sameDay) {
       return '${date(start)} ${time(start)} - ${time(end)}';
     }
     return '${date(start)} ${time(start)} - ${date(end)} ${time(end)}';
   }
 
+  /// Get alerts for a user filtered by audience
+  static Stream<List<Alert>> getAlertsForUser(
+    String userId, {
+    AlertAudience? audience,
+  }) {
+    final collection = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('alerts')
+        .orderBy('createdAt', descending: true);
+
+    if (audience != null) {
+      return collection
+          .where('audience', isEqualTo: audience.name)
+          .snapshots()
+          .map(
+            (snapshot) =>
+                snapshot.docs.map((doc) => Alert.fromFirestore(doc)).toList(),
+          );
+    }
+
+    return collection.snapshots().map(
+      (snapshot) =>
+          snapshot.docs.map((doc) => Alert.fromFirestore(doc)).toList(),
+    );
+  }
+
+  /// Get personal alerts for a manager (manager-as-user)
+  static Stream<List<Alert>> getPersonalAlertsForManager(String managerId) {
+    return getAlertsForUser(managerId, audience: AlertAudience.personal);
+  }
+
+  /// Get team alerts for a manager (manager-as-supervisor)
+  static Stream<List<Alert>> getTeamAlertsForManager(String managerId) {
+    return getAlertsForUser(managerId, audience: AlertAudience.team);
+  }
+
   static Future<String> _displayNameForUser(String uid) async {
     try {
-      final snap = await FirestoreSafe.getDoc(_firestore.collection('users').doc(uid));
+      final snap = await FirestoreSafe.getDoc(
+        _firestore.collection('users').doc(uid),
+      );
       final data = snap.data();
-      final name = (data?['displayName'] ?? data?['name'] ?? '').toString().trim();
+      final name = (data?['displayName'] ?? data?['name'] ?? '')
+          .toString()
+          .trim();
       return name.isNotEmpty ? name : 'Someone';
     } catch (_) {
       return 'Someone';
@@ -52,6 +135,7 @@ class AlertService {
       id: '',
       userId: employeeId,
       type: AlertType.oneOnOneRequested,
+      audience: _determineAudience(AlertType.oneOnOneRequested),
       priority: AlertPriority.medium,
       title: '1:1 Requested',
       message: '$managerName would like to have a 1:1 with you.',
@@ -79,11 +163,15 @@ class AlertService {
     String? agenda,
   }) async {
     final managerName = await _displayNameForUser(managerId);
-    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
+    final when = _formatMeetingRange(
+      proposedStartDateTime,
+      proposedEndDateTime,
+    );
     final alert = Alert(
       id: '',
       userId: employeeId,
       type: AlertType.oneOnOneProposed,
+      audience: _determineAudience(AlertType.oneOnOneProposed),
       priority: AlertPriority.high,
       title: '1:1 Proposed',
       message: '$managerName proposed a 1:1 from $when.',
@@ -116,7 +204,8 @@ class AlertService {
     final employeeName = await _displayNameForUser(employeeId);
     String when = '';
     if (acceptedStartDateTime != null && acceptedEndDateTime != null) {
-      when = ' for ${_formatMeetingRange(acceptedStartDateTime, acceptedEndDateTime)}';
+      when =
+          ' for ${_formatMeetingRange(acceptedStartDateTime, acceptedEndDateTime)}';
     } else if (acceptedStartDateTime != null) {
       when = ' on ${_formatMeetingTime(acceptedStartDateTime)}';
     }
@@ -124,12 +213,16 @@ class AlertService {
       id: '',
       userId: managerId,
       type: AlertType.oneOnOneAccepted,
+      audience: _determineAudience(
+        AlertType.oneOnOneAccepted,
+        isForManager: true,
+      ),
       priority: AlertPriority.medium,
-      title: '1:1 Confirmed',
-      message: '$employeeName accepted your proposed 1:1$when.',
+      title: '1:1 Accepted',
+      message: '$employeeName accepted your 1:1 request$when.',
       actionText: 'View',
-      actionRoute: '/manager_review_team_dashboard',
-      actionData: {'meetingId': meetingId, 'employeeId': employeeId},
+      actionRoute: '/manager_inbox',
+      actionData: {'meetingId': meetingId},
       createdAt: DateTime.now(),
       fromUserId: employeeId,
       fromUserName: employeeName,
@@ -147,17 +240,28 @@ class AlertService {
     required DateTime proposedEndDateTime,
   }) async {
     final employeeName = await _displayNameForUser(employeeId);
-    final when = _formatMeetingRange(proposedStartDateTime, proposedEndDateTime);
+    final when = _formatMeetingRange(
+      proposedStartDateTime,
+      proposedEndDateTime,
+    );
     final alert = Alert(
       id: '',
       userId: managerId,
       type: AlertType.oneOnOneRescheduled,
+      audience: _determineAudience(
+        AlertType.oneOnOneRescheduled,
+        isForManager: true,
+      ),
       priority: AlertPriority.high,
-      title: 'Reschedule Requested',
-      message: '$employeeName suggested a new 1:1 time: $when.',
+      title: '1:1 Rescheduled',
+      message: '$employeeName suggested a new time: $when.',
       actionText: 'Review',
-      actionRoute: '/manager_review_team_dashboard',
-      actionData: {'meetingId': meetingId, 'employeeId': employeeId},
+      actionRoute: '/manager_inbox',
+      actionData: {
+        'meetingId': meetingId,
+        'proposedStartDateTime': Timestamp.fromDate(proposedStartDateTime),
+        'proposedEndDateTime': Timestamp.fromDate(proposedEndDateTime),
+      },
       createdAt: DateTime.now(),
       fromUserId: employeeId,
       fromUserName: employeeName,
@@ -183,6 +287,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: type,
+      audience: _determineAudience(type),
       priority: priority,
       title: title,
       message: message,
@@ -274,6 +379,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: type,
+      audience: _determineAudience(type),
       priority: priority,
       title: title,
       message: message,
@@ -325,12 +431,16 @@ class AlertService {
           id: '',
           userId: mgr.id,
           type: AlertType.goalApprovalRequested,
+          audience: _determineAudience(
+            AlertType.goalApprovalRequested,
+            isForManager: true,
+          ),
           priority: AlertPriority.high,
           title: 'Goal Approval Needed',
           message:
               '$employeeName submitted a new goal: "$goalTitle". Approve or reject.',
           actionText: 'Review Goal',
-          actionRoute: '/manager_alerts_nudges',
+          actionRoute: '/manager_inbox',
           createdAt: DateTime.now(),
           relatedGoalId: goalId,
           expiresAt: DateTime.now().add(const Duration(days: 14)),
@@ -364,6 +474,11 @@ class AlertService {
       type: approved
           ? AlertType.goalApprovalApproved
           : AlertType.goalApprovalRejected,
+      audience: _determineAudience(
+        approved
+            ? AlertType.goalApprovalApproved
+            : AlertType.goalApprovalRejected,
+      ),
       priority: approved ? AlertPriority.medium : AlertPriority.high,
       title: title,
       message: msg,
@@ -456,8 +571,9 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.pointsEarned,
+      audience: AlertAudience.personal,
       priority: AlertPriority.medium,
-      title: 'Points Earned! ⭐',
+      title: 'Points Earned! ',
       message: 'You earned $pointsEarned points for $reason!',
       actionText: 'View Points',
       actionRoute: '/badges_points',
@@ -478,6 +594,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.achievementUnlocked,
+      audience: AlertAudience.personal,
       priority: AlertPriority.low,
       title: 'Keep Going! 💪',
       message: message,
@@ -500,6 +617,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.levelUp,
+      audience: AlertAudience.personal,
       priority: AlertPriority.high,
       title: 'Level Up! 🚀',
       message: 'Congratulations! You\'ve reached Level $newLevel!',
@@ -526,6 +644,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.badgeEarned,
+      audience: AlertAudience.personal,
       priority: AlertPriority.high,
       title: title,
       message: message,
@@ -549,6 +668,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.teamGoalAvailable,
+      audience: AlertAudience.personal,
       priority: AlertPriority.high,
       title: 'New Team Goal Available! 🎯',
       message:
@@ -572,6 +692,7 @@ class AlertService {
       id: '',
       userId: managerId,
       type: AlertType.employeeJoinedTeamGoal,
+      audience: AlertAudience.team,
       priority: AlertPriority.medium,
       title: 'Employee Joined Team Goal! 👥',
       message:
@@ -594,6 +715,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.teamAssigned,
+      audience: AlertAudience.personal,
       priority: AlertPriority.high,
       title: 'Added to Team! 👥',
       message: '$managerName added you to the "$teamName" team.',
@@ -711,6 +833,7 @@ class AlertService {
         id: '',
         userId: employeeId,
         type: AlertType.goalApprovalApproved, // Reuse existing type
+        audience: AlertAudience.personal,
         priority: AlertPriority.high,
         title: 'Milestone Acknowledged! ✅',
         message:
@@ -778,6 +901,7 @@ class AlertService {
         id: '',
         userId: managerId,
         type: alertType,
+        audience: AlertAudience.team,
         priority: AlertPriority.high,
         title: alertTitle,
         message: alertMessage,
@@ -816,6 +940,7 @@ class AlertService {
         id: '',
         userId: userId,
         type: AlertType.managerNudge,
+        audience: AlertAudience.personal,
         priority: AlertPriority.high,
         title: 'Manager Nudge 📢',
         message:
@@ -895,6 +1020,7 @@ class AlertService {
       id: '',
       userId: userId,
       type: AlertType.streakMilestone,
+      audience: AlertAudience.personal,
       priority: AlertPriority.medium,
       title: 'Streak Milestone! 🔥',
       message: 'Amazing! You\'ve maintained a $streakDays-day streak!',
@@ -944,63 +1070,63 @@ class AlertService {
           .where('isDismissed', isEqualTo: false)
           .snapshots(),
     ).map((snapshot) {
-          try {
-            final alerts = snapshot.docs
-                .map((doc) => Alert.fromFirestore(doc))
-                .where((alert) {
-                  // Filter out expired alerts
-                  if (alert.expiresAt != null &&
-                      alert.expiresAt!.isBefore(DateTime.now())) {
-                    return false;
-                  }
-                  return true;
-                })
-                .toList();
-
-            // Sort in memory to avoid index requirements
-            alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-            // Deduplicate by a stable composite key to avoid doubles in UI
-            final seen = <String>{};
-            final deduped = <Alert>[];
-            String keyFor(Alert a) {
-              switch (a.type) {
-                case AlertType.oneOnOneRequested:
-                case AlertType.oneOnOneProposed:
-                case AlertType.oneOnOneAccepted:
-                case AlertType.oneOnOneRescheduled:
-                case AlertType.oneOnOneCancelled:
-                  final mid = (a.actionData?['meetingId'] ?? '').toString();
-                  return '${a.type.name}|$mid';
-                case AlertType.goalDueSoon:
-                case AlertType.goalOverdue:
-                case AlertType.inactivity:
-                case AlertType.goalApprovalRequested:
-                case AlertType.goalApprovalApproved:
-                case AlertType.goalApprovalRejected:
-                case AlertType.teamGoalAvailable:
-                case AlertType.employeeJoinedTeamGoal:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}';
-                case AlertType.managerNudge:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
-                default:
-                  return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
+      try {
+        final alerts = snapshot.docs
+            .map((doc) => Alert.fromFirestore(doc))
+            .where((alert) {
+              // Filter out expired alerts
+              if (alert.expiresAt != null &&
+                  alert.expiresAt!.isBefore(DateTime.now())) {
+                return false;
               }
-            }
+              return true;
+            })
+            .toList();
 
-            for (final a in alerts) {
-              final key = keyFor(a);
-              if (seen.add(key)) {
-                deduped.add(a);
-              }
-            }
+        // Sort in memory to avoid index requirements
+        alerts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-            return deduped.take(50).toList();
-          } catch (e) {
-            developer.log('Error processing alerts: $e');
-            return <Alert>[];
+        // Deduplicate by a stable composite key to avoid doubles in UI
+        final seen = <String>{};
+        final deduped = <Alert>[];
+        String keyFor(Alert a) {
+          switch (a.type) {
+            case AlertType.oneOnOneRequested:
+            case AlertType.oneOnOneProposed:
+            case AlertType.oneOnOneAccepted:
+            case AlertType.oneOnOneRescheduled:
+            case AlertType.oneOnOneCancelled:
+              final mid = (a.actionData?['meetingId'] ?? '').toString();
+              return '${a.type.name}|$mid';
+            case AlertType.goalDueSoon:
+            case AlertType.goalOverdue:
+            case AlertType.inactivity:
+            case AlertType.goalApprovalRequested:
+            case AlertType.goalApprovalApproved:
+            case AlertType.goalApprovalRejected:
+            case AlertType.teamGoalAvailable:
+            case AlertType.employeeJoinedTeamGoal:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}';
+            case AlertType.managerNudge:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.fromUserId ?? ''}|${a.message}';
+            default:
+              return '${a.type.name}|${a.relatedGoalId ?? ''}|${a.title}|${a.message}';
           }
-        });
+        }
+
+        for (final a in alerts) {
+          final key = keyFor(a);
+          if (seen.add(key)) {
+            deduped.add(a);
+          }
+        }
+
+        return deduped.take(50).toList();
+      } catch (e) {
+        developer.log('Error processing alerts: $e');
+        return <Alert>[];
+      }
+    });
   }
 
   /// Stream alerts for the manager inbox with optional filters.
