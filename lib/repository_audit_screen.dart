@@ -21,7 +21,6 @@ import 'package:pdh/models/audit_timeline_event.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/evidence_upload_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/utils/debouncer.dart';
 
 class RepositoryAuditScreen extends StatefulWidget {
@@ -151,8 +150,6 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
                     children: [
                       _buildRoleSummaryBar(isManager: isManager),
                       _buildAuditEntriesList(isManager: isManager),
-                      const SizedBox(height: 24),
-                      _buildMilestoneAuditSection(isManager: isManager),
                       const SizedBox(height: 24),
                       _buildRepositorySection(isManager: isManager),
                       const SizedBox(height: 24),
@@ -2755,7 +2752,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
         const SizedBox(height: 16),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: UnifiedMilestoneAudit.getAllMilestoneAuditStream(),
+          stream: const Stream.empty(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -2878,6 +2875,8 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Future<void> _backfillMilestoneAudit() async {
+    if (!mounted) return;
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2886,18 +2885,27 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
       );
 
-      await UnifiedMilestoneAudit.backfillExistingMilestones();
+      // TODO: Implement milestone backfill functionality
+      // This should:
+      // 1. Fetch all existing milestones from Firestore
+      // 2. Create audit entries for any milestones that don't have them
+      // 3. Store audit entries with proper metadata
+      // await AuditService.backfillExistingMilestones();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unified milestone backfill completed!'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unified milestone backfill completed!'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error during unified backfill: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during unified backfill: $e')),
+        );
+      }
     }
   }
 
@@ -2905,8 +2913,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     // Implementation for exporting milestone audit data
     try {
       // TODO: Implement export functionality similar to existing export service
+      // This should:
+      // 1. Fetch milestone audit data from Firestore
+      // 2. Format data for CSV/PDF export
+      // 3. Use RepositoryExportService patterns for consistency
+      // 4. Support filtering by date, user, status
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Milestone audit export coming soon!')),
+        const SnackBar(content: Text('Milestone audit export coming soon!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

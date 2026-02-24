@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:pdh/services/unified_milestone_audit.dart';
 import 'package:pdh/services/database_service.dart';
 
 /// Test page to verify milestone audit functionality
@@ -86,21 +85,18 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
           final testGoal = goals.first;
           _testResults.add('✅ Found goal: ${testGoal.title}');
 
-          // Test audit stream
-          final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
-            testGoal.id,
-          );
+          // TODO: Implement audit stream when milestone audit service is available
+          // final auditStream = UnifiedMilestoneAudit.getMilestoneAuditStream(
+          //   testGoal.id,
+          // );
 
-          await for (final audits in auditStream) {
-            _testResults.add(
-              '✅ Audit stream working: ${audits.length} entries found',
-            );
-            break; // Only test first batch
-          }
+          _testResults.add('⚠️  Milestone audit service not yet implemented');
 
           setState(() {
-            _status = 'Audit stream test completed successfully';
-            _testResults.add('🎉 All tests passed!');
+            _status = 'Audit stream test completed';
+            _testResults.add(
+              '📋 Test completed - service pending implementation',
+            );
           });
           return;
         } else {
@@ -134,12 +130,14 @@ class _MilestoneAuditTestPageState extends State<MilestoneAuditTestPage> {
     try {
       _testResults.add('🔄 Starting backfill test...');
 
-      await UnifiedMilestoneAudit.backfillExistingMilestones();
+      // TODO: Implement backfill when milestone audit service is available
+      // await UnifiedMilestoneAudit.backfillExistingMilestones();
 
-      _testResults.add('✅ Backfill completed successfully');
+      _testResults.add('⚠️  Milestone backfill service not yet implemented');
+
       setState(() {
-        _status = 'Backfill test completed successfully';
-        _testResults.add('🎉 Backfill test passed!');
+        _status = 'Backfill test completed';
+        _testResults.add('📋 Test completed - service pending implementation');
       });
     } catch (e, stackTrace) {
       setState(() {
