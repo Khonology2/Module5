@@ -242,7 +242,8 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
     final items = <Map<String, dynamic>>[];
     for (final emp in employees) {
       for (final g in emp.goals) {
-        final decided = g.approvalStatus == GoalApprovalStatus.approved ||
+        final decided =
+            g.approvalStatus == GoalApprovalStatus.approved ||
             g.approvalStatus == GoalApprovalStatus.rejected;
         final decidedByMe = (g.approvedByUserId ?? '') == managerId;
         if (decided && decidedByMe) {
@@ -251,8 +252,10 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
       }
     }
     items.sort((a, b) {
-      final ga = (a['goal'] as Goal).approvedAt ?? (a['goal'] as Goal).targetDate;
-      final gb = (b['goal'] as Goal).approvedAt ?? (b['goal'] as Goal).targetDate;
+      final ga =
+          (a['goal'] as Goal).approvedAt ?? (a['goal'] as Goal).targetDate;
+      final gb =
+          (b['goal'] as Goal).approvedAt ?? (b['goal'] as Goal).targetDate;
       return gb.compareTo(ga);
     });
 
@@ -797,6 +800,7 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
             id: 'synthetic_inactivity_${e.profile.uid}',
             userId: e.profile.uid,
             type: AlertType.inactivity,
+            audience: AlertAudience.team,
             priority: inactivityDays >= 7
                 ? AlertPriority.high
                 : AlertPriority.medium,
@@ -2204,12 +2208,13 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen>
           final meetingId = data['meetingId']?.toString().trim();
           final employeeId =
               (data['employeeId']?.toString().trim().isNotEmpty ?? false)
-                  ? data['employeeId']?.toString().trim()
-                  : employee.profile.uid;
+              ? data['employeeId']?.toString().trim()
+              : employee.profile.uid;
 
           args = <String, dynamic>{
             'employeeId': employeeId,
-            if (meetingId != null && meetingId.isNotEmpty) 'meetingId': meetingId,
+            if (meetingId != null && meetingId.isNotEmpty)
+              'meetingId': meetingId,
           };
         }
 

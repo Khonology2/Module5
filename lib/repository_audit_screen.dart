@@ -2996,17 +2996,17 @@ class ProfessionalMilestoneAuditCardState
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground.withOpacity(0.9),
+        color: AppColors.cardBackground.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color:
-              (actionInfo['color'] as Color?)?.withOpacity(0.2) ??
+              (actionInfo['color'] as Color?)?.withValues(alpha: 0.2) ??
               Colors.transparent,
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -3028,7 +3028,9 @@ class ProfessionalMilestoneAuditCardState
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: (actionInfo['color'] as Color).withOpacity(0.1),
+                      color: (actionInfo['color'] as Color).withValues(
+                        alpha: 0.1,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -3078,7 +3080,7 @@ class ProfessionalMilestoneAuditCardState
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.infoColor.withOpacity(0.1),
+                        color: AppColors.infoColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -3108,7 +3110,7 @@ class ProfessionalMilestoneAuditCardState
                 Container(
                   margin: const EdgeInsets.symmetric(vertical: 12),
                   height: 1,
-                  color: AppColors.backgroundColor.withOpacity(0.3),
+                  color: AppColors.backgroundColor.withValues(alpha: 0.3),
                 ),
 
               // Expanded Details
@@ -3175,10 +3177,10 @@ class ProfessionalMilestoneAuditCardState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: statusColor.withOpacity(0.3),
+                  color: statusColor.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -3297,9 +3299,9 @@ class ProfessionalMilestoneAuditCardState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
+        color: statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         status,
