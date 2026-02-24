@@ -593,7 +593,6 @@ class DatabaseService {
     // ignore: unawaited_futures
     Future(() async {
       try {
-        await BadgeService.checkAndAwardBadges(goal.userId);
         await BadgeService.checkAndAwardBadgesV2(goal.userId);
       } catch (_) {}
     });
@@ -1406,7 +1405,6 @@ class DatabaseService {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await StreakService.recordDailyActivity(user.uid, 'goal_progress');
-        await BadgeService.checkAndAwardBadges(user.uid);
         await BadgeService.checkAndAwardBadgesV2(user.uid);
       }
     } catch (e) {
@@ -1582,7 +1580,6 @@ class DatabaseService {
 
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_started');
-    await BadgeService.checkAndAwardBadges(userId);
     await BadgeService.checkAndAwardBadgesV2(userId);
   }
 
@@ -1683,12 +1680,7 @@ class DatabaseService {
 
     // Record daily activity for streak tracking
     await StreakService.recordDailyActivity(userId, 'goal_completed');
-    await BadgeService.checkAndAwardBadges(userId);
     await BadgeService.checkAndAwardBadgesV2(userId);
-    // Backfill any missed milestone badges and align level
-    try {
-      await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
-    } catch (_) {}
   }
 
   static Future<void> updateUserPoints(
@@ -1701,7 +1693,6 @@ class DatabaseService {
     // Get current user data to check for level up
     final userDoc = await userRef.get();
     final currentPoints = (userDoc.data()?['totalPoints'] ?? 0) as int;
-    final currentLevel = (userDoc.data()?['level'] ?? 1) as int;
 
     final newPoints = currentPoints + points;
     final newLevel = _calculateLevel(newPoints);
@@ -1712,11 +1703,6 @@ class DatabaseService {
     batch.update(userRef, {'totalPoints': newPoints, 'level': newLevel});
 
     await batch.commit();
-
-    // Check if user leveled up
-    if (newLevel > currentLevel) {
-      await AlertService.createLevelUpAlert(userId: userId, newLevel: newLevel);
-    }
   }
 
   static int _calculateLevel(int points) {

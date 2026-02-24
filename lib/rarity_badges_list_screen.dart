@@ -35,13 +35,13 @@ class RarityBadgesListScreen extends StatelessWidget {
   String _subtitleForRarity(badge_model.BadgeRarity r) {
     switch (r) {
       case badge_model.BadgeRarity.common:
-        return 'Levels 1–5';
+        return 'Starter tier';
       case badge_model.BadgeRarity.rare:
-        return 'Levels 6–10';
+        return 'Rising tier';
       case badge_model.BadgeRarity.epic:
-        return 'Levels 11–15';
+        return 'Elite tier';
       case badge_model.BadgeRarity.legendary:
-        return 'Levels 16+';
+        return 'Legend tier';
     }
   }
 
@@ -222,7 +222,10 @@ class RarityBadgesListScreen extends StatelessWidget {
                                 )
                                 .toList();
                         final filtered =
-                            visible.where((b) => b.rarity == rarity).toList()
+                            visible
+                                .where((b) => !b.id.startsWith('level_up_'))
+                                .where((b) => b.rarity == rarity)
+                                .toList()
                               ..sort((
                               a,
                               b,

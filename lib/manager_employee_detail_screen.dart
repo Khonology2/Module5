@@ -197,10 +197,6 @@ class _ManagerEmployeeDetailScreenState
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Text(
-                'Level ${widget.employee.profile.level}',
-                style: AppTypography.muted,
-              ),
             ],
           ),
         ],
