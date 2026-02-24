@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/employee_profile_screen.dart';
 import 'package:pdh/manager_profile_screen.dart';
 import 'package:pdh/widgets/notifications_bell.dart';
+import 'package:pdh/widgets/sidebar.dart';
 
 /// MainLayout provides a persistent, collapsible sidebar layout for all
 /// application pages. It reuses the dashboard's sidebar and visuals.
@@ -71,16 +72,18 @@ class MainLayout extends StatelessWidget {
     return AppScaffold(
       title: title,
       showAppBar: false,
-      items: SidebarConfig.employeeItems,
+      items: _getSidebarItems(),
       currentRouteName: currentRouteName,
-      topRightAction: currentRouteName == '/my_profile' ? null : Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const NotificationsBell(),
-          const SizedBox(width: 8),
-          _ProfileButton(),
-        ],
-      ),
+      topRightAction: currentRouteName == '/my_profile'
+          ? null
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const NotificationsBell(),
+                const SizedBox(width: 8),
+                _ProfileButton(),
+              ],
+            ),
       tutorialStepIndex: tutorialParams['tutorialStepIndex'] as int?,
       sidebarTutorialKeys:
           tutorialParams['sidebarTutorialKeys'] as List<GlobalKey>?,
@@ -105,6 +108,16 @@ class MainLayout extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<SidebarItem> _getSidebarItems() {
+    // Check if current user is a manager
+    final role = RoleService.instance.cachedRole;
+    if (role == 'manager') {
+      return SidebarConfig.managerItems;
+    }
+    // Default to employee items for employees and any other roles
+    return SidebarConfig.employeeItems;
   }
 }
 

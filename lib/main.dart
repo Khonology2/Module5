@@ -49,6 +49,7 @@ import 'package:pdh/season_goal_completion_screen.dart'; // Import Season Goal C
 import 'package:pdh/team_details_screen.dart'; // Import the new TeamDetailsScreen
 import 'package:pdh/team_management_screen.dart'; // Import the new TeamManagementScreen
 import 'package:pdh/widgets/main_layout.dart'; // Import MainLayout
+import 'package:pdh/employee_drawer.dart'; // Import EmployeeDrawer
 import 'package:pdh/design_system/app_colors.dart';
 // Import CacheService
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -337,9 +338,9 @@ class _MyAppState extends State<MyApp> {
                 '/sign_in': (context) => const LoginScreen(),
                 '/my_pdp': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
-                  child: MainLayout(
-                    title: 'Profile',
-                    currentRouteName: '/my_pdp',
+                  child: Scaffold(
+                    backgroundColor: Colors.transparent,
+                    drawer: const EmployeeDrawer(),
                     body: const MyPdpScreen(),
                   ),
                 ),
@@ -362,7 +363,11 @@ class _MyAppState extends State<MyApp> {
                 ),
                 '/my_goal_workspace': (context) => RoleGate(
                   requiredRole: RequiredRole.employee,
-                  child: const MyGoalWorkspaceScreen(),
+                  child: MainLayout(
+                    title: 'Goal Workspace',
+                    currentRouteName: '/my_goal_workspace',
+                    body: const MyGoalWorkspaceScreen(embedded: true),
+                  ),
                 ),
                 '/gamification': (context) => const GamificationScreen(),
                 '/repository_audit': (context) => MainLayout(
