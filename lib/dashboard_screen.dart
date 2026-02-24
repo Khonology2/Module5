@@ -254,10 +254,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     'Keep up the great momentum!',
                     style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                  const Text(
-                    'Level 1', // Static for now, can be dynamic later
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
                 ],
               ),
             ],

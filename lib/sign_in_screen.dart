@@ -205,7 +205,9 @@ class _LoginScreenState extends State<LoginScreen> with WidgetsBindingObserver {
           user.uid,
           scope: currentRole == 'manager' ? 'manager' : 'employee',
         );
-        await BadgeService.checkAndAwardBadges(user.uid);
+        if (currentRole == 'manager') {
+          await BadgeService.checkAndAwardBadges(user.uid);
+        }
         await BadgeService.checkAndAwardBadgesV2(user.uid);
       }
 

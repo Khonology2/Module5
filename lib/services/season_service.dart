@@ -2112,24 +2112,9 @@ class SeasonService {
     String userId,
     WriteBatch batch,
   ) async {
-    try {
-      final participation = season.participations[userId];
-      if (participation == null) return;
-      if (participation.totalPoints >= 100) {
-        final badge = SeasonBadge(
-          id: 'season_starter',
-          name: 'Season Starter',
-          description: 'Earned 100+ points in a season',
-          icon: '🎯',
-          color: '#8E44AD',
-          points: 25,
-          criteria: {'points': 100},
-        );
-        await _syncBadgeWithEmployeeSystem(userId, badge, season);
-      }
-    } catch (e) {
-      developer.log('Error checking and awarding badges: $e');
-    }
+    // Employee-facing badges are v2-only. SeasonService's legacy badge syncing is disabled
+    // so employees don't receive old-system badges.
+    return;
   }
 
   static bool _didNewlyCompleteChallenge({
