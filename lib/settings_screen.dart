@@ -23,6 +23,7 @@ import 'package:pdh/main.dart' show appLocaleNotifier;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pdh/l10n/generated/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/models/goal.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -1735,7 +1736,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final evidence =
                   (g['evidence'] as List?)?.map((e) => e.toString()).toList() ??
                   <String>[];
-              final kpa = g['kpa'] ?? 'N/A';
+              final rawKpa = g['kpa']?.toString().trim();
+              final kpa = Goal.kpaLabel(rawKpa) ?? (rawKpa?.isNotEmpty == true
+                  ? rawKpa!
+                  : 'N/A');
               final created = _formatTimestamp(g['createdAt']);
               final approvedAt = _formatTimestamp(g['approvedAt']);
 

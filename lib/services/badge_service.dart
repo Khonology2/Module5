@@ -164,7 +164,6 @@ class BadgeService {
       if (last != null && now.difference(last) < _throttleDuration) return;
       _lastCheckAtByUser[userId] = now;
       try {
-        await checkAndAwardBadges(userId);
         await checkAndAwardBadgesV2(userId);
       } catch (e) {
         developer.log('Realtime badge check failed: $e');
@@ -963,63 +962,6 @@ class BadgeService {
         );
       }
 
-      // Level-based badges
-      if (level >= 5) {
-        await _awardRetroactiveBadge(
-          userId,
-          'level_up_5',
-          'Level 5 Achiever',
-          'Reach level 5',
-          'military_tech',
-          BadgeCategory.achievement,
-          BadgeRarity.common,
-        );
-      }
-      if (level >= 10) {
-        await _awardRetroactiveBadge(
-          userId,
-          'level_up_10',
-          'Level 10 Achiever',
-          'Reach level 10',
-          'military_tech',
-          BadgeCategory.achievement,
-          BadgeRarity.epic,
-        );
-      }
-      if (level >= 20) {
-        await _awardRetroactiveBadge(
-          userId,
-          'level_up_20',
-          'Level 20 Achiever',
-          'Reach level 20',
-          'military_tech',
-          BadgeCategory.achievement,
-          BadgeRarity.legendary,
-        );
-      }
-      if (level >= 30) {
-        await _awardRetroactiveBadge(
-          userId,
-          'level_up_30',
-          'Level 30 Achiever',
-          'Reach level 30',
-          'military_tech',
-          BadgeCategory.achievement,
-          BadgeRarity.legendary,
-        );
-      }
-      if (level >= 50) {
-        await _awardRetroactiveBadge(
-          userId,
-          'level_up_50',
-          'Level 50 Achiever',
-          'Reach level 50',
-          'military_tech',
-          BadgeCategory.achievement,
-          BadgeRarity.legendary,
-        );
-      }
-
       // Goal Legend badge (25+ completed goals)
       if (completedGoals >= 25) {
         await _awardRetroactiveBadge(
@@ -1379,9 +1321,6 @@ class BadgeService {
         }
       }
 
-      // Check for level-based badges
-      await _checkLevelBasedBadges(userId, userProfile);
-
       // Check for streak-based badges
       await _checkStreakBasedBadges(userId);
 
@@ -1586,18 +1525,6 @@ class BadgeService {
 
       case 'point_collector_2000':
         newProgress = userProfile.totalPoints >= 2000 ? 1 : 0;
-        break;
-
-      case 'level_up_5':
-        newProgress = userProfile.level >= 5 ? 1 : 0;
-        break;
-
-      case 'level_up_10':
-        newProgress = userProfile.level >= 10 ? 1 : 0;
-        break;
-
-      case 'level_up_20':
-        newProgress = userProfile.level >= 20 ? 1 : 0;
         break;
 
       case 'category_explorer':
@@ -2032,39 +1959,6 @@ class BadgeService {
         maxProgress: 1,
       ),
       Badge(
-        id: 'level_up_5',
-        name: 'Level 5 Achiever',
-        description: 'Reach level 5',
-        iconName: 'military_tech',
-        category: BadgeCategory.achievement,
-        rarity: BadgeRarity.common,
-        pointsRequired: 0,
-        criteria: {'level': 5},
-        maxProgress: 1,
-      ),
-      Badge(
-        id: 'level_up_10',
-        name: 'Level 10 Expert',
-        description: 'Reach level 10',
-        iconName: 'shield',
-        category: BadgeCategory.achievement,
-        rarity: BadgeRarity.epic,
-        pointsRequired: 0,
-        criteria: {'level': 10},
-        maxProgress: 1,
-      ),
-      Badge(
-        id: 'level_up_20',
-        name: 'Level 20 Master',
-        description: 'Reach level 20',
-        iconName: 'trending_up',
-        category: BadgeCategory.achievement,
-        rarity: BadgeRarity.legendary,
-        pointsRequired: 0,
-        criteria: {'level': 20},
-        maxProgress: 1,
-      ),
-      Badge(
         id: 'category_explorer',
         name: 'Category Explorer',
         description: 'Create goals in 4 different categories',
@@ -2113,7 +2007,11 @@ class BadgeService {
               .collection('badges')
               .get();
 
-      final earnedBadgeIds = badgeSnapshot.docs
+      final visibleDocs = badgeSnapshot.docs
+          .where((d) => !d.id.startsWith('level_up_'))
+          .toList();
+
+      final earnedBadgeIds = visibleDocs
           .where((doc) {
             return _isBadgeEarned(doc.data());
           })
@@ -2125,7 +2023,7 @@ class BadgeService {
         'earnedBadgesCount': earnedBadgeIds.length,
         'badgeSummary': {
           'earned': earnedBadgeIds.length,
-          'total': badgeSnapshot.docs.length,
+          'total': visibleDocs.length,
           'lastSyncedAt': FieldValue.serverTimestamp(),
         },
       }, SetOptions(merge: true));
@@ -2204,11 +2102,35 @@ class BadgeService {
         // Safely extract badge count
         int badgeCount = 0;
         try {
+          // Prefer v2 badge summary/counts (category-based badge system)
+          final badgeV2Summary = data['badgeV2Summary'];
+          if (badgeV2Summary is Map<String, dynamic>) {
+            final earned = badgeV2Summary['earned'];
+            if (earned is num) {
+              badgeCount = earned.toInt();
+            } else if (earned is String) {
+              badgeCount = int.tryParse(earned) ?? 0;
+            }
+          }
+          if (badgeCount == 0) {
+            final badgesV2Field = data['badgesV2'];
+            if (badgesV2Field is List) {
+              badgeCount = badgesV2Field.length;
+            } else if (badgesV2Field is num) {
+              badgeCount = badgesV2Field.toInt();
+            } else if (badgesV2Field is String) {
+              badgeCount = int.tryParse(badgesV2Field) ?? 0;
+            }
+          }
+
+          // Legacy fallback (kept for managers/older data)
           final badgesField = data['badges'];
-          if (badgesField is List) {
-            badgeCount = badgesField.length;
-          } else if (badgesField is num) {
-            badgeCount = badgesField.toInt();
+          if (badgeCount == 0) {
+            if (badgesField is List) {
+              badgeCount = badgesField.length;
+            } else if (badgesField is num) {
+              badgeCount = badgesField.toInt();
+            }
           }
 
           if (badgeCount == 0) {
@@ -2352,80 +2274,6 @@ class BadgeService {
       });
     } catch (e) {
       developer.log('Error creating badge alert: $e');
-    }
-  }
-
-  // Check for level-based badges
-  static Future<void> _checkLevelBasedBadges(
-    String userId,
-    UserProfile userProfile,
-  ) async {
-    final level = userProfile.level;
-
-    // Check if user has level-based badges that should be earned
-    final levelBadges = [
-      {'level': 5, 'badgeId': 'level_up_5'},
-      {'level': 10, 'badgeId': 'level_up_10'},
-      {'level': 20, 'badgeId': 'level_up_20'},
-      {'level': 30, 'badgeId': 'level_up_30'},
-      {'level': 50, 'badgeId': 'level_up_50'},
-    ];
-
-    for (final levelBadge in levelBadges) {
-      final requiredLevel = levelBadge['level'] as int;
-      final badgeId = levelBadge['badgeId'] as String;
-      if (level >= requiredLevel) {
-        await _awardLevelBadge(userId, badgeId, requiredLevel);
-      }
-    }
-  }
-
-  // Award level badge
-  static Future<void> _awardLevelBadge(
-    String userId,
-    String badgeId,
-    int requiredLevel,
-  ) async {
-    try {
-      final badgeDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('badges')
-          .doc(badgeId)
-          .get();
-
-      if (!badgeDoc.exists) {
-        // Create the badge if it doesn't exist
-        final badge = Badge(
-          id: badgeId,
-          name: 'Level $requiredLevel Achiever',
-          description: 'Reach level $requiredLevel',
-          iconName: 'military_tech',
-          category: BadgeCategory.achievement,
-          rarity: requiredLevel >= 20
-              ? BadgeRarity.legendary
-              : requiredLevel >= 10
-              ? BadgeRarity.epic
-              : BadgeRarity.common,
-          pointsRequired: 0,
-          criteria: {'level': requiredLevel},
-          maxProgress: 1,
-          isEarned: true,
-          earnedAt: DateTime.now(),
-          progress: 1,
-        );
-
-        await _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('badges')
-            .doc(badgeId)
-            .set(badge.toFirestore());
-
-        await _createBadgeEarnedAlert(userId, badge);
-      }
-    } catch (e) {
-      developer.log('Error awarding level badge: $e');
     }
   }
 

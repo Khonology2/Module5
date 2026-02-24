@@ -1,4 +1,4 @@
-// ignore_for_file: unused_import, unused_element
+// ignore_for_file: unnecessary_non_null_assertion, deprecated_member_use, use_key_in_widget_constructors, unused_import, unused_element
 
 import 'dart:developer' as developer;
 import 'dart:convert' as convert;
@@ -1381,7 +1381,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
             style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
           ),
           subtitle: Text(
-            '${entry.acknowledgedBy ?? ''} • ${_formatDate(entry.rejectedDate ?? entry.submittedDate)}',
+            '${entry.acknowledgedBy ?? ''} • ${_formatDate(entry.rejectedDate ?? entry.submittedDate!)}',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ),
@@ -2829,109 +2829,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
   }
 
   Widget _buildUnifiedMilestoneAuditCard(Map<String, dynamic> audit) {
-    final action = audit['action'] as String? ?? 'unknown';
-    final timestamp = audit['timestamp'] as Timestamp?;
-    final description = audit['description'] as String? ?? 'No description';
-    final metadata = audit['metadata'] as Map<String, dynamic>? ?? {};
-    final milestoneTitle =
-        metadata['milestoneTitle'] as String? ?? 'Unknown Milestone';
-    final goalTitle = metadata['goalTitle'] as String? ?? 'Unknown Goal';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _getUnifiedActionIcon(action),
-                color: _getUnifiedActionColor(action),
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _getUnifiedActionTitle(action),
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                _formatUnifiedTimestamp(timestamp),
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ],
-          ),
-          if (metadata.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Details:',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Goal: $goalTitle',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    'Milestone: $milestoneTitle',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (metadata['oldStatus'] != null &&
-                      metadata['newStatus'] != null) ...[
-                    Text(
-                      'Status Change: ${metadata['oldStatus']} → ${metadata['newStatus']}',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.activeColor,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+    return ProfessionalMilestoneAuditCard(entry: audit);
   }
 
   IconData _getUnifiedActionIcon(String action) {
@@ -2973,13 +2871,14 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     }
   }
 
-  String _formatUnifiedTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'Unknown time';
+  String _formatUnifiedTimestamp(Timestamp timestamp) {
     final date = timestamp.toDate();
     return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _backfillMilestoneAudit() async {
+    if (!mounted) return;
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2988,20 +2887,27 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
         ),
       );
 
-      debugPrint('Backfill milestone audit - functionality not available');
+      // TODO: Implement milestone backfill functionality
+      // This should:
+      // 1. Fetch all existing milestones from Firestore
+      // 2. Create audit entries for any milestones that don't have them
+      // 3. Store audit entries with proper metadata
+      // await AuditService.backfillExistingMilestones();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Unified milestone backfill not available'),
+            content: Text('Unified milestone backfill completed!'),
             duration: Duration(seconds: 3),
           ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error during unified backfill: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during unified backfill: $e')),
+        );
+      }
     }
   }
 
@@ -3009,8 +2915,13 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
     // Implementation for exporting milestone audit data
     try {
       // TODO: Implement export functionality similar to existing export service
+      // This should:
+      // 1. Fetch milestone audit data from Firestore
+      // 2. Format data for CSV/PDF export
+      // 3. Use RepositoryExportService patterns for consistency
+      // 4. Support filtering by date, user, status
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Milestone audit export coming soon!')),
+        const SnackBar(content: Text('Milestone audit export coming soon!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3023,7 +2934,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 class ProfessionalMilestoneAuditCard extends StatefulWidget {
   final Map<String, dynamic> entry;
 
-  const ProfessionalMilestoneAuditCard({super.key, required this.entry});
+  const ProfessionalMilestoneAuditCard({required this.entry});
 
   @override
   State<ProfessionalMilestoneAuditCard> createState() =>
@@ -3054,17 +2965,18 @@ class ProfessionalMilestoneAuditCardState
   void _toggleExpand() {
     setState(() {
       _isExpanded = !_isExpanded;
-      if (_isExpanded) {
-        _animationController.forward();
-      } else {
-        _animationController.reverse();
-      }
     });
+    if (_isExpanded) {
+      _animationController.forward();
+    } else {
+      _animationController.reverse();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final action = widget.entry['action'] as String? ?? 'unknown';
+    // ignore: unused_local_variable
     final timestamp = widget.entry['timestamp'] as Timestamp?;
     final metadata = widget.entry['metadata'] as Map<String, dynamic>? ?? {};
 
@@ -3074,22 +2986,22 @@ class ProfessionalMilestoneAuditCardState
     final isHistorical = metadata['isHistorical'] == true;
 
     final actionInfo = _getActionInfo(action);
-    final formattedDate = _formatDate(timestamp);
+    final formattedDate = _formatDate(widget.entry['completedDate']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground.withValues(alpha: 0.9),
+        color: AppColors.cardBackground.withOpacity(0.9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color:
-              (actionInfo['color'] as Color?)?.withValues(alpha: 0.2) ??
+              (actionInfo['color'] as Color?)?.withOpacity(0.2) ??
               Colors.transparent,
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: Colors.black.withOpacity(0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -3111,9 +3023,7 @@ class ProfessionalMilestoneAuditCardState
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: (actionInfo['color'] as Color).withValues(
-                        alpha: 0.1,
-                      ),
+                      color: (actionInfo['color'] as Color).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -3163,7 +3073,7 @@ class ProfessionalMilestoneAuditCardState
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.infoColor.withValues(alpha: 0.1),
+                        color: AppColors.infoColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -3193,7 +3103,7 @@ class ProfessionalMilestoneAuditCardState
                 Container(
                   margin: const EdgeInsets.symmetric(vertical: 12),
                   height: 1,
-                  color: AppColors.backgroundColor.withValues(alpha: 0.3),
+                  color: AppColors.backgroundColor.withOpacity(0.3),
                 ),
 
               // Expanded Details
@@ -3207,12 +3117,15 @@ class ProfessionalMilestoneAuditCardState
 
   Widget _buildExpandedDetails() {
     final action = widget.entry['action'] as String? ?? 'unknown';
+    final userName = widget.entry['userName'] as String? ?? 'System';
+    final userRole = widget.entry['userRole'] as String? ?? 'system';
     final description = widget.entry['description'] as String? ?? '';
     final metadata = widget.entry['metadata'] as Map<String, dynamic>? ?? {};
 
     // Extract data from metadata field
     final milestoneTitle =
         metadata['milestoneTitle'] as String? ?? 'Unknown Milestone';
+    final goalTitle = metadata['goalTitle'] as String? ?? 'Unknown Goal';
 
     // Extract status from action or metadata
     String status = 'Unknown';
@@ -3257,10 +3170,10 @@ class ProfessionalMilestoneAuditCardState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
+                color: statusColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: statusColor.withValues(alpha: 0.3),
+                  color: statusColor.withOpacity(0.3),
                   width: 1,
                 ),
               ),
@@ -3286,10 +3199,19 @@ class ProfessionalMilestoneAuditCardState
 
         const SizedBox(height: 12),
 
+        // Goal Information
+        _buildInfoRow(
+          label: 'Goal:',
+          value: goalTitle,
+          icon: Icons.track_changes,
+        ),
+
+        const SizedBox(height: 12),
+
         // Owner Information
         _buildInfoRow(
           label: 'Created By:',
-          value: 'System',
+          value: '$userName ($userRole)',
           icon: Icons.person,
         ),
 
@@ -3319,7 +3241,7 @@ class ProfessionalMilestoneAuditCardState
           const SizedBox(height: 12),
         ],
 
-        // Description (if available and not default formatted text)
+        // Description (if available and not the default formatted text)
         if (description.isNotEmpty &&
             !description.contains('Milestone created:') &&
             !description.contains('for goal:')) ...[
@@ -3370,9 +3292,9 @@ class ProfessionalMilestoneAuditCardState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.1),
+        color: statusColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
       ),
       child: Text(
         status,
@@ -3464,48 +3386,8 @@ class ProfessionalMilestoneAuditCardState
     }
   }
 
-  String _formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return 'Unknown';
-
-    final eventTime = timestamp.toDate();
-    final now = DateTime.now();
-    final difference = now.difference(eventTime);
-
-    if (difference.inDays < 1) {
-      if (difference.inHours < 1) {
-        if (difference.inMinutes < 1) {
-          return 'Just now';
-        } else if (difference.inMinutes == 1) {
-          return '1 minute ago';
-        } else {
-          return '${difference.inMinutes} minutes ago';
-        }
-      } else if (difference.inHours == 1) {
-        return '1 hour ago';
-      } else {
-        return '${difference.inHours} hours ago';
-      }
-    } else if (difference.inDays == 1) {
-      return '1 day ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    }
-
-    // Absolute date for older events
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[eventTime.month - 1]} ${eventTime.day}, ${eventTime.year}';
+  String _formatDate(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

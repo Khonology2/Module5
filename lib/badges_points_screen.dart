@@ -234,10 +234,8 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
   // Run badge updates in the background without blocking UI
   Future<void> _updateBadgesInBackground(String userId) async {
     try {
-      // Run badge checks sequentially (retroactive first, then current checks)
-      // These operations can be slow, so we run them in background after UI loads
-      await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(userId);
-      await BadgeService.checkAndAwardBadges(userId);
+      // Employees use v2-only badges; managers may still use legacy.
+      // Keep this lightweight and non-blocking; badge docs update via realtime listeners too.
       await BadgeService.checkAndAwardBadgesV2(userId);
 
       // Check for newly earned badges after updates (one-time celebration)
@@ -1687,7 +1685,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
               Expanded(
                 child: _buildStatItem(
                   'Badges Earned',
-                  (safeUserProfile?.badges.length ?? 0).toString(),
+                  (safeUserProfile?.badgesV2.length ?? 0).toString(),
                   iconWidget: SizedBox(
                     width: 40,
                     height: 40,
@@ -1847,9 +1845,7 @@ class _BadgesPointsScreenState extends State<BadgesPointsScreen>
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
                       try {
-                        await BadgeService.retroactivelyAwardBadgesAndUpdateLevel(
-                          user.uid,
-                        );
+                        await BadgeService.checkAndAwardBadgesV2(user.uid);
                         await _loadData(); // Reload data to show updates
 
                         if (mounted) {

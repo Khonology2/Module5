@@ -22,7 +22,7 @@ enum LeaderboardFilter {
   organization,
 }
 
-enum LeaderboardMetric { points, level, badges, streaks }
+enum LeaderboardMetric { points, badges, streaks }
 
 /// Helper class to represent onboarding users as document-like objects
 class _OnboardingUserDoc {
@@ -400,13 +400,37 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         // Safely extract values with defaults
         int badgeCount = 0;
         try {
+          // Prefer v2 badge summary/counts (category-based badge system)
+          final badgeV2Summary = data['badgeV2Summary'];
+          if (badgeV2Summary is Map<String, dynamic>) {
+            final earned = badgeV2Summary['earned'];
+            if (earned is num) {
+              badgeCount = earned.toInt();
+            } else if (earned is String) {
+              badgeCount = int.tryParse(earned) ?? 0;
+            }
+          }
+          if (badgeCount == 0) {
+            final badgesV2Field = data['badgesV2'];
+            if (badgesV2Field is List) {
+              badgeCount = badgesV2Field.length;
+            } else if (badgesV2Field is num) {
+              badgeCount = badgesV2Field.toInt();
+            } else if (badgesV2Field is String) {
+              badgeCount = int.tryParse(badgesV2Field) ?? 0;
+            }
+          }
+
+          // Legacy fallback (kept for managers/older data)
           final badgesField = data['badges'];
-          if (badgesField is List) {
-            badgeCount = badgesField.length;
-          } else if (badgesField is num) {
-            badgeCount = badgesField.toInt();
-          } else if (badgesField is String) {
-            badgeCount = int.tryParse(badgesField) ?? 0;
+          if (badgeCount == 0) {
+            if (badgesField is List) {
+              badgeCount = badgesField.length;
+            } else if (badgesField is num) {
+              badgeCount = badgesField.toInt();
+            } else if (badgesField is String) {
+              badgeCount = int.tryParse(badgesField) ?? 0;
+            }
           }
 
           if (badgeCount == 0) {
@@ -429,7 +453,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           }
 
           if (_currentUser != null && docId == _currentUser!.uid) {
-            badgeCount = max(badgeCount, _currentUser!.badges.length);
+            badgeCount = max(badgeCount, _currentUser!.badgesV2.length);
           }
         } catch (e) {
           developer.log('Error processing badges for user $docId: $e');
@@ -448,13 +472,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           } catch (e) {
             developer.log('Error processing points for user $docId: $e');
           }
-        }
-
-        num level = 1;
-        try {
-          level = _coerceNum(data['level'], 1);
-        } catch (e) {
-          developer.log('Error processing level for user $docId: $e');
         }
 
         // Extract streak data
@@ -478,7 +495,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           'name': data['displayName']?.toString() ?? 'Anonymous',
           // Use ints for display consistency.
           'points': _coerceInt(points, 0),
-          'level': _coerceInt(level, 1),
           'badges': badgeCount,
           'currentStreak': currentStreak,
           'longestStreak': longestStreak,
@@ -539,13 +555,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               final aPoints = (a['points'] as num?) ?? 0;
               final bPoints = (b['points'] as num?) ?? 0;
               return bPoints.compareTo(aPoints);
-            });
-            break;
-          case LeaderboardMetric.level:
-            processedData.sort((a, b) {
-              final aLevel = (a['level'] as num?) ?? 1;
-              final bLevel = (b['level'] as num?) ?? 1;
-              return bLevel.compareTo(aLevel);
             });
             break;
           case LeaderboardMetric.badges:
@@ -847,17 +856,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                     ),
                   ),
                   PopupMenuItem(
-                    value: LeaderboardMetric.level,
-                    child: Text(
-                      'Sort by Level',
-                      style: TextStyle(
-                        color: _currentMetric == LeaderboardMetric.level
-                            ? AppColors.activeColor
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  PopupMenuItem(
                     value: LeaderboardMetric.badges,
                     child: Text(
                       'Sort by Badges',
@@ -1046,13 +1044,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
               fontWeight: FontWeight.bold,
             ),
           ),
-          Text(
-            'Lvl ${user['level']}',
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 10,
-            ),
-          ),
         ],
       ),
     );
@@ -1214,8 +1205,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         'userId': currentUserId,
         'name': _currentUser!.displayName,
         'points': _currentUser!.totalPoints,
-        'level': _currentUser!.level,
-        'badges': _currentUser!.badges.length,
+          'badges': _currentUser!.badgesV2.length,
         'department': _currentUser!.department,
       },
     );
@@ -1232,7 +1222,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     final rank = user['rank'] ?? 0;
     final name = user['name'] ?? 'Unknown';
     final points = user['points'] ?? 0;
-    final level = user['level'] ?? 1;
     final badges = user['badges'] ?? 0;
 
     Color rankColor = AppColors.textSecondary;
@@ -1354,21 +1343,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                         height: 12,
                         child: Image.asset(
                           'assets/Process_Flows_Automation/Points.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const SizedBox.shrink(),
-                        ),
-                      ),
-                    ),
-                    _buildStatChip(
-                      null, // Set icon to null as we are using iconWidget
-                      'Lvl $level',
-                      Colors.blue,
-                      iconWidget: SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: Image.asset(
-                          'assets/Business_Growth_Development/Growth_Development_Red.png',
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                               const SizedBox.shrink(),
@@ -1609,7 +1583,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
       final comparisonData = StringBuffer();
       comparisonData.writeln('Current User (Rank $currentRank):');
       comparisonData.writeln('Points: ${currentUserRank['points'] ?? 0}');
-      comparisonData.writeln('Level: ${currentUserRank['level'] ?? 1}');
       comparisonData.writeln('Badges: ${currentUserRank['badges'] ?? 0}');
       comparisonData.writeln('Goals: ${currentUserGoals.length}');
       comparisonData.writeln('');
@@ -1624,7 +1597,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         );
         comparisonData.writeln('Name: ${competitor['name']}');
         comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
-        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
         comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
         comparisonData.writeln('Goals: ${competitorGoals.length}');
         comparisonData.writeln('');
@@ -1640,7 +1612,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
         );
         comparisonData.writeln('Name: ${competitor['name']}');
         comparisonData.writeln('Points: ${competitor['points'] ?? 0}');
-        comparisonData.writeln('Level: ${competitor['level'] ?? 1}');
         comparisonData.writeln('Badges: ${competitor['badges'] ?? 0}');
         comparisonData.writeln('Goals: ${competitorGoals.length}');
         comparisonData.writeln('');
@@ -1657,7 +1628,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           '2. Goal completion rates and types\n'
           '3. Badge achievements and types\n'
           '4. Activity patterns and consistency\n'
-          '5. Level progression\n\n'
+          '\n'
           'Provide specific, actionable recommendations on what the user should focus on to improve their ranking. '
           'Be encouraging but direct. Format your response in clear sections with bullet points.',
         ),

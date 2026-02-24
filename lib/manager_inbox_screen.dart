@@ -387,7 +387,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                           children: [
                             _chip('Category', goal.category.name),
                             if (goal.kpa != null && goal.kpa!.isNotEmpty)
-                              _chip('KPA', goal.kpa!.toUpperCase()),
+                              _chip(
+                                'KPA',
+                                Goal.kpaLabel(goal.kpa) ??
+                                    (goal.kpa![0].toUpperCase() +
+                                        goal.kpa!.substring(1)),
+                              ),
                             _chip('Created', _fmtDateTime(goal.createdAt)),
                             _chip('Target', _fmtDate(goal.targetDate)),
                           ],

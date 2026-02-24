@@ -506,7 +506,12 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
           .collection('badges')
           .where('isEarned', isEqualTo: true)
           .snapshots(),
-    ).map((snapshot) => snapshot.docs.where((d) => d.id != 'init').length);
+    ).map((snapshot) {
+      return snapshot.docs
+          .where((d) => d.id != 'init')
+          .where((d) => d.id.toLowerCase().startsWith('v2_'))
+          .length;
+    });
   }
 
   String _getTimeBasedGreeting() {
@@ -829,39 +834,23 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                     color: AppColors.textSecondary,
                   ),
                 ),
-                if (userProfile?.level != null) ...[
+                if (userProfile?.badgesV2.isNotEmpty == true) ...[
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Icon(
-                        Icons.military_tech,
+                        Icons.workspace_premium,
                         size: 16,
-                        color: AppColors.warningColor,
+                        color: AppColors.successColor,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Level ${userProfile!.level}',
+                        '${userProfile!.badgesV2.length} Badge${userProfile!.badgesV2.length == 1 ? '' : 's'}',
                         style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.warningColor,
+                          color: AppColors.successColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (userProfile!.badges.isNotEmpty) ...[
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.workspace_premium,
-                          size: 16,
-                          color: AppColors.successColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${userProfile!.badges.length} Badge${userProfile!.badges.length == 1 ? '' : 's'}',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.successColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],

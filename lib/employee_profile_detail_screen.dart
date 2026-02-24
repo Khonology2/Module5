@@ -311,9 +311,6 @@ class _EmployeeProfileDetailScreenState extends State<EmployeeProfileDetailScree
                   Expanded(
                     child: _buildProfileField('Phone', profile.phoneNumber.isEmpty ? 'Not provided' : profile.phoneNumber),
                   ),
-                  Expanded(
-                    child: _buildProfileField('Level', 'Level ${profile.level}'),
-                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
