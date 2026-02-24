@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EB7.SIT",
-  "generated_at": "2026-02-24T08:05:00Z",
+  "version": "2026.02.EB8.SIT",
+  "generated_at": "2026-02-24T18:07:51Z",
   "commits": [
     {
       "author": "Thembelihle",
@@ -36,8 +36,13 @@
       "author": "Thembelihle",
       "message": "Feature - Update dependencies in pubspec.lock and refactor badge category accent logic across multiple screens to use a unified color scheme for improved consistency.",
       "timestamp": "2026-02-23T09:52:27+02:00"
+    },
+    {
+      "author": "Nathi2266",
+      "message": "feat: update PDF export layout and contact info",
+      "timestamp": "2026-02-24T20:07:15+02:00"
     }
   ],
-  "total_commits": 7,
+  "total_commits": 8,
   "date_range": "2026-02-24"
 }
