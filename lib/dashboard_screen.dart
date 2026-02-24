@@ -74,10 +74,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // while the enrichment fetch runs. Wait for the first non-placeholder payload
       // (or accept an empty list).
       final stream = ManagerRealtimeService.getTeamDataStream();
-      final firstReal = stream.where((employees) {
-        if (employees.isEmpty) return true;
-        return !employees.every((e) => e.isPlaceholder);
-      }).take(1);
+      final firstReal = stream
+          .where((employees) {
+            if (employees.isEmpty) return true;
+            return !employees.every((e) => e.isPlaceholder);
+          })
+          .take(1);
 
       await for (final employees in firstReal) {
         debugPrint('Dashboard: Loaded ${employees.length} employees');
@@ -350,7 +352,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final activeGoals = _employeeData.fold<int>(
       0,
-      (sum, emp) => sum +
+      (sum, emp) =>
+          sum +
           emp.goals
               .where(
                 (g) =>
@@ -473,7 +476,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            if (trailing != null) ...[trailing],
           ],
         ),
       );

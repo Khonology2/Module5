@@ -23,6 +23,9 @@ import 'package:pdh/models/user_profile.dart';
 import 'package:pdh/goal_detail_screen.dart';
 import 'package:pdh/design_system/app_components.dart';
 import 'package:pdh/services/one_on_one_meeting_service.dart';
+import 'package:pdh/badges_v2/badge_category_detail_screen.dart';
+import 'package:pdh/models/badge.dart' as badge_model;
+import 'package:pdh/utils/firestore_safe.dart';
 
 class AlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -40,6 +43,7 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   List<Alert>? _cachedAlerts;
   List<OneOnOneMeeting>? _cachedMeetings;
   final Map<String, String> _userNameCache = {};
+  static const Duration _defaultMeetingDuration = Duration(hours: 1);
 
   @override
   void initState() {
@@ -379,13 +383,22 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         final meetings =
             incoming ?? _cachedMeetings ?? const <OneOnOneMeeting>[];
 
-        // Hide cancelled meetings by default (keeps the section focused)
-        final visible = meetings
-            .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
-            .take(5)
-            .toList();
+        // Show only relevant meetings:
+        // - hide cancelled
+        // - hide meetings whose time window has already passed
+        // - keep unconfirmed/action-needed at the top
+        final now = DateTime.now();
+        final visible =
+            meetings
+                .where((m) => m.status != OneOnOneMeetingStatus.cancelled)
+                .where((m) => !_isMeetingPast(m, now))
+                .toList()
+              ..sort((a, b) => _compareMeetingsForDisplay(a, b, now));
 
-        if (visible.isEmpty) {
+        // Keep this section compact.
+        final top = visible.take(5).toList();
+
+        if (top.isEmpty) {
           return const SizedBox.shrink();
         }
 
@@ -408,13 +421,65 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                ...visible.map(_buildMeetingTile),
+                ...top.map(_buildMeetingTile),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  bool _isMeetingPast(OneOnOneMeeting m, DateTime now) {
+    // If we don't have a scheduled time yet, treat it as "unconfirmed" and keep it.
+    final start = m.proposedStartDateTime;
+    if (start == null) return false;
+
+    // Prefer explicit end time; otherwise assume a reasonable default duration.
+    final end = m.proposedEndDateTime ?? start.add(_defaultMeetingDuration);
+
+    // Consider it "past" only once the end time has elapsed.
+    return end.isBefore(now);
+  }
+
+  bool _needsEmployeeAction(OneOnOneMeeting m) {
+    if (m.waitingOn != OneOnOneWaitingOn.employee) return false;
+    // Employee needs to respond/ack in these states.
+    return m.status == OneOnOneMeetingStatus.requested ||
+        m.status == OneOnOneMeetingStatus.proposed ||
+        m.status == OneOnOneMeetingStatus.rescheduled;
+  }
+
+  int _displayPriorityGroup(OneOnOneMeeting m) {
+    // Lower is higher priority in the list.
+    if (_needsEmployeeAction(m)) return 0; // unconfirmed + action needed
+    if (m.waitingOn == OneOnOneWaitingOn.manager) return 1; // pending manager
+    if (m.waitingOn == OneOnOneWaitingOn.none &&
+        m.status == OneOnOneMeetingStatus.accepted) {
+      return 2; // confirmed upcoming
+    }
+    return 3; // anything else
+  }
+
+  int _compareMeetingsForDisplay(
+    OneOnOneMeeting a,
+    OneOnOneMeeting b,
+    DateTime now,
+  ) {
+    final g = _displayPriorityGroup(a).compareTo(_displayPriorityGroup(b));
+    if (g != 0) return g;
+
+    // Within same group, prefer earliest upcoming meetings first.
+    final aStart = a.proposedStartDateTime;
+    final bStart = b.proposedStartDateTime;
+
+    if (aStart == null && bStart == null) {
+      // Fall back to most recently updated first.
+      return b.updatedAt.compareTo(a.updatedAt);
+    }
+    if (aStart == null) return 1; // no time goes after timed items
+    if (bStart == null) return -1;
+    return aStart.compareTo(bStart);
   }
 
   String _humanMeetingStatus(OneOnOneMeeting m) {
@@ -653,13 +718,15 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         lastDate: now.add(const Duration(days: 365)),
         initialDate: now.add(const Duration(days: 1)),
       );
-      if (pickedDate == null || !mounted) return;
+      if (pickedDate == null) return;
+      if (!mounted) return;
 
       final pickedStartTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
       );
-      if (pickedStartTime == null || !mounted) return;
+      if (pickedStartTime == null) return;
+      if (!mounted) return;
 
       final proposedStart = DateTime(
         pickedDate.year,
@@ -674,7 +741,8 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
         context: context,
         initialTime: TimeOfDay.fromDateTime(suggestedEnd),
       );
-      if (pickedEndTime == null || !mounted) return;
+      if (pickedEndTime == null) return;
+      if (!mounted) return;
 
       final proposedEnd = DateTime(
         pickedDate.year,
@@ -1352,6 +1420,11 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
   Future<void> _handleAlertNavigation(Alert alert) async {
     final navigator = Navigator.of(context);
 
+    if (alert.type == AlertType.badgeEarned) {
+      final opened = await _openBadgeFromAlert(alert);
+      if (opened) return;
+    }
+
     // Check if this alert is goal-related (has relatedGoalId or goalId in actionData)
     final goalId = alert.actionData != null
         ? (alert.actionData!['goalId'] as String?)
@@ -1525,6 +1598,105 @@ class _AlertsNudgesScreenState extends State<AlertsNudgesScreen> {
           duration: Duration(seconds: 2),
         ),
       );
+    }
+  }
+
+  badge_model.BadgeCategory? _employeeCategoryFromName(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    try {
+      final c = badge_model.BadgeCategory.values.firstWhere((e) => e.name == s);
+      switch (c) {
+        case badge_model.BadgeCategory.goalMastery:
+        case badge_model.BadgeCategory.consistency:
+        case badge_model.BadgeCategory.growth:
+        case badge_model.BadgeCategory.milestones:
+        case badge_model.BadgeCategory.collaboration:
+          return c;
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _employeeCategoryTitle(badge_model.BadgeCategory c) {
+    switch (c) {
+      case badge_model.BadgeCategory.goalMastery:
+        return 'Goal Mastery';
+      case badge_model.BadgeCategory.consistency:
+        return 'Consistency';
+      case badge_model.BadgeCategory.growth:
+        return 'Growth';
+      case badge_model.BadgeCategory.milestones:
+        return 'Milestones';
+      case badge_model.BadgeCategory.collaboration:
+        return 'Collaboration';
+      default:
+        return 'Badges';
+    }
+  }
+
+  Future<bool> _openBadgeFromAlert(Alert alert) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return false;
+
+      final data = alert.actionData ?? const <String, dynamic>{};
+      final badgeId = (data['badgeId'] ?? data['badgeDocId'] ?? '')
+          .toString()
+          .trim();
+      if (badgeId.isEmpty) return false;
+
+      String? categoryName = data['badgeCategory']?.toString().trim();
+      if (categoryName == null || categoryName.isEmpty) {
+        try {
+          final doc = await FirestoreSafe.getDoc(
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .collection('badges')
+                .doc(badgeId),
+          );
+          categoryName = doc.data()?['category']?.toString().trim();
+        } catch (_) {}
+      }
+      if (categoryName == null || categoryName.isEmpty) {
+        // Fallback for alerts that store a base badge id (e.g. season badges)
+        // where the actual doc id differs.
+        try {
+          final q = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('badges')
+              .where('criteria.badgeId', isEqualTo: badgeId)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            categoryName = q.docs.first.data()['category']?.toString().trim();
+          }
+        } catch (_) {}
+      }
+
+      final category = _employeeCategoryFromName(categoryName);
+      if (category == null) return false;
+
+      if (!mounted) return false;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => BadgeCategoryDetailScreen(
+            category: category,
+            title: _employeeCategoryTitle(category),
+            embedded: widget.embedded,
+            initialBadgeId: badgeId,
+          ),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

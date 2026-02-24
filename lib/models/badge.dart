@@ -9,6 +9,11 @@ enum BadgeCategory {
   leadership,
   learning,
   community,
+  // ===== v2 category groups (employee-focused) =====
+  goalMastery,
+  consistency,
+  growth,
+  milestones,
 }
 
 enum BadgeRarity {

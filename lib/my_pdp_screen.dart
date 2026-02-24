@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 // ignore: unnecessary_import
@@ -253,7 +252,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     await DatabaseService.clearGoalEvidence(
                                       goalId: goal.id,
                                     );
-                                    developer.log(
+                                    debugPrint(
                                       'Evidence cleared for goal ${goal.id}',
                                     );
                                     // Close loading dialog
@@ -268,7 +267,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                       const Duration(milliseconds: 500),
                                     );
                                   } catch (clearError) {
-                                    developer.log(
+                                    debugPrint(
                                       'Error clearing evidence: $clearError',
                                     );
                                     // Close loading dialog if still open
@@ -293,7 +292,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     goalId: goal.id,
                                     evidence: [fileInfo, cloudinaryUrl],
                                   );
-                                  developer.log(
+                                  debugPrint(
                                     'New evidence attached for goal ${goal.id}',
                                   );
                                   // Close loading dialog
@@ -308,7 +307,7 @@ class _MyPdpScreenState extends State<MyPdpScreen>
                                     const Duration(milliseconds: 500),
                                   );
                                 } catch (attachError) {
-                                  developer.log(
+                                  debugPrint(
                                     'Error attaching evidence: $attachError',
                                   );
                                   // Close loading dialog if still open
@@ -401,13 +400,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
         if (replaceExisting) {
           try {
             await DatabaseService.clearGoalEvidence(goalId: goal.id);
-            developer.log(
-              'Evidence cleared for goal ${goal.id} (text evidence)',
-            );
+            debugPrint('Evidence cleared for goal ${goal.id} (text evidence)');
             // Small delay to ensure Firestore propagates the change
             await Future.delayed(const Duration(milliseconds: 500));
           } catch (clearError) {
-            developer.log('Error clearing evidence (text): $clearError');
+            debugPrint('Error clearing evidence (text): $clearError');
             rethrow;
           }
         }
@@ -416,11 +413,11 @@ class _MyPdpScreenState extends State<MyPdpScreen>
             goalId: goal.id,
             evidence: [result],
           );
-          developer.log('New text evidence attached for goal ${goal.id}');
+          debugPrint('New text evidence attached for goal ${goal.id}');
           // Small delay to ensure Firestore propagates the change
           await Future.delayed(const Duration(milliseconds: 500));
         } catch (attachError) {
-          developer.log('Error attaching text evidence: $attachError');
+          debugPrint('Error attaching text evidence: $attachError');
           rethrow;
         }
       }

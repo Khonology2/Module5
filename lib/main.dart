@@ -111,6 +111,7 @@ void main() async {
   // No .env file loading needed - backend URL is hardcoded in BackendAuthService
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // CONFLICT TEST: This line will conflict with MAIN branch
   // Ensure stable auth session persistence on web to avoid popup/redirect quirks
   if (kIsWeb) {
     try {
@@ -318,13 +319,14 @@ class _MyAppState extends State<MyApp> {
               },
               builder: (context, child) {
                 if (child == null) return const SizedBox.shrink();
-                return Stack(
-                  children: [
-                    FocusTraversalGroup(
-                      policy: WidgetOrderTraversalPolicy(),
-                      child: child,
-                    ),
-                  ],
+                // Flutter Web can assert during view focus changes when
+                // `WidgetOrderTraversalPolicy` queries semantic bounds before layout
+                // (e.g. `RenderTapRegionSurface was not laid out`), which causes a full
+                // page reload. Disable the global traversal group on web.
+                if (kIsWeb) return child;
+                return FocusTraversalGroup(
+                  policy: WidgetOrderTraversalPolicy(),
+                  child: child,
                 );
               },
               routes: {
@@ -724,6 +726,17 @@ class MyNavigatorObserver extends NavigatorObserver {
   @override
   void didReplace({Route? newRoute, Route? oldRoute}) {
     currentRouteNotifier.value = newRoute?.settings.name;
+  }
+
+  // ADDITIONAL CONFLICT TEST: This method will conflict with MAIN branch
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    currentRouteNotifier.value = previousRoute?.settings.name;
+    // Added extra logging for conflict testing - BRANCH Nathi-S11 VERSION
+    debugPrint('Route removed: ${route.settings.name}');
+    debugPrint('Previous route: ${previousRoute?.settings.name}');
+    debugPrint('Current route after removal: ${currentRouteNotifier.value}');
+    debugPrint('Navigation stack updated in Nathi-S11 branch');
   }
 
   @override

@@ -16,6 +16,8 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:pdh/services/database_service.dart';
 import 'package:pdh/services/manager_realtime_service.dart';
 import 'package:pdh/utils/firestore_safe.dart';
+import 'package:pdh/manager_badges_v2/manager_badge_category_detail_screen.dart';
+import 'package:pdh/models/badge.dart' as badge_model;
 
 @immutable
 class _NudgeFeedback {
@@ -95,6 +97,33 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   final Map<String, int> _timeline = {};
   final Map<String, TextEditingController> _reviewNotes = {};
 
+  String? _normalizeGoalId(dynamic raw) {
+    final s = raw?.toString().trim();
+    if (s == null || s.isEmpty) return null;
+
+    // Sometimes older alerts store a full path like "goals/<id>" or
+    // ".../goals/<id>". Firestore doc ids cannot contain "/" so we extract last.
+    if (s.contains('/')) {
+      final parts = s.split('/').where((p) => p.trim().isNotEmpty).toList();
+      if (parts.isEmpty) return null;
+      final last = parts.last.trim();
+      if (last.isEmpty) return null;
+      return last;
+    }
+
+    return s;
+  }
+
+  String? _goalIdFromAlert(Alert alert) {
+    final fromAction = alert.actionData?['goalId'];
+    return _normalizeGoalId(alert.relatedGoalId ?? fromAction);
+  }
+
+  bool _hasValidGoalId(Alert alert) {
+    final gid = _goalIdFromAlert(alert);
+    return gid != null && gid.isNotEmpty;
+  }
+
   Future<void> _showCenterNotice(BuildContext context, String message) async {
     return showDialog<void>(
       context: context,
@@ -121,6 +150,96 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           ],
         );
       },
+    );
+  }
+
+  badge_model.BadgeCategory? _managerCategoryFromName(String? raw) {
+    final s = (raw ?? '').trim();
+    if (s.isEmpty) return null;
+    try {
+      return badge_model.BadgeCategory.values.firstWhere((e) => e.name == s);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _managerCategoryTitle(badge_model.BadgeCategory c) {
+    switch (c) {
+      case badge_model.BadgeCategory.leadership:
+        return 'Leadership';
+      case badge_model.BadgeCategory.goals:
+        return 'Goals';
+      case badge_model.BadgeCategory.collaboration:
+        return 'Collaboration';
+      case badge_model.BadgeCategory.innovation:
+        return 'Innovation';
+      case badge_model.BadgeCategory.community:
+        return 'Community';
+      case badge_model.BadgeCategory.achievement:
+        return 'Achievements';
+      default:
+        return 'Badges';
+    }
+  }
+
+  Future<void> _openManagerBadgeFromAlert(Alert alert) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    final data = alert.actionData ?? const <String, dynamic>{};
+    final badgeId =
+        (data['badgeId'] ?? data['badgeDocId'] ?? '').toString().trim();
+    if (badgeId.isEmpty) {
+      Navigator.pushNamed(
+        context,
+        '/manager_portal',
+        arguments: {'initialRoute': '/manager_badges_points'},
+      );
+      return;
+    }
+
+    String? categoryName = data['badgeCategory']?.toString().trim();
+    if (categoryName == null || categoryName.isEmpty) {
+      try {
+        final doc = await FirestoreSafe.getDoc(
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('badges')
+              .doc(badgeId),
+        );
+        categoryName = doc.data()?['category']?.toString().trim();
+      } catch (_) {}
+    }
+    if (categoryName == null || categoryName.isEmpty) {
+      // Fallback for alerts that store a base badge id where the actual doc id differs.
+      try {
+        final q = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('badges')
+            .where('criteria.badgeId', isEqualTo: badgeId)
+            .limit(1)
+            .get();
+        if (q.docs.isNotEmpty) {
+          categoryName = q.docs.first.data()['category']?.toString().trim();
+        }
+      } catch (_) {}
+    }
+    final category = _managerCategoryFromName(categoryName) ??
+        badge_model.BadgeCategory.leadership;
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ManagerBadgeCategoryDetailScreen(
+          category: category,
+          title: _managerCategoryTitle(category),
+          embedded: widget.embedded,
+          initialBadgeId: badgeId,
+        ),
+      ),
     );
   }
 
@@ -174,8 +293,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   }
 
   void _showGoalReviewSheet(Alert alert) {
-    final goalId = alert.relatedGoalId;
-    if (goalId == null) return;
+    final goalId = _goalIdFromAlert(alert);
+    if (goalId == null || goalId.isEmpty) {
+      _showCenterNotice(
+        context,
+        'This alert is missing a valid goal link. Please refresh the inbox or ask the employee to resubmit the goal.',
+      );
+      return;
+    }
     _clarity.putIfAbsent(goalId, () => 3);
     _measurability.putIfAbsent(goalId, () => 3);
     _achievability.putIfAbsent(goalId, () => 3);
@@ -199,8 +324,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
           builder: (context, scrollController) {
             return Padding(
               padding: const EdgeInsets.all(16),
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirestoreSafe.stream(
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
                   FirebaseFirestore.instance
                       .collection('goals')
                       .doc(goalId)
@@ -208,7 +333,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
                 builder: (context, snap) {
                   Goal? goal;
-                  if (snap.hasData && snap.data!.exists) {
+                  if (snap.hasData && (snap.data?.exists ?? false)) {
                     try {
                       goal = Goal.fromFirestore(snap.data!);
                     } catch (_) {}
@@ -686,10 +811,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       items: SidebarConfig.getItemsForRole('manager'),
       currentRouteName: '/manager_inbox',
       onNavigate: (route) {
-        final current = ModalRoute.of(context)?.settings.name;
-        if (current != route) {
-          Navigator.pushNamed(context, route);
-        }
+        // Managers should navigate via the portal so the sidebar remains persistent
+        // and content swaps correctly for moved sidebar items (e.g. Review Team).
+        if (widget.embedded) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/manager_portal',
+          arguments: {'initialRoute': route},
+        );
       },
       onLogout: () async {
         final navigator = Navigator.of(context);
@@ -1191,7 +1320,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 style: AppTypography.bodySmall.copyWith(color: Colors.white54),
               ),
               const SizedBox(width: 8),
-              if (alert.type == AlertType.goalApprovalRequested)
+              if (alert.type == AlertType.goalApprovalRequested &&
+                  _hasValidGoalId(alert))
                 TextButton.icon(
                   onPressed: () => _showGoalReviewSheet(alert),
                   icon: const Icon(Icons.visibility_outlined),
@@ -1239,13 +1369,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               else if (alert.type == AlertType.badgeEarned ||
                   alert.type == AlertType.achievementUnlocked)
                 TextButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/manager_portal',
-                      arguments: {'initialRoute': '/manager_badges_points'},
-                    );
-                  },
+                  onPressed: () => _openManagerBadgeFromAlert(alert),
                   icon: const Icon(Icons.emoji_events),
                   label: const Text('View Badges'),
                 )
