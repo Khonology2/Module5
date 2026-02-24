@@ -7,7 +7,7 @@ import '../design_system/app_spacing.dart';
 import '../services/unified_milestone_audit.dart';
 
 class MilestoneAuditScreen extends StatefulWidget {
-  const MilestoneAuditScreen({Key? key}) : super(key: key);
+  const MilestoneAuditScreen({super.key});
 
   @override
   State<MilestoneAuditScreen> createState() => _MilestoneAuditScreenState();
@@ -437,7 +437,7 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
 class MilestoneAuditCard extends StatefulWidget {
   final Map<String, dynamic> entry;
 
-  const MilestoneAuditCard({required this.entry});
+  const MilestoneAuditCard({super.key, required this.entry});
 
   @override
   State<MilestoneAuditCard> createState() => MilestoneAuditCardState();
@@ -888,7 +888,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     if (timestamp == null) return 'Unknown time';
 
     final now = DateTime.now();
-    final eventTime = timestamp!.toDate();
+    final eventTime = timestamp.toDate();
     final difference = now.difference(eventTime);
 
     // Relative time for recent events
