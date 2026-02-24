@@ -11,7 +11,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:pdh/utils/pdf_saver.dart' show savePdfBytes;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:pdh/services/role_service.dart';
 import 'package:pdh/services/settings_service.dart';
@@ -1273,25 +1272,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       logoImage = null;
     }
     try {
-      final bottomData = await rootBundle.load('assets/discs.png');
+      final bottomData = await rootBundle.load('assets/khono_red_discs.png');
       bottomLogoImage = pw.MemoryImage(bottomData.buffer.asUint8List());
     } catch (_) {
       bottomLogoImage = null;
-    }
-
-    // Helper to render profile photo (try network then skip)
-    Future<pw.MemoryImage?> loadProfilePhoto(String? url) async {
-      if (url == null) return null;
-      try {
-        final uri = Uri.parse(url);
-        final resp = await http
-            .get(uri, headers: {'Cache-Control': 'no-cache'})
-            .timeout(const Duration(seconds: 6));
-        if (resp.statusCode == 200) {
-          return pw.MemoryImage(resp.bodyBytes);
-        }
-      } catch (_) {}
-      return null;
     }
 
     final profile = data['profile'] as Map<String, dynamic>? ?? {};
@@ -1302,23 +1286,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         (data['activities'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
         <Map<String, dynamic>>[];
     final badges = (data['badges'] as List<dynamic>?) ?? <dynamic>[];
-
-    // Append a cache-busting parameter so recently-updated profile photos are fetched
-    String? cacheBustedUrl(String? url) {
-      if (url == null) return null;
-      try {
-        final uri = Uri.parse(url);
-        final params = Map<String, String>.from(uri.queryParameters);
-        params['cb'] = DateTime.now().millisecondsSinceEpoch.toString();
-        return uri.replace(queryParameters: params).toString();
-      } catch (_) {
-        return '$url?cb=${DateTime.now().millisecondsSinceEpoch}';
-      }
-    }
-
-    final profilePhoto = await loadProfilePhoto(
-      cacheBustedUrl(profile['photoURL']?.toString()),
-    );
 
     // Compute goals overview stats
     int totalGoals = goals.length;
@@ -1341,15 +1308,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       byPriority[pri] = (byPriority[pri] ?? 0) + 1;
     }
 
-    // Footer builder (Page X of Y)
+    // Footer builder (Page X of Y and logo)
     pw.Widget buildFooter(pw.Context ctx) {
-      return pw.Container(
-        alignment: pw.Alignment.centerRight,
-        margin: const pw.EdgeInsets.only(top: 10),
-        child: pw.Text(
-          'Page ${ctx.pageNumber} of ${ctx.pagesCount} • Generated ${DateTime.now().toIso8601String()}',
-          style: pw.TextStyle(font: ttfFont, fontSize: 8),
-        ),
+      return pw.Column(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          if (bottomLogoImage != null)
+            pw.Center(
+              child: pw.Image(
+                bottomLogoImage,
+                width: 240,
+                height: 54,
+                fit: pw.BoxFit.contain,
+              ),
+            ),
+          if (bottomLogoImage != null) pw.SizedBox(height: 10),
+          pw.Container(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              'Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+            ),
+          ),
+        ],
       );
     }
 
@@ -1371,7 +1352,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                if (logoImage != null) pw.Image(logoImage, width: 80),
+                if (logoImage != null) pw.Image(logoImage, width: 180),
                 pw.Expanded(
                   child: pw.Container(
                     alignment: pw.Alignment.centerRight,
@@ -1382,7 +1363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Employee Development Report',
                           style: pw.TextStyle(
                             font: ttfFont,
-                            fontSize: 20,
+                            fontSize: 16,
                             fontWeight: pw.FontWeight.bold,
                             color: headerColor,
                           ),
@@ -1459,29 +1440,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  if (profilePhoto != null)
-                    pw.Container(
-                      width: 64,
-                      height: 64,
-                      decoration: pw.BoxDecoration(
-                        borderRadius: pw.BorderRadius.circular(6),
-                        border: pw.Border.all(color: PdfColors.grey300),
-                        image: pw.DecorationImage(
-                          image: profilePhoto,
-                          fit: pw.BoxFit.cover,
-                        ),
-                      ),
-                    )
-                  else
-                    pw.Container(
-                      width: 64,
-                      height: 64,
-                      alignment: pw.Alignment.center,
-                      child: pw.Text(
-                        'No photo',
-                        style: pw.TextStyle(font: ttfFont, fontSize: 9),
-                      ),
+                  pw.Container(
+                    width: 64,
+                    height: 64,
+                    alignment: pw.Alignment.center,
+                    child: pw.Text(
+                      'No photo',
+                      style: pw.TextStyle(font: ttfFont, fontSize: 9),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -1527,7 +1494,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         pw.SizedBox(height: 4),
                         pw.Text(
                           'Total Goals',
-                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            color: PdfColors.white,
+                            fontSize: 10,
+                          ),
                         ),
                       ],
                     ),
@@ -1549,7 +1520,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         pw.SizedBox(height: 4),
                         pw.Text(
                           'Completed',
-                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            color: PdfColors.white,
+                            fontSize: 10,
+                          ),
                         ),
                       ],
                     ),
@@ -1571,7 +1546,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         pw.SizedBox(height: 4),
                         pw.Text(
                           'Points',
-                          style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                          style: pw.TextStyle(
+                            font: ttfFont,
+                            color: PdfColors.white,
+                            fontSize: 10,
+                          ),
                         ),
                       ],
                     ),
@@ -1604,11 +1583,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           pw.Text(
                             e.key,
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                           pw.Text(
                             e.value.toString(),
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                         ],
                       ),
@@ -1640,11 +1627,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           pw.Text(
                             e.key,
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                           pw.Text(
                             e.value.toString(),
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                         ],
                       ),
@@ -1676,11 +1671,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           pw.Text(
                             e.key,
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                           pw.Text(
                             e.value.toString(),
-                            style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 10,
+                            ),
                           ),
                         ],
                       ),
@@ -1713,7 +1716,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             widgets.add(
               pw.Text(
                 'No goals found',
-                style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                style: pw.TextStyle(
+                  font: ttfFont,
+                  color: PdfColors.white,
+                  fontSize: 10,
+                ),
               ),
             );
           } else {
@@ -1737,9 +1744,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   (g['evidence'] as List?)?.map((e) => e.toString()).toList() ??
                   <String>[];
               final rawKpa = g['kpa']?.toString().trim();
-              final kpa = Goal.kpaLabel(rawKpa) ?? (rawKpa?.isNotEmpty == true
-                  ? rawKpa!
-                  : 'N/A');
+              final kpa =
+                  Goal.kpaLabel(rawKpa) ??
+                  (rawKpa?.isNotEmpty == true ? rawKpa! : 'N/A');
               final created = _formatTimestamp(g['createdAt']);
               final approvedAt = _formatTimestamp(g['approvedAt']);
 
@@ -1765,7 +1772,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       pw.SizedBox(height: 4),
                       pw.Text(
                         desc.toString(),
-                        style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                        style: pw.TextStyle(
+                          font: ttfFont,
+                          color: PdfColors.white,
+                          fontSize: 10,
+                        ),
                       ),
                       pw.SizedBox(height: 6),
                       pw.Row(
@@ -1818,12 +1829,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           pw.Text(
                             'Approval: $approval',
-                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 9,
+                            ),
                           ),
                           pw.Spacer(),
                           pw.Text(
                             'Approver: $approver',
-                            style: pw.TextStyle(font: ttfFont, fontSize: 9),
+                            style: pw.TextStyle(
+                              font: ttfFont,
+                              color: PdfColors.white,
+                              fontSize: 9,
+                            ),
                           ),
                         ],
                       ),
@@ -2021,7 +2040,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               widgets.add(
                 pw.Text(
                   'No badges to display.',
-                  style: pw.TextStyle(font: ttfFont, fontSize: 10),
+                  style: pw.TextStyle(
+                    font: ttfFont,
+                    color: PdfColors.white,
+                    fontSize: 10,
+                  ),
                 ),
               );
             }
@@ -2029,37 +2052,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           widgets.add(pw.SizedBox(height: 20));
 
-          // Footer metadata and bottom logo
           widgets.add(pw.Divider());
-          if (bottomLogoImage != null) {
-            widgets.add(
-              pw.Center(
-                child: pw.Image(
-                  bottomLogoImage,
-                  width: 160,
-                  height: 36,
-                  fit: pw.BoxFit.contain,
-                ),
-              ),
-            );
-          }
           widgets.add(pw.SizedBox(height: 6));
           widgets.add(
             pw.Text(
               'Export generated: ${_formatExportDate(data['exportDate'] ?? DateTime.now())}',
-              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+              style: pw.TextStyle(
+                font: ttfFont,
+                color: PdfColors.white,
+                fontSize: 8,
+              ),
             ),
           );
           widgets.add(
             pw.Text(
               'Data retention: This export contains personal data. Handle securely.',
-              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+              style: pw.TextStyle(
+                font: ttfFont,
+                color: PdfColors.white,
+                fontSize: 8,
+              ),
             ),
           );
           widgets.add(
             pw.Text(
-              'Support: support@example.com',
-              style: pw.TextStyle(font: ttfFont, fontSize: 8),
+              'Contact: info@khonology.com',
+              style: pw.TextStyle(
+                font: ttfFont,
+                color: PdfColors.white,
+                fontSize: 8,
+              ),
             ),
           );
 
@@ -2298,9 +2320,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else {
         return v.toString();
       }
-      // Remove fractional seconds
+      // Remove fractional seconds and time
       final iso = dt.toIso8601String();
-      return iso.split('.').first;
+      return iso.split('T').first;
     } catch (_) {
       return v.toString();
     }
