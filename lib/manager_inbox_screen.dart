@@ -82,6 +82,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   bool _unreadOnly = false;
   String _search = '';
   AlertPriority? _priorityFilter;
+  AlertAudience? _audienceFilter; // null=All, 'personal', 'team'
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
@@ -953,7 +954,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ),
           child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getPersonalAlertsForManager(user.uid),
+            stream: AlertService.getUserAlertsStream(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -982,6 +983,13 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                           a.title.toLowerCase().contains(q) ||
                           a.message.toLowerCase().contains(q),
                     )
+                    .toList();
+              }
+
+              // Apply audience filter if specified
+              if (_audienceFilter != null) {
+                items = items
+                    .where((a) => a.audience == _audienceFilter)
                     .toList();
               }
 
@@ -1155,7 +1163,24 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
       children: [
         Row(
           children: [
-            // Removed personal/team toggle - this screen is now dedicated to personal alerts only
+            // Audience filter chips
+            _inboxChoiceChip(
+              label: 'All',
+              selected: _audienceFilter == null,
+              onSelected: () => setState(() => _audienceFilter = null),
+            ),
+            _inboxChoiceChip(
+              label: 'Personal',
+              selected: _audienceFilter == AlertAudience.personal,
+              onSelected: () =>
+                  setState(() => _audienceFilter = AlertAudience.personal),
+            ),
+            _inboxChoiceChip(
+              label: 'Team',
+              selected: _audienceFilter == AlertAudience.team,
+              onSelected: () =>
+                  setState(() => _audienceFilter = AlertAudience.team),
+            ),
             const Spacer(),
             _inboxFilterChip(
               label: 'Unread',

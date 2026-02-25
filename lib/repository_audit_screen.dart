@@ -2932,7 +2932,7 @@ class _RepositoryAuditScreenState extends State<RepositoryAuditScreen> {
 class ProfessionalMilestoneAuditCard extends StatefulWidget {
   final Map<String, dynamic> entry;
 
-  const ProfessionalMilestoneAuditCard({required this.entry});
+  const ProfessionalMilestoneAuditCard({super.key, required this.entry});
 
   @override
   State<ProfessionalMilestoneAuditCard> createState() =>
@@ -3397,7 +3397,7 @@ class ProfessionalMilestoneAuditCardState
     if (timestamp == null) return 'Unknown time';
 
     final now = DateTime.now();
-    final eventTime = timestamp!.toDate();
+    final eventTime = timestamp.toDate();
     final difference = now.difference(eventTime);
 
     // Relative time for recent events
