@@ -1,6 +1,6 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-25T11:40:44.094070Z",
+  "generated_at": "2026-02-25T14:01:59.698490Z",
   "source_branch": "S11",
   "target_branch": "last-ticket",
   "status": "conflicts_detected",
