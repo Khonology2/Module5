@@ -1291,11 +1291,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           case 'overdue':
             return a.type == AlertType.goalOverdue;
           case 'performance':
-            return a.priority == AlertPriority.urgent ||
+            return a.type == AlertType.goalApprovalRejected ||
+                a.type == AlertType.milestoneDeletionRejected ||
+                a.type == AlertType.milestoneRisk ||
+                a.priority == AlertPriority.urgent ||
                 a.priority == AlertPriority.high;
           case 'risk':
-            return a.type == AlertType.milestoneDeletionRejected ||
-                a.type == AlertType.goalApprovalRejected;
+            return a.type == AlertType.goalApprovalRejected ||
+                a.type == AlertType.milestoneDeletionRejected ||
+                a.type == AlertType.seasonCompleted ||
+                a.type == AlertType.seasonProgressUpdate;
           default:
             return true;
         }
