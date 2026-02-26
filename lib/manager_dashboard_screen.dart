@@ -18,8 +18,12 @@ import 'package:pdh/services/database_service.dart';
 import 'package:pdh/models/goal.dart';
 import 'package:pdh/services/manager_tutorial_service.dart';
 import 'package:pdh/widgets/sidebar_state.dart';
+import 'package:pdh/widgets/version_badge.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -34,10 +38,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   final ManagerRealtimeService _realtime = ManagerRealtimeService();
   String _managerName = 'Manager';
   late Stream<List<EmployeeData>> _employeesStream;
-  late Stream<List<EmployeeData>> _assignedEmployeesStream;
   String? _currentProfilePhotoUrl;
   final Stopwatch _employeesLoadWatch = Stopwatch()..start();
-  List<String> _alternativeManagerNames = [];
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -47,22 +49,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     (index) => GlobalKey(),
   );
 
-  // Assigned employees collapse state
-  bool _isAssignedEmployeesExpanded = false;
-
-  // Search and UI state
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
-  final Set<String> _expandedEmployeeIds = <String>{};
-  final Set<String> _flippedEmployeeIds = <String>{};
-
   @override
   void initState() {
     super.initState();
     _redirectIfManagerStandalone();
     _loadManagerName();
     _employeesStream = _realtime.employeesStream();
-    _assignedEmployeesStream = _realtime.employeesStream();
     _employeesLoadWatch
       ..reset()
       ..start();
@@ -98,126 +90,22 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       String name = 'Manager';
-
-      developer.log(
-        'AssignedEmployees DEBUG: Starting manager name loading',
-        name: 'ManagerDashboard',
-      );
-
       if (user != null) {
-        developer.log(
-          'AssignedEmployees DEBUG: User logged in - UID: ${user.uid}, Email: ${user.email}',
-          name: 'ManagerDashboard',
-        );
-
-        // Try to get name from onboarding collection first
-        final onboardingName = await DatabaseService.getUserNameFromOnboarding(
-          userId: user.uid,
-          email: user.email,
-        );
-
-        if (onboardingName != null && onboardingName.isNotEmpty) {
-          // Use full name from onboarding
-          name = onboardingName;
-          developer.log(
-            'AssignedEmployees DEBUG: Found name from onboarding: "$name"',
-            name: 'ManagerDashboard',
-          );
-        } else {
-          developer.log(
-            'AssignedEmployees DEBUG: No name found in onboarding, trying fallbacks',
-            name: 'ManagerDashboard',
-          );
-
-          // Fallback to userProfile or Firebase Auth
-          final profile = await DatabaseService.getUserProfile(user.uid);
-          final display = profile.displayName.trim();
-          if (display.isNotEmpty) {
-            name = display; // Use full display name, not just first name
-            developer.log(
-              'AssignedEmployees DEBUG: Using profile display name: "$name"',
-              name: 'ManagerDashboard',
-            );
-          } else if ((user.displayName ?? '').isNotEmpty) {
-            name = user.displayName!; // Use full display name
-            developer.log(
-              'AssignedEmployees DEBUG: Using Firebase display name: "$name"',
-              name: 'ManagerDashboard',
-            );
-          } else if ((user.email ?? '').isNotEmpty) {
-            name = user.email!.split('@').first;
-            developer.log(
-              'AssignedEmployees DEBUG: Using email username: "$name"',
-              name: 'ManagerDashboard',
-            );
-          }
+        final profile = await DatabaseService.getUserProfile(user.uid);
+        final display = profile.displayName.trim();
+        if (display.isNotEmpty) {
+          name = display.split(' ').first;
+        } else if ((user.displayName ?? '').isNotEmpty) {
+          name = user.displayName!.split(' ').first;
+        } else if ((user.email ?? '').isNotEmpty) {
+          name = user.email!.split('@').first;
         }
       }
-
       if (!mounted) return;
       setState(() {
         _managerName = name;
-        // Generate alternative manager names to try
-        _alternativeManagerNames = _generateAlternativeManagerNames(name);
       });
-
-      developer.log(
-        'AssignedEmployees DEBUG: Final manager name set to: "$_managerName"',
-        name: 'ManagerDashboard',
-      );
-      developer.log(
-        'AssignedEmployees DEBUG: Generated ${_alternativeManagerNames.length} alternative names',
-        name: 'ManagerDashboard',
-      );
-
-      for (int i = 0; i < _alternativeManagerNames.length; i++) {
-        developer.log(
-          'AssignedEmployees DEBUG: Alternative ${i + 1}: "${_alternativeManagerNames[i]}"',
-          name: 'ManagerDashboard',
-        );
-      }
-    } catch (e) {
-      developer.log(
-        'AssignedEmployees DEBUG: Error loading manager name: $e',
-        name: 'ManagerDashboard',
-        error: e,
-      );
-    }
-  }
-
-  List<String> _generateAlternativeManagerNames(String managerName) {
-    final alternatives = <String>[];
-
-    // Add the original name (this should be the full name from onboarding)
-    alternatives.add(managerName);
-
-    // Add email format
-    final user = FirebaseAuth.instance.currentUser;
-    if (user?.email != null) {
-      alternatives.add(user!.email!);
-    }
-
-    // Add common variations - but prioritize full name with space
-    if (managerName.contains(' ')) {
-      final parts = managerName.split(' ');
-      if (parts.length >= 2) {
-        // Add first name only
-        alternatives.add(parts.first);
-        // Add last name only
-        alternatives.add(parts.last);
-        // Add with different spacing
-        alternatives.add('${parts.first}${parts.last}'); // No space
-      }
-    }
-
-    // Add the expected format "name surname"
-    // This should match the database format exactly
-    alternatives.add('Nkosinathi Radebe');
-
-    // Add email as fallback
-    alternatives.add('Nkosinathi.Radebe1@khonology.com');
-
-    return alternatives.toSet().toList(); // Remove duplicates
+    } catch (_) {}
   }
 
   Future<void> _redirectIfManagerStandalone() async {
@@ -605,8 +493,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               _buildSeasonProgressAlerts(),
               const SizedBox(height: AppSpacing.xl),
               _buildTopTwoPerformers(employees),
-              const SizedBox(height: AppSpacing.xl),
-              _buildAssignedEmployees(),
+              const SizedBox(height: AppSpacing.lg),
+              _buildEmployeesAssigned(employees),
+              const SizedBox(height: AppSpacing.lg),
+              const Align(alignment: Alignment.center, child: VersionBadge()),
               const SizedBox(height: AppSpacing.xxl),
             ],
           );
@@ -669,6 +559,11 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               ),
             ),
             child: content,
+          ),
+          const Positioned(
+            left: 0,
+            bottom: 0,
+            child: SafeArea(left: true, bottom: true, child: VersionBadge()),
           ),
         ],
       ),
@@ -1145,6 +1040,273 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  Widget _buildEmployeesAssigned(List<EmployeeData> employees) {
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Employees Assigned', style: AppTypography.heading2),
+              IconButton(
+                onPressed: () async {
+                  await _testEmployeesAssignedQuery();
+                },
+                icon: const Icon(
+                  Icons.bug_report,
+                  color: AppColors.activeColor,
+                ),
+                tooltip: 'Test Widget Query',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          StreamBuilder<QuerySnapshot>(
+            stream: _getAssignedEmployeesStream(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.activeColor,
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Text(
+                  'Error loading assigned employees: ${snapshot.error}',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.dangerColor,
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Text(
+                  'No employees assigned to you yet.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                );
+              }
+
+              final assignedEmployees = snapshot.data!.docs;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Total assigned: ${assignedEmployees.length}',
+                    style: AppTypography.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...assignedEmployees.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final displayName =
+                        data['displayName'] ??
+                        data['name'] ??
+                        data['fullName'] ??
+                        'Unknown User';
+                    final email = data['email'] ?? 'No email';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.person_outline,
+                              color: AppColors.activeColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    displayName,
+                                    style: AppTypography.bodyMedium.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    email,
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.activeColor.withValues(
+                                  alpha: 0.2,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.activeColor.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                'Assigned',
+                                style: AppTypography.caption.copyWith(
+                                  color: AppColors.activeColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    // ignore: unnecessary_to_list_in_spreads
+                  }).toList(),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Test the employees assigned query
+  Future<void> _testEmployeesAssignedQuery() async {
+    try {
+      const managerFullName =
+          'Nkosinathi Radebe'; // Use same hardcoded name as stream
+      developer.log(
+        '=== TESTING EMPLOYEES ASSIGNED QUERY ===',
+        name: 'ManagerDashboard',
+      );
+      developer.log(
+        'Manager Name: "$managerFullName"',
+        name: 'ManagerDashboard',
+      );
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('onboarding')
+          .where('manager', isEqualTo: managerFullName)
+          .get();
+
+      final userCount = querySnapshot.docs.length;
+      developer.log('Total Users Found: $userCount', name: 'ManagerDashboard');
+
+      for (int i = 0; i < querySnapshot.docs.length; i++) {
+        final doc = querySnapshot.docs[i];
+        final data = doc.data();
+        final displayName =
+            data['displayName'] ??
+            data['name'] ??
+            data['fullName'] ??
+            'Unknown User';
+        final email = data['email'] ?? 'No email';
+        final manager = data['manager'] ?? 'No manager';
+
+        developer.log(
+          'User ${i + 1}: $displayName ($email) - Manager: $manager',
+          name: 'ManagerDashboard',
+        );
+      }
+
+      if (userCount == 0) {
+        developer.log(
+          'WARNING: No users found. Check manager name format and user data.',
+          name: 'ManagerDashboard',
+        );
+      }
+
+      developer.log('=== TEST COMPLETED ===', name: 'ManagerDashboard');
+
+      if (mounted) {
+        _showTestResultsDialog(userCount, managerFullName, null);
+      }
+    } catch (e) {
+      developer.log('TEST FAILED: $e', name: 'ManagerDashboard');
+      if (mounted) {
+        _showTestResultsDialog(0, '', e.toString());
+      }
+    }
+  }
+
+  /// Show test results dialog
+  void _showTestResultsDialog(
+    int userCount,
+    String managerName,
+    String? error,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(error == null ? '✅ Test Passed' : '❌ Test Failed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              error == null
+                  ? 'Query test completed successfully'
+                  : 'Query test failed',
+            ),
+            const SizedBox(height: 8),
+            if (error == null) ...[
+              Text('Manager: $managerName'),
+              Text('Users Found: $userCount'),
+              if (userCount == 0) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'No users found. Check debug logs for details.',
+                  style: TextStyle(color: Colors.orange),
+                ),
+              ],
+            ] else ...[
+              Text('Error: $error'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Get stream of employees from onboarding collection assigned to this manager
+  Stream<QuerySnapshot> _getAssignedEmployeesStream() {
+    // For now, use a hardcoded name to test - will be replaced with async version later
+    const managerFullName = 'Nkosinathi Radebe';
+
+    return FirebaseFirestore.instance
+        .collection('onboarding')
+        .where('manager', isEqualTo: managerFullName)
+        .snapshots();
+  }
+
   Widget _buildActiveStatusIndicator(EmployeeData employee) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -1382,717 +1544,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  Widget _buildAssignedEmployees() {
-    return StreamBuilder<List<EmployeeData>>(
-      stream: _assignedEmployeesStream,
-      builder: (context, assignedEmployeesSnap) {
-        if (assignedEmployeesSnap.hasError) {
-          return _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Assigned Employees', style: AppTypography.heading2),
-                const SizedBox(height: 12),
-                Text(
-                  'Error loading assigned employees: ${assignedEmployeesSnap.error}',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.dangerColor,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (!assignedEmployeesSnap.hasData) {
-          return _card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Assigned Employees', style: AppTypography.heading2),
-                const SizedBox(height: 12),
-                const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.activeColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final assignedEmployees = assignedEmployeesSnap.data!;
-
-        return _card(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.people, color: AppColors.activeColor, size: 20),
-                  const SizedBox(width: 8),
-                  Text('Assigned Employees', style: AppTypography.heading2),
-                  const SizedBox(width: 8),
-                  // Dropdown arrow button next to title
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _isAssignedEmployeesExpanded =
-                            !_isAssignedEmployeesExpanded;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Icon(
-                        _isAssignedEmployeesExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        color: AppColors.activeColor,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.activeColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${assignedEmployees.length}',
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.activeColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Search field
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase();
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search employees by name or job title...',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: Colors.white.withValues(alpha: 0.6),
-                    ),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(
-                              Icons.clear,
-                              color: Colors.white.withValues(alpha: 0.6),
-                            ),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Show content only when expanded
-              if (_isAssignedEmployeesExpanded) ...[
-                if (assignedEmployees.isEmpty)
-                  Text(
-                    'No employees assigned to you yet',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  )
-                else
-                  Column(
-                    children: assignedEmployees
-                        .where((employee) {
-                          // Filter by search query
-                          String fullName = employee.profile.displayName
-                              .toLowerCase();
-                          String jobTitle = employee.profile.jobTitle
-                              .toLowerCase();
-                          bool matchesSearch =
-                              _searchQuery.isEmpty ||
-                              fullName.contains(_searchQuery) ||
-                              jobTitle.contains(_searchQuery);
-
-                          // Only show employees with valid names
-                          bool hasValidName =
-                              fullName.isNotEmpty &&
-                              employee.profile.displayName.trim() !=
-                                  'Unknown Employee' &&
-                              !employee.profile.displayName.startsWith(
-                                'user_',
-                              ) &&
-                              !employee.profile.displayName.contains('@') &&
-                              employee.profile.displayName.trim().length > 2;
-
-                          return matchesSearch && hasValidName;
-                        })
-                        .map((employee) {
-                          // Extract name and surname from displayName
-                          String fullName = employee.profile.displayName;
-                          String name = '';
-                          String surname = '';
-
-                          // Try to parse name and surname from displayName
-                          if (fullName.contains(' ')) {
-                            final parts = fullName.split(' ');
-                            name = parts.first;
-                            surname = parts.sublist(1).join(' ');
-                          } else {
-                            name = fullName;
-                            surname = '';
-                          }
-
-                          // Debug logging for name and surname
-                          developer.log(
-                            'AssignedEmployees DEBUG: Employee - Name: "$name", Surname: "$surname", Full: "$fullName"',
-                            name: 'ManagerDashboard',
-                          );
-
-                          return _buildInteractiveEmployeeCard(employee);
-                        })
-                        .toList(),
-                  ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // Interactive employee card with toggle animation and expandable stats
-  Widget _buildInteractiveEmployeeCard(EmployeeData employee) {
-    final employeeId = employee.profile.uid;
-    final isFlipped = _flippedEmployeeIds.contains(employeeId);
-    final isExpanded = _expandedEmployeeIds.contains(employeeId);
-
-    // Calculate progress percentage
-    double progressPercentage = 0.0;
-    if (employee.goals.isNotEmpty) {
-      int completedGoals = employee.goals
-          .where(
-            (g) =>
-                g.status.toString().toLowerCase() == 'completed' ||
-                g.status.toString().toLowerCase() == 'done',
-          )
-          .length;
-      progressPercentage = (completedGoals / employee.goals.length) * 100;
-    }
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      constraints: BoxConstraints(
-        minHeight: 120,
-        maxHeight: isFlipped ? 400 : 200, // More reasonable height limits
-      ),
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            if (_flippedEmployeeIds.contains(employeeId)) {
-              _flippedEmployeeIds.remove(employeeId);
-            } else {
-              _flippedEmployeeIds.add(employeeId);
-            }
-          });
-        },
-        child: Container(
-          width: double.infinity, // Ensure full width
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: isFlipped ? 10.0 : 5.0,
-                offset: Offset(0, isFlipped ? 5.0 : 2.0),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            // Add scroll for overflow content
-            child: isFlipped
-                ? _buildCardBack(employee)
-                : _buildCardFront(employee, progressPercentage, isExpanded),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Front of card with basic info and progress bar
-  Widget _buildCardFront(
-    EmployeeData employee,
-    double progressPercentage,
-    bool isExpanded,
-  ) {
-    String fullName = employee.profile.displayName;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.activeColor.withValues(alpha: 0.1),
-                border: Border.all(
-                  color: AppColors.activeColor.withValues(alpha: 0.3),
-                ),
-              ),
-              child:
-                  employee.profile.profilePhotoUrl != null &&
-                      employee.profile.profilePhotoUrl!.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        employee.profile.profilePhotoUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.person,
-                          color: AppColors.activeColor,
-                          size: 20,
-                        ),
-                      ),
-                    )
-                  : Icon(Icons.person, color: AppColors.activeColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    fullName,
-                    style:
-                        AppTypography.bodyText?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ) ??
-                        AppTypography.bodyText,
-                  ),
-                  if (employee.profile.jobTitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      employee.profile.jobTitle,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _buildActiveStatusIndicator(employee),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${employee.totalPoints}',
-                  style: AppTypography.heading4.copyWith(
-                    color: AppColors.activeColor,
-                  ),
-                ),
-                Text(
-                  'points',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // Progress bar with color coding
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Goal Progress',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  '${progressPercentage.toStringAsFixed(0)}%',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: _getProgressColor(progressPercentage),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeInOut,
-              child: LinearProgressIndicator(
-                value: progressPercentage / 100,
-                backgroundColor: AppColors.borderColor,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  _getProgressColor(progressPercentage),
-                ),
-                minHeight: 6,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        // Expandable quick stats
-        GestureDetector(
-          onTap: () {
-            setState(() {
-              if (_expandedEmployeeIds.contains(employee.profile.uid)) {
-                _expandedEmployeeIds.remove(employee.profile.uid);
-              } else {
-                _expandedEmployeeIds.add(employee.profile.uid);
-              }
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: AppColors.activeColor,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  isExpanded ? 'Hide Quick Stats' : 'Show Quick Stats',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.activeColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (isExpanded) ...[
-          const SizedBox(height: 12),
-          _buildQuickStats(employee),
-        ],
-      ],
-    );
-  }
-
-  // Back of card with detailed stats
-  Widget _buildCardBack(EmployeeData employee) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Detailed Statistics',
-            style: AppTypography.heading4.copyWith(
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildDetailedStats(employee),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _flippedEmployeeIds.remove(employee.profile.uid);
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.activeColor,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Flip Back'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Quick stats section
-  Widget _buildQuickStats(EmployeeData employee) {
-    int completedGoals = employee.goals
-        .where(
-          (g) =>
-              g.status.toString().toLowerCase() == 'completed' ||
-              g.status.toString().toLowerCase() == 'done',
-        )
-        .length;
-    int totalGoals = employee.goals.length;
-    int activeGoals = employee.goals
-        .where(
-          (g) =>
-              g.status.toString().toLowerCase() == 'active' ||
-              g.status.toString().toLowerCase() == 'in_progress',
-        )
-        .length;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem(
-                'Total Goals',
-                '$totalGoals',
-                AppColors.activeColor,
-              ),
-              _buildStatItem(
-                'Completed',
-                '$completedGoals',
-                AppColors.successColor,
-              ),
-              _buildStatItem('Active', '$activeGoals', AppColors.warningColor),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Badges Earned',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: employee.profile.badges
-                .take(6)
-                .map(
-                  (badge) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.activeColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      badge,
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.activeColor,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Detailed stats section
-  Widget _buildDetailedStats(EmployeeData employee) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildDetailRow('Employee ID', employee.profile.uid),
-        _buildDetailRow('Email', employee.profile.email),
-        _buildDetailRow('Department', employee.profile.department),
-        _buildDetailRow(
-          'Join Date',
-          _formatDate(employee.profile.lastActivityAt),
-        ),
-        _buildDetailRow(
-          'Last Active',
-          _formatDate(employee.profile.lastActivityAt),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Goals Breakdown',
-          style: AppTypography.bodySmall.copyWith(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 6),
-        ..._buildGoalsBreakdown(employee.goals),
-      ],
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: AppTypography.heading4.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildGoalsBreakdown(List<Goal> goals) {
-    final statusCount = <String, int>{};
-    for (final goal in goals) {
-      final status = goal.status.toString().toLowerCase();
-      statusCount[status] = (statusCount[status] ?? 0) + 1;
-    }
-
-    return statusCount.entries
-        .map(
-          (entry) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Text(
-                  '${entry.key}:',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${entry.value}',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: _getStatusColor(entry.key),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        )
-        .toList();
-  }
-
-  // Helper methods
-  Color _getProgressColor(double percentage) {
-    if (percentage >= 80) return AppColors.successColor;
-    if (percentage >= 60) return AppColors.warningColor;
-    return AppColors.dangerColor;
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'done':
-        return AppColors.successColor;
-      case 'active':
-      case 'in_progress':
-        return AppColors.activeColor;
-      case 'overdue':
-        return AppColors.dangerColor;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Never';
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
   Widget _buildQuickActions() {
     return AppComponents.card(
       child: Column(
@@ -2149,11 +1600,5 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 }
