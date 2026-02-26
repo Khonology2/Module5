@@ -1161,34 +1161,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            // Audience filter chips
-            _inboxChoiceChip(
-              label: 'All',
-              selected: _audienceFilter == null,
-              onSelected: () => setState(() => _audienceFilter = null),
-            ),
-            _inboxChoiceChip(
-              label: 'Personal',
-              selected: _audienceFilter == AlertAudience.personal,
-              onSelected: () =>
-                  setState(() => _audienceFilter = AlertAudience.personal),
-            ),
-            _inboxChoiceChip(
-              label: 'Team',
-              selected: _audienceFilter == AlertAudience.team,
-              onSelected: () =>
-                  setState(() => _audienceFilter = AlertAudience.team),
-            ),
-            const Spacer(),
-            _inboxFilterChip(
-              label: 'Unread',
-              selected: _unreadOnly,
-              onSelected: (v) => setState(() => _unreadOnly = v),
-            ),
-          ],
-        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -1213,6 +1185,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               selected: _typeFilter == 'approval_request',
               onSelected: () =>
                   setState(() => _typeFilter = 'approval_request'),
+            ),
+            const Spacer(),
+            _inboxFilterChip(
+              label: 'Unread',
+              selected: _unreadOnly,
+              onSelected: (v) => setState(() => _unreadOnly = v),
             ),
           ],
         ),
