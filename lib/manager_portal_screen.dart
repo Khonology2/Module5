@@ -39,6 +39,8 @@ class ManagerPortalScreen extends StatefulWidget {
 class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   String _currentRoute = '/dashboard'; // Default to Dashboard
   bool _didInitFromArgs = false;
+  /// Incremented each time we navigate to manager_alerts_nudges so the screen loads fresh data.
+  int _alertsScreenKey = 0;
 
   // Tutorial state
   bool _shouldShowTutorial = false;
@@ -61,7 +63,10 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
       case '/progress_visuals':
         return const ProgressVisualsScreen(embedded: true);
       case '/manager_alerts_nudges':
-        return const ManagerAlertsNudgesScreen(embedded: true);
+        return ManagerAlertsNudgesScreen(
+          key: ValueKey('manager_alerts_$_alertsScreenKey'),
+          embedded: true,
+        );
       case '/manager_inbox':
         return const ManagerInboxScreen(embedded: true);
       case '/alerts_nudges':
@@ -85,6 +90,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
 
   void _onNavigate(String route) {
     setState(() {
+      if (route == '/manager_alerts_nudges') {
+        _alertsScreenKey++;
+      }
       _currentRoute = route;
     });
   }

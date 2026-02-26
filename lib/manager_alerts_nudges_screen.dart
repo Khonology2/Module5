@@ -424,6 +424,16 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
             );
           }
 
+          if (!snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.activeColor,
+                ),
+              ),
+            );
+          }
+
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -1100,23 +1110,23 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                 onSelected: () => setState(() => _alertTypeFilter = null),
               ),
               _buildFilterChip(
-                label: 'Inactive Employees ⚠️',
+                label: 'Inactive Employees',
                 selected: _alertTypeFilter == 'inactive',
                 onSelected: () => setState(() => _alertTypeFilter = 'inactive'),
               ),
               _buildFilterChip(
-                label: 'Overdue Goals 📅',
+                label: 'Overdue Goals',
                 selected: _alertTypeFilter == 'overdue',
                 onSelected: () => setState(() => _alertTypeFilter = 'overdue'),
               ),
               _buildFilterChip(
-                label: 'Performance Anomalies 📉',
+                label: 'Performance Anomalies',
                 selected: _alertTypeFilter == 'performance',
                 onSelected: () =>
                     setState(() => _alertTypeFilter = 'performance'),
               ),
               _buildFilterChip(
-                label: 'Team Risk Signals 🚨',
+                label: 'Team Risk Signals',
                 selected: _alertTypeFilter == 'risk',
                 onSelected: () => setState(() => _alertTypeFilter = 'risk'),
               ),
@@ -1242,9 +1252,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
       ),
       selected: selected,
       onSelected: (_) => onSelected(),
+      showCheckmark: false,
       backgroundColor: Colors.black.withValues(alpha: 0.3),
       selectedColor: AppColors.activeColor,
-      checkmarkColor: Colors.white,
       side: BorderSide(
         color: selected
             ? AppColors.activeColor
@@ -1467,17 +1477,15 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           case 'inactive':
             return a.type == AlertType.inactivity;
           case 'overdue':
-            return a.type == AlertType.goalOverdue;
+            return a.type == AlertType.goalOverdue ||
+                a.title.toLowerCase().contains('overdue') ||
+                a.message.toLowerCase().contains('overdue');
           case 'performance':
-            return a.type == AlertType.goalApprovalRejected ||
-                a.type == AlertType.milestoneDeletionRejected ||
-                a.type == AlertType.milestoneRisk ||
+            return a.type == AlertType.milestoneRisk ||
                 a.priority == AlertPriority.urgent ||
                 a.priority == AlertPriority.high;
           case 'risk':
-            return a.type == AlertType.goalApprovalRejected ||
-                a.type == AlertType.milestoneDeletionRejected ||
-                a.type == AlertType.seasonCompleted ||
+            return a.type == AlertType.seasonCompleted ||
                 a.type == AlertType.seasonProgressUpdate;
           default:
             return true;
