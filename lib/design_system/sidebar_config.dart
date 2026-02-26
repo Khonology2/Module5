@@ -117,14 +117,10 @@ class SidebarConfig {
       label: 'Dashboard',
       route: '/dashboard',
     ),
-    SidebarItem(
-      icon: Icons.person,
-      label: 'Goal Workspace',
-      route: '/my_pdp',
-    ),
+    SidebarItem(icon: Icons.person, label: 'Goal Workspace', route: '/my_pdp'),
     SidebarItem(
       icon: Icons.inbox_outlined,
-      label: 'Inbox',
+      label: 'Manager IBox',
       route: '/manager_inbox',
     ),
     itemWithAssets(

@@ -79,9 +79,9 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor.withOpacity(0.95),
+      backgroundColor: AppColors.backgroundColor.withValues(alpha: 0.95),
       appBar: AppBar(
-        backgroundColor: AppColors.elevatedBackground.withOpacity(0.9),
+        backgroundColor: AppColors.elevatedBackground.withValues(alpha: 0.9),
         elevation: 0,
         title: Text(
           'Milestone Audit Trail',
@@ -126,8 +126,8 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.backgroundColor.withOpacity(0.3),
-            AppColors.backgroundColor.withOpacity(0.1),
+            AppColors.backgroundColor.withValues(alpha: 0.3),
+            AppColors.backgroundColor.withValues(alpha: 0.1),
           ],
         ),
       ),
@@ -221,8 +221,8 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.backgroundColor.withOpacity(0.3),
-            AppColors.backgroundColor.withOpacity(0.1),
+            AppColors.backgroundColor.withValues(alpha: 0.3),
+            AppColors.backgroundColor.withValues(alpha: 0.1),
           ],
         ),
       ),
@@ -342,10 +342,10 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+          colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.05)],
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,13 +389,13 @@ class _MilestoneAuditScreenState extends State<MilestoneAuditScreen>
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.activeColor.withOpacity(0.1),
-            AppColors.activeColor.withOpacity(0.05),
+            AppColors.activeColor.withValues(alpha: 0.1),
+            AppColors.activeColor.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.activeColor.withOpacity(0.2),
+          color: AppColors.activeColor.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -497,17 +497,17 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground.withOpacity(0.9),
+        color: AppColors.cardBackground.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color:
-              (actionInfo['color'] as Color?)?.withOpacity(0.2) ??
+              (actionInfo['color'] as Color?)?.withValues(alpha: 0.2) ??
               Colors.transparent,
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -529,7 +529,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: (actionInfo['color'] as Color).withOpacity(0.1),
+                      color: (actionInfo['color'] as Color).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -579,7 +579,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.infoColor.withOpacity(0.1),
+                        color: AppColors.infoColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -609,7 +609,7 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
                 Container(
                   margin: const EdgeInsets.symmetric(vertical: 12),
                   height: 1,
-                  color: AppColors.backgroundColor.withOpacity(0.3),
+                  color: AppColors.backgroundColor.withValues(alpha: 0.3),
                 ),
 
               // Expanded Details
@@ -673,10 +673,10 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
+                color: statusColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: statusColor.withOpacity(0.3),
+                  color: statusColor.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),
@@ -793,9 +793,9 @@ class MilestoneAuditCardState extends State<MilestoneAuditCard>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
+        color: statusColor.withValues(alpha : 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: statusColor.withOpacity(0.3), width: 1),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         status,

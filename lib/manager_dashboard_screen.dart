@@ -169,6 +169,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         'AssignedEmployees DEBUG: Generated ${_alternativeManagerNames.length} alternative names',
         name: 'ManagerDashboard',
       );
+
       for (int i = 0; i < _alternativeManagerNames.length; i++) {
         developer.log(
           'AssignedEmployees DEBUG: Alternative ${i + 1}: "${_alternativeManagerNames[i]}"',

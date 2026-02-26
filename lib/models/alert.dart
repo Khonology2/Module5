@@ -37,12 +37,18 @@ enum AlertType {
   profileIncomplete, // User profile is incomplete
 }
 
+enum AlertAudience {
+  personal, // For the manager themselves
+  team, // For the manager as supervisor of their team
+}
+
 enum AlertPriority { low, medium, high, urgent }
 
 class Alert {
   final String id;
   final String userId;
   final AlertType type;
+  final AlertAudience audience;
   final AlertPriority priority;
   final String title;
   final String message;
@@ -61,6 +67,7 @@ class Alert {
     required this.id,
     required this.userId,
     required this.type,
+    required this.audience,
     required this.priority,
     required this.title,
     required this.message,
@@ -75,6 +82,15 @@ class Alert {
     this.fromUserId,
     this.fromUserName,
   });
+
+  static AlertAudience _parseAlertAudience(String? raw) {
+    // Default to personal for backwards compatibility
+    if (raw == null || raw.isEmpty) return AlertAudience.personal;
+    return AlertAudience.values.firstWhere(
+      (e) => e.name == raw,
+      orElse: () => AlertAudience.personal,
+    );
+  }
 
   static AlertType parseAlertType(String raw) {
     // Legacy strings written directly by older services
@@ -114,6 +130,7 @@ class Alert {
       id: doc.id,
       userId: data['userId'] ?? '',
       type: parseAlertType((data['type'] ?? 'goalCreated').toString()),
+      audience: _parseAlertAudience(data['audience']?.toString()),
       priority: AlertPriority.values.firstWhere(
         (e) => e.name == (data['priority'] ?? 'medium'),
         orElse: () => AlertPriority.medium,
@@ -145,6 +162,7 @@ class Alert {
       id: id ?? (map['id']?.toString() ?? ''),
       userId: map['userId']?.toString() ?? '',
       type: parseAlertType((map['type'] ?? 'goalCreated').toString()),
+      audience: _parseAlertAudience(map['audience']?.toString()),
       priority: AlertPriority.values.firstWhere(
         (e) => e.name == (map['priority'] ?? 'medium'),
         orElse: () => AlertPriority.medium,
@@ -170,6 +188,7 @@ class Alert {
     return {
       'userId': userId,
       'type': type.name,
+      'audience': audience.name,
       'priority': priority.name,
       'title': title,
       'message': message,
@@ -190,6 +209,7 @@ class Alert {
     String? id,
     String? userId,
     AlertType? type,
+    AlertAudience? audience,
     AlertPriority? priority,
     String? title,
     String? message,
@@ -208,6 +228,7 @@ class Alert {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       type: type ?? this.type,
+      audience: audience ?? this.audience,
       priority: priority ?? this.priority,
       title: title ?? this.title,
       message: message ?? this.message,
