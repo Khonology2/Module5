@@ -20,6 +20,7 @@ import 'package:pdh/services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pdh/services/manager_badge_evaluator.dart';
 import 'package:pdh/services/role_service.dart';
+import 'package:pdh/manager_employee_detail_screen.dart';
 
 class ManagerAlertsNudgesScreen extends StatefulWidget {
   final bool embedded;
@@ -486,7 +487,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildStatsRow(employees),
+                          employees.isEmpty
+                              ? _buildStatsRowSkeleton()
+                              : _buildStatsRow(employees),
                           const SizedBox(height: AppSpacing.md),
                           _buildFilterBar(),
                         ],
@@ -737,12 +740,20 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
           // Build the categorized alert sections (must be box widgets for SliverList)
           final sections = <Widget>[];
+          final firstSectionPadding = EdgeInsets.fromLTRB(
+            AppSpacing.xxl,
+            AppSpacing.md,
+            AppSpacing.xxl,
+            AppSpacing.xxl,
+          );
 
           // Critical Issues Section
           if (criticalIssues.isNotEmpty) {
             sections.add(
               Padding(
-                padding: AppSpacing.screenPadding,
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🔴 Critical Issues',
                   criticalIssues,
@@ -758,7 +769,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           if (performanceConcerns.isNotEmpty) {
             sections.add(
               Padding(
-                padding: AppSpacing.screenPadding,
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🟡 Performance Concerns',
                   performanceConcerns,
@@ -774,7 +787,9 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           if (monitoring.isNotEmpty) {
             sections.add(
               Padding(
-                padding: AppSpacing.screenPadding,
+                padding: sections.isEmpty
+                    ? firstSectionPadding
+                    : AppSpacing.screenPadding,
                 child: _buildAlertSection(
                   '🟢 Monitoring',
                   monitoring,
@@ -859,8 +874,68 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
 
   // removed skeleton placeholders
 
+  /// Shown while team data is loading so we don't flash 0,0,0 before real data.
+  Widget _buildStatsRowSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Inactive Employees',
+                '—',
+                AppColors.warningColor,
+                Icons.person_off,
+                subtitle: '3+ days inactive',
+                imageAsset:
+                    'assets/Information_Detail/Information_Red_Badge_White.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Overdue Goals',
+                '—',
+                AppColors.dangerColor,
+                Icons.calendar_today,
+                subtitle: 'Need attention',
+                imageAsset:
+                    'assets/Time_Allocation_Approval/Allocation_Red Badge_White.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Performance Risks',
+                '—',
+                AppColors.warningColor,
+                Icons.trending_down,
+                subtitle: 'High/Urgent alerts',
+                imageAsset: 'assets/red_bell.png',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSupervisionStatCard(
+                'Team Health',
+                '—',
+                AppColors.textSecondary,
+                null,
+                subtitle: 'Overall score',
+                imageAsset:
+                    'assets/Team_Meeting/Meeting_Red Badge_White.png',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildStatsRow(List<EmployeeData> employees) {
-    // Calculate inactive employees (3+ days)
+    // These metrics are derived from live team data and update as employee
+    // performance changes (activity, goals, alerts). Recomputed on every stream emission.
     final now = DateTime.now();
     final inactiveEmployees = employees.where((emp) {
       final inactivityDays = now.difference(emp.lastActivity).inDays;
@@ -1505,27 +1580,44 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
           .toList();
     }
 
-    // Apply sorting
-    switch (_sortBy) {
-      case 'oldest':
-        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        break;
-      case 'priority':
-        final priorityOrder = {
-          AlertPriority.urgent: 0,
-          AlertPriority.high: 1,
-          AlertPriority.medium: 2,
-          AlertPriority.low: 3,
-        };
-        filtered.sort(
-          (a, b) =>
-              priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
-        );
-        break;
-      case 'newest':
-      default:
-        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        break;
+    // Apply sorting. When filter is "All", urgent alerts appear first, then by chosen order.
+    final priorityOrder = {
+      AlertPriority.urgent: 0,
+      AlertPriority.high: 1,
+      AlertPriority.medium: 2,
+      AlertPriority.low: 3,
+    };
+    if (_alertTypeFilter == null) {
+      // All Issues: sort by priority first (urgent first), then by date
+      filtered.sort((a, b) {
+        final p = priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!);
+        if (p != 0) return p;
+        switch (_sortBy) {
+          case 'oldest':
+            return a.createdAt.compareTo(b.createdAt);
+          case 'priority':
+            return 0; // already by priority
+          case 'newest':
+          default:
+            return b.createdAt.compareTo(a.createdAt);
+        }
+      });
+    } else {
+      switch (_sortBy) {
+        case 'oldest':
+          filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          break;
+        case 'priority':
+          filtered.sort(
+            (a, b) =>
+                priorityOrder[a.priority]!.compareTo(priorityOrder[b.priority]!),
+          );
+          break;
+        case 'newest':
+        default:
+          filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          break;
+      }
     }
 
     return filtered;
@@ -1815,10 +1907,12 @@ class _ManagerAlertsNudgesScreenState extends State<ManagerAlertsNudgesScreen> {
   }
 
   void _viewEmployeeDetails(EmployeeData employee) {
-    // TODO: Navigate to employee details
-    _showCenterNotice(
+    Navigator.push(
       context,
-      'Viewing details for ${employee.profile.displayName}...',
+      MaterialPageRoute(
+        builder: (context) =>
+            ManagerEmployeeDetailScreen(employee: employee),
+      ),
     );
   }
 
