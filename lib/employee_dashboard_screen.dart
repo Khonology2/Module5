@@ -641,7 +641,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
       content: FocusTraversalGroup(
@@ -1563,7 +1563,7 @@ class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen> {
                         await AuthService().signOut();
                         if (mounted) {
                           navigator.pushNamedAndRemoveUntil(
-                            '/sign_in',
+                            '/landing',
                             (route) => false,
                           );
                         }

@@ -85,7 +85,7 @@ class _EmployeeSeasonChallengesScreenState
         final navigator = Navigator.of(context);
         await _authService.signOut();
         if (!mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
       },
       content: AppComponents.backgroundWithImage(
         imagePath: 'assets/khono_bg.png',

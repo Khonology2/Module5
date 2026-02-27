@@ -843,7 +843,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (!context.mounted) return;
-        navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+        navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
       },
       content: _buildContent(),
     );

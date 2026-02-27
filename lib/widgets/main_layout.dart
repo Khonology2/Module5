@@ -97,7 +97,7 @@ class MainLayout extends StatelessWidget {
       onLogout: () async {
         await AuthService().signOut();
         // ignore: use_build_context_synchronously
-        Navigator.pushNamedAndRemoveUntil(context, '/sign_in', (r) => false);
+        Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
       },
       // Keep background and spacing consistent with dashboard
       content: AppComponents.backgroundWithImage(

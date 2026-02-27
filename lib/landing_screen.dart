@@ -384,6 +384,32 @@ class _PersonalDevelopmentHubScreenState
     }
   }
 
+  /// Handle manual token login when user clicks login button
+  Future<void> _handleManualTokenLogin() async {
+    final token = _tokenController.text.trim();
+
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a token'),
+          backgroundColor: Color(0xFFC10D00),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessingButton = true;
+      _isCheckingToken = true;
+    });
+
+    // Trigger bounce animation when starting manual login
+    _bounceController.reset();
+    _bounceController.forward();
+
+    await _checkTokenAndAutoLogin(manualToken: token);
+  }
+
   /// Navigate to appropriate dashboard based on role
   void _navigateToDashboard(String pdhRole) {
     if (!mounted) {
@@ -563,6 +589,92 @@ class _PersonalDevelopmentHubScreenState
                         },
                       ),
                       const SizedBox(height: 24),
+                    ],
+                    // Show token input field and login button when not checking token
+                    if (!_isCheckingToken) ...[
+                      const SizedBox(height: 24),
+                      // Token input field
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: TextField(
+                          controller: _tokenController,
+                          decoration: InputDecoration(
+                            hintText: 'Enter your authentication token',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withAlpha(128),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white.withAlpha(26),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.white.withAlpha(51),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.white.withAlpha(51),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFC10D00),
+                                width: 2,
+                              ),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.vpn_key,
+                              color: Colors.white.withAlpha(179),
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                          ),
+                          obscureText: false,
+                          maxLines: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // Login button
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                        child: ElevatedButton(
+                          onPressed: _isProcessingButton
+                              ? null
+                              : _handleManualTokenLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFC10D00),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: _isProcessingButton
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Text(
+                                  'Login',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
                     ],
                     // Show subtle loading indicator when checking token
                     if (_isCheckingToken) ...[

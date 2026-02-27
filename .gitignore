@@ -58,3 +58,8 @@ windows/flutter/generated_plugins.cmake
 
 # Untranslated messages
 untranslated_messages.txt
+
+
+# Test-specific
+test
+

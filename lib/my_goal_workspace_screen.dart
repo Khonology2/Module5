@@ -234,7 +234,7 @@ class _MyGoalWorkspaceScreenState extends State<MyGoalWorkspaceScreen> {
             final navigator = Navigator.of(context);
             await AuthService().signOut();
             if (mounted) {
-              navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+              navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
             }
           },
           content: AppComponents.backgroundWithImage(

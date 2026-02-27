@@ -445,7 +445,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
             if (!context.mounted) return;
             Navigator.of(
               context,
-            ).pushNamedAndRemoveUntil('/sign_in', (route) => false);
+            ).pushNamedAndRemoveUntil('/landing', (route) => false);
           },
           content: Container(
             width: double.infinity,

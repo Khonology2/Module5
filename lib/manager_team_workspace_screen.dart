@@ -69,9 +69,10 @@ class _ManagerTeamWorkspaceScreenState extends State<ManagerTeamWorkspaceScreen>
         // Handle navigation
         Navigator.pushNamed(context, route);
       },
-      onLogout: () {
-        // Handle logout
-        Navigator.pushReplacementNamed(context, '/sign_in');
+      onLogout: () async {
+        await AuthService().signOut();
+        if (!context.mounted) return;
+        Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
       },
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

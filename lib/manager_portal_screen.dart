@@ -15,9 +15,9 @@ import 'package:pdh/my_pdp_screen.dart'; // Import MyPdpScreen
 // Import MyGoalWorkspaceScreen
 import 'package:pdh/badges_points_screen.dart'; // Import BadgesPointsScreen
 import 'package:pdh/manager_badges_points_screen.dart'; // Import ManagerBadgesPointsScreen
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for logout
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pdh/auth_service.dart';
 import 'package:pdh/services/database_service.dart'; // Import DatabaseService for onboarding data
-import 'package:pdh/sign_in_screen.dart'; // Import SignInScreen for post-logout navigation
 import 'package:pdh/manager_profile_screen.dart'; // Import ManagerProfileScreen
 import 'package:pdh/team_challenges_seasons_screen.dart'; // Import TeamChallengesSeasonsScreen
 import 'package:pdh/design_system/app_colors.dart';
@@ -91,13 +91,9 @@ class _ManagerPortalScreenState extends State<ManagerPortalScreen> {
   }
 
   Future<void> _onLogout() async {
-    await FirebaseAuth.instance.signOut();
+    await AuthService().signOut();
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (Route<dynamic> route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/landing', (Route<dynamic> route) => false);
   }
 
   @override
