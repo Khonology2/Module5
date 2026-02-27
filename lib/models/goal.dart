@@ -30,7 +30,43 @@ class Goal {
   final bool isSeasonGoal;
   // Key Performance Area tag for persistent excellence grouping
   final String?
-  kpa; // expected values: 'operational' | 'customer' | 'financial'
+  kpa; // expected values: 'operational' | 'customer' | 'financial' | 'organisational' | 'people'
+
+  static const List<String> kpaKeys = <String>[
+    'operational',
+    'customer',
+    'financial',
+    'organisational',
+    'people',
+  ];
+
+  static const Map<String, String> kpaKeyToLabel = <String, String>{
+    'operational': 'Operational Excellence',
+    'customer': 'Customer Excellence',
+    'financial': 'Financial Excellence',
+    'organisational': 'Organisational Excellence',
+    'people': 'People Excellence',
+  };
+
+  static String? normalizeKpaKey(String? input) {
+    final raw = input?.trim();
+    if (raw == null || raw.isEmpty) return null;
+
+    final lower = raw.toLowerCase();
+    if (kpaKeyToLabel.containsKey(lower)) return lower;
+
+    for (final entry in kpaKeyToLabel.entries) {
+      if (entry.value.toLowerCase() == lower) return entry.key;
+    }
+    return null;
+  }
+
+  static String? kpaLabel(String? input) {
+    final key = normalizeKpaKey(input);
+    if (key == null) return null;
+    return kpaKeyToLabel[key];
+  }
+
   final List<String> evidence; // List of evidence attachments
   final GoalApprovalStatus approvalStatus;
   final String? approvedByUserId;

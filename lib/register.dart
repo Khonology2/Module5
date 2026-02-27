@@ -474,19 +474,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   // Continue even if this fails - user is created
                                 }
 
-                                // Initialize default badges and run initial check
+                                // Initialize badges (employees: v2-only; managers may still use legacy)
                                 try {
-                                  await BadgeService.initializeUserBadges(
-                                    userCredential.user!.uid,
-                                  );
-                                  // Small delay between badge operations
-                                  await Future.delayed(const Duration(milliseconds: 200));
-                                  await BadgeService.checkAndAwardBadges(
-                                    userCredential.user!.uid,
-                                  );
-                                  await BadgeService.checkAndAwardBadgesV2(
-                                    userCredential.user!.uid,
-                                  );
+                                  final uid = userCredential.user!.uid;
+                                  final role = (_selectedRole ?? 'employee').toLowerCase();
+                                  if (role == 'manager') {
+                                    await BadgeService.initializeUserBadges(uid);
+                                    // Small delay between badge operations
+                                    await Future.delayed(
+                                      const Duration(milliseconds: 200),
+                                    );
+                                    await BadgeService.checkAndAwardBadges(uid);
+                                  }
+                                  await BadgeService.initializeUserBadgesV2(uid);
+                                  await BadgeService.checkAndAwardBadgesV2(uid);
                                 } catch (e) {
                                   debugPrint('Error initializing badges: $e');
                                   // Continue even if badges fail - registration should succeed
