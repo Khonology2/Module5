@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE5.SIT",
-  "generated_at": "2026-02-27T01:39:26Z",
+  "version": "2026.02.EE6.SIT",
+  "generated_at": "2026-02-27T01:45:08Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,10 +24,15 @@
     },
     {
       "author": "Nathi2266",
+      "message": "feat: enhance manager dashboard with dynamic name resolution and improved sign-out navigation",
+      "timestamp": "2026-02-27T03:44:20+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "feat: add Assigned Employees widget and update navigation paths for sign-out",
       "timestamp": "2026-02-27T03:38:46+02:00"
     }
   ],
-  "total_commits": 5,
+  "total_commits": 6,
   "date_range": "2026-02-27"
 }
