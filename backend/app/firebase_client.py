@@ -40,10 +40,12 @@ def initialize_firebase() -> firebase_admin.App:
         service_account_dict = parse_firebase_service_account(
             settings.firebase_service_account_json
         )
-        
+        project_id = service_account_dict.get("project_id") or "unknown"
+        logger.info("Firebase service account loaded for project_id=%s (client must use same project)", project_id)
+
         # Create credentials from service account
         cred = credentials.Certificate(service_account_dict)
-        
+
         # Initialize Firebase Admin SDK
         # Check if default app already exists (e.g., in tests)
         try:

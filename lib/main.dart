@@ -114,7 +114,9 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   // CONFLICT TEST: This line will conflict with MAIN branch
-  // Ensure stable auth session persistence on web to avoid popup/redirect quirks
+  // Ensure stable auth session persistence on web to avoid popup/redirect quirks.
+  // If you see "Tracking Prevention blocked access to storage", the browser is blocking
+  // third-party storage; serve the app from your own domain or allow storage for the site.
   if (kIsWeb) {
     try {
       await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);

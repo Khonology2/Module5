@@ -362,6 +362,18 @@ class _PersonalDevelopmentHubScreenState
         }
       } catch (e) {
         debugPrint('Landing screen: Error signing in with custom token: $e');
+        if (mounted && e is FirebaseAuthException && e.code == 'custom-token-mismatch') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Backend Firebase project does not match this app. '
+                'Ensure Render uses PDH-v2 service account (FIREBASE_SERVICE_ACCOUNT_JSON).',
+              ),
+              backgroundColor: Color(0xFFC10D00),
+              duration: Duration(seconds: 8),
+            ),
+          );
+        }
       }
 
       // If we reach here, authentication failed

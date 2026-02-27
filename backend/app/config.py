@@ -152,14 +152,27 @@ def parse_firebase_service_account(service_account_str: str) -> Dict[str, Any]:
         pass
     path_candidate = os.path.expandvars(os.path.expanduser(s))
     if not os.path.isabs(path_candidate):
+        path_candidate = os.path.normpath(path_candidate.replace("\\", os.sep))
         cwd = os.getcwd()
-        path_candidate = os.path.normpath(os.path.join(cwd, path_candidate))
-    if os.path.exists(path_candidate):
-        try:
-            with open(path_candidate, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
-            raise ValueError(f"Failed to read Firebase service account file: {e}")
+        # Try cwd-relative path first, then app/basename (when run from backend/)
+        to_try = [
+            os.path.join(cwd, path_candidate),
+            os.path.join(cwd, "app", os.path.basename(path_candidate)),
+        ]
+        for p in to_try:
+            if os.path.exists(p):
+                try:
+                    with open(p, 'r') as f:
+                        return json.load(f)
+                except (json.JSONDecodeError, IOError) as e:
+                    raise ValueError(f"Failed to read Firebase service account file: {e}")
+    else:
+        if os.path.exists(path_candidate):
+            try:
+                with open(path_candidate, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                raise ValueError(f"Failed to read Firebase service account file: {e}")
     raise ValueError(
         "FIREBASE_SERVICE_ACCOUNT_JSON must be either a valid JSON string "
         "or a path to a JSON file"
