@@ -1,3 +1,5 @@
+// ignore_for_file: duplicate_ignore, duplicate_import
+
 import 'package:flutter/material.dart';
 import 'package:pdh/design_system/app_colors.dart';
 import 'package:pdh/design_system/app_typography.dart';
@@ -21,9 +23,23 @@ import 'package:pdh/widgets/sidebar_state.dart';
 import 'package:pdh/widgets/version_badge.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'dart:developer' as developer;
+// ignore: duplicate_import
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+/// Derives manager full name from email for onboarding query (e.g. gladness.mulaudzi@x.com -> "Gladness Mulaudzi").
+String _fullNameFromEmail(String email) {
+  final prefix = email.split('@').first.trim();
+  if (prefix.isEmpty) return '';
+  final parts = prefix.split(RegExp(r'[._\-]'));
+  return parts
+      .where((s) => s.isNotEmpty)
+      .map((s) => s.length > 1
+          ? '${s[0].toUpperCase()}${s.substring(1).toLowerCase()}'
+          : s.toUpperCase())
+      .join(' ');
+}
 
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
@@ -91,14 +107,25 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
       final user = FirebaseAuth.instance.currentUser;
       String name = 'Manager';
       if (user != null) {
-        final profile = await DatabaseService.getUserProfile(user.uid);
-        final display = profile.displayName.trim();
-        if (display.isNotEmpty) {
-          name = display.split(' ').first;
-        } else if ((user.displayName ?? '').isNotEmpty) {
-          name = user.displayName!.split(' ').first;
-        } else if ((user.email ?? '').isNotEmpty) {
-          name = user.email!.split('@').first;
+        // Prefer onboarding name so assigned-employees query matches employee docs' manager field
+        final onboardingName = await DatabaseService.getUserNameFromOnboarding(
+          userId: user.uid,
+          email: user.email,
+        );
+        if (onboardingName != null && onboardingName.trim().isNotEmpty) {
+          name = onboardingName.trim();
+        } else {
+          final profile = await DatabaseService.getUserProfile(user.uid);
+          final display = profile.displayName.trim();
+          if (display.isNotEmpty) {
+            name = display;
+          } else if ((user.displayName ?? '').isNotEmpty) {
+            name = user.displayName!.trim();
+          } else if ((user.email ?? '').isNotEmpty) {
+            // Derive full name from email so onboarding manager field matches (e.g. Gladness Mulaudzi)
+            final fromEmail = _fullNameFromEmail(user.email!);
+            name = fromEmail.isNotEmpty ? fromEmail : user.email!.split('@').first;
+          }
         }
       }
       if (!mounted) return;
@@ -429,7 +456,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                                   await AuthService().signOut();
                                   if (mounted) {
                                     navigator.pushNamedAndRemoveUntil(
-                                      '/sign_in',
+                                      '/landing',
                                       (route) => false,
                                     );
                                   }
@@ -543,7 +570,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
         final navigator = Navigator.of(context);
         await AuthService().signOut();
         if (mounted) {
-          navigator.pushNamedAndRemoveUntil('/sign_in', (route) => false);
+          navigator.pushNamedAndRemoveUntil('/landing', (route) => false);
         }
       },
       content: Stack(
@@ -1195,8 +1222,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   /// Test the employees assigned query
   Future<void> _testEmployeesAssignedQuery() async {
     try {
-      const managerFullName =
-          'Nkosinathi Radebe'; // Use same hardcoded name as stream
+      final managerFullName =
+          _getManagerFullName(); // Use same dynamic logic as widget
       developer.log(
         '=== TESTING EMPLOYEES ASSIGNED QUERY ===',
         name: 'ManagerDashboard',
@@ -1296,15 +1323,94 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  /// Get the full manager name for querying assigned employees
+  String _getManagerFullName() {
+    developer.log(
+      '🔍 STARTING MANAGER NAME RESOLUTION',
+      name: 'ManagerDashboard',
+    );
+
+    // First check if we have a cached manager name from the dashboard state
+    if (_managerName.isNotEmpty && _managerName != 'Manager') {
+      developer.log(
+        '✅ Using cached manager name: "$_managerName"',
+        name: 'ManagerDashboard',
+      );
+      return _managerName;
+    }
+
+    developer.log(
+      '📝 No cached name, checking Firebase Auth',
+      name: 'ManagerDashboard',
+    );
+
+    // Get from Firebase Auth user
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      developer.log('❌ No current user found', name: 'ManagerDashboard');
+      return 'Unknown Manager';
+    }
+
+    developer.log(
+      '👤 Current user: ${currentUser.email}',
+      name: 'ManagerDashboard',
+    );
+    developer.log(
+      '📛 Display name: "${currentUser.displayName}"',
+      name: 'ManagerDashboard',
+    );
+
+    // Try to get full name from display name
+    if (currentUser.displayName != null &&
+        currentUser.displayName!.trim().isNotEmpty) {
+      final displayName = currentUser.displayName!.trim();
+      developer.log(
+        '✅ Using Firebase Auth display name: "$displayName"',
+        name: 'ManagerDashboard',
+      );
+      return displayName;
+    }
+
+    developer.log(
+      '📧 Display name empty, checking email',
+      name: 'ManagerDashboard',
+    );
+
+    // Fallback: derive full name from email so onboarding manager field matches (e.g. Gladness Mulaudzi)
+    final email = currentUser.email?.trim() ?? '';
+    if (email.isNotEmpty) {
+      developer.log('📧 Email: "$email"', name: 'ManagerDashboard');
+      final fromEmail = _fullNameFromEmail(email);
+      final name = fromEmail.isNotEmpty ? fromEmail : email.split('@').first;
+      developer.log(
+        '✅ Using email-derived full name: "$name"',
+        name: 'ManagerDashboard',
+      );
+      return name;
+    }
+
+    developer.log('❌ No name found, using fallback', name: 'ManagerDashboard');
+    return 'Manager';
+  }
+
   /// Get stream of employees from onboarding collection assigned to this manager
   Stream<QuerySnapshot> _getAssignedEmployeesStream() {
-    // For now, use a hardcoded name to test - will be replaced with async version later
-    const managerFullName = 'Nkosinathi Radebe';
+    final managerFullName = _getManagerFullName();
+    developer.log(
+      '🔍 QUERYING onboarding for manager: "$managerFullName"',
+      name: 'ManagerDashboard',
+    );
 
-    return FirebaseFirestore.instance
+    final query = FirebaseFirestore.instance
         .collection('onboarding')
-        .where('manager', isEqualTo: managerFullName)
-        .snapshots();
+        .where('manager', isEqualTo: managerFullName);
+
+    developer.log(
+      '📋 Firestore query: collection("onboarding").where("manager", isEqualTo: "$managerFullName")',
+      name: 'ManagerDashboard',
+    );
+
+    return query.snapshots();
   }
 
   Widget _buildActiveStatusIndicator(EmployeeData employee) {
