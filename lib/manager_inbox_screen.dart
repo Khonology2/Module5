@@ -29,7 +29,7 @@ class _NudgeFeedback {
   final String? response;
   final String? alertId;
   final DateTime? timestamp;
-    final Map<String, dynamic> metadata;
+  final Map<String, dynamic> metadata;
 
   const _NudgeFeedback({
     required this.id,
@@ -40,17 +40,18 @@ class _NudgeFeedback {
     this.response,
     this.alertId,
     this.timestamp,
-      this.metadata = const {},
+    this.metadata = const {},
   });
 
   factory _NudgeFeedback.fromMap(Map<String, dynamic> map) {
     final metadata = (map['metadata'] as Map<String, dynamic>?) ?? {};
-    final employeeName = (metadata['employeeName'] ??
-            metadata['employeeDisplayName'] ??
-            metadata['userDisplayName'] ??
-            metadata['userName'] ??
-            metadata['fullName'])
-        ?.toString();
+    final employeeName =
+        (metadata['employeeName'] ??
+                metadata['employeeDisplayName'] ??
+                metadata['userDisplayName'] ??
+                metadata['userName'] ??
+                metadata['fullName'])
+            ?.toString();
     return _NudgeFeedback(
       id: map['id']?.toString() ?? '',
       employeeId: map['employeeId']?.toString() ?? '',
@@ -59,8 +60,10 @@ class _NudgeFeedback {
       reaction: metadata['reaction']?.toString(),
       response: metadata['response']?.toString(),
       alertId: metadata['alertId']?.toString(),
-      timestamp: map['timestamp'] is DateTime ? map['timestamp'] as DateTime : null,
-        metadata: metadata,
+      timestamp: map['timestamp'] is DateTime
+          ? map['timestamp'] as DateTime
+          : null,
+      metadata: metadata,
     );
   }
 }
@@ -75,11 +78,11 @@ class ManagerInboxScreen extends StatefulWidget {
 }
 
 class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
-  bool _personal = false; // true: personal inbox, false: team inbox (default to Team to show approval requests)
   String? _typeFilter; // null=All, 'nudge', 'approval_request'
   bool _unreadOnly = false;
   String _search = '';
   AlertPriority? _priorityFilter;
+  AlertAudience? _audienceFilter; // null=All, 'personal', 'team'
   bool _bulkMarking = false;
   final Map<String, String> _employeeNameCache = {};
   final Set<String> _pendingEmployeeLookups = {};
@@ -87,7 +90,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   // parent widgets rebuild (filters, alert stream updates, etc.).
   Stream<List<Map<String, dynamic>>>? _nudgeFeedbackStream;
   String? _nudgeFeedbackStreamUserId;
-  List<Map<String, dynamic>> _lastNudgeFeedbackMaps = const <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _lastNudgeFeedbackMaps =
+      const <Map<String, dynamic>>[];
 
   // SMART rubric local state per goalId for the review sheet
   final Map<String, int> _clarity = {};
@@ -187,8 +191,9 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     if (uid == null || uid.isEmpty) return;
 
     final data = alert.actionData ?? const <String, dynamic>{};
-    final badgeId =
-        (data['badgeId'] ?? data['badgeDocId'] ?? '').toString().trim();
+    final badgeId = (data['badgeId'] ?? data['badgeDocId'] ?? '')
+        .toString()
+        .trim();
     if (badgeId.isEmpty) {
       Navigator.pushNamed(
         context,
@@ -226,7 +231,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         }
       } catch (_) {}
     }
-    final category = _managerCategoryFromName(categoryName) ??
+    final category =
+        _managerCategoryFromName(categoryName) ??
         badge_model.BadgeCategory.leadership;
 
     if (!mounted) return;
@@ -255,18 +261,22 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
         continue;
       }
       _pendingEmployeeLookups.add(fb.employeeId);
-      DatabaseService.getUserProfile(fb.employeeId).then((profile) {
-        if (!mounted) return;
-        final resolved = profile.displayName.trim();
-        setState(() {
-          _employeeNameCache[fb.employeeId] =
-              resolved.isNotEmpty ? resolved : fb.employeeId;
-        });
-      }).catchError((e) {
-        developer.log('Could not load employee name: $e');
-      }).whenComplete(() {
-        _pendingEmployeeLookups.remove(fb.employeeId);
-      });
+      DatabaseService.getUserProfile(fb.employeeId)
+          .then((profile) {
+            if (!mounted) return;
+            final resolved = profile.displayName.trim();
+            setState(() {
+              _employeeNameCache[fb.employeeId] = resolved.isNotEmpty
+                  ? resolved
+                  : fb.employeeId;
+            });
+          })
+          .catchError((e) {
+            developer.log('Could not load employee name: $e');
+          })
+          .whenComplete(() {
+            _pendingEmployeeLookups.remove(fb.employeeId);
+          });
     }
   }
 
@@ -281,7 +291,8 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     String? managerName,
     int limit = 200,
   }) {
-    if (_nudgeFeedbackStream != null && _nudgeFeedbackStreamUserId == managerId) {
+    if (_nudgeFeedbackStream != null &&
+        _nudgeFeedbackStreamUserId == managerId) {
       return;
     }
     _nudgeFeedbackStreamUserId = managerId;
@@ -325,12 +336,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirestoreSafe.stream<DocumentSnapshot<Map<String, dynamic>>>(
-                  FirebaseFirestore.instance
-                      .collection('goals')
-                      .doc(goalId)
-                      .snapshots(),
-                ),
+                stream:
+                    FirestoreSafe.stream<
+                      DocumentSnapshot<Map<String, dynamic>>
+                    >(
+                      FirebaseFirestore.instance
+                          .collection('goals')
+                          .doc(goalId)
+                          .snapshots(),
+                    ),
                 builder: (context, snap) {
                   Goal? goal;
                   if (snap.hasData && (snap.data?.exists ?? false)) {
@@ -876,7 +890,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _personal ? 'Personal Inbox' : 'Team Inbox',
+                                'Manager IBox',
                                 style: AppTypography.heading3.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -940,12 +954,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
             ),
           ),
           child: StreamBuilder<List<Alert>>(
-            stream: AlertService.getManagerInboxStream(
-              managerId: user.uid,
-              personal: _personal,
-              typeFilter: _typeFilter,
-              limit: 200,
-            ),
+            stream: AlertService.getUserAlertsStream(user.uid),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -977,6 +986,50 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                     .toList();
               }
 
+              // Apply audience filter if specified
+              if (_audienceFilter != null) {
+                items = items
+                    .where((a) => a.audience == _audienceFilter)
+                    .toList();
+              }
+
+              // Apply type filter so each tab shows the right information
+              if (_typeFilter == 'alert') {
+                // Alerts: manager-facing alerts that are NOT nudges and NOT approval requests
+                items = items.where((a) {
+                  return a.type != AlertType.managerNudge &&
+                      a.type != AlertType.goalApprovalRequested;
+                }).toList();
+              } else if (_typeFilter == 'approval_request') {
+                // Approvals: only goal approval requests
+                items = items
+                    .where((a) => a.type == AlertType.goalApprovalRequested)
+                    .toList();
+              } else if (_typeFilter == 'nudge') {
+                // Nudges: only manager nudge alerts (nudge feedback is added in the nudge UI branch)
+                items = items
+                    .where((a) => a.type == AlertType.managerNudge)
+                    .toList();
+              }
+              // _typeFilter == null means All: show everything, no type filter
+
+              // When showing All or Alerts, sort so urgent alerts appear first
+              if (_typeFilter == null || _typeFilter == 'alert') {
+                final priorityOrder = {
+                  AlertPriority.urgent: 0,
+                  AlertPriority.high: 1,
+                  AlertPriority.medium: 2,
+                  AlertPriority.low: 3,
+                };
+                items = List<Alert>.from(items)
+                  ..sort((a, b) {
+                    final p = priorityOrder[a.priority]!
+                        .compareTo(priorityOrder[b.priority]!);
+                    if (p != 0) return p;
+                    return b.createdAt.compareTo(a.createdAt);
+                  });
+              }
+
               if (_typeFilter == 'nudge') {
                 _ensureNudgeFeedbackStream(
                   managerId: user.uid,
@@ -998,29 +1051,30 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         .map(_NudgeFeedback.fromMap)
                         .toList();
 
-                    final managerNameLower =
-                        (user.displayName ?? '').toLowerCase().trim();
+                    final managerNameLower = (user.displayName ?? '')
+                        .toLowerCase()
+                        .trim();
                     final feedback = rawFeedback.where((f) {
                       final meta = f.metadata;
                       final mid = meta['managerId']?.toString();
-                      final mname = (meta['managerNameLower'] ??
-                              meta['managerName'])
-                          ?.toString()
-                          .toLowerCase()
-                          .trim();
-                      
+                      final mname =
+                          (meta['managerNameLower'] ?? meta['managerName'])
+                              ?.toString()
+                              .toLowerCase()
+                              .trim();
+
                       // Match by manager ID if available
                       if (mid != null && mid.isNotEmpty) {
                         return mid == user.uid;
                       }
-                      
+
                       // Match by manager name if available
                       if (managerNameLower.isNotEmpty &&
                           mname != null &&
                           mname.isNotEmpty) {
                         return mname == managerNameLower;
                       }
-                      
+
                       // If no manager metadata, exclude to avoid showing other managers' reactions
                       return false;
                     }).toList();
@@ -1061,13 +1115,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       );
                     } else {
                       widgets.addAll(
-                        feedback.map((f) => Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: hPad,
-                                vertical: AppSpacing.xs,
-                              ),
-                              child: _buildNudgeFeedbackCard(f),
-                            )),
+                        feedback.map(
+                          (f) => Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: hPad,
+                              vertical: AppSpacing.xs,
+                            ),
+                            child: _buildNudgeFeedbackCard(f),
+                          ),
+                        ),
                       );
                     }
 
@@ -1090,13 +1146,15 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                         ),
                       );
                       widgets.addAll(
-                        items.map((a) => Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: hPad,
-                                vertical: AppSpacing.xs,
-                              ),
-                              child: _buildInboxCard(a),
-                            )),
+                        items.map(
+                          (a) => Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: hPad,
+                              vertical: AppSpacing.xs,
+                            ),
+                            child: _buildInboxCard(a),
+                          ),
+                        ),
                       );
                     }
 
@@ -1140,27 +1198,6 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _inboxChoiceChip(
-              label: 'Personal',
-              selected: _personal,
-              onSelected: () => setState(() => _personal = true),
-            ),
-            const SizedBox(width: 8),
-            _inboxChoiceChip(
-              label: 'Team',
-              selected: !_personal,
-              onSelected: () => setState(() => _personal = false),
-            ),
-            const Spacer(),
-            _inboxFilterChip(
-              label: 'Unread',
-              selected: _unreadOnly,
-              onSelected: (v) => setState(() => _unreadOnly = v),
-            ),
-          ],
-        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -1185,6 +1222,12 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
               selected: _typeFilter == 'approval_request',
               onSelected: () =>
                   setState(() => _typeFilter = 'approval_request'),
+            ),
+            const Spacer(),
+            _inboxFilterChip(
+              label: 'Unread',
+              selected: _unreadOnly,
+              onSelected: (v) => setState(() => _unreadOnly = v),
             ),
           ],
         ),
@@ -1345,8 +1388,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                   icon: const Icon(Icons.flag_outlined),
                   label: const Text('View Goal'),
                 ),
-              ]
-              else if (alert.type == AlertType.goalMilestoneCompleted ||
+              ] else if (alert.type == AlertType.goalMilestoneCompleted ||
                   alert.type == AlertType.goalCreated ||
                   alert.type == AlertType.goalCompleted ||
                   alert.type == AlertType.goalDueSoon ||
@@ -1382,17 +1424,19 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
 
                     // Deep-link 1:1 meeting alerts into the Review Team Dashboard.
                     if (route == '/manager_review_team_dashboard') {
-                      final data = alert.actionData ?? const <String, dynamic>{};
+                      final data =
+                          alert.actionData ?? const <String, dynamic>{};
                       final meetingId = data['meetingId']?.toString().trim();
-                      final employeeIdRaw =
-                          data['employeeId']?.toString().trim();
-                      final employeeId = (employeeIdRaw != null &&
-                              employeeIdRaw.isNotEmpty)
+                      final employeeIdRaw = data['employeeId']
+                          ?.toString()
+                          .trim();
+                      final employeeId =
+                          (employeeIdRaw != null && employeeIdRaw.isNotEmpty)
                           ? employeeIdRaw
                           : (alert.fromUserId?.toString().trim().isNotEmpty ==
-                                  true
-                              ? alert.fromUserId!.toString().trim()
-                              : null);
+                                    true
+                                ? alert.fromUserId!.toString().trim()
+                                : null);
 
                       if (employeeId != null && employeeId.isNotEmpty) {
                         args = <String, dynamic>{
@@ -1405,11 +1449,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                       args = {'goalId': alert.relatedGoalId};
                     }
 
-                    Navigator.pushNamed(
-                      context,
-                      route,
-                      arguments: args,
-                    );
+                    Navigator.pushNamed(context, route, arguments: args);
                   },
                   icon: const Icon(Icons.open_in_new),
                   label: Text(alert.actionText!),
@@ -1470,15 +1510,14 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
   Widget _buildNudgeFeedbackCard(_NudgeFeedback fb) {
     final isReaction = fb.activityType == 'nudge_reaction';
     final chipLabel = isReaction ? 'Reaction' : 'Reply';
-    final chipColor =
-        isReaction ? AppColors.infoColor : AppColors.activeColor;
+    final chipColor = isReaction ? AppColors.infoColor : AppColors.activeColor;
     final cachedName = _employeeNameCache[fb.employeeId]?.trim() ?? '';
     final resolvedName = fb.employeeName?.trim();
     final title = (resolvedName?.isNotEmpty == true)
         ? resolvedName!
         : (cachedName.isNotEmpty
-            ? cachedName
-            : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}');
+              ? cachedName
+              : 'Employee ${fb.employeeId.substring(0, fb.employeeId.length >= 6 ? 6 : fb.employeeId.length)}');
     final message = isReaction
         ? fb.reaction ?? 'Reaction'
         : fb.response ?? 'Response';
@@ -1511,8 +1550,7 @@ class _ManagerInboxScreenState extends State<ManagerInboxScreen> {
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: chipColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),

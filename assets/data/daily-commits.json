@@ -1,36 +1,31 @@
 {
-  "version": "2026.02.EB9.SIT",
-  "generated_at": "2026-02-24T18:12:07Z",
+  "version": "2026.02.EE9.SIT",
+  "generated_at": "2026-02-27T12:41:02Z",
   "commits": [
     {
-      "author": "Thembelihle",
-      "message": "Feature - Refactor badge handling across multiple screens to transition to v2 badge system.",
-      "timestamp": "2026-02-23T12:59:53+02:00"
-    },
-    {
       "author": "GitHub Action",
       "message": "Update daily commits data []",
-      "timestamp": "2026-02-23T08:53:15Z"
+      "timestamp": "2026-02-24T06:19:19Z"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature -  Remove level references and associated logic across multiple screens and services to improve clarity in user profiles and leaderboard functionalities.",
-      "timestamp": "2026-02-23T10:52:28+02:00"
-    },
-    {
-      "author": "GitHub Action",
-      "message": "Update daily commits data []",
-      "timestamp": "2026-02-23T08:26:22Z"
+      "message": "Feature - Implement type filtering and sorting for alerts in Manager Inbox screen",
+      "timestamp": "2026-02-26T23:39:32+02:00"
     },
     {
       "author": "Thembelihle",
-      "message": "Feature - Introduce a unified KPA labeling system and normalization method in the Goal model, update KPA references in goal detail, manager inbox, my goal workspace, and settings screens for improved consistency and clarity.",
-      "timestamp": "2026-02-23T10:25:08+02:00"
+      "message": "Feature -Add loading skeleton for team metrics and improve alert section padding in Manager Alerts & Nudges screen",
+      "timestamp": "2026-02-26T23:25:32+02:00"
     },
     {
-      "author": "GitHub Action",
-      "message": "Update daily commits data []",
-      "timestamp": "2026-02-23T07:53:21Z"
+      "author": "Thembelihle",
+      "message": "Feature -  Improve loading state handling and enhance alert filtering logic in Manager Alerts & Nudges screen",
+      "timestamp": "2026-02-26T23:04:05+02:00"
+    },
+    {
+      "author": "Thembelihle",
+      "message": "Feature -  Enhance error handling and loading state in Manager Alerts & Nudges screen, including retry functionality and improved alert combination logic.",
+      "timestamp": "2026-02-26T22:40:38+02:00"
     },
     {
       "author": "Thembelihle",
@@ -46,8 +41,13 @@
       "author": "Nathi2266",
       "message": "feat: update PDF export layout and contact info",
       "timestamp": "2026-02-24T20:07:15+02:00"
+    },
+    {
+      "author": "BhutSipho",
+      "message": "Latest Combined Changes",
+      "timestamp": "2026-02-27T14:40:01+02:00"
     }
   ],
   "total_commits": 9,
-  "date_range": "2026-02-24"
+  "date_range": "2026-02-27"
 }
