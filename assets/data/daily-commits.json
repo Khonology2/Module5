@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE6.SIT",
-  "generated_at": "2026-02-27T01:45:08Z",
+  "version": "2026.02.EE7.SIT",
+  "generated_at": "2026-02-27T01:59:30Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Nathi2266",
+      "message": "feat: add initial display name function and enhance employee list with expandable details",
+      "timestamp": "2026-02-27T03:58:39+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "feat: enhance manager dashboard with dynamic name resolution and improved sign-out navigation",
       "timestamp": "2026-02-27T03:44:20+02:00"
     },
@@ -33,6 +38,6 @@
       "timestamp": "2026-02-27T03:38:46+02:00"
     }
   ],
-  "total_commits": 6,
+  "total_commits": 7,
   "date_range": "2026-02-27"
 }
