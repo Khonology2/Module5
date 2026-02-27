@@ -41,46 +41,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAjg19Ej8fbUOfa6WYlEX-b4CNi-y0Lozc',
-    appId: '1:565445962523:web:a987a77ea9633d308401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    authDomain: 'pdh-fe6eb.firebaseapp.com',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
+    appId: '1:638896632756:web:6df76beff446f75ee378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    authDomain: 'pdh-v2.firebaseapp.com',
+    storageBucket: 'pdh-v2.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDOAfySsOd2h0jCj5m3v3vIR9d0ys7kmKk',
-    appId: '1:565445962523:android:96cfa7d317c670c98401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyBUS2dYjMleU1EqQKy2fWAUViyA54yBoS0',
+    appId: '1:638896632756:android:fe586c9180a35ec8e378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA-UKlI3NI-1ktNofSXsqSBHbjG8EQ3XcA',
-    appId: '1:565445962523:ios:7561461d42d085888401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDuVGLc4Dx3wBVTd3ZubrUmtoqg7m187xc',
+    appId: '1:638896632756:ios:d26381157f00b859e378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.firebasestorage.app',
+    iosClientId: '638896632756-r9pcsombpf773efrm1c77ufrbt0uq2d6.apps.googleusercontent.com',
     iosBundleId: 'com.example.pdh',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyA-UKlI3NI-1ktNofSXsqSBHbjG8EQ3XcA',
-    appId: '1:565445962523:ios:7561461d42d085888401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyDuVGLc4Dx3wBVTd3ZubrUmtoqg7m187xc',
+    appId: '1:638896632756:ios:d26381157f00b859e378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    storageBucket: 'pdh-v2.firebasestorage.app',
+    iosClientId: '638896632756-r9pcsombpf773efrm1c77ufrbt0uq2d6.apps.googleusercontent.com',
     iosBundleId: 'com.example.pdh',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAjg19Ej8fbUOfa6WYlEX-b4CNi-y0Lozc',
-    appId: '1:565445962523:web:5baabea0d2d8ce3f8401be',
-    messagingSenderId: '565445962523',
-    projectId: 'pdh-fe6eb',
-    authDomain: 'pdh-fe6eb.firebaseapp.com',
-    storageBucket: 'pdh-fe6eb.firebasestorage.app',
+    apiKey: 'AIzaSyB9wEmGpWnNfB03qNSsr2luFRZ6Fmo5e5Y',
+    appId: '1:638896632756:web:3ab9570e5c5eb3e1e378e1',
+    messagingSenderId: '638896632756',
+    projectId: 'pdh-v2',
+    authDomain: 'pdh-v2.firebaseapp.com',
+    storageBucket: 'pdh-v2.firebasestorage.app',
   );
+
 }
