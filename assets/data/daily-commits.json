@@ -1,6 +1,6 @@
 {
-  "version": "2026.02.EE8.SIT",
-  "generated_at": "2026-02-27T04:38:29Z",
+  "version": "2026.02.EE9.SIT",
+  "generated_at": "2026-02-27T04:57:40Z",
   "commits": [
     {
       "author": "GitHub Action",
@@ -24,6 +24,11 @@
     },
     {
       "author": "Nathi2266",
+      "message": "fix: improve Firebase service account parsing and error handling; add user feedback for token mismatch on landing screen",
+      "timestamp": "2026-02-27T06:56:59+02:00"
+    },
+    {
+      "author": "Nathi2266",
       "message": "chore: update Firebase configuration to pdh-v2, including new service account credentials and project details",
       "timestamp": "2026-02-27T06:37:51+02:00"
     },
@@ -43,6 +48,6 @@
       "timestamp": "2026-02-27T03:38:46+02:00"
     }
   ],
-  "total_commits": 8,
+  "total_commits": 9,
   "date_range": "2026-02-27"
 }
