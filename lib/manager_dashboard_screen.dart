@@ -41,6 +41,12 @@ String _fullNameFromEmail(String email) {
       .join(' ');
 }
 
+String _initialForDisplayName(String name) {
+  final t = name.trim();
+  if (t.isEmpty) return '?';
+  return t.substring(0, 1).toUpperCase();
+}
+
 class ManagerDashboardScreen extends StatefulWidget {
   final bool embedded;
 
@@ -64,6 +70,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     12,
     (index) => GlobalKey(),
   );
+
+  // Employees Assigned: expandable list (accordion – single expanded index)
+  int? _expandedAssignedIndex;
 
   @override
   void initState() {
@@ -1067,27 +1076,37 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: AppColors.activeColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$label: $value',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildEmployeesAssigned(List<EmployeeData> employees) {
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Employees Assigned', style: AppTypography.heading2),
-              IconButton(
-                onPressed: () async {
-                  await _testEmployeesAssignedQuery();
-                },
-                icon: const Icon(
-                  Icons.bug_report,
-                  color: AppColors.activeColor,
-                ),
-                tooltip: 'Test Widget Query',
-              ),
-            ],
-          ),
+          Text('Employees Assigned', style: AppTypography.heading2),
           const SizedBox(height: 12),
           StreamBuilder<QuerySnapshot>(
             stream: _getAssignedEmployeesStream(),
@@ -1120,96 +1139,131 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 );
               }
 
-              final assignedEmployees = snapshot.data!.docs;
+              final docs = snapshot.data!.docs;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Total assigned: ${assignedEmployees.length}',
+                    'Total assigned: ${docs.length}',
                     style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...assignedEmployees.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final displayName =
-                        data['displayName'] ??
-                        data['name'] ??
-                        data['fullName'] ??
-                        'Unknown User';
-                    final email = data['email'] ?? 'No email';
+                  SizedBox(
+                    height: 400,
+                    child: ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final doc = docs[index];
+                        final data = (doc.data() as Map<String, dynamic>?) ?? {};
+                        final displayName = data['displayName'] ?? data['name'] ?? data['fullName'] ?? 'Unknown User';
+                        final email = data['email']?.toString() ?? 'No email';
+                        final department = data['department']?.toString() ?? data['designation']?.toString() ?? '—';
+                        final role = data['role']?.toString() ?? '—';
+                        final expanded = _expandedAssignedIndex == index;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _expandedAssignedIndex = expanded ? null : index;
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: expanded ? 0.35 : 0.2),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: expanded ? 0.2 : 0.1),
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: AppColors.activeColor.withValues(alpha: 0.3),
+                                          child: Text(
+                                            _initialForDisplayName(displayName.toString()),
+                                            style: AppTypography.bodyMedium.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                displayName.toString(),
+                                                style: AppTypography.bodyMedium.copyWith(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                email,
+                                                style: AppTypography.bodySmall.copyWith(
+                                                  color: AppColors.textSecondary,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        AnimatedRotation(
+                                          turns: expanded ? 0.5 : 0,
+                                          duration: const Duration(milliseconds: 200),
+                                          child: const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            color: AppColors.textSecondary,
+                                            size: 28,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    AnimatedCrossFade(
+                                      duration: const Duration(milliseconds: 220),
+                                      sizeCurve: Curves.easeOutCubic,
+                                      crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                                      firstChild: const SizedBox.shrink(),
+                                      secondChild: Padding(
+                                        padding: const EdgeInsets.only(top: 14),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _detailRow(Icons.business, 'Department', department),
+                                            const SizedBox(height: 6),
+                                            _detailRow(Icons.badge, 'Role', role),
+                                            const SizedBox(height: 6),
+                                            _detailRow(Icons.email_outlined, 'Contact', email),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.person_outline,
-                              color: AppColors.activeColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    displayName,
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    email,
-                                    style: AppTypography.bodySmall.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.activeColor.withValues(
-                                  alpha: 0.2,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: AppColors.activeColor.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                'Assigned',
-                                style: AppTypography.caption.copyWith(
-                                  color: AppColors.activeColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                    // ignore: unnecessary_to_list_in_spreads
-                  }).toList(),
+                        );
+                      },
+                    ),
+                  ),
                 ],
               );
             },
