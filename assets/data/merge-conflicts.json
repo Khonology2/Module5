@@ -1,10 +1,10 @@
 {
   "report_type": "merge_conflict_check",
-  "generated_at": "2026-02-27T01:39:21.953456Z",
+  "generated_at": "2026-02-27T01:45:05.902525Z",
   "source_branch": "pdh-deployed-backup-v2",
   "target_branch": "pdh-deployed-backup",
   "status": "conflicts_detected",
-  "total_conflicts": 2,
+  "total_conflicts": 3,
   "highlight_exact_broken_lines": true,
   "conflicts": [
     {
@@ -14,7 +14,7 @@
       "message": "Incoming change marker",
       "your_code": [
         "  \"version\": \"2026.02.EE5.SIT\",",
-        "  \"generated_at\": \"2026-02-27T00:02:18Z\","
+        "  \"generated_at\": \"2026-02-27T01:39:26Z\","
       ],
       "target_code": [
         "  \"version\": \"2026.02.ED6.SIT\",",
@@ -24,7 +24,7 @@
         "{",
         "<<<<<<< HEAD",
         "  \"version\": \"2026.02.EE5.SIT\",",
-        "  \"generated_at\": \"2026-02-27T00:02:18Z\",",
+        "  \"generated_at\": \"2026-02-27T01:39:26Z\",",
         "=======",
         "  \"version\": \"2026.02.ED6.SIT\",",
         "  \"generated_at\": \"2026-02-26T23:39:56Z\",",
@@ -72,7 +72,82 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 41,
+      "line": 26,
+      "marker": "<<<<<<<",
+      "message": "Incoming change marker",
+      "your_code": [],
+      "target_code": [
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"updated the manager dashboard\",",
+        "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"updates from S11\",",
+        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
+        "    },",
+        "    {"
+      ],
+      "context_lines": [
+        "    },",
+        "    {",
+        "<<<<<<< HEAD",
+        "=======",
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"updated the manager dashboard\",",
+        "      \"timestamp\": \"2026-02-27T01:37:26+02:00\"",
+        "    },",
+        "    {",
+        "      \"author\": \"Nathi2266\",",
+        "      \"message\": \"updates from S11\",",
+        "      \"timestamp\": \"2026-02-26T17:41:27+02:00\"",
+        "    },",
+        "    {",
+        ">>>>>>> origin/pdh-deployed-backup",
+        "      \"author\": \"Thembelihle\",",
+        "      \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",",
+        "      \"timestamp\": \"2026-02-26T10:58:03+02:00\""
+      ],
+      "resolution_prompt": {
+        "message": "Target branch has new code, your branch has deletion",
+        "risk_level": "medium",
+        "suggested_action": "keep_target",
+        "explanation": "Your branch deleted code that exists in target branch"
+      },
+      "risk_level": "medium",
+      "suggested_action": "keep_target"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 26,
+      "marker": "=======",
+      "message": "Conflict separator",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict separator - your code above, target code below"
+      },
+      "risk_level": "info",
+      "suggested_action": "choose_version"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 37,
+      "marker": ">>>>>>>",
+      "message": "Current branch marker",
+      "your_code": [],
+      "target_code": [],
+      "context_lines": [],
+      "resolution_prompt": {
+        "message": "Conflict end marker - remove after resolving"
+      },
+      "risk_level": "info",
+      "suggested_action": "remove_marker"
+    },
+    {
+      "file": "assets/data/daily-commits.json",
+      "line": 49,
       "marker": "<<<<<<<",
       "message": "Incoming change marker",
       "your_code": [
@@ -106,7 +181,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 43,
+      "line": 51,
       "marker": "=======",
       "message": "Conflict separator",
       "your_code": [],
@@ -120,7 +195,7 @@
     },
     {
       "file": "assets/data/daily-commits.json",
-      "line": 46,
+      "line": 54,
       "marker": ">>>>>>>",
       "message": "Current branch marker",
       "your_code": [],
@@ -135,7 +210,7 @@
   ],
   "codebase_issues": [],
   "summary": {
-    "message": "Found 2 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v2 into pdh-deployed-backup",
+    "message": "Found 3 merge conflict(s) and 0 codebase issue(s) when merging pdh-deployed-backup-v2 into pdh-deployed-backup",
     "action_required": "Please resolve conflicts and fix codebase issues listed below",
     "resolution_steps": [
       "1. Check out your branch: git checkout pdh-deployed-backup-v2",
@@ -146,6 +221,6 @@
       "6. Commit the merge: git commit",
       "7. Push your changes: git push origin pdh-deployed-backup-v2"
     ],
-    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v2' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.02.EE5.SIT\",\n  \"generated_at\": \"2026-02-27T00:02:18Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.02.EE5.SIT\",\n    \"generated_at\": \"2026-02-27T00:02:18Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 41):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 5,\n  \"date_range\": \"2026-02-27\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 5,\n    \"date_range\": \"2026-02-27\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
+    "ai_system_prompt": "I have merge conflicts when merging branch 'pdh-deployed-backup-v2' into 'pdh-deployed-backup'. Please help me resolve ALL conflicts by providing the exact code to replace each conflict block with.\n\nCONFLICTS TO RESOLVE:\n\nFILE: assets/data/daily-commits.json\n============================================================\n\nConflict 1 (Line 2):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"version\": \"2026.02.EE5.SIT\",\n  \"generated_at\": \"2026-02-27T01:39:26Z\",\n=======\n  \"version\": \"2026.02.ED6.SIT\",\n  \"generated_at\": \"2026-02-26T23:39:56Z\",\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n  {\n    \"version\": \"2026.02.EE5.SIT\",\n    \"generated_at\": \"2026-02-27T01:39:26Z\",\n    \"version\": \"2026.02.ED6.SIT\",\n    \"generated_at\": \"2026-02-26T23:39:56Z\",\n    \"commits\": [\n      {\n        \"author\": \"GitHub Action\",\n\n\nConflict 2 (Line 26):\nRisk Level: medium\nSuggested Action: keep_target\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n=======\n      \"author\": \"Nathi2266\",\n      \"message\": \"updated the manager dashboard\",\n      \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n    },\n    {\n      \"author\": \"Nathi2266\",\n      \"message\": \"updates from S11\",\n      \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n    },\n    {\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updated the manager dashboard\",\n        \"timestamp\": \"2026-02-27T01:37:26+02:00\"\n      },\n      {\n        \"author\": \"Nathi2266\",\n        \"message\": \"updates from S11\",\n        \"timestamp\": \"2026-02-26T17:41:27+02:00\"\n      },\n      {\n        \"author\": \"Thembelihle\",\n        \"message\": \"Feature - Refactor Manager Inbox Screen to streamline audience filter UI by removing redundant choice chips and maintaining unread filter functionality.\",\n        \"timestamp\": \"2026-02-26T10:58:03+02:00\"\n\n\nConflict 3 (Line 49):\nRisk Level: medium\nSuggested Action: manual_merge\n\nCURRENT CONFLICT BLOCK:\n<<<<<<< HEAD\n  \"total_commits\": 5,\n  \"date_range\": \"2026-02-27\"\n=======\n  \"total_commits\": 6,\n  \"date_range\": \"2026-02-26\"\n>>>>>>> origin/pdh-deployed-backup\n\nCONTEXT (surrounding code):\n      }\n    ],\n    \"total_commits\": 5,\n    \"date_range\": \"2026-02-27\"\n    \"total_commits\": 6,\n    \"date_range\": \"2026-02-26\"\n  }\n\nRESOLUTION REQUIREMENTS:\n1. Analyze each conflict and provide the EXACT code to replace the conflict markers\n2. Consider the risk level and suggested action for each conflict\n3. Ensure the merged code maintains functionality from both branches\n4. Remove ALL conflict markers (<<<<<<<, =======, >>>>>>>)\n5. Provide the complete resolved code for each file\n\nOUTPUT FORMAT:\nFor each file, provide:\n1. Brief explanation of the resolution approach\n2. The complete resolved code block to replace the conflict\n3. Any notes about potential issues or testing needed\n\nPlease provide the exact resolved code that I can copy and paste directly into each file to fix all merge conflicts."
   }
 }
